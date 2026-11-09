@@ -1468,6 +1468,17 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
   background: var(--surface-2); color: var(--text); font-family: var(--mono-font); font-size: 13px; line-height: 1.5;
   white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 2;
 }
+/* Task M7-A: the Test tab (its Start a primary 44px button, the blocking note under it) and the game's test bar above the feed. */
+.cr-test .cr-field select.input { width: 100%; max-width: 22em; min-height: var(--tap); }
+.cr-test .cr-field input.input { width: 100%; max-width: 12em; min-height: var(--tap); }
+.cr-test-go { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.cr-test-go .btn { min-height: var(--tap); }
+.cr-test-go .cr-err { flex: 1 1 100%; order: 2; margin: 0; }
+.cr-test-go .cr-err + .btn { order: 3; }
+.test-bar { border-bottom-color: var(--accent); }
+.test-bar #test-bar-text { display: block; color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
+.test-bar .test-bar-note { display: block; color: var(--muted); }
+#app.typing #test-bar { display: none; }
 /* Task M5-B: the form (Creator.Form), the problems and the JSON view. A section inside a section is a quieter card. */
 .cr-sub { padding: 14px 14px 2px; margin: 4px 0 18px; border-radius: 12px; background: color-mix(in srgb, var(--surface-2) 55%, transparent); }
 .cr-sub-title { margin: 0 0 4px; font-family: var(--read-font); font-size: 17px; font-weight: 600; }
@@ -1962,6 +1973,11 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
     <div class="bar-note warn" id="tab-bar" role="alert" hidden>
       <span id="tab-bar-text">This game is open in another tab, so this tab is read-only.</span>
       <button type="button" class="btn small" id="tab-bar-take">Play here instead</button>
+    </div>
+    <!-- Wave 37, Creator Mode, milestone 7 (task M7-A): a game started from a Creator draft says so, with the way back. -->
+    <div class="bar-note test-bar" id="test-bar" role="region" aria-label="Test game" hidden>
+      <span class="test-bar-what"><b id="test-bar-text">Testing</b><span class="test-bar-note">A test game; its autosave keeps playing from this version of the story.</span></span>
+      <button type="button" class="btn small" id="test-bar-back">Back to the editor</button>
     </div>
     <div class="game-body" id="game-body">
       <div class="story">
@@ -20889,6 +20905,8 @@ const State = (() => {
       ties: {},
       hearsay: []
     };
+    // Wave 37, Creator Mode (task M7-A): a test game from a Creator draft says so; a normal game's meta stays as it was.
+    if (opts.source === 'draft') Object.assign(st.meta, { packSource: 'draft' }, typeof opts.draftId === 'string' ? { draftId: opts.draftId } : {});
     undoSwitch();
     current = st;
     // Wave 37, Creator Mode: the save's working copy leaves out the static world keys (Pack.townOf), which the pack keeps.
@@ -39965,6 +39983,8 @@ const UI = (() => {
     'menu-list', 'continue-group', 'title-newer-note', 'act-btn-m', 'queued-text', 'queued-cancel', 'tab-bar-text', 'cr-errsum', 'undo-row', 'undo-btn',
     // Wave 37, Creator Mode: the title's story pack line and the autosave's pack note.
     'title-pack', 'title-pack-note',
+    // Wave 37, Creator Mode, milestone 7 (task M7-A): the game's test bar and the Creator's Test tab.
+    'test-bar', 'test-bar-text', 'test-bar-back', 'creator-test-panel', 'creator-test-bg', 'creator-test-seed', 'creator-test-start', 'creator-test-problems',
     /* Wave 37, Creator Mode, milestone 5 (task M5-A): the title's Create, Settings' Developer mode, and every
        Creator element id for milestones 5 to 8 in one place (plan, "Ids and CSS up front"), so later tasks never
        share an anchor. The Library and the editor shell are drawn now; the ids from creator-problems on are for
@@ -40105,7 +40125,8 @@ const UI = (() => {
     d.settingsForm.addEventListener('submit', e => e.preventDefault());
     d.settingsDone.addEventListener('click', back);
     d.setReread.addEventListener('click', () => App.updateGame());
-    d.settingsQuit.addEventListener('click', () => App.quitToTitle());
+    // Wave 37, Creator Mode (task M7-A): a test game's Quit goes back to its draft in the editor, where the author came from.
+    d.settingsQuit.addEventListener('click', () => (testGame() ? backToEditor() : App.quitToTitle()));
     d.setCheckKey.addEventListener('click', checkKey);
     d.savesDone.addEventListener('click', back);
     d.btnExport.addEventListener('click', () => { try { Storage.exportSave(); toast('Exported.'); renderLastExport(); } catch (e) { d.savesError.textContent = e.message; } });
@@ -40602,6 +40623,7 @@ const UI = (() => {
     renderPanel();
     renderComposer();
     renderDemoBar();
+    renderTestBar();
     markUndo();
   }
   /* The slim bar while the offline demo is on (closed for the page load with ×). */
@@ -40613,6 +40635,32 @@ const UI = (() => {
       d.demoBarText.textContent = 'Offline demo: replies are canned.';
       d.demoBarAct.textContent = Storage.getApiKey() ? 'Play with Claude' : 'Add key';
     }
+  }
+  /* Wave 37, Creator Mode, milestone 7 (task M7-A; plan decision H, "Test
+     from draft"): a game App.newGameFrom started from a Creator draft
+     (meta.packSource 'draft') shows "Testing: <title>" above the feed, with
+     Back to the editor, whenever it is on screen: after the start, and after
+     Continue or a load of its autosave. The title is the frozen pack's
+     (State.pack), the version the game plays, not the draft as it is now. */
+  function testGame() { const s = State.current; return !!s && !State.muted && isObj(s.meta) && s.meta.packSource === 'draft'; }
+  function renderTestBar() {
+    if (!d.testBar) return;
+    const on = testGame();
+    d.testBar.hidden = !on;
+    if (!on) return;
+    const m = State.pack && isObj(State.pack.meta) ? State.pack.meta : {};
+    d.testBarText.textContent = `Testing: ${m.title || m.id || 'Untitled story'}`;
+    d.testBarBack.onclick = backToEditor;
+  }
+  /* Back to the editor (the bar, Settings' Quit in a test game): the game is
+     left as Settings' Quit leaves it (App.quitToTitle, which refuses with a
+     hand on the table), then the draft opens in the editor on its Test tab;
+     a draft deleted since opens the Library and says so (Creator.openEditor). */
+  function backToEditor() {
+    const id = testGame() ? State.current.meta.draftId : null;
+    if (!App.quitToTitle()) return false;
+    if (Creator.openEditor(id)) Creator.selectTab('test');
+    return true;
   }
   /* Another tab wrote the autosave: this one stops saving and says so. */
   function otherTab(on) {
@@ -44408,6 +44456,7 @@ const UI = (() => {
     $$('input[name="set-theme"]').forEach(r => { r.checked = r.value === theme; });
     $$('input[name="set-size"]').forEach(r => { r.checked = r.value === s.textSize; });
     d.settingsQuit.hidden = !App.inGame();
+    d.settingsQuit.textContent = testGame() ? 'Back to the editor' : 'Quit to title';
     const loaded = gameLoaded();
     d.setReread.disabled = busy || !loaded;
     d.setRereadNone.hidden = loaded;
@@ -45695,7 +45744,7 @@ const Creator = (() => {
     { id: 'prompts', label: 'Prompts', render: d => Prompts.render(d) },
     { id: 'json', label: 'JSON', render: d => renderJson(d) },
     { id: 'preview', label: 'Prompt view', render: d => Preview.render(d) }, // task M6-C: Show me the prompt
-    { id: 'test', label: 'Test', render: null }
+    { id: 'test', label: 'Test', render: d => Test.render(d) } // task M7-A: Test from a draft
   ].map(t => Object.freeze(t)));
   const NEXT_TASK_NOTE = 'This tab arrives with the next task.';
   /* A tab that is not drawn yet: its name and the note (renderBody draws the same for a tab with no render). */
@@ -45795,6 +45844,7 @@ const Creator = (() => {
     node('creator-redo').disabled = !work || !work.redo.length;
     node('creator-save').disabled = !work;
     node('creator-save').title = 'Save as pack: check the story and keep it in your Library';
+    node('creator-test').disabled = !work; // task M7-A: a test game from the draft open (Test.start blocks on errors, as Save as pack does)
   }
   /* The draft into the editor: a working copy of its pack and its two stacks. */
   function load(id) {
@@ -46083,6 +46133,7 @@ const Creator = (() => {
     node('creator-undo').addEventListener('click', () => undo());
     node('creator-redo').addEventListener('click', () => redo());
     node('creator-save').addEventListener('click', () => saveAsPack());
+    node('creator-test').addEventListener('click', () => Test.start(state.draft, Test.choice())); // task M7-A: the header's Test is the tab's Start
     window.addEventListener('pagehide', () => { if (work) { Form.flush(); saveNow(); } });
     /* Wave 37, Creator Mode (review R6, M1): a hidden page too, as Storage's undo stack does: a phone may never
        send pagehide to a tab it closes from the switcher. Drafts.put writes at once with the database open. */
@@ -49372,7 +49423,90 @@ const Creator = (() => {
   })();
 
   // ----- Creator: Test -----
-  // (milestone 7: Test from a draft)
+  // (milestone 7, task M7-A: Test from a draft)
+  /* The Test tab (plan decision H, "Test from draft"): a real game from the
+     draft as it is now, in one tap. The sample character (Preview's
+     SAMPLE_CHARACTER: "Tester", the first flaw, the middle of the story's
+     ages) with the background picked here (the first by default), and a seed
+     (empty: random). It plays in the mode Settings has: the offline demo, or
+     the real narrator with the player's key. Errors block it as they block
+     Save as pack (a game cannot start on a broken story: the button is off,
+     the note counts them and a button goes to the Problems list); warnings
+     do not. The header's Test does the same as the tab's Start. Start keeps
+     the draft first (saveNow), then App.newGameFrom(a copy of the draft):
+     the game freezes its own copy, so editing the draft after never changes
+     it, and its autosave keeps playing the version it began with. */
+  const Test = (() => {
+    // What was picked, kept while the page lives (a background gone from the draft falls back to the first).
+    const pick = { backgroundId: null, seed: '' };
+    const backgrounds = d => (isObj(d) && isObj(d.player) && Array.isArray(d.player.backgrounds) ? d.player.backgrounds : []).filter(b => isObj(b) && typeof b.id === 'string' && b.id);
+    const plural = n => `${n} problem${n === 1 ? '' : 's'}`;
+    function liveMode() { return !Storage.settings().mockMode && !!Storage.getApiKey(); }
+    // { backgroundId, seed } as picked; seed undefined when empty, NaN when it is not a whole number from 0.
+    function choice() {
+      const bgs = backgrounds(state.draft);
+      const backgroundId = bgs.some(b => b.id === pick.backgroundId) ? pick.backgroundId : bgs.length ? bgs[0].id : null;
+      const raw = String(pick.seed).trim();
+      const seed = raw === '' ? undefined : /^\d{1,9}$/.test(raw) ? Number(raw) : NaN;
+      return { backgroundId, seed };
+    }
+    // The Overview's Problems list, scrolled to and focused (as Save as pack does when it stops).
+    function toProblems() {
+      if (state.tab !== 'overview') selectTab('overview');
+      const list = node('creator-problems');
+      if (list) { try { list.scrollIntoView({ block: 'start' }); } catch (e) { /* fine */ } list.focus({ preventScroll: true }); }
+    }
+    function render(d) {
+      // A fresh check: an undo drawn on this tab comes before its timed check, and the button must say what Start would do.
+      const errs = Pack.errors(check());
+      const bgs = backgrounds(d);
+      const c = choice();
+      const select = el('select', { class: 'input', id: 'creator-test-bg', 'aria-describedby': 'creator-test-bg-note', onchange: () => { pick.backgroundId = select.value; } },
+        bgs.map(b => el('option', { value: b.id, selected: b.id === c.backgroundId }, String(b.name || b.id))));
+      const seed = el('input', {
+        class: 'input', id: 'creator-test-seed', type: 'number', inputmode: 'numeric', min: '0', step: '1', placeholder: 'Random', autocomplete: 'off', value: pick.seed,
+        'aria-describedby': 'creator-test-seed-note', oninput: () => { pick.seed = seed.value; }
+      });
+      const blocked = errs.length > 0 || !bgs.length;
+      return el('section', { class: 'cr-section cr-test', id: 'creator-test-panel' },
+        el('h2', { class: 'cr-section-title' }, 'Test this story'),
+        el('p', { class: 'cr-note' }, `A fresh game from this draft as it is now, with a sample character, played ${liveMode() ? 'by the real narrator on your API key' : 'in the offline demo (canned replies)'}, as Settings has it. The draft is saved first; the game keeps this version of the story even after you edit it.`),
+        el('div', { class: 'cr-field' },
+          el('label', { class: 'label', for: 'creator-test-bg' }, 'Character'),
+          bgs.length ? select : el('p', { class: 'cr-err' }, 'This story has no background yet; add one on the Player tab.'),
+          el('p', { class: 'cr-note', id: 'creator-test-bg-note' }, 'Plays as "Tester", with this background\'s stats, the story\'s first flaw and an age in the middle of its range.')),
+        el('div', { class: 'cr-field' },
+          el('label', { class: 'label', for: 'creator-test-seed' }, 'Seed'),
+          seed,
+          el('p', { class: 'cr-note', id: 'creator-test-seed-note' }, 'Empty for a random game; the same number gives the same weather, dice and draws again.')),
+        el('div', { class: 'cr-test-go' },
+          el('button', { type: 'button', class: 'btn primary', id: 'creator-test-start', disabled: blocked, 'aria-describedby': errs.length ? 'creator-test-problems' : null, onclick: () => start(state.draft, choice()) }, 'Start a test game'),
+          errs.length ? el('p', { class: 'cr-err', id: 'creator-test-problems', role: 'status' }, `Fix the ${plural(errs.length)} first.`) : null,
+          errs.length ? el('button', { type: 'button', class: 'btn', onclick: toProblems }, 'Show the problems') : null));
+    }
+    /* Start: { backgroundId, seed } (choice()). False when it cannot start (no draft, errors, a bad seed, a turn
+       running, a background the draft does not have); else what App.newGameFrom gives (the state, or a promise
+       after the replace ask). */
+    function start(d, opts) {
+      Form.flush();
+      if (!work || !state.draft) return false;
+      const draft = isObj(d) ? d : state.draft;
+      const errs = Pack.errors(check());
+      if (errs.length) { UI.toast(`Fix ${plural(errs.length)} first.`); toProblems(); return false; }
+      const o = opts || {};
+      if (Number.isNaN(o.seed)) { UI.toast('The seed is a whole number from 0, or empty for a random game.'); const f = node('creator-test-seed'); if (f) f.focus(); return false; }
+      saveNow();
+      const character = Preview.SAMPLE_CHARACTER(draft);
+      const bg = backgrounds(draft).find(b => b.id === o.backgroundId);
+      if (bg) { character.backgroundId = bg.id; character.stats = isObj(bg.stats) ? Object.assign({}, bg.stats) : undefined; }
+      const fail = e => { UI.toast(`The test game could not start: ${sentence(e && e.message ? e.message : String(e))}.`); return false; };
+      try {
+        const r = App.newGameFrom(Pack.copy(draft), character, { seed: o.seed, draftId: state.draftId });
+        return r && typeof r.then === 'function' ? r.catch(fail) : r;
+      } catch (e) { return fail(e); }
+    }
+    return { render, start, choice };
+  })();
 
   // ----- Creator: Dev -----
   /* Wave 37, Creator Mode, milestone 7 (plan decision H, the Developer
@@ -49520,6 +49654,7 @@ const Creator = (() => {
     EntityTab, WorldTab,
     PlayerTab,
     Preview,
+    Test,
     // Task M7-B (wave 37, Creator Mode, milestone 7): the Developer overlay, the game panel's Dev tab (UI's PANELS.dev).
     Dev,
     get state() { return state; }
@@ -50040,6 +50175,34 @@ const App = (() => {
     return State.newGame(Pack.selected(), character, { seed: Number.isInteger(s) ? s : undefined, pending: true });
   }
   function cancelPrepare() { if (State.muted) State.clear(); }
+  /* Wave 37, Creator Mode, milestone 7 (task M7-A; plan decision H, "Test
+     from draft"): a real game from a Creator draft, in one tap from the
+     editor's Test. pack is a copy of the draft (State.newGame freezes its own
+     copy, so editing the draft later never changes this game), character the
+     sample one; opts { seed, draftId }. meta.packSource 'draft' and
+     meta.draftId say where it came from (the test bar, Settings' Quit). An
+     autosave that is only in the autosave is asked about first, as New game
+     does ("A test of <title> takes its place"), unless it is itself a test
+     game: an author tests again and again, and losing a test game loses
+     nothing (it still goes to the previous autosave). Then the same begin()
+     as New game's (the arrival narrated in live mode, the opening text
+     otherwise). Returns the state, false when refused, or a promise of
+     either after the ask. */
+  function newGameFrom(pack, character, opts) {
+    if (turnRunning()) return false;
+    const o = opts || {};
+    const go = () => {
+      if (turnRunning()) return false;
+      inGame = false;
+      State.newGame(pack, character, { seed: Number.isInteger(o.seed) ? o.seed : undefined, pending: true, source: 'draft', draftId: o.draftId });
+      return begin();
+    };
+    const auto = unsaved(null);
+    const test = auto && isObj(auto.state.meta) && auto.state.meta.packSource === 'draft';
+    const title = isObj(pack) && isObj(pack.meta) ? pack.meta.title || pack.meta.id : '';
+    if (auto && !test) return askReplace(auto, `A test of ${title || 'this story'}`).then(yes => (yes ? go() : false));
+    return go();
+  }
   /* With mock mode off and a key set, the arrival is narrated (MODE
      arrival) and streams in after the game screen shows; otherwise, or if
      that fails, the local opening text is used. Either way a short tip on
@@ -50294,7 +50457,7 @@ const App = (() => {
   }
   /* Test and console shortcut: create and begin without the form. */
   function quickStart(character, opts) { return prepare(character, opts) ? begin() : null; }
-  return { boot, newGame, prepare, cancelPrepare, begin, enter, continueGame, loadSlot, restorePrevious, updateGame, updateSave, setPronouns, editPerson, quitToTitle, quickStart, flushNotes, playHere, newerRules, BUSY_NOTICE, NEWER_NOTICE, inGame: () => inGame };
+  return { boot, newGame, newGameFrom, prepare, cancelPrepare, begin, enter, continueGame, loadSlot, restorePrevious, updateGame, updateSave, setPronouns, editPerson, quitToTitle, quickStart, flushNotes, playHere, newerRules, BUSY_NOTICE, NEWER_NOTICE, inGame: () => inGame };
 })();
 
 // ===== Game: the one global (tests drive the engine through it) =====

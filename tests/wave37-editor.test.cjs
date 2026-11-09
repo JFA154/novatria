@@ -40,6 +40,8 @@ const shot = async (page, name) => {
 };
 // Task M6-C draws the Prompt view (tests/wave37-prompt-view.test.cjs); a line of its own, so the milestone's tasks add theirs apart.
 DRAWN['Prompt view'] = 'Show me the prompt';
+// Task M7-A draws the Test tab (tests/wave37-test-play.test.cjs tests it).
+DRAWN.Test = 'Test this story';
 
 /* A page with the Library and the drafts read, and the mock answering at once. */
 async function open(h, opts) {
