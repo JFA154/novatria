@@ -13,7 +13,9 @@
    npcIdsBySchedule. The details and the grid pass the mobile audit at 375
    and 390, and screenshots of the People list, a person and the grid at
    390x844 and 1280x800 in the Dark and Parchment themes go to $UI_SHOTS
-   when it names a folder.
+   when it names a folder. Task M6-E2 adds the Town list (first on the strip):
+   the town's fields, the romance chips, the gates, the JSON-only lists, the
+   Problems route to it, and the Starting state disclosure.
    Run with: node tests/run.cjs wave37-editor-world */
 const fs = require('fs');
 const path = require('path');
@@ -186,7 +188,8 @@ s.test('the World tab: its strip (Places, People, Schedules) with error badges; 
   await openDraft(page, 'copy');
   await page.click('#creator-tab-world');
   assert.deepEqual(await page.$$eval('#creator-body .cr-subtab', bs => bs.map(b => [b.id, b.firstChild.textContent, b.getAttribute('aria-selected')])),
-    [['cr-world-places', 'Places', 'true'], ['cr-world-people', 'People', 'false'], ['cr-world-schedules', 'Schedules', 'false'],
+    // Task M6-E2: Town leads the strip, added through WorldTab.addSub with { first: true }, and the tab opens on it.
+    [['cr-world-town', 'Town', 'true'], ['cr-world-places', 'Places', 'false'], ['cr-world-people', 'People', 'false'], ['cr-world-schedules', 'Schedules', 'false'],
       // Task M5-C2: the story lists follow, added through WorldTab.addSub.
       ['cr-world-factions', 'Factions and Clocks', 'false'], ['cr-world-threads', 'Threads', 'false'], ['cr-world-rumours', 'Rumours', 'false'],
       ['cr-world-story', 'Events and Seeds', 'false'], ['cr-world-goods', 'Goods', 'false']]);
@@ -233,8 +236,9 @@ s.test('adding a place through the Places tab makes loc_<slug> with four empty p
   const page = await open(h);
   await openDraft(page, 'blank');
   await worldTab(page, 'places');
-  assert.deepEqual(await page.$$eval('.cr-entity[data-entity="places"] .cr-entity-list [data-path]', cs => cs.map(c => c.dataset.path)), ['world.startLocationIds.gate', 'world.startLocationIds.docks'], 'Start places above the list');
-  assert.equal(await page.textContent('.cr-entity[data-entity="places"] .cr-entity-list .cr-section-title'), 'Start places');
+  // Task M6-E2: the start places moved to the Town list; the Places list starts with its own heading and line.
+  assert.deepEqual(await page.$$eval('.cr-entity[data-entity="places"] .cr-entity-list [data-path]', cs => cs.map(c => c.dataset.path)), [], 'no start places above the list');
+  assert.equal(await page.textContent('.cr-entity[data-entity="places"] .cr-entity-list .cr-section-title'), 'Places');
   const a = await addThrough(page, 'places', 'The Low Water');
   assert.equal(a, 'loc_low_water');
   const rec = (await draft(page)).world.locations[0];
@@ -836,6 +840,75 @@ s.test('the five story lists pass the mobile audit at 375 and 390: each list, a 
       await shot(page, `creator-world-goods-${vp.width}x${vp.height}-${theme}`);
     }
   }
+});
+
+/* Task M6-E2 (the reviewer's S1, S2 and S6): the Town list leads the World strip and draws the town's own fields (the
+   start places and the law as pickers), the romance list as people chips with the minor rule under them, the gates,
+   and the lists only the JSON tab edits; a World problem in Problems opens the list that owns it; a person's and a
+   place's starting state sit in one disclosure; every entity list has its line under the heading. */
+s.test('the Town list: first on the World strip, the town\'s fields with pickers, romance chips with the minor rule under them, the gates, the JSON-only lists; Problems routes to it; Starting state and the list lines', async h => {
+  const page = await open(h);
+  await openDraft(page, 'copy');
+  await page.click('#creator-tab-world');
+  await page.waitForSelector('#cr-world-body[data-sub="town"]');
+  const t = await page.evaluate(() => {
+    const b = document.getElementById('cr-world-body');
+    const paths = [...b.querySelectorAll('[data-path]')].map(n => n.dataset.path);
+    return {
+      heads: [...b.querySelectorAll('h2')].map(x => x.textContent),
+      town: ['world.name', 'world.setting', 'world.history', 'world.year', 'world.calendar.season', 'world.calendar.startDate', 'world.currency.symbol', 'world.currency.words',
+        'world.startLocationIds.gate', 'world.startLocationIds.docks', 'world.policeHead', 'world.policeFallback', 'world.law.factionId', 'world.law.arrestPlaceId', 'world.law.newsTemplate'].filter(p => !paths.includes(p)),
+      gate: [b.querySelector('[data-path="world.startLocationIds.gate"]').tagName, b.querySelector('[data-path="world.startLocationIds.gate"]').value, b.querySelector('[data-path="world.law.headNpcId"]').value],
+      chips: [...b.querySelectorAll('[data-path="world.romance"] .cr-chip-item')].map(c => c.dataset.id),
+      cards: b.querySelectorAll('details.cr-romance').length,
+      gates: ['world.gates.council.royce.trust', 'world.gates.council.royce.knows', 'world.gates.epilogue.loretta.liking'].filter(p => !paths.includes(p)),
+      json: [...b.querySelectorAll('[data-elsewhere="json"]')].map(n => n.closest('[data-field]').dataset.field + ': ' + n.textContent),
+      want: Game.Creator.state.draft.world.romance.map(r => r.npcId)
+    };
+  });
+  assert.deepEqual(t.heads, ['The town', 'Romance', 'Gates', 'On the JSON tab']);
+  assert.deepEqual(t.town, [], 'every town field has its control');
+  assert.deepEqual(t.gate, ['SELECT', 'loc_pittmans', 'npc_marcus'], 'start places and the law are pickers of the draft\'s own');
+  assert.deepEqual(t.chips, t.want, 'a chip a person on the romance list');
+  assert.equal(t.cards, t.want.length, 'and a card each for their pace');
+  assert.deepEqual(t.gates, []);
+  assert.deepEqual(t.json.map(x => x.split(':')[0]), ['world.ties', 'world.secretTies', 'world.map', 'world.recent', 'world.offstage']);
+  assert.match(t.json[0], /^world\.ties: \d+ ties: edited on the JSON tab$/);
+  // A teenager added to the romance list: the minor rule shows under the chips, counts on the Town button, and Problems opens Town.
+  await page.selectOption('#cr-f-world-romance-add', 'npc_kaylee');
+  await page.evaluate(() => Game.Creator.Editor.check());
+  const err = await page.textContent('#cr-f-world-romance-err');
+  assert.match(err, /^\[12\]\.npcId: Npc_kaylee is under 18: nobody under 18 is ever on the romance list\.?$/, 'the minor rule alone: a new entry starts at the Rules tab\'s pace');
+  assert.deepEqual((await draft(page)).world.romance[12], await page.evaluate(() => ({ npcId: 'npc_kaylee', sparkRate: Game.Pack.DEFAULTS.rules.romance.defaults.sparkRate, opensAt: { knows: Game.Pack.DEFAULTS.rules.romance.defaults.opensAt }, difficulty: Game.Pack.DEFAULTS.rules.romance.defaults.difficulty })));
+  assert.equal(await subCount(page, 'town'), 1);
+  await worldTab(page, 'people');
+  await page.click('#creator-tab-overview');
+  await page.click('#creator-problems .cr-problem[data-problem="world.romance[12].npcId"]');
+  await page.waitForSelector('#cr-world-body[data-sub="town"]');
+  assert.equal(await page.evaluate(() => Game.Creator.WorldTab.subFor('world.law.headNpcId')), 'town');
+  assert.equal(await page.evaluate(() => Game.Creator.WorldTab.subFor('world.locations[0].name')), 'places');
+  await page.click('#creator-undo');
+  // Starting state: a person's attitude, alive and known, a place's closed; memories and buried noted for the JSON tab.
+  await worldTab(page, 'people');
+  await page.click('.cr-entity[data-entity="people"] .cr-row[data-id="npc_royce"]');
+  const k = await page.evaluate(() => Game.Creator.state.draft.world.npcs.findIndex(n => n.id === 'npc_royce'));
+  await page.click('details.cr-start[data-start="npc:npc_royce"] > summary');
+  assert.deepEqual(await page.$$eval('details.cr-start [data-path]', ns => ns.map(n => n.dataset.path)), [`world.npcs[${k}].attitude`, `world.npcs[${k}].alive`, `world.npcs[${k}].knownToPlayer`]);
+  assert.match(await page.textContent('.cr-entity-detail .cr-json-only'), /memories and where they are buried .* the JSON tab shows them/);
+  await page.check(`[data-path="world.npcs[${k}].knownToPlayer"]`);
+  assert.equal((await draft(page)).world.npcs[k].knownToPlayer, true);
+  await worldTab(page, 'places');
+  await page.click('.cr-entity[data-entity="places"] .cr-row');
+  assert.equal(await page.$$eval('details.cr-start [data-path]', ns => ns.map(n => n.dataset.path.replace(/\[\d+\]/, '[]')).join()), 'world.locations[].closed');
+  // A line under every entity list's heading (S6).
+  const lines = {};
+  for (const sub of ['places', 'people', 'factions', 'threads', 'rumours', 'story']) {
+    await worldTab(page, sub);
+    Object.assign(lines, await page.$$eval('.cr-entity-list', ls => Object.fromEntries(ls.map(l => [l.closest('.cr-entity').dataset.entity, (l.querySelector('.cr-list-head + .cr-note') || {}).textContent || '']))));
+  }
+  await page.click('#creator-tab-player');
+  Object.assign(lines, await page.$$eval('.cr-entity-list', ls => Object.fromEntries(ls.map(l => [l.closest('.cr-entity').dataset.entity, (l.querySelector('.cr-list-head + .cr-note') || {}).textContent || '']))));
+  for (const key of ['places', 'people', 'factions', 'threads', 'rumours', 'seeds', 'events', 'backgrounds']) assert.ok(lines[key] && lines[key].length <= 110, `${key}: "${lines[key]}"`);
 });
 
 s.run();

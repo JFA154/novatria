@@ -24,8 +24,9 @@ const s = suite('wave37-editor');
 const SIZES = [{ width: 375, height: 740 }, { width: 390, height: 844 }];
 const TAB_LABELS = ['Overview', 'World', 'Player', 'Opening', 'Narrator', 'Directions', 'Rules', 'Freedom', 'Prompts', 'JSON', 'Prompt view', 'Test'];
 const PLACEHOLDER = 'This tab arrives with the next task.';
-// Task M5-B draws these two tabs, task M5-C1 the World tab (Places first, its Start places above the list); the first heading each shows.
-const DRAWN = { Overview: 'About this story', World: 'Start places', Player: 'Backgrounds', JSON: 'Your story as JSON' };
+// Task M5-B draws these two tabs, task M5-C1 the World tab; the first heading each shows. Task M6-E2 puts the Town list first
+// on the World strip (the start places moved there from above the Places list), so the World tab opens on "The town".
+const DRAWN = { Overview: 'About this story', World: 'The town', Player: 'Backgrounds', JSON: 'Your story as JSON' };
 // Task M6-A draws the Opening, Narrator, Directions and Prompts tabs (tests/wave37-editor-narrator.test.cjs tests them).
 Object.assign(DRAWN, { Opening: 'Opening', Narrator: 'Voice', Directions: 'Directions', Prompts: 'Prompts' });
 // Task M6-B draws the Rules and Freedom tabs.
@@ -520,12 +521,16 @@ s.test('a blank draft opens on the Overview: the title field, the id read-only i
     };
   });
   assert.deepEqual(f.order.slice(0, 4), ['meta.title', 'meta.id', 'meta.author', 'meta.version']);
-  assert.deepEqual(f.order.slice(-6), ['setting.era', 'setting.blurb', 'opening.premise', 'opening.text', 'meta.storyText', 'meta.notes']);
+  // Task M6-E2: the rest of setting follows the era and the blurb (every setting field has a control now).
+  assert.deepEqual(f.order.slice(-17), ['setting.era', 'setting.blurb', 'setting.locale.nameAllow', 'setting.locale.brandPhrases', 'setting.locale.givenNames',
+    'setting.vocabulary.police', 'setting.vocabulary.essentials', 'setting.vocabulary.teen', 'setting.vocabulary.lodging',
+    'setting.phaseLabels.morning', 'setting.phaseLabels.afternoon', 'setting.phaseLabels.evening', 'setting.phaseLabels.night',
+    'opening.premise', 'opening.text', 'meta.storyText', 'meta.notes']);
   assert.deepEqual(f.title, ['INPUT', 'text', 'Untitled story', 'Title']);
   assert.deepEqual(f.id.slice(1), [true, true, true, true]);
   assert.match(f.id[0], /^untitled-story-[a-z0-9]{4}$/);
   assert.deepEqual(f.story.slice(0, 4), ['TEXTAREA', 'Your story, in your words…', 40000, 'Your story, in your words']);
-  assert.match(f.story[4], /stays in the pack and is never sent to the game's narrator\.$/);
+  assert.match(f.story[4], /never sent to the narrator\.$/, 'one sentence under the heading (task M6-E2); the rest under More about this');
   assert.deepEqual(f.rating, ['', 'general', 'teen', 'mature', 'adult'], 'an enum the pack need not set has a "Not set" choice');
   assert.equal(f.notes, 'TEXTAREA');
   assert.match(f.about, /^About this file: untitled-story-[a-z0-9]{4} · version 0\.1\.0 · hash [0-9a-f]{8} · [\d.]+ KB · 10% complete$/);

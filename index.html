@@ -1273,13 +1273,14 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .cr-card-more .btn:hover { color: var(--text); }
 .cr-card-more .btn.danger { color: var(--danger); }
 .cr-card .cr-note { margin: -4px 0 0; }
-/* The rating chip, tinted by data-rating. */
+/* The rating chip, tinted by data-rating. Task M6-E2 (N9): "Adult" with a capital beside the badges' capitals, not
+   "adult"; a rating is one word, so capitalize is its first letter (an inline-flex box has no ::first-letter). */
 .cr-chip {
   --cr-tint: var(--muted);
   display: inline-flex; align-items: center; min-height: 22px; padding: 0 9px; border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--cr-tint) 55%, transparent);
   background: color-mix(in srgb, var(--cr-tint) 14%, transparent);
-  color: var(--cr-tint); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: lowercase; white-space: nowrap;
+  color: var(--cr-tint); font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: capitalize; white-space: nowrap;
 }
 .cr-chip[data-rating="general"] { --cr-tint: var(--cr-general); }
 .cr-chip[data-rating="teen"] { --cr-tint: var(--cr-teen); }
@@ -1337,9 +1338,13 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .cr-pblock-num { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cr-pblock > .cr-note { margin: 0 0 10px; }
 .cr-preview .cr-pre { max-height: 55vh; }
-/* The tab strip: the game's panel tabs (underline in the accent), scrolling sideways when eleven do not fit. */
+/* The tab strip: the game's panel tabs (underline in the accent), scrolling sideways when eleven do not fit.
+   Wave 37, Creator Mode, task M6-E2 (the reviewer's M2): a sticky box sticks at the scroller's content edge, which
+   .page's 24px top padding insets, so at top: 0 the fields scrolled past showed through a 24px band above the strip;
+   top: -24px puts it at the scroller's top, still below the safe-area inset (.page's padding adds --sat to the 24px,
+   at every width). */
 .panel-tabs.cr-tabs {
-  position: sticky; top: 0; z-index: 2;
+  position: sticky; top: -24px; z-index: 2;
   margin: 0 0 16px; padding: 0 2px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain;
   scrollbar-width: none; -webkit-overflow-scrolling: touch; background: var(--bg); border-bottom: 1px solid var(--border);
 }
@@ -1390,9 +1395,12 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .cr-field > .cr-note { margin: 0; }
 .cr-field .input { font-size: 16px; }
 .cr-field textarea.input { min-height: 7em; resize: vertical; line-height: 1.45; }
-/* A bottom action bar on phones (Back, Save), above the safe area. */
+/* A bottom action bar on phones (Back, Save), above the safe area. Task M6-E2 (M2): sticky at bottom: 0 it stopped
+   .page's bottom padding (32px and the safe-area inset) short of the scroller's bottom, and the form showed through
+   under it; the negative bottom takes it to the very edge, and its own padding already keeps Back and Save above
+   the safe area. */
 .cr-sticky {
-  position: sticky; bottom: 0; z-index: 3; display: flex; gap: 10px; justify-content: flex-end;
+  position: sticky; bottom: calc(-32px - var(--sab)); z-index: 3; display: flex; gap: 10px; justify-content: flex-end;
   margin: 16px calc(-16px - var(--sar)) calc(-32px - var(--sab)) calc(-16px - var(--sal));
   padding: 10px calc(16px + var(--sar)) calc(10px + var(--sab)) calc(16px + var(--sal));
   background: var(--surface); border-top: 1px solid var(--border);
@@ -1536,7 +1544,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .cr-danger { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 /* Four small fields in two columns (a place's spot on the map: x, y, label, side). */
 .cr-quad .cr-sub, .cr-quad.cr-section { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12px; }
-.cr-quad > .cr-section-title, .cr-quad > .cr-note, .cr-quad > .cr-sub-title { grid-column: 1 / -1; }
+.cr-quad > .cr-section-title, .cr-quad > .cr-note, .cr-quad > .cr-sub-title, .cr-quad > .cr-disclosure { grid-column: 1 / -1; }
 /* A person's relations: whom, the word, remove; the note offering the reverse under the row. */
 .cr-rels { display: grid; gap: 12px; margin: 0 0 14px; }
 .cr-rel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) var(--tap); gap: 8px; align-items: start; }
@@ -1595,6 +1603,12 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .cr-fx-what { font-size: 14px; color: var(--danger); overflow-wrap: anywhere; }
 .cr-fx-row .input, .cr-fx-addrow .input, .cr-cond .input, .cr-maprow .input { font-size: 16px; }
 .cr-fx-fields { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+/* Task M6-E2 (S5): under 480px an op's name in full ("Set a flag (setFlag)") does not fit beside the number and the
+   remove x, and the select cut it to "Set a f…"; there the select takes a row of its own under them. */
+@media (max-width: 479px) {
+  .cr-fx-head > .cr-fx-op { grid-column: 1 / -1; grid-row: 2; }
+  .cr-fx-head > .cr-fx-x { grid-column: 3; grid-row: 1; justify-self: end; }
+}
 /* A select is as wide as its longest choice (an op named in full, a long thread title) unless its box says otherwise. */
 .cr-fx select.input, .cr-cond select.input, .cr-alt select.input, .cr-trigger select.input, .cr-branches select.input { width: 100%; max-width: 100%; min-width: 0; text-overflow: ellipsis; }
 .cr-fx-fields .cr-field { margin-bottom: 12px; }
@@ -1602,7 +1616,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .cr-fx-addrow { display: flex; flex-wrap: wrap; gap: 8px; }
 .cr-fx-addrow .input { flex: 1 1 14em; width: auto; min-width: 0; }
 .cr-fx-nested { min-width: 0; padding: 10px 0 0; border-top: 1px dashed var(--border); }
-.cr-fx-nested-title { margin: 0 0 8px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.cr-fx-nested-title { margin: 0 0 8px; font-family: var(--read-font); font-size: 16px; font-weight: 600; } /* Task M6-E2 (N8): Literata 16px, as every other heading in the editor is, not the system sans in capitals. */
 .cr-fx .cr-fx, .cr-fx .cr-cond, .cr-fx .cr-alt { background: var(--surface-2); }
 .cr-cond-key { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; min-width: 0; padding: 8px 0 0; border-top: 1px solid var(--border); }
 .cr-cond-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -1677,7 +1691,7 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .cr-addrow > .btn { min-width: var(--tap); }
 /* The romance gates two by two, as the difficulty numbers' card (cr-quad there is a section; here it is a sub-card). */
 .cr-sub.cr-quad { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12px; }
-.cr-sub.cr-quad > .cr-sub-title, .cr-sub.cr-quad > .cr-note { grid-column: 1 / -1; }
+.cr-sub.cr-quad > .cr-sub-title, .cr-sub.cr-quad > .cr-note, .cr-sub.cr-quad > .cr-disclosure { grid-column: 1 / -1; }
 
 /* ===== Layout switches ===== */
 @media (min-width: 900px) {
@@ -46052,7 +46066,34 @@ const Creator = (() => {
      the pack and is never sent to a game prompt), the notes, then Problems
      (every problem check() found, each a button to the tab that owns it)
      and a line about the file. */
-  const STORY_NOTE = 'Write it the way you would tell it: the place, the people, what is going on, how it can end. It stays in the pack and is never sent to the game\'s narrator.';
+  const STORY_NOTE = 'The place, the people, what is going on and how it can end; never sent to the narrator.';
+  const STORY_MORE = 'Write it the way you would tell it, in any form. It stays in the pack and is never sent to the game\'s narrator.';
+  /* Wave 37, Creator Mode, task M6-E2 (the reviewer's S1): the rest of setting, so every field of it has a control:
+     the names and brands the style check lets through, the world's words for a few things, its names for the times
+     of day. The schema labels each list; the line of help under each is added here on a copy of the node (the schema
+     is never written), saying what the list is for. */
+  const SETTING_HELP = Object.freeze({
+    'locale.nameAllow': 'Single words the narrator may use as names here: a street, a boat, a saint.',
+    'locale.brandPhrases': 'Brands and names of two words or more that belong in this world, such as Nebula Cola.',
+    'locale.givenNames': 'First names the style check should know, beyond the common ones it already knows.',
+    'vocabulary.police': 'What people here call the police: the sheriff, the law, the watch.',
+    'vocabulary.essentials': 'The everyday things a person buys here: gas, bread, a phone card.',
+    'vocabulary.teen': 'Words that mark someone as under 18 in this world, such as student.',
+    'vocabulary.lodging': 'What a bed for the night is called here: a motel room, a bunk, a berth.'
+  });
+  function settingRest(d, on) {
+    const S = Pack.SCHEMA.fields.setting;
+    const fields = Object.assign({}, S.fields);
+    for (const k of ['locale', 'vocabulary']) {
+      const sub = S.fields[k];
+      const kids = {};
+      for (const f of Object.keys(sub.fields)) kids[f] = SETTING_HELP[`${k}.${f}`] ? Object.assign({}, sub.fields[f], { help: SETTING_HELP[`${k}.${f}`] }) : sub.fields[f];
+      fields[k] = Object.assign({}, sub, { fields: kids });
+    }
+    return Form.render(Object.assign({}, S, { fields }), d.setting, 'setting', on, {
+      skip: ['era', 'blurb'], title: 'Names, words and times of day', note: 'The names, words and times of day this world uses; leave a list empty for the game\'s own.'
+    });
+  }
   function renderOverview(d) {
     const S = Pack.SCHEMA.fields;
     const on = (path, value) => set(path, value);
@@ -46060,11 +46101,12 @@ const Creator = (() => {
     return [
       Form.render(S.meta, meta, 'meta', on, { skip: ['storyText', 'notes'] }),
       Form.render(S.setting, d.setting, 'setting', on, { only: ['era', 'blurb'], note: 'The kind of world the story is set in, in a word and a sentence.' }),
+      settingRest(d, on),
       Form.render(S.opening, d.opening, 'opening', on, { only: ['premise', 'text'] }),
-      el('section', { class: 'cr-section cr-story', dataset: { section: 'meta.storyText' } },
+      Opening.withMore(el('section', { class: 'cr-section cr-story', dataset: { section: 'meta.storyText' } },
         el('h2', { class: 'cr-section-title' }, 'Your story, in your words'),
         el('p', { class: 'cr-note' }, STORY_NOTE),
-        Form.render(S.meta.fields.storyText, meta.storyText, 'meta.storyText', on, { hideLabel: true, noHelp: true, minRows: 8 })),
+        Form.render(S.meta.fields.storyText, meta.storyText, 'meta.storyText', on, { hideLabel: true, noHelp: true, minRows: 8 })), STORY_MORE),
       el('section', { class: 'cr-section', dataset: { section: 'meta.notes' } },
         el('h2', { class: 'cr-section-title' }, 'Notes'),
         Form.render(Form.NOTES, meta.notes, 'meta.notes', on, { hideLabel: true })),
@@ -46091,7 +46133,9 @@ const Creator = (() => {
     sec.querySelector('.cr-problems').replaceChildren(...shown.map(p => {
       const tab = tabFor(p.path);
       const sev = p.severity === 'error' ? 'error' : 'warning';
-      return el('li', null, el('button', { type: 'button', class: 'cr-problem', dataset: { tab, problem: p.path || '', sev }, onclick: () => selectTab(tab, true) },
+      // Task M6-E2: a World problem opens the World list that owns its path (the town's fields, a person, a clock).
+      const go = () => { if (tab === 'world') WorldTab.route(p.path); selectTab(tab, true); };
+      return el('li', null, el('button', { type: 'button', class: 'cr-problem', dataset: { tab, problem: p.path || '', sev }, onclick: go },
         el('span', { class: 'cr-problem-path' }, p.path || 'the whole pack'),
         el('span', { class: 'cr-problem-msg' }, sentence(p.message)),
         el('span', { class: 'cr-problem-tab' }, `${sev === 'error' ? 'Error' : 'Warning'} · ${tabLabel(tab)} tab`)));
@@ -46177,10 +46221,11 @@ const Creator = (() => {
     /* EntityTab({ key, listPath, label, singular, idKind, nameField, fields, summary, onAdd, extraDetail, before, owns }):
        fields(entity, path, onChange, draft) and extraDetail(entity, path, draft) give the detail's nodes; summary(entity,
        draft) the row's second line; onAdd(name, ids, draft) the new record; before(draft) what sits above the list;
-       owns(path) which problems count on a row (Places leaves the schedules to their own tab). The view state (the
-       open id, the Add field, the search) survives a redraw, so Undo and a change elsewhere keep the place. */
+       owns(path) which problems count on a row (Places leaves the schedules to their own tab); note (task M6-E2, the
+       reviewer's S6) the one line under the list's heading, as IndexTab draws its own. The view state (the open id,
+       the Add field, the search) survives a redraw, so Undo and a change elsewhere keep the place. */
     function EntityTab(cfg) {
-      const c = Object.assign({ nameField: 'name', summary: () => '', fields: null, extraDetail: null, before: null, owns: null }, cfg);
+      const c = Object.assign({ nameField: 'name', summary: () => '', fields: null, extraDetail: null, before: null, owns: null, note: '' }, cfg);
       const view = { open: null, adding: false, renaming: false, query: '' };
       const listOf = d => arrOf(getAt(d, c.listPath));
       const indexOf = (d, id) => listOf(d).findIndex(x => isObj(x) && x.id === id);
@@ -46238,6 +46283,7 @@ const Creator = (() => {
             el('div', { class: 'cr-list-head' },
               el('h2', { class: 'cr-section-title' }, c.label),
               el('button', { type: 'button', class: 'btn small primary', dataset: { action: 'add' }, 'aria-expanded': String(view.adding), onclick: () => { view.adding = true; redraw('#' + addId); } }, `Add ${c.singular}`)),
+            c.note ? el('p', { class: 'cr-note' }, c.note) : null,
             view.adding ? addForm() : null,
             search,
             rowsBox));
@@ -46388,11 +46434,17 @@ const Creator = (() => {
     const LOC = () => Pack.SCHEMA.fields.world.fields.locations.of;
     const NPC = () => Pack.SCHEMA.fields.world.fields.npcs.of;
     function nameIn(list, id) { const x = list.find(y => y.id === id); return x && typeof x.name === 'string' && x.name.trim() ? x.name.trim() : String(id); }
-    /* The two arrival places (world.startLocationIds), above the list: the keys a background's arrival names. */
-    function startPlaces(d) {
-      return Form.render(Pack.SCHEMA.fields.world.fields.startLocationIds, getAt(d, 'world.startLocationIds'), 'world.startLocationIds', set, {
-        title: 'Start places', note: 'Where a new arrival starts: gate is the arrival by road and docks the arrival by river, the two keys the backgrounds\' arrivals use. They must be two different places in town.'
-      });
+    /* Task M6-E2 (the reviewer's S2): a record's state at the start of a game, which the engine changes as it plays
+       (how a person feels about the player, whether they live, whether the player knows them; whether a place is
+       shut), in one "Starting state" disclosure at the end of its detail, so it is there to set and out of the way.
+       memories and buried are lists and words the engine writes; the JSON tab shows them. The open state survives a
+       redraw, as the People "More" does. */
+    const startOpen = new Set();
+    function startingState(key, spec, x, path, only, note) {
+      const inner = Form.render(spec, x, path, (p, v) => set(p, v), { only, title: '', note });
+      const det = el('details', { class: 'cr-more cr-start', open: startOpen.has(key) ? true : null, dataset: { start: key } }, el('summary', null, 'Starting state'), inner);
+      det.addEventListener('toggle', () => { if (det.open) startOpen.add(key); else startOpen.delete(key); });
+      return det;
     }
     /* Exits are written on both sides (the validator's engine.location.symmetric): adding B to A's exits adds A to
        B's, removing it removes both; the whole list goes in one Editor.set, so one Undo undoes both sides. */
@@ -46438,10 +46490,11 @@ const Creator = (() => {
     const placesTab = EntityTab({
       key: 'places', listPath: 'world.locations', label: 'Places', singular: 'place', idKind: 'loc', nameField: 'name',
       placeholder: 'The Low Water',
+      note: 'Every place the player can go, with its exits; who is there when is on the Schedules tab.',
       // The schedules are the Schedules tab's problems, not the place's row.
       owns: p => !/^world\.locations\[\d+\]\.npcIdsBySchedule/.test(p),
       summary: x => [typeof x.type === 'string' && x.type ? x.type : 'place', x.away === true ? 'out of town' : plural(arrOf(x.exits).length, 'exit')].join(' · '),
-      before: startPlaces,
+      extraDetail: (x, path) => startingState('loc:' + x.id, LOC(), x, path, ['closed'], 'Shut when the game starts; the validator wants every place open on day 1.'),
       /* The brief's record, and closed: false (the validator's engine.location.state wants every place open at the start). */
       onAdd: (name, ids) => ({
         id: Pack.idFor('loc', name, ids), name, type: 'other', description: '', exits: [],
@@ -46544,14 +46597,14 @@ const Creator = (() => {
         redraw(`.cr-rel[data-index="${at}"] [data-action="relation-reverse"]`);
       };
       word.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addRel(); } });
-      return el('section', { class: 'cr-section cr-relations', dataset: { section: rpath, path: rpath } },
+      return Opening.withMore(el('section', { class: 'cr-section cr-relations', dataset: { section: rpath, path: rpath } },
         el('h2', { class: 'cr-section-title' }, 'Relations'),
-        el('p', { class: 'cr-note' }, 'Who each person is to them, in a word the engine knows: wife, boss, friend. Relations are written on both sides; when the other person does not list this one back, a note offers the reverse.'),
+        el('p', { class: 'cr-note' }, 'Who each person is to them, in a word the engine knows: wife, boss, friend.'),
         relWords(),
         el('div', { class: 'cr-rels' }, arrOf(x.relations).map((r, j) => relationRow(x, r, j, path, d))),
         el('div', { class: 'cr-rel-new' }, who, word,
           el('button', { type: 'button', class: 'btn small', dataset: { action: 'relation-add' }, disabled: !left.length, onclick: addRel }, 'Add relation')),
-        slot(rpath));
+        slot(rpath)), 'Relations are written on both sides; when the other person does not list this one back, a note offers the reverse.');
     }
     /* protector: a person's id or "nobody" is picked here; a list of people or { npcId, hidden } is shown, kept, and edited in the JSON. */
     function protectorField(x, path, d) {
@@ -46576,6 +46629,7 @@ const Creator = (() => {
     const peopleTab = EntityTab({
       key: 'people', listPath: 'world.npcs', label: 'People', singular: 'person', idKind: 'npc', nameField: 'name',
       placeholder: 'Loretta Gaddis',
+      note: 'Everyone the narrator may name: who they are, how they talk, what they want and hide.',
       summary: x => [typeof x.role === 'string' && x.role.trim() ? x.role.trim() : 'no role yet', Number.isInteger(x.age) ? String(x.age) : null, typeof x.pronouns === 'string' ? x.pronouns : null].filter(Boolean).join(' · '),
       /* Everyone must be on a schedule; a new person is put nowhere, and the validator says so (on this tab's badge)
          until the Schedules grid places them. pronouns is the schema's "they" (its enum has no "they/them"), and
@@ -46586,7 +46640,8 @@ const Creator = (() => {
       }),
       fields: (x, path, on) => [
         Form.render(NPC(), x, path, on, { only: ['name', 'pronouns', 'age', 'role', 'factionId', 'tags', 'home', 'status'], title: 'Who they are', note: 'The name the town knows them by, how they are spoken of, and where they belong.' }),
-        Form.render(NPC(), x, path, on, { only: ['presence', 'where', 'reach', 'died'], title: 'Where they are', note: 'Here: in town and somewhere every phase. Away: living elsewhere, with where and how to reach them. Dead: when and how they died.' }),
+        Opening.withMore(Form.render(NPC(), x, path, on, { only: ['presence', 'where', 'reach', 'died'], title: 'Where they are', note: 'In town, living elsewhere, or dead, and what that means for finding them.' }),
+          'Here: in town and somewhere every phase. Away: living elsewhere, with where and how to reach them. Dead: when and how they died.'),
         Form.render(NPC(), x, path, on, { only: ['look', 'voice', 'personality', 'goal', 'secret', 'history'], title: 'The writing', note: 'What the narrator reads to play them.' })
       ],
       extraDetail: (x, path, d) => {
@@ -46597,7 +46652,9 @@ const Creator = (() => {
         inner.append(protectorField(x, path, d));
         const more = el('details', { class: 'cr-more', open: moreOpen ? true : null }, el('summary', null, 'More'), inner);
         more.addEventListener('toggle', () => { moreOpen = more.open; });
-        return [relationsSection(x, path, d), more];
+        return [relationsSection(x, path, d), more,
+          startingState('npc:' + x.id, NPC(), x, path, ['attitude', 'alive', 'knownToPlayer'], 'How they feel about the player at the start, and whether they live and are known.'),
+          el('p', { class: 'cr-note cr-json-only', dataset: { elsewhere: 'json' } }, 'Their memories and where they are buried are kept by the game as it plays; the JSON tab shows them.')];
       }
     });
 
@@ -46689,14 +46746,22 @@ const Creator = (() => {
 
     // ----- the World tab's own strip -----
     /* { id, label, owns(path), render(draft), tab? }: owns says which problems count on its button; tab (an EntityTab)
-       has its rows' counts refreshed after each check. The next task adds its lists with addSub. */
+       has its rows' counts refreshed after each check. The next task adds its lists with addSub; task M6-E2 adds Town
+       with { first: true }, so it leads the strip and is the list the World tab opens on. */
     const SUBS = [
-      { id: 'places', label: 'Places', owns: p => /^world\.startLocationIds(\.|$)/.test(p) || (/^world\.locations(\[|$)/.test(p) && !/^world\.locations\[\d+\]\.npcIdsBySchedule/.test(p)), render: d => placesTab.render(d), tab: placesTab },
+      { id: 'places', label: 'Places', owns: p => /^world\.locations(\[|$)/.test(p) && !/^world\.locations\[\d+\]\.npcIdsBySchedule/.test(p), render: d => placesTab.render(d), tab: placesTab },
       { id: 'people', label: 'People', owns: p => /^world\.npcs(\[|$)/.test(p), render: d => peopleTab.render(d), tab: peopleTab },
       { id: 'schedules', label: 'Schedules', owns: p => /^world\.locations\[\d+\]\.npcIdsBySchedule/.test(p), render: d => renderSchedules(d) }
     ];
-    let sub = 'places';
-    function addSub(s) { if (isObj(s) && s.id && !SUBS.some(x => x.id === s.id)) SUBS.push(s); return SUBS.length; }
+    let sub = null; // the first on the strip until one is picked
+    function addSub(s, o) {
+      if (isObj(s) && s.id && !SUBS.some(x => x.id === s.id)) { if (o && o.first) SUBS.unshift(s); else SUBS.push(s); }
+      return SUBS.length;
+    }
+    /* Task M6-E2: the list that owns a problem's path (its owns), so Problems opens the World tab on it; the town's
+       fields, the romance list and the law go to Town. route() only picks it: the caller draws the tab. */
+    function subFor(path) { const s = SUBS.find(x => x.owns && x.owns(String(path || ''))); return s ? s.id : null; }
+    function route(path) { const id = subFor(path); if (id) sub = id; return id; }
     function select(id, focus) {
       if (!SUBS.some(s => s.id === id)) return false;
       sub = id;
@@ -46736,7 +46801,7 @@ const Creator = (() => {
       }
       for (const s of SUBS) if (s.tab) s.tab.refresh();
     }
-    return { EntityTab, render, refresh, select, addSub, reverseWord, SUBS, places: placesTab, people: peopleTab, get sub() { return sub; }, get byPerson() { return byPerson; } };
+    return { EntityTab, render, refresh, select, addSub, subFor, route, reverseWord, SUBS, places: placesTab, people: peopleTab, get sub() { return sub || (SUBS[0] && SUBS[0].id); }, get byPerson() { return byPerson; } };
   })();
   const EntityTab = WorldTab.EntityTab;
   function renderWorld(d) { return WorldTab.render(d); }
@@ -47154,26 +47219,27 @@ const Creator = (() => {
             redraw(`[data-path="${CSS.escape(path)}"] .cr-cond-key[data-key="${k}"] select, [data-path="${CSS.escape(path)}"] .cr-cond-key[data-key="${k}"] input`);
           } }, option('', left.length ? 'Add a condition…' : 'Every condition is here', true), left.map(k => option(k, COND_LABEL[k], false)));
         const title = o.title || (o.kind === 'when' ? 'When' : 'Only if');
-        const note = has(o.note) ? o.note : o.kind === 'when'
-          ? 'All of these must hold for this branch; the first branch whose conditions all hold is the one told.'
-          : 'All of these must hold when it fires; when one does not, what happens instead (below) is used, or nothing.';
+        const note = has(o.note) ? o.note : o.kind === 'when' ? 'All of these must hold for this branch to be told.' : 'All of these must hold when it fires.';
+        const more = has(o.note) ? null : o.kind === 'when' ? 'The first branch whose conditions all hold is the one told.' : 'When one does not hold, what happens instead (below) is used, or nothing.';
         if (!isObj(cond) && has(cond)) return el('div', { class: 'cr-cond', dataset: { path } }, el('h4', { class: 'cr-fx-title' }, title), rawBox(path, cond, 'As written', 'Not a condition object; kept as it is.'));
         return el('div', { class: 'cr-cond', dataset: { path, cond: o.kind } },
           el('h4', { class: 'cr-fx-title' }, title),
           el('p', { class: 'cr-note' }, note),
+          more ? Opening.more(more, 'cond:' + o.kind) : null,
           slot(path),
           present.map(k => condKey(c, path, k, o.kind, d, drop(k))),
           add);
       },
       alt(alt, path, requires) {
-        const note = 'What happens instead when a condition above does not hold. An alternative with no conditions never happens.';
+        const note = 'What happens instead when a condition above does not hold.';
+        const more = () => Opening.more('An alternative with no conditions above it never happens.', 'alt');
         if (!isObj(alt)) {
-          return el('div', { class: 'cr-alt', dataset: { path } }, el('h4', { class: 'cr-fx-title' }, 'Instead'), el('p', { class: 'cr-note' }, note), slot(path),
+          return el('div', { class: 'cr-alt', dataset: { path } }, el('h4', { class: 'cr-fx-title' }, 'Instead'), el('p', { class: 'cr-note' }, note), more(), slot(path),
             btn('Add what happens instead', 'alt-add', () => { set(path, { text: '' }); redraw(sel(Form.domId(path + '.text'))); }, has(requires) ? '' : 'ghost'));
         }
         return el('div', { class: 'cr-alt', dataset: { path } },
           el('div', { class: 'cr-cond-head' }, el('h4', { class: 'cr-fx-title' }, 'Instead'), xBtn('Remove what happens instead', () => { set(path, undefined); redraw(); }, 'alt-remove')),
-          el('p', { class: 'cr-note' }, note), slot(path),
+          el('p', { class: 'cr-note' }, note), more(), slot(path),
           Form.render({ type: 'text', label: 'Text instead', max: 2000 }, alt.text, path + '.text', (p, v) => set(p, v), { required: true }),
           Effects.render(alt.effects, path + '.effects', { title: 'Effects instead', optional: true }));
       }
@@ -47189,10 +47255,11 @@ const Creator = (() => {
       ];
     }
     function rumourFields(x, path, on, nested) {
-      return Form.render(RUM(), x, path, dropEmpty(on), {
+      const sec = Form.render(RUM(), x, path, dropEmpty(on), {
         only: (nested ? ['id'] : []).concat(['text', 'true', 'sourceNpcId', 'tellerIds', 'threadId', 'factionId', 'leverageOver', 'heard']),
-        title: nested ? '' : 'The rumour', note: nested ? '' : 'Talk in town at the start. Someone besides its source must be able to pass it on: a teller, or the people of its faction.', nested
+        title: nested ? '' : 'The rumour', note: nested ? '' : 'Talk in town at the start, and who can pass it on.', nested
       });
+      return nested ? sec : Opening.withMore(sec, 'Someone besides its source must be able to pass it on: a teller, or the people of its faction.');
     }
     const TRIGGER_LABEL = { day: 'On a day', location: 'When the player is at a place', npc: 'When the player meets someone', clock: 'When a faction\'s clock reaches a segment' };
     function triggerField(t, tp, d) {
@@ -47485,7 +47552,8 @@ const Creator = (() => {
       const cl = fp + '.clocks';
       return el('section', { class: 'cr-section cr-clocks', dataset: { path: cl } },
         el('h2', { class: 'cr-section-title' }, 'Clocks'),
-        el('p', { class: 'cr-note' }, 'What the faction is doing while the player is not looking, a clock at a time: a segment fills on a roll each day, and a full clock changes the town.'),
+        el('p', { class: 'cr-note' }, 'What the faction does while the player is not looking, a clock at a time.'),
+        Opening.more('A segment fills on a roll each day, and a full clock changes the town.', 'clocks'),
         slot(cl),
         clocks.map((c, ci) => clockCard(f, fp, c, ci, clocks)),
         el('button', { type: 'button', class: 'btn small', id: Form.domId(cl) + '-add', dataset: { action: 'clock-add' },
@@ -47498,6 +47566,7 @@ const Creator = (() => {
     }
     const factionsTab = EntityTab({
       key: 'factions', listPath: 'world.factions', label: 'Factions', singular: 'faction', idKind: 'fac', nameField: 'name', placeholder: 'The Ferry Board',
+      note: 'The groups that want something in town, and the clocks that move while the player is busy.',
       summary: x => [plural(arrOf(x.clocks).length, 'clock'), short(x.goal, 60) || 'no goal yet'].join(' · '),
       onAdd: (name, ids) => ({ id: Pack.idFor('fac', name, ids), name, goal: '', methods: '', clocks: [], activeClock: 0, relations: {} }),
       fields: (x, path, on, d) => [
@@ -47510,6 +47579,7 @@ const Creator = (() => {
     // ----- Threads -----
     const threadsTab = EntityTab({
       key: 'threads', listPath: 'world.threads', label: 'Threads', singular: 'thread', idKind: 'thread', nameField: 'title', placeholder: 'The bridge vote',
+      note: 'The questions the story turns on, for the player to find and settle.',
       summary: x => [x.status || 'open', x.reward ? `rewards ${x.reward}` : null, plural(arrOf(x.linkedIds).length, 'link')].filter(Boolean).join(' · '),
       onAdd: (name, ids) => newThread(name, Pack.idFor('thread', name, ids)),
       fields: (x, path, on, d) => threadFields(x, path, on, d, false)
@@ -47518,6 +47588,7 @@ const Creator = (() => {
     // ----- Rumours -----
     const rumoursTab = EntityTab({
       key: 'rumours', listPath: 'world.rumours', label: 'Rumours', singular: 'rumour', idKind: 'rumour', nameField: 'text', placeholder: 'The mayor owes Carter money',
+      note: 'What the town says, true or not, and who will tell it.',
       summary: (x, d) => [x.true === false ? 'false' : 'true', x.sourceNpcId ? `from ${nameOf(listAt(d, 'world.npcs').find(n => n.id === x.sourceNpcId)) || x.sourceNpcId}` : 'no source yet', plural(arrOf(x.tellerIds).length, 'teller')].join(' · '),
       onAdd: (name, ids) => newRumour(name, Pack.idFor('rumour', name.split(/\s+/).slice(0, 4).join(' '), ids)),
       fields: (x, path, on) => [rumourFields(x, path, on, false)]
@@ -47526,6 +47597,7 @@ const Creator = (() => {
     // ----- Events and Seeds -----
     const seedsTab = EntityTab({
       key: 'seeds', listPath: 'world.seeds', label: 'Seeds', singular: 'seed', idKind: 'seed', nameField: 'cause', placeholder: 'Dewayne is behind on the boat loan',
+      note: 'Trouble already planted: something that happens on a day, at a place, or on meeting someone.',
       summary: x => {
         const t = isObj(x.trigger) ? x.trigger : {};
         const v = t.type === 'day' ? `day ${t.value}` : t.type === 'location' ? plural([].concat(t.value || []).length, 'place') : t.type === 'npc' ? 'meeting someone' : t.type === 'clock' ? `clock ${t.value || ''}` : 'no trigger';
@@ -47536,6 +47608,7 @@ const Creator = (() => {
     });
     const eventsTab = EntityTab({
       key: 'events', listPath: 'world.events', label: 'Events', singular: 'event', idKind: 'event', nameField: 'title', placeholder: 'The council meeting',
+      note: 'What the town does on a set day: a meeting, a fish fry, a vote.',
       summary: x => [Number.isInteger(x.day) ? `day ${x.day}` : 'no day', x.phase || null, `${arrOf(x.branches).length} branch${arrOf(x.branches).length === 1 ? '' : 'es'}`].filter(Boolean).join(' · '),
       onAdd: (name, ids) => ({ id: Pack.idFor('event', name, ids), title: name, day: 2, phase: 'evening', branches: [], default: { text: '', effects: [] } }),
       fields: (x, path, on) => [
@@ -47546,7 +47619,8 @@ const Creator = (() => {
     function endingSection(d) {
       const E = getAt(d, 'world.epilogue');
       const head = [el('h2', { class: 'cr-section-title' }, 'The ending'),
-        el('p', { class: 'cr-note' }, 'How the story ends: on a day, or sooner when one of the flags below is set. The first branch whose conditions hold is told.')];
+        el('p', { class: 'cr-note' }, 'How the story ends: on a day, or sooner when one of the flags below is set.'),
+        Opening.more('The first branch whose conditions hold is told; when none does, the default ending is.', 'ending')];
       if (!isObj(E)) {
         return el('section', { class: 'cr-section cr-ending', dataset: { path: 'world.epilogue' } }, head, slot('world.epilogue'),
           btn('Add an ending', 'ending-add', () => { set('world.epilogue', { onDay: 21, orFlagsSet: [], branches: [], default: { text: '', effects: [] } }); redraw(sel(Form.domId('world.epilogue.onDay'))); }, 'primary'));
@@ -47570,7 +47644,8 @@ const Creator = (() => {
       summary: (x, d) => [priceText(x.price, d) || 'no price', x.kind || null].filter(Boolean).join(' · '),
       onAdd: name => ({ name, price: 5, kind: 'good' }),
       fields: (x, path, on, d) => {
-        const sec = Form.render(GOOD(), x, path, dropEmpty(on), { only: ['name', 'price', 'kind', 'synonyms'], title: 'The good', note: 'Its name as a shop says it, its price in whole money, and what buying it does: a good is kept, food and drink are had, a service is done.' });
+        const sec = Opening.withMore(Form.render(GOOD(), x, path, dropEmpty(on), { only: ['name', 'price', 'kind', 'synonyms'], title: 'The good', note: 'Its name as a shop says it, its price in whole money, and what buying it does.' }),
+          'A good is kept, food and drink are had, a service is done.');
         const pf = sec.querySelector(`[data-field="${CSS.escape(path + '.price')}"]`);
         if (pf) pf.insertBefore(el('p', { class: 'cr-note cr-price', dataset: { price: path } }, Number.isFinite(x.price) ? `Shown to the player as ${priceText(x.price, d)}.` : 'No price yet.'), pf.querySelector('.cr-err'));
         const box = sec.querySelector(`[data-path="${CSS.escape(path + '.price')}"]`);
@@ -47593,7 +47668,7 @@ const Creator = (() => {
       if (goodsTab.view.open !== null) return goodsTab.render(d);
       return el('div', { class: 'cr-story' }, goodsTab.render(d), complicationsTab.render(d),
         el('section', { class: 'cr-section cr-tables-note' }, el('h2', { class: 'cr-section-title' }, 'Weather and names'),
-          el('p', { class: 'cr-note' }, 'The weather by season and the tables of first names, jobs, place types and trinkets are edited in the JSON tab: small, and rarely changed.')));
+          el('p', { class: 'cr-note' }, 'The weather and the tables of names, jobs, place types and trinkets are edited in the JSON tab.')));
     }
 
     // ----- onto the World strip -----
@@ -47605,6 +47680,151 @@ const Creator = (() => {
     WorldTab.addSub({ id: 'goods', label: 'Goods', owns: p => /^world\.tables(\[|\.|$)/.test(p), render: renderGoods, tab: both(goodsTab, complicationsTab) });
     // Tests and the later tabs reach them through the World tab, which the Creator already returns.
     Object.assign(WorldTab, { Effects, Conditions, factions: factionsTab, threads: threadsTab, rumours: rumoursTab, seeds: seedsTab, events: eventsTab, goods: goodsTab, complications: complicationsTab, priceText });
+  })();
+
+  // ----- World: the town (M6-E2) -----
+  /* The Town sub-tab (wave 37, Creator Mode, milestone 6, task M6-E2; the
+     reviewer's S1 and S2: a schema field with no control anywhere is a part
+     of the story the author cannot see, and the town's own fields had none).
+     First on the World strip and the list the tab opens on: the town's name,
+     setting and history, the year and calendar, the money, the two start
+     places (moved here from above the Places list, so they are drawn once),
+     the police and the law, all through Creator.Form, so a person or a place
+     is a picker of the draft's own. Then Romance (world.romance): a chip a
+     person with a pace of their own and a card each for that pace; the
+     validator's engine.romance.minor names anyone under 18 under the chips.
+     Then the gates (a card a name the council and the ending are written
+     for), and what only the JSON tab edits: ties, secret ties, the map,
+     recent events and people offstage, lists of records too rich for a form
+     here and rarely changed, each with its count. Problems on any of these
+     paths count on the Town button and open it (WorldTab.route). Every
+     change is one Editor.set, so one Undo. */
+  (() => {
+    const arrOf = v => (Array.isArray(v) ? v : []);
+    const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+    const W = () => Pack.SCHEMA.fields.world;
+    const TOWN = ['name', 'setting', 'history', 'year', 'calendar', 'currency', 'startLocationIds', 'policeHead', 'policeFallback', 'law'];
+    const OWNS = /^world(\.(name|setting|history|year|calendar|currency|startLocationIds|policeHead|policeFallback|law|gates|romance|ties|secretTies|map|recent|offstage)(\[|\.|$)|$)/;
+    // A line of help for the fields the schema's own words leave without one, on a copy of the node (the schema is never written).
+    const HELP = Object.freeze({
+      calendar: 'The season, and the date of day 1 in the story\'s year.',
+      currency: 'How the player\'s money is written and said.',
+      startLocationIds: 'Gate is the arrival by road, docks by river: two different places in town.',
+      policeHead: 'The police chief, living in town and tagged police.',
+      policeFallback: 'The law from elsewhere when the chief cannot come: lives away, with where.',
+      law: 'The police faction, who leads it, and where the arrested are held.'
+    });
+    const ROM_HELP = Object.freeze({
+      sparkRate: 'How fast spark grows with them: 1 is the usual pace, 0.1 to 2.',
+      romanceRate: 'How fast romance grows once spark is there: 1 is the usual pace.',
+      difficulty: 'How hard a flirt with them is; empty takes the Rules tab\'s.',
+      faithful: 'Never strays: the same as a very hard flirt, so set one or the other.'
+    });
+    const JSON_ONLY = [['ties', 'Ties between people', 'tie'], ['secretTies', 'Secret ties', 'secret tie'], ['map', 'Map', null], ['recent', 'Recent events', 'event'], ['offstage', 'People offstage', 'name']];
+    const romOpen = new Set(); // the romance cards open, across redraws
+    function redraw(focusSel) {
+      renderBody();
+      if (!focusSel) return;
+      const f = node('creator-body').querySelector(focusSel);
+      if (f) f.focus({ preventScroll: true });
+    }
+    function slot(path) { return el('p', { class: 'cr-err', id: Form.domId(path) + '-err', dataset: { errFor: path } }); }
+    const people = d => arrOf(getAt(d, 'world.npcs')).filter(n => isObj(n) && typeof n.id === 'string');
+    const nameIn = (all, id) => { const x = all.find(n => n.id === id); return x && typeof x.name === 'string' && x.name.trim() ? x.name.trim() : String(id); };
+    const withHelp = (spec, help) => {
+      const fields = Object.assign({}, spec.fields);
+      for (const k of Object.keys(help)) if (fields[k]) fields[k] = Object.assign({}, fields[k], { help: help[k] });
+      return Object.assign({}, spec, { fields });
+    };
+
+    function townSection(d) {
+      return Form.render(Object.assign(withHelp(W(), HELP), { order: TOWN }), getAt(d, 'world'), 'world', (p, v) => set(p, v), {
+        only: TOWN, title: 'The town', note: 'Its name and story, its calendar and money, where a newcomer arrives, who keeps the law.'
+      });
+    }
+    function romanceCard(x, i, all) {
+      const rp = `world.romance[${i}]`;
+      const key = String(x.npcId || i);
+      const ROM = W().fields.romance.of;
+      const opensAt = Object.assign({}, ROM.fields.opensAt, { label: 'Opens at', help: 'How well they must know the player before a flirt can work, 0 to 60.' });
+      const spec = withHelp(Object.assign({}, ROM, { fields: Object.assign({}, ROM.fields, { opensAt }) }), ROM_HELP);
+      const pace = [Number.isFinite(x.sparkRate) ? `spark ${x.sparkRate}` : null, isObj(x.opensAt) && Number.isInteger(x.opensAt.knows) ? `opens at ${x.opensAt.knows}` : null,
+        x.difficulty || (x.faithful === true ? 'faithful' : null)].filter(Boolean).join(' · ');
+      const det = el('details', { class: 'cr-more cr-branch cr-romance', open: romOpen.has(key) ? true : null, dataset: { index: String(i), id: key } },
+        el('summary', null, el('span', { class: 'cr-branch-n' }, all.some(n => n.id === x.npcId) ? nameIn(all, x.npcId) : `${x.npcId || 'Nobody'} (not found)`),
+          el('span', { class: 'cr-branch-sum' }, pace || 'the usual pace')),
+        el('div', { class: 'cr-branch-body' }, Form.render(spec, x, rp, (p, v) => set(p, v), { only: ['sparkRate', 'romanceRate', 'opensAt', 'difficulty', 'faithful'], title: '', note: '', nested: true })));
+      det.addEventListener('toggle', () => { if (det.open) romOpen.add(key); else romOpen.delete(key); });
+      return det;
+    }
+    /* A person added to the list starts at the pace the Rules tab gives anyone not listed (the draft's, else the
+       engine's), written out, since a listed person names their own (the lockett-house lint asks for each). */
+    function newEntry(npcId) {
+      const dv = (k, fb) => { const v = getAt(state.draft, `rules.romance.defaults.${k}`); const e = v !== undefined ? v : getAt(Pack.DEFAULTS, `rules.romance.defaults.${k}`); return e !== undefined ? e : fb; };
+      return { npcId, sparkRate: dv('sparkRate', 1), opensAt: { knows: dv('opensAt', 0) }, difficulty: dv('difficulty', 'normal') };
+    }
+    /* open (wave 34) is gone and the validator refuses it, so no box offers it; a pack that still has one hears so under the chips. */
+    function romanceSection(d) {
+      const path = 'world.romance';
+      const id = Form.domId(path);
+      const list = arrOf(getAt(d, path));
+      const all = people(d);
+      const listed = list.map(r => (isObj(r) ? r.npcId : null));
+      const left = all.filter(n => (n.presence === undefined || n.presence === 'here') && !listed.includes(n.id));
+      const chips = list.map((r, i) => {
+        const pid = isObj(r) && typeof r.npcId === 'string' ? r.npcId : '';
+        // The chip stands for that entry's npcId (data-path); it has no slot of its own, so the minor rule shows under the chips.
+        return el('span', { class: 'cr-chip-item', dataset: { index: String(i), id: pid, path: `world.romance[${i}].npcId` } },
+          el('span', { class: 'cr-chip-text' }, all.some(n => n.id === pid) ? nameIn(all, pid) : `${pid || 'nobody'} (not found)`),
+          el('button', { type: 'button', class: 'cr-chip-x', 'aria-label': `Take ${nameIn(all, pid)} off the romance list`, onclick: () => { set(path, list.filter((y, k) => k !== i)); redraw(`#${id}-add`); } }, '×'));
+      });
+      const add = el('select', {
+        class: 'input cr-chip-add', id: id + '-add', disabled: !left.length, 'aria-label': 'Add someone to the romance list',
+        onchange: () => { if (!add.value) return; romOpen.add(add.value); set(path, list.concat([newEntry(add.value)])); redraw(`#${id}-add`); }
+      }, el('option', { value: '', selected: true }, left.length ? 'Add someone…' : 'Everyone in town is listed'), left.map(n => el('option', { value: n.id }, nameIn(all, n.id))));
+      return el('section', { class: 'cr-section cr-romance-list', dataset: { section: path } },
+        el('h2', { class: 'cr-section-title' }, 'Romance'),
+        el('p', { class: 'cr-note' }, 'The people with a pace of their own; anyone else over 18 takes the Rules tab\'s.'),
+        el('div', { class: 'cr-field', dataset: { field: path, type: 'refs' } },
+          el('label', { class: 'label', for: id + '-add', id: id + '-label' }, 'People'),
+          el('div', { class: 'cr-chips', role: 'group', 'aria-labelledby': id + '-label', 'aria-describedby': `${id}-help ${id}-err`, dataset: { path } }, chips, add),
+          el('p', { class: 'cr-note', id: id + '-help' }, 'Nobody under 18 may be on this list, whatever the story says.'),
+          slot(path)),
+        list.map((r, i) => romanceCard(isObj(r) ? r : {}, i, all)));
+    }
+    /* The gates: a card a name the council and the ending are written for (the engine's own rows carry the same names). */
+    function gatesSection(d) {
+      const g = isObj(getAt(d, 'world.gates')) ? getAt(d, 'world.gates') : {};
+      const TRACKS = W().fields.gates.fields.council.of;
+      const part = (k, label) => {
+        const m = isObj(g[k]) ? g[k] : {};
+        const names = Object.keys(m);
+        return el('div', { class: 'cr-sub', dataset: { path: `world.gates.${k}` } },
+          el('h3', { class: 'cr-sub-title' }, label),
+          names.length ? names.map(n => { const sec = Form.render(TRACKS, m[n], `world.gates.${k}.${n}`, (p, v) => set(p, v), { nested: true, title: n }); sec.classList.add('cr-quad'); return sec; })
+            : el('p', { class: 'cr-note' }, 'None in this story.'),
+          slot(`world.gates.${k}`));
+      };
+      return el('section', { class: 'cr-section cr-gates', dataset: { section: 'world.gates' } },
+        el('h2', { class: 'cr-section-title' }, 'Gates'),
+        el('p', { class: 'cr-note' }, 'How well a person must like, trust or know the player for the council or the ending.'),
+        part('council', 'The council'), part('epilogue', 'The epilogue'));
+    }
+    function jsonOnly(d) {
+      return el('section', { class: 'cr-section cr-json-only', dataset: { section: 'world.json' } },
+        el('h2', { class: 'cr-section-title' }, 'On the JSON tab'),
+        el('p', { class: 'cr-note' }, 'Lists too rich for a form here, and rarely changed; the JSON tab shows each.'),
+        JSON_ONLY.map(([k, label, word]) => {
+          const v = getAt(d, 'world.' + k);
+          const count = word && Array.isArray(v) ? `${plural(v.length, word)}: e` : 'E';
+          return el('div', { class: 'cr-field', dataset: { field: 'world.' + k, type: 'list', path: 'world.' + k } },
+            el('span', { class: 'label' }, label),
+            el('p', { class: 'cr-note', dataset: { elsewhere: 'json' } }, `${count}dited on the JSON tab`),
+            slot('world.' + k));
+        }));
+    }
+    function renderTown(d) { return el('div', { class: 'cr-town' }, townSection(d), romanceSection(d), gatesSection(d), jsonOnly(d)); }
+    WorldTab.addSub({ id: 'town', label: 'Town', owns: p => OWNS.test(p), render: renderTown }, { first: true });
   })();
 
   // ----- Creator: Player -----
@@ -47769,6 +47989,7 @@ const Creator = (() => {
     const backgrounds = EntityTab({
       key: 'backgrounds', listPath: 'player.backgrounds', label: 'Backgrounds', singular: 'background', idKind: 'background', nameField: 'name',
       placeholder: 'Drifter',
+      note: 'Who the player can be: the cards New game offers, each with stats, money, things and a way in.',
       summary: (x, d) => [Number.isInteger(x.age) ? `age ${x.age}` : null, typeof x.arrival === 'string' && x.arrival ? arrivalLabel(d, x.arrival).toLowerCase() : 'no arrival yet', `stats ${signed(statSum(x))}`].filter(Boolean).join(' · '),
       /* A new background has its name, a blurb to write, an age, stats totalling +3 and some money; its things and
          how it arrives are the creator's to choose, so the validator says so (engine.background) until they are. */
@@ -47801,10 +48022,11 @@ const Creator = (() => {
         el('button', { type: 'button', class: 'btn small', id: addId, dataset: { action: 'add-line' }, onclick: () => { set(path, list.concat([''])); redraw(`[data-path="${path}[${list.length}]"]`); } }, `Add ${o.item.toLowerCase()}`),
         slot(path));
     }
+    // Task M6-E2 (S7): one sentence under the heading; the effects kept as they are wait under More about this.
     const EFFECTS_NOTE = 'Its effects (when it starts, when it is missed, when it is met) are kept as they are; the JSON tab shows them.';
     function obligationForm(path, o, title, note, extra) {
       const OBL = SPEC().looseEnds.of.fields.obligation;
-      const sec = Form.render(OBL, objOf(o), path, (p, v) => set(p, v), { nested: true, title, note: note ? `${note} ${EFFECTS_NOTE}` : EFFECTS_NOTE, skip: ['onStart', 'onMiss', 'onMet'] });
+      const sec = Opening.withMore(Form.render(OBL, objOf(o), path, (p, v) => set(p, v), { nested: true, title, note: note || 'What this option owes, and to whom.', skip: ['onStart', 'onMiss', 'onMet'] }), EFFECTS_NOTE, 'obligation-effects');
       if (extra) sec.append(extra);
       return sec;
     }
@@ -47825,8 +48047,10 @@ const Creator = (() => {
         el('p', { class: 'cr-note' }, 'What the player picks, who in the story it ties to, what happens a few days in, and what it costs.'),
         Form.render(LE.fields.label, le.label, base + '.label', on, { required: true }),
         linesList(base + '.options', le.options, { label: 'Options', item: 'Option', max: 500, help: 'The lines the player picks from at the start (they can rewrite the one they pick). Three is the usual.' }),
-        Form.render(LE.fields.link, le.link, base + '.link', on, { nested: true, title: 'Who it ties to', note: 'Tag: the tag a person in the cast carries to be the one this ties to. Tags: one per option, in the options\' order, when each option ties to a different kind of person.' }),
-        Form.render(LE.fields.seed, le.seed, base + '.seed', on, { nested: true, title: 'What happens later', note: 'Days later: one day, or the lowest and highest. Effect: what the player sees then ({npc} is the person it ties to). Trigger: day.' }),
+        Opening.withMore(Form.render(LE.fields.link, le.link, base + '.link', on, { nested: true, title: 'Who it ties to', note: 'The tag a person in the cast carries to be the one this ties to.' }),
+          'Tag: the one tag for every option. Tags: one per option, in the options\' order, when each option ties to a different kind of person.', 'link'),
+        Opening.withMore(Form.render(LE.fields.seed, le.seed, base + '.seed', on, { nested: true, title: 'What happens later', note: 'What the player sees a few days in ({npc} is the person it ties to).' }),
+          'Days later: one day, or the lowest and highest. Effect: what the player sees then. Trigger: day.', 'later'),
         isObj(le.obligation)
           ? obligationForm(base + '.obligation', le.obligation, 'What it costs', 'The obligation it starts ({npc} is the person; {playerName} the player).')
           : el('div', { class: 'cr-sub' }, el('h3', { class: 'cr-sub-title' }, 'What it costs'), el('p', { class: 'cr-note' }, 'No obligation: this loose end costs nothing on a clock.'),
@@ -47840,9 +48064,9 @@ const Creator = (() => {
     // ----- Stats, start, arrivals, creation steps -----
     function statsCard(d) {
       const ST = SPEC().stats;
-      return card('Stats', 'The four stats are fixed: might, wits, charm and stealth are the keys every roll, every background and the parser use, so they never change. Name each and say what it is for: the creation screen shows the name and the line, and the parser hears the name beside its key.',
+      return Opening.withMore(card('Stats', 'Name the four stats and say what each is for; the keys under them never change.',
         STATS.map(k => Form.render(ST.fields[k], getAt(d, `player.stats.${k}`), `player.stats.${k}`, (p, v) => set(p, v), { nested: true, title: statLabel(d, k), note: `Key: ${k}` })),
-        { section: 'player.stats' });
+        { section: 'player.stats' }), 'Might, wits, charm and stealth are the keys every roll, every background and the parser use. The creation screen shows the name and the line, and the parser hears the name beside its key.');
     }
     /* The age range: the youngest and the oldest, two whole numbers written as the one list. */
     function ageRangeField(d) {
@@ -47873,9 +48097,9 @@ const Creator = (() => {
     }
     function arrivalsCard(d) {
       const AR = SPEC().arrivals;
-      return card('Arrivals', 'The two ways a player comes into the story. Label: what the creation screen and the review call it. Opening: the game\'s own first lines when no narrator tells the arrival; {place} becomes the place they arrive at (a leading "The" made "the") and {town} the town\'s name. Summary: how the narrator hears it, after "arrives in the town for the first time,".',
-        Object.keys(AR.fields).map(k => Form.render(AR.fields[k], getAt(d, `player.arrivals.${k}`), `player.arrivals.${k}`, (p, v) => set(p, v), { nested: true, title: `${arrivalLabel(d, k)} (${k})`, note: `Starts at the World tab's ${k} start place.` })),
-        { section: 'player.arrivals' });
+      return Opening.withMore(card('Arrivals', 'The two ways a player comes into the story, by road and by river.',
+        Object.keys(AR.fields).map(k => Form.render(AR.fields[k], getAt(d, `player.arrivals.${k}`), `player.arrivals.${k}`, (p, v) => set(p, v), { nested: true, title: `${arrivalLabel(d, k)} (${k})`, note: `Starts at the ${k} start place on the World tab's Town list.` })),
+        { section: 'player.arrivals' }), 'Label: what the creation screen and the review call it. Opening: the game\'s own first lines when no narrator tells the arrival; {place} becomes the place they arrive at (a leading "The" made "the") and {town} the town\'s name. Summary: how the narrator hears it, after "arrives in the town for the first time,".');
     }
     function stepsCard(d) {
       const p = 'player.creation.steps';
@@ -47898,17 +48122,18 @@ const Creator = (() => {
           el('button', { type: 'button', class: 'btn small', 'aria-label': `Move ${name} down`, disabled: i === list.length - 1, dataset: { stepMove: String(i), dir: 'down' }, onclick: () => move(i, 1) }, '↓')));
         return sec;
       });
-      return card('Creation steps', 'The steps of the New game form, in their order, each with the title and the line under it. The five parts of the form are fixed; their order and words are yours.',
-        el('div', { dataset: { path: p } }, rows, slot(p)), { section: p });
+      return Opening.withMore(card('Creation steps', 'The steps of the New game form, in their order, each with its title and line.',
+        el('div', { dataset: { path: p } }, rows, slot(p)), { section: p }), 'The five parts of the form are fixed; their order and their words are yours.');
     }
 
     function render(d) {
       const kinds = Object.keys(objOf(getAt(d, 'player.looseEnds')));
       return [
         backgrounds.render(d),
-        chipsCard('Flaws', 'The habits that get a player into trouble; New game offers them as chips, and the player may write their own.', 'player.flaws', d),
+        chipsCard('Flaws', 'The habits that get a player into trouble, offered as chips at New game.', 'player.flaws', d),
         chipsCard('Goal suggestions', 'Why someone might come to this place, in a line each; New game offers them under the goal.', 'player.goalPresets', d),
-        card('Loose ends', `The player picks three at the start, and each becomes a real person in the story. The kinds are the engine's five (${LOOSE_END_KINDS.join(', ')}): a story words them and says what they cost, but adding a kind is rare and the engine plays only these.`, null, { section: 'player.looseEnds' }),
+        Opening.withMore(card('Loose ends', 'The player picks three at the start, and each becomes a real person in the story.', null, { section: 'player.looseEnds' }),
+          `The kinds are the engine's five (${LOOSE_END_KINDS.join(', ')}): a story words them and says what they cost, but adding a kind is rare and the engine plays only these.`),
         ...kinds.map(k => looseCard(k, d)),
         statsCard(d),
         startCard(d),
@@ -47939,7 +48164,8 @@ const Creator = (() => {
        without a word, and the validator's engine.string.length line says so
        under the field. disclosure() is a <details> in the game's own
        disclosure style whose open state survives a redraw. */
-    const NOTE = 'How the story begins. The premise is the line on the story card and at New game; the opening text is what the player reads before they type anything; the first turn is what the narrator is told about the player\'s first move.';
+    const NOTE = 'How the story begins: the line that sells it, the first page, and the narrator\'s cue for turn one.';
+    const NOTE_MORE = 'The premise is the line on the story card and at New game; the opening text is what the player reads before they type anything; the first turn is what the narrator is told about the player\'s first move.';
     const fmt = n => Number(n).toLocaleString('en-US');
     // The count under a field's box, with anything passed in extra (Use the default) beside it.
     function counted(field, max, extra) {
@@ -47965,13 +48191,29 @@ const Creator = (() => {
       if (openSet) det.addEventListener('toggle', () => { if (det.open) openSet.add(key); else openSet.delete(key); });
       return det;
     }
+    /* Wave 37, Creator Mode, task M6-E2 (the reviewer's S7): a section's line under its heading is one sentence, about
+       110 characters, so it reads in two lines on a 390px phone (some ran five to nine). What else it had to say waits
+       in a closed "More about this" under that line, a disclosure like the others whose open state survives a redraw;
+       withMore(sec, text) puts one after a drawn section's own line (its first .cr-note child), or after its heading
+       when it has none. Every tab's sections use these two, so they live here with counted() and disclosure(). */
+    const moreOpen = new Set();
+    function more(text, key) {
+      return disclosure('more:' + (key || text), 'More about this', el('p', { class: 'cr-note' }, text), moreOpen, { more: '1' });
+    }
+    function withMore(sec, text, key) {
+      if (!sec || !text) return sec;
+      const at = sec.querySelector(':scope > .cr-note') || sec.querySelector(':scope > h2, :scope > h3, :scope > h4');
+      const m = more(text, key);
+      if (at) at.after(m); else sec.prepend(m);
+      return sec;
+    }
     function render(d) {
       const S = Pack.SCHEMA.fields.opening;
-      const sec = Form.render(S, d.opening, 'opening', (p, v) => set(p, v), { title: 'Opening', note: NOTE });
+      const sec = withMore(Form.render(S, d.opening, 'opening', (p, v) => set(p, v), { title: 'Opening', note: NOTE }), NOTE_MORE);
       for (const k of Object.keys(S.fields)) counted(sec.querySelector(`[data-field="opening.${k}"]`), S.fields[k].max || 1200);
       return sec;
     }
-    return { render, counted, disclosure };
+    return { render, counted, disclosure, more, withMore };
   })();
 
   // ----- Creator: Narrator -----
@@ -48018,8 +48260,11 @@ const Creator = (() => {
       intimateMin: 'An intimate scene: at least this many words; a shorter one counts as skipped and is written again.',
       hardOver: 'The slack over a limit before a turn is written again.'
     };
-    const HARD_OVER_NOTE = 'A turn up to "Hard over" words past its limit is kept with a note; one further over is sent back to be written again, which is a second paid call. Leave a number empty for the engine\'s, shown greyed.';
-    const EXAMPLE_NOTE = 'Turns the narrator copies the manner of: what the player typed, the packet lines it was given (without the parentheses: the prompt adds them) and the narration. A story with its own has 3 to 8.';
+    // Task M6-E2 (S7): each card's line is one sentence; the rest waits under More about this.
+    const HARD_OVER_NOTE = 'How long a turn may run, in words; leave a number empty for the engine\'s, shown greyed.';
+    const HARD_OVER_MORE = 'A turn up to "Hard over" words past its limit is kept with a note; one further over is sent back to be written again, which is a second paid call.';
+    const EXAMPLE_NOTE = 'Turns the narrator copies the manner of; a story with its own has 3 to 8.';
+    const EXAMPLE_MORE = 'Each is what the player typed, the packet lines it was given (without the parentheses: the prompt adds them) and the narration.';
     const openSet = new Set(); // the disclosures and example cards open, across redraws
     const relabel = (spec, words) => Object.assign({}, spec, words);
     const short = (v, n) => { const s = String(v == null ? '' : v).replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
@@ -48055,7 +48300,7 @@ const Creator = (() => {
       const guideBox = preset === 'custom' ? guide
         : Opening.disclosure('narration.customGuide', 'Write your own guide', [el('p', { class: 'cr-note' }, 'Sent only when the style is custom: choose custom above to use it.'), guide], openSet);
       const pov = withDefault(Form.render(relabel(F().pointOfView, { help: POV_NOTE }), N.pointOfView, 'narration.pointOfView', (p, v) => set(p, v)), `The default (${DEF().pointOfView})`);
-      return card('Voice', 'The style the narrator writes in and from whose eyes. A player can still pick their own style in Settings.', [presetField, guideBox, pov]);
+      return Opening.withMore(card('Voice', 'The style the narrator writes in, and from whose eyes.', [presetField, guideBox, pov]), 'A player can still pick their own style in Settings.');
     }
 
     function phrases(N) {
@@ -48082,8 +48327,9 @@ const Creator = (() => {
     function checks(N) {
       const eff = Object.assign({}, DEF().softChecks, isObj(N.softChecks) ? N.softChecks : {});
       const S = F().softChecks.fields;
-      return card('Style checks', 'Each narration is checked before the player sees it; a story may switch these off. The name check always runs: the narrator may name only the people and places the game has (fixed rule 2).',
-        Object.keys(S).map(k => Form.render(relabel(S[k], { help: CHECK_HELP[k] }), eff[k], `narration.softChecks.${k}`, (p, v) => set(p, v))), 'narration.softChecks');
+      return Opening.withMore(card('Style checks', 'Each narration is checked before the player sees it; a story may switch these off.',
+        Object.keys(S).map(k => Form.render(relabel(S[k], { help: CHECK_HELP[k] }), eff[k], `narration.softChecks.${k}`, (p, v) => set(p, v))), 'narration.softChecks'),
+        'The name check always runs: the narrator may name only the people and places the game has (fixed rule 2).');
     }
 
     function examples(N) {
@@ -48093,14 +48339,14 @@ const Creator = (() => {
       const from = preset === 'custom' ? 'casual' : preset;
       if (!own) {
         const turns = DEF().presets[from].examples;
-        return card('Example turns', EXAMPLE_NOTE, [
+        return Opening.withMore(card('Example turns', EXAMPLE_NOTE, [
           slot(xp),
           el('h3', { class: 'cr-sub-title' }, `Using the ${from} style's examples`),
           el('p', { class: 'cr-note' }, 'Read only; they come from a town of their own, and the narrator is told none of it exists in yours.'),
           el('div', { class: 'cr-preset-examples' }, turns.map((t, i) => el('p', { class: 'cr-pre', dataset: { example: String(i) } }, `Input: ${t.input}\n(${t.context})\n${t.narration}`))),
           el('button', { type: 'button', class: 'btn small', id: Form.domId(xp) + '-own', dataset: { action: 'examples-own' },
             onclick: () => { set(xp, Pack.copy(turns)); UI.toast('Copied the examples into your story. Undo takes them out.'); redraw(sel(Form.domId(xp) + '-add')); } }, 'Write your own')
-        ], xp);
+        ], xp), EXAMPLE_MORE);
       }
       const EX = F().examples.of;
       const spec = relabel(EX, { fields: Object.assign({}, EX.fields, { context: relabel(EX.fields.context, { help: 'The packet lines, without the parentheses: the prompt adds them.' }) }) });
@@ -48118,7 +48364,7 @@ const Creator = (() => {
         det.addEventListener('toggle', () => { if (det.open) openSet.add(tp); else openSet.delete(tp); });
         return det;
       });
-      return card('Example turns', EXAMPLE_NOTE, [
+      return Opening.withMore(card('Example turns', EXAMPLE_NOTE, [
         slot(xp),
         cards,
         el('div', { class: 'cr-row-btns' },
@@ -48126,7 +48372,7 @@ const Creator = (() => {
             onclick: () => { openSet.add(`${xp}[${own.length}]`); set(xp, own.concat([{ input: '', context: '', narration: '' }])); redraw(sel(Form.domId(`${xp}[${own.length}].input`))); } }, 'Add an example'),
           el('button', { type: 'button', class: 'btn small ghost', dataset: { action: 'examples-default' },
             onclick: () => { set(xp, undefined); UI.toast('Back to the style\'s examples. Undo brings yours back.'); redraw(sel(Form.domId(xp) + '-own')); } }, 'Use the style\'s examples'))
-      ], xp);
+      ], xp), EXAMPLE_MORE);
     }
 
     function goodTurn(N) {
@@ -48144,7 +48390,7 @@ const Creator = (() => {
         if (box) box.placeholder = String(DEF().lengths[k]);
         return f;
       });
-      return card('Lengths', HARD_OVER_NOTE, el('div', { class: 'cr-lengths' }, fields), 'narration.lengths');
+      return Opening.withMore(card('Lengths', HARD_OVER_NOTE, el('div', { class: 'cr-lengths' }, fields), 'narration.lengths'), HARD_OVER_MORE);
     }
 
     function render(d) {
@@ -48228,7 +48474,7 @@ const Creator = (() => {
       return [
         el('section', { class: 'cr-section', dataset: { section: 'directions.about' } },
           el('h2', { class: 'cr-section-title' }, 'Directions'),
-          el('p', { class: 'cr-note' }, 'How you want a moment told. When it comes up, your words go to the narrator as their own line of the turn\'s packet:'),
+          el('p', { class: 'cr-note' }, 'How you want a moment told; your words reach the narrator when it comes up:'),
           el('p', { class: 'cr-pre cr-pre-line' }, 'DIRECTION (from the story\'s author): …'),
           el('p', { class: 'cr-note' }, 'followed, always, by:'),
           el('p', { class: 'cr-pre cr-pre-line', dataset: { trailer: '1' } }, Pipeline.ENGINE_TRAILER),
@@ -48372,19 +48618,19 @@ const Creator = (() => {
     // ----- the cards, in their order -----
     function rollsCard(d) {
       const A = { type: 'enum', enum: actionTypes().slice(), label: 'Action' };
-      return card('When to roll', 'Over the parser\'s own call: an action of a type under Always rolls (wits at normal when the parser named neither), one under Never rolls nothing; a phrase matches anywhere in what the player typed, in any case. A never wins over an always. The engine\'s own rolls still happen: a search for something not here, a fight, a flirt.', [
+      return Opening.withMore(card('When to roll', 'Over the parser\'s own call: what always rolls and what never does, by action or phrase.', [
         chips(d, 'rules.rolls.always', 'Always roll', A, 'The parser\'s action types; pick one to add it.'),
         chips(d, 'rules.rolls.never', 'Never roll', A, 'The parser\'s action types; pick one to add it.'),
         chips(d, 'rules.rolls.alwaysPhrases', 'Always roll on', { type: 'string', label: 'Phrase', max: 120 }, 'Words that make a turn roll, such as "pick the lock".'),
         chips(d, 'rules.rolls.neverPhrases', 'Never roll on', { type: 'string', label: 'Phrase', max: 120 }, 'Words that keep a turn from rolling, such as "say hello".')
-      ], 'rules.rolls');
+      ], 'rules.rolls'), 'An action of a type under Always rolls (wits at normal when the parser named neither), one under Never rolls nothing; a phrase matches anywhere in what the player typed, in any case. A never wins over an always. The engine\'s own rolls still happen: a search for something not here, a fight, a flirt.');
     }
     function dcsCard(d) {
       const names = { easy: 'Easy', normal: 'Normal', hard: 'Hard', very_hard: 'Very hard' };
-      const sec = card('Difficulty numbers', 'What the d20 plus the stat must reach at each difficulty. Every roll reads these, and the parser\'s prompt shows each number beside its word, so it rates actions against this story\'s scale.',
+      const sec = card('Difficulty numbers', 'What the d20 plus the stat must reach at each difficulty; every roll reads these.',
         DIFFICULTIES.map(k => num(d, `rules.dcs.${k}`, names[k], { onChange: dcWrite })), 'rules.dcs');
       sec.classList.add('cr-quad');
-      return sec;
+      return Opening.withMore(sec, 'The parser\'s prompt shows each number beside its word, so it rates actions against this story\'s scale.');
     }
     /* floors.lie: [trust at or below, difficulty] rows (Rel.difficultyFloor reads the player's trust with that person;
        the hardest row that matches counts). */
@@ -48428,14 +48674,14 @@ const Creator = (() => {
         redraw('#' + addId);
       };
       at.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
-      return sub('Lying', `A lie to someone whose trust in the player is at or below a row's number is at least that hard; the hardest row that matches counts. ${mine ? 'This story\'s own rows.' : 'The engine\'s rows: changing, adding or removing one makes the list this story\'s own.'}`, [
+      return Opening.withMore(sub('Lying', `A lie to someone who trusts the player this little is at least this hard. ${mine ? 'This story\'s own rows.' : 'The engine\'s rows.'}`, [
         el('div', { class: 'cr-maprows', dataset: { path: p } },
           el('div', { class: 'cr-maprow cr-maphead', 'aria-hidden': 'true' }, el('span', null, 'Trust at or below'), el('span', null, 'At least')),
           rows.map(row)),
         el('div', { class: 'cr-addrow', dataset: { action: 'add-lie-row' } }, at, ad, el('button', { type: 'button', class: 'btn small primary', dataset: { action: 'add-lie' }, onclick: add }, 'Add')),
         mine ? el('button', { type: 'button', class: 'btn small ghost', dataset: { action: 'lie-default' }, onclick: () => { write(p, undefined); redraw('[data-action="add-lie"]'); } }, 'Use the default') : null,
         slot(p)
-      ], null, null);
+      ], null, null), `The hardest row that matches counts.${mine ? '' : ' Changing, adding or removing a row makes the list this story\'s own.'}`);
     }
     function floorsCard(d) {
       return card('Floors', 'The least a roll can be with one person, however the parser rated it.', [
@@ -48520,13 +48766,13 @@ const Creator = (() => {
       const aSel = el('select', { class: 'input', id: addId, 'aria-label': 'Action', disabled: !left.length }, left.length ? left.map(a => el('option', { value: a }, a)) : el('option', { value: '' }, 'Every action is listed'));
       const cSel = el('select', { class: 'input', id: addId + '-cost', 'aria-label': 'Its cost', disabled: !left.length }, costOpts('instant'));
       const add = () => { if (!aSel.value) return; put(Object.assign({}, objOf(getAt(state.draft, p)), { [aSel.value]: cSel.value })); redraw('#' + addId); };
-      return sub('Costs', 'An action listed here costs this much time: instant, short (part of a phase), long (an hour or more) or rest (until morning). An action not listed keeps the engine\'s cost. The story\'s cost wins over what the parser decided for that kind of action.', [
+      return Opening.withMore(sub('Costs', 'An action listed here takes this much time; one not listed keeps the engine\'s cost.', [
         el('div', { class: 'cr-maprows', dataset: { path: p } },
           keys.length ? el('div', { class: 'cr-maprow cr-maphead', 'aria-hidden': 'true' }, el('span', null, 'Action'), el('span', null, 'Cost')) : el('p', { class: 'cr-note' }, 'None listed: every action keeps the engine\'s cost.'),
           rows),
         el('div', { class: 'cr-addrow', dataset: { action: 'add-cost-row' } }, aSel, cSel, el('button', { type: 'button', class: 'btn small primary', dataset: { action: 'add-cost' }, disabled: !left.length, onclick: add }, 'Add')),
         slot(p)
-      ], null, null);
+      ], null, null), 'Instant, short (part of a phase), long (an hour or more) or rest (until morning). The story\'s cost wins over what the parser decided for that kind of action.');
     }
     function timeCard(d) {
       return card('Time', 'How the clock moves. A day has four phases: morning, afternoon, evening and night.', [
@@ -48542,38 +48788,38 @@ const Creator = (() => {
     function lawCard(d) {
       const m = moneyOf(d);
       const money = (path, label) => num(d, path, `${label}, in ${m.name}`, { min: 0, help: `${path.endsWith('roughFine') ? 'What it costs the next time the police find them sleeping there' : 'What an arrest costs, or what the player has if it is less'}; shown as ${m.show(has(getAt(d, path)) ? getAt(d, path) : dflt(path))}.` });
-      return card('The law', 'Arrests and sleeping rough. The police are the World tab\'s law faction, and their chief does the talking.', [
+      return Opening.withMore(card('The law', 'Arrests and sleeping rough.', [
         money('rules.law.fine', 'Arrest fine'),
         toggle(d, 'rules.law.roughSleeping', 'Sleeping rough is noticed', { help: 'On: nights slept in a public place are counted and the police chief comes by. Off: nobody minds where the player sleeps.' }),
         num(d, 'rules.law.roughNights', 'Nights before a warning', { min: 1, help: 'Nights in a row at the same public place before the chief tells the player to move along.' }),
         money('rules.law.roughFine', 'Sleeping rough fine'),
         num(d, 'rules.law.roughForgiven', 'Forgiven after', { min: 0, help: 'Clear nights after which the next time is a warning again.' })
-      ], 'rules.law');
+      ], 'rules.law'), 'The police are the law faction on the World tab\'s Town list, and their chief does the talking.');
     }
     function cheatsCard(d) {
-      return card('Cheats and undo', 'Off takes the commands out of the list, and typing one answers "Not in this story." A player can still tick "Allow cheats anyway" in Settings for this story, and developer mode always has them.', [
+      return Opening.withMore(card('Cheats and undo', 'Off takes the commands out of the list, and typing one answers "Not in this story."', [
         toggle(d, 'rules.cheats.allowed', 'Cheats', { help: '/cheat and /reroll.' }),
         toggle(d, 'rules.cheats.debugView', 'Debug view', { help: '/debug, the turn\'s workings.' }),
         toggle(d, 'rules.undo', 'Undo', { help: '/undo, /redo and /rewind.' })
-      ], 'rules.cheats');
+      ], 'rules.cheats'), 'A player can still tick "Allow cheats anyway" in Settings for this story, and developer mode always has them.');
     }
     function romanceCard(d) {
       const gates = sub('Gates', 'A night together needs each of these at least, between the player and that person.',
         [['spark', 'Spark'], ['romance', 'Romance'], ['trust', 'Trust'], ['knows', 'Knows you']].map(([k, label]) => num(d, `rules.romance.gates.${k}`, label)), 'cr-quad', 'rules.romance.gates');
-      const defaults = sub('For anyone not listed', 'For a person not on the World tab\'s romance list: how fast spark grows (1 is the usual pace), how well they must know the player before a flirt can work, and how hard a flirt is.', [
+      const defaults = Opening.withMore(sub('For anyone not listed', 'Anyone not on the Town romance list: their pace, and how hard a flirt is.', [
         num(d, 'rules.romance.defaults.sparkRate', 'Spark rate', { int: false, min: 0 }),
         num(d, 'rules.romance.defaults.opensAt', 'Opens at (knows you)', { min: 0 }),
         pick(d, 'rules.romance.defaults.difficulty', 'Flirt difficulty', diffChoices(d))
-      ], null, 'rules.romance.defaults');
-      const roll = sub('Intimacy roll', 'When every gate holds and the answer is yes, the turn rolls this stat at this difficulty. The yes stands whatever the die says; the roll shapes the night: a critical is unforgettable and doubles the gain, a success is the usual night, a partial is warm but a little awkward with half the gain, a failure does not quite land and gains nothing, and a critical failure is awkward for both and leaves a memory of it.', [
+      ], null, 'rules.romance.defaults'), 'The people with a pace of their own are on the Town list of the World tab. Here: how fast spark grows (1 is the usual pace), how well they must know the player before a flirt can work, and how hard a flirt is.');
+      const roll = Opening.withMore(sub('Intimacy roll', 'When every gate holds and the answer is yes, the turn rolls this stat at this difficulty.', [
         toggle(d, 'rules.romance.intimacyRoll.enabled', 'Roll for the night'),
         pick(d, 'rules.romance.intimacyRoll.stat', 'Stat', statChoices(d), { help: 'By the names on the Player tab\'s Stats card.' }),
         pick(d, 'rules.romance.intimacyRoll.difficulty', 'Difficulty', diffChoices(d))
-      ], null, 'rules.romance.intimacyRoll');
-      return card('Romance', 'Whether people can be won over, and what a night together needs. Whatever the story says, nobody under 18 is ever eligible, and nor is a player under 18.', [
+      ], null, 'rules.romance.intimacyRoll'), 'The yes stands whatever the die says; the roll shapes the night: a critical is unforgettable and doubles the gain, a success is the usual night, a partial is warm but a little awkward with half the gain, a failure does not quite land and gains nothing, and a critical failure is awkward for both and leaves a memory of it.');
+      return Opening.withMore(card('Romance', 'Whether people can be won over, and what a night together needs.', [
         toggle(d, 'rules.romance.enabled', 'Romance', { help: 'Off: nobody in this story can be won over.' }),
         gates, defaults, roll
-      ], 'rules.romance');
+      ], 'rules.romance'), 'Whatever the story says, nobody under 18 is ever eligible, and nor is a player under 18.');
     }
     function cardsCard(d) {
       const m = moneyOf(d);
@@ -48644,7 +48890,8 @@ const Creator = (() => {
       });
       return el('section', { class: 'cr-section', dataset: { section: `${P}.preset` } },
         el('h2', { class: 'cr-section-title', id: id + '-label' }, 'Preset'),
-        el('p', { class: 'cr-note' }, 'How far the player may go beyond what you wrote. A preset sets every dial below; a dial you set yourself wins over it.'),
+        el('p', { class: 'cr-note' }, 'How far the player may go beyond what you wrote; a preset sets every dial below.'),
+        Opening.more('A dial you set yourself wins over the preset.', 'freedom-preset'),
         el('div', { class: 'cr-radio-cards', role: 'radiogroup', 'aria-labelledby': id + '-label', 'aria-describedby': id + '-err', dataset: { path: `${P}.preset` } }, cards),
         own === undefined ? el('p', { class: 'cr-note' }, `Not set: the ${NAMES[eff.preset] ? NAMES[eff.preset].toLowerCase() : eff.preset} applies, as for any story that does not choose.`) : null,
         Rules.slot(`${P}.preset`));
@@ -48735,7 +48982,17 @@ const Creator = (() => {
       { key: 'bookkeeperExtra', who: 'the bookkeeper', rules: () => Api.ENGINE_RULES_SHORT,
         help: 'Added to the prompt of the model that records what changed after each turn.' }
     ];
-    const BUDGET_NOTE = 'The narrator\'s cached prompt is counted against a budget of 13,000 tokens, and the built-in story already uses 12,999 of them: a narrator note on a copy of it goes over. The meter in the header shows where your story stands.';
+    /* Task M6-E2 (the reviewer's N2): the budget and the built-in story's use of it from Pack.TOKEN_BUDGET and
+       Pack.budgetEstimate, not "13,000" and "12,999" written in, so the note follows the numbers when either moves.
+       The built-in story's estimate is counted once (it cannot change while the page is open; some 20 ms). */
+    let builtInTokens = null;
+    function budgetNote() {
+      if (builtInTokens === null) { try { builtInTokens = Pack.budgetEstimate(Pack.builtIn()).total; } catch (e) { builtInTokens = 0; } }
+      const fmt = n => Number(n).toLocaleString('en-US');
+      const room = Pack.TOKEN_BUDGET - builtInTokens;
+      return `The narrator's cached prompt is counted against a budget of ${fmt(Pack.TOKEN_BUDGET)} tokens, and the built-in story already uses ${fmt(builtInTokens)} of them: `
+        + (room < 100 ? 'a narrator note on a copy of it goes over.' : `a copy of it has about ${fmt(room)} to spare for a narrator note.`) + ' The meter in the header shows where your story stands.';
+    }
     function slotCard({ key, who, rules, help }, P) {
       const S = Pack.SCHEMA.fields.prompts.fields[key];
       const path = `prompts.${key}`;
@@ -48749,14 +49006,15 @@ const Creator = (() => {
         el('div', { class: 'cr-rules' },
           el('p', { class: 'label', id: id + '-label' }, 'Sent after your note, always'),
           el('p', { class: 'cr-pre', id, 'aria-labelledby': id + '-label', dataset: { rulesFor: path } }, rules())),
-        key === 'narratorExtra' ? el('p', { class: 'cr-note cr-budget-note' }, BUDGET_NOTE) : null);
+        key === 'narratorExtra' ? el('p', { class: 'cr-note cr-budget-note' }, budgetNote()) : null);
     }
     function render(d) {
       const P = isObj(d.prompts) ? d.prompts : {};
       return [
-        el('section', { class: 'cr-section', dataset: { section: 'prompts.about' } },
+        Opening.withMore(el('section', { class: 'cr-section', dataset: { section: 'prompts.about' } },
           el('h2', { class: 'cr-section-title' }, 'Prompts'),
-          el('p', { class: 'cr-note' }, 'Your story needs none of this: the forms on the other tabs need no AI at all. These notes are added to the game\'s own prompts and never replace them, and the engine\'s rules are always sent after them, so a note can shape how the models write and read, never what the game decides.')),
+          el('p', { class: 'cr-note' }, 'Optional notes to the game\'s models; your story needs none of them.')),
+          'The forms on the other tabs need no AI at all. These notes are added to the game\'s own prompts and never replace them, and the engine\'s rules are always sent after them, so a note can shape how the models write and read, never what the game decides.'),
         ...SLOTS.map(s => slotCard(s, P))
       ];
     }
@@ -48779,7 +49037,7 @@ const Creator = (() => {
     const pre = el('pre', { class: 'cr-pre', id: 'creator-json', tabindex: '0', 'aria-label': 'The story pack as JSON' });
     const sec = el('section', { class: 'cr-section cr-json' },
       el('h2', { class: 'cr-section-title' }, 'Your story as JSON'),
-      el('p', { class: 'cr-note' }, 'This is the file your story becomes: the pack the game plays and the file you share. It follows every change you make.'),
+      el('p', { class: 'cr-note' }, 'The file your story becomes, to play and to share; it follows every change you make.'),
       el('div', { class: 'cr-json-bar' },
         el('p', { class: 'cr-json-stats', role: 'status' }),
         el('button', { type: 'button', class: 'btn small primary', id: 'creator-json-copy', onclick: () => copyJson() }, 'Copy JSON'),
@@ -49009,7 +49267,7 @@ const Creator = (() => {
         SITUATIONS.map(x => el('option', { value: x.id, selected: x.id === situation }, x.label)));
       const sec = el('section', { class: 'cr-section cr-preview', id: 'creator-preview' },
         el('h2', { class: 'cr-section-title' }, 'Show me the prompt'),
-        el('p', { class: 'cr-note' }, 'What the game sends the narrator for this story, built from your draft as it is now, for a sample turn. Nothing is sent and no game is touched.'),
+        el('p', { class: 'cr-note' }, 'A sample turn of your draft as the narrator would get it; nothing is sent and no game is touched.'),
         el('div', { class: 'cr-field cr-preview-pick' }, el('span', { class: 'label', 'aria-hidden': 'true' }, 'Situation'), select, el('p', { class: 'cr-note cr-preview-when', role: 'status' })),
         el('div', { class: 'cr-meter cr-preview-meter', title: 'The three blocks cached every turn, against the token budget' },
           el('span', { class: 'cr-meter-bar', 'aria-hidden': 'true' }, el('span', { class: 'cr-meter-fill' })),

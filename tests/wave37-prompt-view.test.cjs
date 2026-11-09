@@ -194,7 +194,7 @@ s.test('the Prompt view tab, for a draft of the built-in copy: the situation pic
     };
   });
   assert.equal(v.h, 'Show me the prompt');
-  assert.match(v.note, /Nothing is sent and no game is touched\.$/);
+  assert.match(v.note, /nothing is sent and no game is touched\.$/);
   assert.deepEqual(v.options, SITUATIONS);
   assert.equal(v.chosen, 'normal');
   assert.match(v.when, /^An ordinary turn/);

@@ -28,8 +28,15 @@
    chip showing; the preset cards are tappable labels); the Prompts with a
    1,600-character narrator note (the count red) and the header meter over
    the budget; and the Prompt view of that draft, normal and intimate, with
-   its six blocks and their Copy buttons. The CSS uses
-   the safe-area insets where the screen edges are.
+   its six blocks and their Copy buttons. Task M6-E2 (the reviewer's N10)
+   opens every closed <details> in the editor's body before each Creator
+   audit and closes them again after it, so what a fold hides (the People
+   "More", a clock, a branch, Starting state, More about this) is measured
+   too, and with a faction's clock open and the form scrolled half way it
+   checks the sticky tab strip meets the top of the scroller and the
+   sticky bar its bottom (M2: nothing shows through above or below them),
+   and that an effect's op select has a row of its own under 480px (S5).
+   The CSS uses the safe-area insets where the screen edges are.
    Run with: node tests/run.cjs mobile */
 const assert = require('assert/strict');
 const { suite, sendText } = require('./helpers.cjs');
@@ -219,7 +226,23 @@ for (const size of SIZES) {
     // editor draws is read from the page (Game.Creator.TABS, the World strip's buttons, the first row of a list), so
     // the next milestone's tabs and sub-tabs are audited without this test changing.
     const cr = await h.open({ viewport: size, contextOptions: { reducedMotion: 'reduce' } });
-    const crCheck = async label => { results.push(await cr.evaluate(audit, 'creator: ' + label)); };
+    /* Task M6-E2 (N10): every closed <details> in the editor's body opened first (a few rounds, since an open one
+       may hold more) and closed again after the audit, so the steps below still find each fold as they left it. */
+    let crOpened = 0;
+    const crCheck = async label => {
+      crOpened += await cr.evaluate(() => {
+        const opened = [];
+        for (let k = 0; k < 4; k++) {
+          const closed = [...document.querySelectorAll('#creator-body details:not([open])')];
+          if (!closed.length) break;
+          for (const d of closed) { d.open = true; opened.push(d); }
+        }
+        window.__crOpened = opened;
+        return opened.length;
+      });
+      results.push(await cr.evaluate(audit, 'creator: ' + label));
+      await cr.evaluate(() => { for (const d of (window.__crOpened || []).reverse()) d.open = false; window.__crOpened = []; });
+    };
     await cr.evaluate(async () => {
       Game.Api.Mock.delay = 0;
       await Game.Storage.Library.ready;
@@ -289,6 +312,26 @@ for (const size of SIZES) {
       await cr.click('.cr-entity[data-entity="factions"] details.cr-clock >> nth=0 >> summary');
       assert.ok(await cr.$eval('.cr-entity[data-entity="factions"] details.cr-clock', d => d.open), 'the clock is open');
       await crCheck('World, a faction with a clock open');
+      /* Task M6-E2 (M2): scrolled half way, the strip's top is the scroller's top and the bar's bottom the scroller's
+         bottom, so no field shows through a band above the strip or below the bar (.page's padding used to leave
+         24px above and 32px below); the points just inside each edge are the strip's and the bar's own. */
+      const bands = await cr.evaluate(() => {
+        const sc = document.getElementById('creator-scroll');
+        sc.scrollTop = (sc.scrollHeight - sc.clientHeight) / 2;
+        const s = sc.getBoundingClientRect();
+        const strip = document.getElementById('creator-tabs').getBoundingClientRect();
+        const bar = document.querySelector('.cr-entity[data-entity="factions"] .cr-sticky').getBoundingClientRect();
+        const x = s.left + s.width / 2;
+        const top = document.elementFromPoint(x, s.top + 1);
+        const bottom = document.elementFromPoint(x, s.bottom - 1);
+        return { scrolled: sc.scrollTop > 0, above: Math.round(strip.top - s.top), below: Math.round(s.bottom - bar.bottom),
+          topIsStrip: !!(top && top.closest('#creator-tabs')), bottomIsBar: !!(bottom && bottom.closest('.cr-sticky')) };
+      });
+      assert.deepEqual(bands, { scrolled: true, above: 0, below: 0, topIsStrip: true, bottomIsBar: true }, 'no band above the strip or below the bar');
+      await cr.evaluate(() => { document.getElementById('creator-scroll').scrollTop = 0; });
+      // Task M6-E2 (S5): under 480px the op select has a row of its own, as wide as the row inside its padding.
+      const op = await cr.$eval('.cr-entity[data-entity="factions"] .cr-fx-op', o => { const r = o.getBoundingClientRect(); const row = o.closest('.cr-fx-row').getBoundingClientRect(); const n = o.closest('.cr-fx-head').querySelector('.cr-fx-n').getBoundingClientRect(); return { below: r.top >= n.bottom - 1, room: Math.round(row.width - r.width) }; });
+      assert.ok(op.below && op.room <= 20, 'the op select on its own row: ' + JSON.stringify(op));
       await cr.click('.cr-entity[data-entity="factions"] .cr-sticky [data-action="back-bar"]');
       await cr.waitForSelector('.cr-entity[data-entity="factions"][data-open="0"]');
     }
@@ -359,7 +402,7 @@ for (const size of SIZES) {
       assert.deepEqual(r.fonts, [], `${r.label}: text fields under 16px`);
       assert.deepEqual(r.wide, [], `${r.label}: wider than the screen`);
     }
-    console.log(`        ${results.length} screens, ${results.reduce((n, r) => n + r.checked, 0)} tap targets measured`);
+    console.log(`        ${results.length} screens, ${results.reduce((n, r) => n + r.checked, 0)} tap targets measured (${crOpened} folds in the Creator opened first)`);
   });
 }
 
