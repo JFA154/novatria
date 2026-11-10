@@ -10126,7 +10126,30 @@ const Pack = (() => {
       scopeRefusal: { on: false, reason: '' },
       skipAnywhere: true
     },
-    suggestedSettings: {}
+    suggestedSettings: {},
+    /* The world's own words and names for the times of day (wave 37,
+       Creator Mode, milestone 9, task M9-C; plan decision F, the Style
+       NAME_ALLOW ... TEEN_RE row): today's lists, moved here as data.
+       essentials is Pipeline's old ESSENTIALS, teen Rel's old TEEN_RE and
+       lodging the words State's LODGING_RE put before "at" or "in" ("a
+       night at the motel"), each word for word. police is every word the
+       engine's police checks read; each check keeps its own narrower
+       pattern while a story leaves the list empty (Rel's start trust, say,
+       never counted "officer", so a parole officer two states over is not
+       the law), so Low Water reads exactly as before. phaseLabels is empty:
+       the times of day keep the engine's words. Pack.vocabulary and
+       Pack.phaseLabel read them. */
+    setting: {
+      vocabulary: {
+        police: ['police', 'officer', 'deputy', 'sheriff', 'trooper', 'constable', 'watchman', 'cop'],
+        essentials: ['room', 'rooms', 'night', 'nights', 'bed', 'lodging', 'motel', 'gas', 'gasoline', 'fuel', 'diesel', 'fill it up', 'fill her up', "fill 'er up", 'tank',
+          'food', 'eat', 'meal', 'plate', 'sandwich', 'burger', 'breakfast', 'lunch', 'supper', 'dinner', 'biscuit', 'catfish', 'fries', 'soup', 'chili', 'coffee'],
+        teen: ['teen', 'teens', 'teenager', 'teenagers', 'teenaged', 'student', 'schoolgirl', 'schoolboy', 'high school', 'middle school', 'county school', 'after school',
+          'kid', 'child', 'minor', 'freshman', 'sophomore', 'junior', 'senior at', 'grade'],
+        lodging: ['night', 'nights', 'room']
+      },
+      phaseLabels: {}
+    }
   });
   // The sections whose objects merge key by key over the defaults (decision D).
   const DIAL_SECTIONS = ['narration', 'directions', 'rules', 'freedom', 'prompts', 'suggestedSettings'];
@@ -10411,8 +10434,8 @@ const Pack = (() => {
     const strs = (label, o) => list(s(label, o));
 
     const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const EFFECTS = list(any('Effect', 'An effect op, { op, ... } (docs/BUILD_PLAN.md, "Effect ops"); PackRules (M1-C2) checks each op and its fields.'));
-    const COND = any('Condition', 'A when or requires condition (flagsSet, flagsUnset, npcFree, npcAt, clockAtLeast, attitudeAtLeast, attitudeBelow, obligationStatus, obligationOpen, relAtLeast, relBelow, threadOpen, playerAt); PackRules (M1-C2) checks it field by field.');
+    const EFFECTS = list(any('Effect', 'An effect op, { op, ... } (docs/BUILD_PLAN.md, "Effect ops"); each op is checked when the story is checked: a known op, with the fields that op takes, and ids that exist.'));
+    const COND = any('Condition', 'A when or requires condition (flagsSet, flagsUnset, npcFree, npcAt, clockAtLeast, attitudeAtLeast, attitudeBelow, obligationStatus, obligationOpen, relAtLeast, relBelow, threadOpen, playerAt); it is checked field by field when the story is checked: a known condition, its values of the right kind, and ids that exist.');
     const DAY_RANGE = list(i('Day'), { min: 1, max: 2, help: 'One day, or [lowest, highest] days later.' });
     const TRIGGER = obj({
       type: e('Trigger', ['day', 'location', 'npc', 'clock']),
@@ -10421,7 +10444,15 @@ const Pack = (() => {
     const ALT = obj({ text: t('Text instead', 2000), effects: EFFECTS });
     const OUTCOME = obj({ text: t('Text', 2000), effects: EFFECTS });
     const BRANCH = obj({ when: COND, text: t('Text', 2000), effects: EFFECTS });
-    const TRACKS = obj({ liking: i('Liking', { min: -100, max: 100 }), trust: i('Trust', { min: -100, max: 100 }), fear: i('Fear', { min: 0, max: 100 }), knows: i('Knows you', { min: 0, max: 100 }) });
+    /* The four relation tracks. Wave 37, Creator Mode, milestone 9 (task M9-C):
+       one node per use, so each takes its own words: a person's start (how
+       they feel about the player), a template's needs (the least it asks)
+       and the gates (thresholds). One shared node took the first use's
+       label, "How they feel about you at the start", into the other two. */
+    const tracks = () => obj({ liking: i('Liking', { min: -100, max: 100 }), trust: i('Trust', { min: -100, max: 100 }), fear: i('Fear', { min: 0, max: 100 }), knows: i('Knows you', { min: 0, max: 100 }) });
+    const TRACKS = tracks();
+    const NEEDS = tracks();
+    const THRESHOLDS = tracks();
     const OBLIGATION = obj({
       kind: e('Kind', ['debt', 'blackmail', 'promise', 'errand', 'lodging']),
       amount: i('Amount', { min: 0 }), dueOffset: i('Due, days after it starts', { min: 0 }),
@@ -10486,7 +10517,7 @@ const Pack = (() => {
     const TEMPLATE = obj({
       effect: t('Effect', 1000), kind: s('Kind'), about: strs('About'), dayOffset: DAY_RANGE, effects: EFFECTS,
       public: b('Town news'), forTags: strs('For tag'), notForTags: strs('Not for tag'),
-      to: e('Reported to', ['police', 'family']), needs: TRACKS
+      to: e('Reported to', ['police', 'family']), needs: NEEDS
     });
     const MAP = obj({
       width: n('Width'), height: n('Height'), river: s('River path', { max: 4000 }), riverWidth: n('River width'),
@@ -10537,7 +10568,7 @@ const Pack = (() => {
         factionId: r('Police faction', 'fac'), headNpcId: r('Head', 'npc'), fallbackNpcId: r('Fallback', 'npc'),
         arrestPlaceId: r('Where the arrested are held', 'loc'), newsTemplate: s('News line', { help: '{npc} is the person asked about.' })
       }),
-      gates: obj({ council: map(TRACKS), epilogue: map(TRACKS) })
+      gates: obj({ council: map(THRESHOLDS), epilogue: map(THRESHOLDS) })
     }, ['name', 'locations', 'npcs']);
     const BACKGROUND = obj({
       id: id('Id', 'bg_'), name: s('Name'), blurb: s('Blurb'), age: i('Age', { min: 16, max: 90 }),
@@ -10754,12 +10785,14 @@ const Pack = (() => {
       'world.grudgeTemplates[].dayOffset': { label: 'Days later' },
       'world.grudgeTemplates[].forTags': { label: 'For tags' },
       'world.grudgeTemplates[].notForTags': { label: 'Not for tags' },
-      'world.grudgeTemplates[].needs': { label: 'Needs' },
+      'world.grudgeTemplates[].needs': { label: 'Needs at least' },
       'world.favourTemplates': { label: 'Favours', hidden: true },
       'world.law': { label: 'The law' },
       'world.gates': { label: 'Gates' },
       'world.gates.council': { label: 'The council' },
       'world.gates.epilogue': { label: 'The epilogue' },
+      'world.gates.council{}': { label: 'Thresholds' },
+      'world.gates.epilogue{}': { label: 'Thresholds' },
       player: { label: 'Player', help: 'Who the player can be, and how they arrive.' },
       'player.backgrounds': { label: 'Backgrounds' },
       'player.backgrounds[].stats': { label: 'Stats' },
@@ -11032,6 +11065,65 @@ const Pack = (() => {
   // An amount as the pack writes it (the Helpers' money(): "$40", "40 cr", "40 gold").
   function moneyText(n) { return money(n); }
 
+  /* ----- the world's own words (wave 37, Creator Mode, milestone 9, task M9-C; plan decision F) -----
+     vocabulary(kind) for police, essentials, teen and lodging: the playing
+     pack's setting.vocabulary[kind] when it lists one word or more (trimmed,
+     lower case), else DEFAULTS.setting.vocabulary[kind]. teen adds the
+     pack's words to the engine's instead: who counts as under 18 is a fixed
+     rule (it fails closed), so a story can widen the words, never narrow
+     them. vocabulary(kind, true) is the pack's own list alone ([] when it
+     sets none). vocabularyRe(kind, engine, form): the RegExp a reader tests
+     with, case-insensitive, built from the list when read; form is its
+     source with {words} for the escaped words joined by "|" (default
+     "\b(?:{words})\b"). While the pack sets no list of its own, engine
+     (the reader's own pattern, today's words as that reader has always
+     read them) is what comes back when one is given. Built once per pack
+     object, kind and form, and again if that pack's list changes, as
+     moneyRe is. */
+  const VOCABULARY_KINDS = Object.freeze(['police', 'essentials', 'teen', 'lodging']);
+  function ownVocabulary(kind) {
+    const p = current();
+    const v = isObj(p) && isObj(p.setting) && isObj(p.setting.vocabulary) ? p.setting.vocabulary[kind] : undefined;
+    return Array.isArray(v) ? Array.from(new Set(v.filter(w => typeof w === 'string' && w.trim()).map(w => w.replace(/\s+/g, ' ').trim().toLowerCase()))) : [];
+  }
+  function vocabulary(kind, ownOnly) {
+    if (!VOCABULARY_KINDS.includes(kind)) return [];
+    const own = ownVocabulary(kind);
+    if (ownOnly) return own;
+    const base = DEFAULTS.setting.vocabulary[kind];
+    if (kind === 'teen') return Array.from(new Set(base.concat(own)));
+    return own.length ? own : base.slice();
+  }
+  const vocabCache = new WeakMap();
+  function vocabularyRe(kind, engine, form) {
+    if (engine instanceof RegExp && !ownVocabulary(kind).length) return engine;
+    const words = vocabulary(kind);
+    const shape = typeof form === 'string' && form.includes('{words}') ? form : '\\b(?:{words})\\b';
+    const src = words.join('\n');
+    const p = current();
+    let byKey = vocabCache.get(p);
+    if (!byKey) { byKey = new Map(); vocabCache.set(p, byKey); }
+    const key = kind + '\n' + shape;
+    const hit = byKey.get(key);
+    if (hit && hit.src === src) return hit.re;
+    const esc = x => String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(shape.split('{words}').join(words.map(esc).join('|') || '(?!)'), 'i');
+    byKey.set(key, { src, re });
+    return re;
+  }
+  /* The name a story gives a time of day (setting.phaseLabels, "First
+     shift"), trimmed and held to 24 characters, else the engine's word
+     capitalised ("Morning"). What the player reads says it (the toolbar,
+     the feed's day dividers, the people cards, /cheat time, the recap);
+     the narrator's packet does not (Pipeline's clockText), so the four
+     fixed phase ids stay unambiguous in the prompt. */
+  function phaseLabel(phase) {
+    const p = current();
+    const map = isObj(p) && isObj(p.setting) && isObj(p.setting.phaseLabels) ? p.setting.phaseLabels : null;
+    const own = map && typeof map[phase] === 'string' ? map[phase].replace(/\s+/g, ' ').trim().slice(0, 24).trim() : '';
+    return own || capFirst(phase);
+  }
+
   /* ----- a blank pack and how complete a pack is (wave 37, Creator Mode, milestone 5, task M5-A) -----
      blank(title): the smallest pack of format 1 the editor starts from (New
      story). Its id is slugged from the title with a short random tail, so
@@ -11189,6 +11281,8 @@ const Pack = (() => {
     freedom, FREEDOM_PRESETS,
     // Wave 37, Creator Mode, milestone 4 (task M4-C): the pack's money patterns, rebuilt when the pack changes, and an amount in its currency.
     get moneyRe() { return moneyRe(); }, moneyText,
+    // Wave 37, Creator Mode, milestone 9 (task M9-C): the world's own words for the police, essentials, teens and lodging, the patterns read from them, and its names for the times of day.
+    vocabulary, vocabularyRe, phaseLabel, VOCABULARY_KINDS,
     // Wave 37, Creator Mode, milestone 5 (task M5-A): the pack New story starts from, and the share of a pack's sections that are filled.
     blank, completeness,
     // Wave 37, Creator Mode, milestone 5 (task M5-C1): the id an added entity gets, and an id renamed through every reference.
@@ -14777,12 +14871,16 @@ const Dice = (() => {
 
   // ----- fights -----
   const HARD_TAGS = ['police', 'armed', 'tough'];
+  /* The roles that make a fight hard: the police, by the story's own words
+     for them (Pack.vocabularyRe; these are the engine's while a story sets
+     none: wave 37, Creator Mode, milestone 9), and a bouncer in any story. */
+  const HARD_ROLE_RE = /\b(police|officer|deputy|sheriff|trooper)\b/;
   const EASY_TAGS = ['elderly', 'frail', 'teen', 'teenager', 'child'];
   function threat(npc) {
     if (!isObj(npc)) return 'normal';
     const tags = (Array.isArray(npc.tags) ? npc.tags : []).map(x => String(x).toLowerCase());
     const role = String(npc.role || '').toLowerCase();
-    if (tags.some(x => HARD_TAGS.includes(x)) || /\b(police|officer|deputy|sheriff|trooper|bouncer)\b/.test(role)) return 'hard';
+    if (tags.some(x => HARD_TAGS.includes(x)) || Pack.vocabularyRe('police', HARD_ROLE_RE).test(role) || /\bbouncer\b/.test(role)) return 'hard';
     const age = Number.isInteger(npc.age) ? npc.age : null;
     if (tags.some(x => EASY_TAGS.includes(x)) || (age !== null && (age >= 70 || age <= 17))) return 'easy';
     return 'normal';
@@ -15785,9 +15883,14 @@ const State = (() => {
   // Goods that are used up where they are bought (TABLES.items.goods kind), never carried.
   const SERVICE_KINDS = ['service', 'drink', 'food'];
   // A night's lodging bought by name ("Night at the motel", "Room at the Riverview").
-  const LODGING_RE = /^(?:a\s+)?(?:night|nights|room)\s+(?:at|in)\b/i;
-  // Where a paid night gives a real bed (restQuality); a friendly host's bed is anywhere they live or keep.
-  const LODGING_TYPES = ['motel', 'inn', 'hotel'];
+  /* Wave 37, Creator Mode, milestone 9: the words before "at" or "in" are the
+     story's lodging words ("a berth at the dock hostel"; setting.vocabulary
+     .lodging), else the engine's night, nights and room, read when tested. */
+  const LODGING_RE = { test: text => Pack.vocabularyRe('lodging', null, '^(?:a\\s+)?(?:{words})\\s+(?:at|in)\\b').test(text) };
+  /* Where a paid night gives a real bed (restQuality); a friendly host's bed is anywhere they live or keep.
+     Wave 37, Creator Mode, milestone 9: a place whose type is one of the
+     story's own lodging words (a "berth", a "pod") is one too. */
+  const LODGING_TYPES = { includes: type => ['motel', 'inn', 'hotel'].includes(type) || Pack.vocabulary('lodging', true).includes(type) };
 
   /* rel: what events moved each person this turn ({ npcId: { w, t, f, s } },
      the per-turn bounds, Rel.CAPS.turn); classes: the dedupe classes the
@@ -18135,20 +18238,32 @@ const State = (() => {
   const GOOD_SYNONYMS = ['drink', 'drinks', 'beer', 'beers', 'round', 'rounds', 'shot', 'shots', 'coffee', 'coffees', 'soda', 'sodas', 'coke', 'cokes', 'pop', 'cola', 'whiskey', 'bourbon', 'cold one', 'cold ones',
     'tallboy', 'tallboys', 'six-pack', 'six-packs', 'refill', 'tab', 'food', 'plate', 'basket', 'burger', 'burgers', 'sandwich', 'sandwiches', 'biscuit', 'biscuits', 'fries', 'catfish',
     'room', 'rooms', 'haircut', 'trim', 'fill-up', 'tank', 'gas', 'cigarettes', 'smokes', 'scratch-off', 'scratch-offs', 'scratcher', 'scratchers', 'lottery ticket', 'lottery tickets', 'wedding ring', 'wedding rings', 'prepaid minutes'];
+  /* Wave 37, Creator Mode, milestone 9 (task M9-C): a good's own synonyms
+     (its "Also called" list) and the story's essentials (setting.vocabulary
+     .essentials, "air tax") are goods words too; the pattern is kept for the
+     goods table and the essentials it was built from (another pack's, a
+     preview's), so it is built again when either changes. The built-in
+     goods have no synonyms and the built-in pack sets no essentials of its
+     own, so Low Water's pattern is the one it always was. */
   let goodWordsRe = null;
   function goodWords() {
-    if (goodWordsRe) return goodWordsRe;
-    const goods = Pack.tables().items && Array.isArray(Pack.tables().items.goods) ? Pack.tables().items.goods : [];
+    const tables = Pack.tables();
+    const own = Pack.vocabulary('essentials', true);
+    const key = own.join('\n');
+    if (goodWordsRe && goodWordsRe.tables === tables && goodWordsRe.key === key) return goodWordsRe.re;
+    const goods = tables.items && Array.isArray(tables.items.goods) ? tables.items.goods : [];
     const words = new Set(GOOD_SYNONYMS);
     for (const g of goods) {
       if (!isObj(g) || typeof g.name !== 'string') continue;
       for (const w of g.name.toLowerCase().split(/[^a-z-]+/)) if (w.length >= 3 && !GOOD_STOP.has(w)) { words.add(w); words.add(/s$/.test(w) ? w.replace(/s$/, '') : w + 's'); }
       if (SERVICE_KINDS.includes(g.kind)) words.add(g.kind === 'service' ? 'service' : g.kind);
+      for (const w of Array.isArray(g.synonyms) ? g.synonyms : []) if (typeof w === 'string' && w.trim()) words.add(w.trim().toLowerCase());
     }
+    for (const w of own) words.add(w);
     words.delete('service');
-    const list = Array.from(words).filter(w => w.length >= 3).sort((a, b) => b.length - a.length).map(w => w.replace(/[-]/g, '[- ]?').replace(/\s+/g, '\\s+'));
-    goodWordsRe = new RegExp(`(?:${list.join('|')})`);
-    return goodWordsRe;
+    const list = Array.from(words).filter(w => w.length >= 3).sort((a, b) => b.length - a.length).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/[-]/g, '[- ]?').replace(/\s+/g, '\\s+'));
+    goodWordsRe = { tables, key, re: new RegExp(`(?:${list.join('|')})`) };
+    return goodWordsRe.re;
   }
   /* The names of things on sale where the player stands (scene items with a price), in lower case. */
   function forSaleHere() {
@@ -22516,7 +22631,11 @@ const Rel = (() => {
   function romanceOn() { return Pack.get('rules.romance.enabled') !== false; }
   // The minor rule's row (wave 28): no spark part, and fear that buys nothing.
   const UNWANTED_ADVANCE = deepFreeze({ w: -20, t: -20, f: 10, k: 2, s: 0, m: 0, weight: 3, decay: 'wound', fearBuysNothing: true });
-  const TEEN_RE = /\b(teens?|teenagers?|teenaged|student|schoolgirl|schoolboy|high school|middle school|county school|after school|kid|child|minor|freshman|sophomore|junior|senior at|grade)\b/i;
+  /* A role, tag or look that reads as a teen: the engine's words (Pack.DEFAULTS
+     .setting.vocabulary.teen, the old TEEN_RE word for word) and the story's
+     own (setting.vocabulary.teen, "youngster"), which only add to them (wave
+     37, Creator Mode, milestone 9). Read when tested, so the playing pack's. */
+  const TEEN_RE = { test: text => Pack.vocabularyRe('teen').test(text) };
 
   // ----- context: the state and town a reading is for -----
   /* ctx: { s (a game state; the live one by default), town (its town copy),
@@ -22716,7 +22835,8 @@ const Rel = (() => {
     const src = isObj(rec) ? rec : n;
     const ax = axesOf(src, { s: null, town: null });
     const tags = Array.isArray(src.tags) ? src.tags.map(t => String(t).toLowerCase()) : [];
-    const police = tags.includes('police') || /\b(police|sheriff|deputy|trooper)\b/i.test(String(src.role || ''));
+    // The police by the story's words (setting.vocabulary.police; wave 37, Creator Mode, milestone 9), else these, which leave "officer" out (a parole officer is not the law).
+    const police = tags.includes('police') || Pack.vocabularyRe('police', /\b(police|sheriff|deputy|trooper)\b/i).test(String(src.role || ''));
     let t = AXIS_EFFECTS.guarded.startTrust * ax.g - (police || tags.includes('smuggler') ? 10 : 0);
     if (isObj(src.start) && Number.isInteger(src.start.trust)) t = clamp(src.start.trust, -100, 100);
     const f = isObj(src.start) && Number.isInteger(src.start.fear) ? clamp(src.start.fear, 0, 100) : 0;
@@ -23470,7 +23590,7 @@ const Rel = (() => {
     const npcs = ctx.s && Array.isArray(ctx.s.npcs) ? ctx.s.npcs : [];
     const lawHead = townEdit(ctx, 'policeHead') || (lawApplies(ctx) ? lawOf().headNpcId : null);
     const named = ctx.town && typeof ctx.town.policeHead === 'string' ? ctx.town.policeHead : builtIn(ctx) && typeof Pack.builtIn().world.policeHead === 'string' ? Pack.builtIn().world.policeHead : null;
-    const police = x => isObj(x) && ((Array.isArray(x.tags) && x.tags.includes('police')) || /\b(police|sheriff|deputy|officer)\b/i.test(String(x.role || '')));
+    const police = x => isPoliceNpc(x);
     const head = (lawHead && npcs.find(x => isObj(x) && x.id === lawHead)) || (named && npcs.find(x => isObj(x) && x.id === named)) || npcs.find(x => police(x) && /\bchief\b/i.test(String(x.role || '')));
     return head && available(head, ctx) ? head.id : null;
   }
@@ -23546,8 +23666,11 @@ const Rel = (() => {
     if (barred && head && head !== n.id) return { nobody: true, barred: true };
     return head && head !== n.id ? { ids: [head], hidden: false } : null;
   }
-  // The police, by tag or role (who takes a report as the law).
-  function isPoliceNpc(x) { return isObj(x) && ((Array.isArray(x.tags) && x.tags.includes('police')) || /\b(police|sheriff|deputy|officer)\b/i.test(String(x.role || ''))); }
+  /* The police, by tag or role (who takes a report as the law). The role
+     words are the story's (setting.vocabulary.police: a starport's "station
+     marshal"; wave 37, Creator Mode, milestone 9), else these. */
+  const POLICE_ROLE_RE = /\b(police|sheriff|deputy|officer)\b/i;
+  function isPoliceNpc(x) { return isObj(x) && ((Array.isArray(x.tags) && x.tags.includes('police')) || Pack.vocabularyRe('police', POLICE_ROLE_RE).test(String(x.role || ''))); }
   /* Whether someone afraid of the player means to tell (design section
      6.2's report seed): fear at GATES.report.fear or more, and it came from
      the player's threats (whatever their liking), or from violence with
@@ -25699,7 +25822,8 @@ const Town = (() => {
      police or an officer or chief by role, "the kid" a teenager, "the old
      man" a he of 65 or more (the oldest first). Someone here first. */
   const PEOPLE_WORDS = [
-    [/^(cops?|police|policem[ae]n|policewom[ae]n|deput(y|ies)|officers?|patrolman|lawman|the law)$/, n => isTag(n, 'police') || /\b(officer|chief)\b/.test(roleOf(n))],
+    // The role words are the story's police words when it sets them (setting.vocabulary.police; wave 37, Creator Mode, milestone 9).
+    [/^(cops?|police|policem[ae]n|policewom[ae]n|deput(y|ies)|officers?|patrolman|lawman|the law)$/, n => isTag(n, 'police') || Pack.vocabularyRe('police', /\b(officer|chief)\b/).test(roleOf(n))],
     [/^(preacher|pastor|reverend|minister|priest|parson)$/, n => isTag(n, 'pastor', 'priest') || /\b(pastor|preacher|reverend|minister|priest)\b/.test(roleOf(n))],
     [/^(kids?|teens?|teenagers?|youngsters?)$/, isTeen],
     [/^(boy|lad|young man|young fella)$/, n => isTeen(n) && n.pronouns === 'he'],
@@ -26337,7 +26461,8 @@ const World = (() => {
     [/\b(mechanic|garage|driver|trucker)\b/, ['garage', 'gas', 'highway', 'road']],
     [/\b(smith|blacksmith|forge)\b/, ['smithy', 'garage']],
     [/\b(cook|waitress|waiter|diner|baker)\b/, ['diner', 'tavern', 'bar', 'market']],
-    [/\b(police|deputy|sheriff|watch|watchman|officer|constable)\b/, ['police', 'watch']],
+    // The story's police words when it sets them (setting.vocabulary.police; wave 37, Creator Mode, milestone 9), read when tested.
+    [{ test: text => Pack.vocabularyRe('police', /\b(police|deputy|sheriff|watch|watchman|officer|constable)\b/).test(text) }, ['police', 'watch']],
     [/\b(enemy|thug|bruiser|drifter|stranger|muscle)\b/, ['motel', 'tavern', 'bar', 'slum', 'trailerpark']]
   ];
   const HOME_FALLBACK = ['tavern', 'bar', 'motel', 'market', 'diner'];
@@ -26764,7 +26889,8 @@ const World = (() => {
     const tags = new Set((n.tags || []).map(t => String(t).toLowerCase()));
     if (Number.isInteger(n.age) && n.age >= 70) tags.add('elderly');
     if (Number.isInteger(n.age) && n.age < 18) { tags.add('teenager'); tags.add('teen'); }
-    if (/\b(police|officer|chief|deputy|sheriff)\b/i.test(String(n.role || ''))) tags.add('police');
+    // The story's police words when it sets them (wave 37, Creator Mode, milestone 9).
+    if (Pack.vocabularyRe('police', /\b(police|officer|chief|deputy|sheriff)\b/i).test(String(n.role || ''))) tags.add('police');
     return tags;
   }
   /* Wave 28: a template's needs ({ trust }, the photo and the ramp warning
@@ -27980,7 +28106,8 @@ const World = (() => {
     const lawHead = lawOf().headNpcId;
     const head = lawHead ? s.npcs.find(n => n.id === lawHead) : null;
     if (head && Rel.inTown(head)) return head;
-    const police = n => (n.tags || []).includes('police') || /\b(police|officer)\b/i.test(String(n.role || ''));
+    // By role, the story's police words when it sets them (wave 37, Creator Mode, milestone 9).
+    const police = n => (n.tags || []).includes('police') || Pack.vocabularyRe('police', /\b(police|officer)\b/i).test(String(n.role || ''));
     return s.npcs.find(n => isFree(n) && police(n) && ((n.tags || []).includes('chief') || /\bchief\b/i.test(String(n.role || '')))) || s.npcs.find(n => isFree(n) && police(n)) || null;
   }
   /* Sleeping rough in a public place (wave 4, the playtest's design note:
@@ -29219,11 +29346,46 @@ const Api = (() => {
       const label = raw.replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '').replace(/\s+/g, ' ').trim().slice(0, 40).replace(/[\ud800-\udbff]$/, '');
       if (label && label.toLowerCase() !== k) out = out.replace(anchor, `${lead}${k} (this story calls it ${label}) for`);
     }
+    out = moneyIn(out, PARSER_MONEY);
     return scope ? `${out} ${SCOPE_LINE}` : out;
+  }
+  /* Wave 37, Creator Mode, milestone 9 (task M9-C; plan decision F, "Parser/
+     bookkeeper example sentences"): the example sentences keep their names
+     (Jodie, Carter, Dewayne: they show the form of a line, not the story),
+     but an amount in them is written in the playing pack's money, as money()
+     writes it ("bets 20 cr at cards"). Each anchor occurs once in its
+     prompt; with Low Water's "$" the text is today's, byte for byte.
+     MEMORY_RULES keeps its "$40": Upgrade's memory rewrite quotes it word
+     for word, and tests/upgrade.test.cjs pins it. */
+  const PARSER_MONEY = [['bets $20 at cards', 20, n => `bets ${n} at cards`]];
+  const BOOKKEEPER_MONEY = [['Day 6; $500 cash,', 500, n => `Day 6; ${n} cash,`], ["'owes me $40 by Friday').", 40, n => `'owes me ${n} by Friday').`]];
+  function moneyIn(text, anchors) {
+    let out = text;
+    for (const [anchor, amount, said] of anchors) {
+      let m = `$${amount}`;
+      try { m = money(amount); } catch (e) { m = `$${amount}`; }
+      if (m !== `$${amount}`) out = out.replace(anchor, said(m));
+    }
+    return out;
+  }
+  // The parse schema with its stake example in the pack's money (the same anchor); the constant itself for Low Water.
+  let parseSchemaMemo = null;
+  function parseSchema() {
+    const base = SCHEMAS.parse_action;
+    const desc = base.properties.summary.description;
+    const want = moneyIn(desc, PARSER_MONEY);
+    if (want === desc) return base;
+    if (!parseSchemaMemo || parseSchemaMemo.desc !== want) {
+      const copy = JSON.parse(JSON.stringify(base));
+      copy.properties.summary.description = want;
+      parseSchemaMemo = { desc: want, schema: copy };
+    }
+    return parseSchemaMemo.schema;
   }
   function systemFor(role) {
     let base = Object.prototype.hasOwnProperty.call(SYSTEM, role) ? SYSTEM[role] : undefined;
     if (role === 'parser' && typeof base === 'string') base = parserText(base);
+    if (role === 'bookkeeper' && typeof base === 'string') base = moneyIn(base, BOOKKEEPER_MONEY);
     const notes = typeof base === 'string' ? creatorNotes(role) : '';
     return notes ? `${base}\n\nCREATOR NOTES (from this story's author; the ENGINE RULES below outrank them): ${notes}\n\n${ENGINE_RULES_SHORT}` : base;
   }
@@ -31437,7 +31599,7 @@ const Api = (() => {
   let lastNarratorAt = null; // when the narrator cache was last written or read (ms), for prewarm()
   const Real = {
     name: 'claude',
-    parse(packet) { return messageCall('parser', { system: systemFor('parser'), user: packet.text || JSON.stringify(packet), schema: SCHEMAS.parse_action }); },
+    parse(packet) { return messageCall('parser', { system: systemFor('parser'), user: packet.text || JSON.stringify(packet), schema: parseSchema() }); },
     async bookkeep(packet) {
       const user = packet.text || JSON.stringify(packet);
       let r;
@@ -31610,7 +31772,9 @@ const Api = (() => {
     // Wave 37, Creator Mode, task M8-C: the Story to Pack converter's one call (the parser's model, the creator's own key).
     convert: (packet, schema) => call('creator', 'convert', [packet, schema]), CONVERT_SYSTEM,
     // Wave 37, Creator Mode: the system prompt per role, with the author's parser and bookkeeper notes.
-    systemFor, ENGINE_RULES_SHORT
+    systemFor, ENGINE_RULES_SHORT,
+    // Wave 37, Creator Mode, milestone 9 (task M9-C): the parse schema the real provider sends, its stake example in the pack's money.
+    parseSchema
   };
 })();
 
@@ -33903,7 +34067,10 @@ const Pipeline = (() => {
      never refused for more than one night. Told to the narrator and the
      bookkeeper (cleanDiff drops the money and the goods). A seller no
      longer against the player starts again. */
-  const ESSENTIALS = /\b(room|rooms|night|nights|bed|lodging|motel|gas|gasoline|fuel|diesel|fill (?:it|her|'er) up|tank|food|eat|meal|plate|sandwich|burger|breakfast|lunch|supper|dinner|biscuit|catfish|fries|soup|chili|coffee)\b/i;
+  /* A bed, gas or food: the story's essentials (setting.vocabulary.essentials:
+     "a berth", "air tax"), else the engine's (Pack.DEFAULTS, the old
+     ESSENTIALS word for word); wave 37, Creator Mode, milestone 9. */
+  const ESSENTIALS = { test: text => Pack.vocabularyRe('essentials').test(text) };
   function refuseSale(ctx) {
     const s = State.current;
     const a = ctx.action;
@@ -37614,7 +37781,8 @@ const Pipeline = (() => {
     const l = here();
     const present = State.npcsAt(l.id);
     const foe = ((ctx.action && ctx.action.targets) || []).map(id => State.npc(id)).find(n => n && present.includes(n)) || null;
-    const watchy = n => !!n && ((n.tags || []).some(t => t === 'watch' || t === 'police') || /\b(watch|police|deputy|sheriff|officer|constable|trooper|cop)/i.test(n.role));
+    // By role, the story's police words when it sets them (setting.vocabulary.police; wave 37, Creator Mode, milestone 9), read as word starts as these are.
+    const watchy = n => !!n && ((n.tags || []).some(t => t === 'watch' || t === 'police') || Pack.vocabularyRe('police', /\b(watch|police|deputy|sheriff|officer|constable|trooper|cop)/i, '\\b(?:{words})').test(n.role));
     let outcome;
     let npc = null;
     let dest = null;
@@ -38852,13 +39020,14 @@ const Pipeline = (() => {
     const earned = progressMark(s);
     const r = State.apply({ setTime: { day, phase, shorts: 0, late: false } });
     if (r.rejected.length) { State.restore(snap); UI.feed.notice(`The clock was not changed: ${r.rejected[0].reason}.`); return { ok: false, reason: 'rejected' }; }
-    if (JSON.stringify(State.current) === snap) { State.restore(snap); UI.feed.notice(`The clock is already at Day ${day} · ${capFirst(phase)}.`); return { ok: false, reason: 'same-time' }; }
+    if (JSON.stringify(State.current) === snap) { State.restore(snap); UI.feed.notice(`The clock is already at Day ${day} · ${Pack.phaseLabel(phase)}.`); return { ok: false, reason: 'same-time' }; }
     UI.feed.divider(day, phase);
     if (backwards) {
-      UI.feed.quiet(`Clock set back to Day ${day} · ${capFirst(phase)}. What has already happened stays in the story.`);
+      // The story's name for the time of day (setting.phaseLabels; wave 37, Creator Mode, milestone 9), as in the toolbar.
+      UI.feed.quiet(`Clock set back to Day ${day} · ${Pack.phaseLabel(phase)}. What has already happened stays in the story.`);
       return { ok: true };
     }
-    UI.feed.quiet(`Clock set to Day ${day} · ${capFirst(phase)}.`);
+    UI.feed.quiet(`Clock set to Day ${day} · ${Pack.phaseLabel(phase)}.`);
     // A town event the clock jumped past happens now, as news of its own day (wave 4, the playtest's design note: not at the next tick, two days late).
     // Wave 5 (the round-4 QA): with the seeds of the days it passed, in the order they would have come, each dated to its own day.
     // One whose place the player is at as the clock lands on it happens in front of them instead (the next narration's scene; the fourth review's risk).
@@ -39295,7 +39464,8 @@ const Pipeline = (() => {
     const p = s.player;
     const t = s.time;
     const l = State.loc(p.locationId);
-    const out = [`Day ${t.day} (${State.dateLine(t.day)}), ${t.phase}, at ${placeName(l)}.`];
+    // The story's name for the time of day, in the sentence's case ("morning", "first shift"; wave 37, Creator Mode, milestone 9).
+    const out = [`Day ${t.day} (${State.dateLine(t.day)}), ${lowerFirst(Pack.phaseLabel(t.phase))}, at ${placeName(l)}.`];
     if (endingFired()) {
       out.push(ENDING_LINE);
       if (opts && opts.brief) return out.join('\n');
@@ -41287,7 +41457,8 @@ const UI = (() => {
     const l = State.loc(s.player.locationId);
     const wd = weekdayOf(s.time.day);
     d.tbWd.textContent = wd ? `${wd.slice(0, 3)} · ` : '';
-    d.tbTime.textContent = `Day ${s.time.day} · ${capFirst(s.time.phase)}`;
+    // The story's name for the time of day (setting.phaseLabels; wave 37, Creator Mode, milestone 9), else "Morning".
+    d.tbTime.textContent = `Day ${s.time.day} · ${Pack.phaseLabel(s.time.phase)}`;
     d.tbLoc.textContent = l ? l.name : '';
     d.tbHp.textContent = `${s.player.hp}/${s.player.maxHp}`;
     const cash = currency();
@@ -41739,7 +41910,7 @@ const UI = (() => {
     if (isHere) return el('span', { class: 'pcard-where here' }, 'Here now');
     const v = (s.seen || {})[n.id];
     const l = v && State.loc(v.locationId);
-    return l ? el('span', { class: 'pcard-where' }, `Last seen: ${placePhrase(l.name)}, `, el('span', { class: 'nowrap' }, `Day ${v.day} · ${capFirst(v.phase)}`)) : null;
+    return l ? el('span', { class: 'pcard-where' }, `Last seen: ${placePhrase(l.name)}, `, el('span', { class: 'nowrap' }, `Day ${v.day} · ${Pack.phaseLabel(v.phase)}`)) : null;
   }
   function reEsc(x) { return String(x).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
   /* A memory in the player's words: "Tester insulted them" -> "you insulted
@@ -43049,11 +43220,13 @@ const UI = (() => {
     if (head && on) { head.focus({ preventScroll: true }); const card = head.closest('.plcard'); if (card && card.scrollIntoView) card.scrollIntoView({ block: 'nearest' }); }
     return openPlace;
   }
-  /* "Day 5 · Evening" (with the weekday when the engine has one). */
+  /* "Day 5 · Evening" (with the weekday when the engine has one); the story's
+     name for the time of day when it gives one (Pack.phaseLabel; wave 37,
+     Creator Mode, milestone 9). */
   function dayLabel(day, phase) {
     if (!Number.isInteger(day)) return '';
     const wd = weekdayOf(day);
-    return [`Day ${day}`, wd, phase ? capFirst(phase) : ''].filter(Boolean).join(' · ');
+    return [`Day ${day}`, wd, phase ? Pack.phaseLabel(phase) : ''].filter(Boolean).join(' · ');
   }
   /* The day and phase a turn was played, from the log (an entry kept).
      Turn 0 is day 1; its phase only while the log still starts there. */
@@ -43557,7 +43730,8 @@ const UI = (() => {
         el('h3', null, 'Obligations'), pre(obls || 'none'),
         el('h3', null, 'Bans'), pre(bans || 'none'),
         el('h3', null, 'Events fired'), pre(fired || 'none'),
-        el('h3', null, 'Meta'), pre(`turn ${s.meta.turn} · day ${s.time.day} ${s.time.phase} · seed ${s.meta.seed} · rng calls ${s.meta.rngCalls} · shorts ${s.time.shorts}${s.time.late ? ' (late night)' : ''}${s.time.noSleep ? ' · no sleep last night' : ''} · rules v${State.rulesVersion(s)}${Upgrade.behind(s) ? ` (current v${State.RULES_VERSION})` : ''}\nflags ${JSON.stringify(s.flags)}\nreputation ${rep}\nretry lock ${s.meta.lastRollKey || '-'}\nundo depth ${State.undoDepth()}`),
+        // The engine's phase id, then the story's own name for it when it gives one (setting.phaseLabels; wave 37, Creator Mode, milestone 9).
+        el('h3', null, 'Meta'), pre(`turn ${s.meta.turn} · day ${s.time.day} ${s.time.phase}${Pack.phaseLabel(s.time.phase) !== capFirst(s.time.phase) ? ` (${Pack.phaseLabel(s.time.phase)})` : ''} · seed ${s.meta.seed} · rng calls ${s.meta.rngCalls} · shorts ${s.time.shorts}${s.time.late ? ' (late night)' : ''}${s.time.noSleep ? ' · no sleep last night' : ''} · rules v${State.rulesVersion(s)}${Upgrade.behind(s) ? ` (current v${State.RULES_VERSION})` : ''}\nflags ${JSON.stringify(s.flags)}\nreputation ${rep}\nretry lock ${s.meta.lastRollKey || '-'}\nundo depth ${State.undoDepth()}`),
         el('h3', null, 'Faction clocks'), pre((clocks || '-') + forced),
         el('h3', null, 'Due events'), pre([due, visits].filter(Boolean).join('\n') || 'none'),
         el('h3', null, 'Seeds'), pre(seeds || '-'),
