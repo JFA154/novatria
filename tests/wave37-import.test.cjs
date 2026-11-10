@@ -227,7 +227,7 @@ s.test('export then import round-trips byte for byte (Pack.format of both equal)
   }));
   assert.equal(sh.title, 'Share "script>alert(1)/script> Hostile "Town" & Co"');
   assert.deepEqual([sh.name, sh.size], ['hostile-town-1.0.0.json', want.kb]);
-  assert.equal(sh.note, 'A story pack holds your story and its settings. It never holds your API key or a saved game.');
+  assert.equal(sh.note, 'A story pack holds your story and its settings, never a saved game. It never holds your API key: one typed into a field is blanked on export.'); // reworded by R8's S3
   assert.deepEqual(sh.buttons, [['creator-share-download', 'Download'], ['creator-share-copy', 'Copy JSON'], ['creator-share-close', 'Close']], 'no Share without navigator.canShare');
   assert.equal(sh.focus, 'creator-share-download');
   const [download] = await Promise.all([page.waitForEvent('download'), page.click('#creator-share-download')]);

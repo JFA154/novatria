@@ -38064,6 +38064,10 @@ const Pipeline = (() => {
     const t = x && x.threadId ? State.thread(x.threadId) : null;
     return `Resolved: ${t ? t.title : 'a thread'}.${g ? ` ${g}.` : ''}`;
   }
+  /* Wave 37, Creator Mode, milestone 8 (R8's M1): the one notice for a story still waiting on the
+     player's 18+ yes, shared by the three ways a game's packets reach a prompt (runTurn, arrival,
+     updateGame), so the player reads the same sentence whichever of them refused. */
+  const CONSENT_NOTICE = 'This story needs your 18+ confirmation first; start it again from the title screen, which asks.';
 
   /* opts: { input (shown and logged), mode: 'normal' | 'zoom' | 'arrival' |
      'epilogue', parse (text for the parser; default input), action (preset
@@ -38079,8 +38083,8 @@ const Pipeline = (() => {
     /* Wave 37, Creator Mode, milestone 8 (task M8-B): the belt to App's braces. A story
        that needs the player's 18+ yes (Pack.needsConsent) and has not had it (Forget in
        Settings, a save loaded some other way) plays no turn: nothing of it reaches a
-       prompt, and the Api sees no call. */
-    if (!Pack.promptAllowed(Pack.current())) { UI.feed.notice('This story needs your 18+ confirmation first; start it again from the title screen, which asks.'); return { ok: false, reason: 'consent' }; }
+       prompt, and the Api sees no call. arrival and updateGame refuse the same way (R8's M1). */
+    if (!Pack.promptAllowed(Pack.current())) { UI.feed.notice(CONSENT_NOTICE); return { ok: false, reason: 'consent' }; }
     const s = State.current;
     busy = true;
     acceptsQueue = false;
@@ -38773,6 +38777,10 @@ const Pipeline = (() => {
   async function arrival() {
     const s = State.current;
     if (!s || busy) return { ok: false };
+    /* Wave 37, Creator Mode, milestone 8 (R8's M1): the arrival sends the story's packets to the
+       narrator like a turn does, so a story waiting on the 18+ yes is refused here too, before
+       anything is sent. */
+    if (!Pack.promptAllowed(Pack.current())) { UI.feed.notice(CONSENT_NOTICE); return { ok: false, reason: 'consent' }; }
     if (readOnlyRefusal()) return { ok: false, reason: 'read-only' };
     busy = true;
     acceptsQueue = false;
@@ -38923,6 +38931,11 @@ const Pipeline = (() => {
     const s = State.current;
     if (!s || State.muted) return { ok: false, reason: 'no game' };
     if (busy) return { ok: false, reason: 'busy' };
+    /* Wave 37, Creator Mode, milestone 8 (R8's M1): Settings' "Re-read this game" and
+       App.updateSave send the save's people, places and memories to the model, so a story
+       waiting on the 18+ yes (Forget mid-game) is refused before any step runs: no call, no
+       log line, the game as it was. */
+    if (!Pack.promptAllowed(Pack.current())) { UI.feed.notice(CONSENT_NOTICE); return { ok: false, reason: 'consent' }; }
     if (Upgrade.newer(s)) { UI.feed.notice(Upgrade.NOTICES.newer); return { ok: false, reason: 'newer' }; }
     busy = true;
     acceptsQueue = false;
@@ -39717,10 +39730,15 @@ const Storage = (() => {
     if (!isBuiltInPack(pack)) keepFrozen(pack, packHash(pack));
   }
   function serialise(env) {
-    let json = JSON.stringify(env);
     // Belt and braces: the key is never in state, but never let it leave either.
-    if (apiKey && apiKey.length >= 8 && json.includes(apiKey)) json = json.split(apiKey).join('[redacted]');
-    return json;
+    return redact(JSON.stringify(env));
+  }
+  /* Wave 37, Creator Mode, milestone 8 (R8's S3): serialise's redaction on its own, for any text that leaves the
+     page. A story pack's export runs through it too (Library.exportText): a creator who pasted the key into a
+     field (a note, a direction) must not send it with the pack. */
+  function redact(text) {
+    const t = String(text);
+    return apiKey && apiKey.length >= 8 && t.includes(apiKey) ? t.split(apiKey).join('[redacted]') : t;
   }
   /* State.validateShape's answer as a list of problems: today a list; a
      deeper check may answer { ok, reason } or a string. */
@@ -40258,7 +40276,8 @@ const Storage = (() => {
   function libExportText(ref) {
     const pack = packOf(ref);
     if (!pack) throw new Error('There is no such story pack.');
-    return Pack.format(pack);
+    // R8's S3: the file, the JSON tab's Copy and Download and the share File all come from here, so the key is blanked here, in the text only (the record stays as it is).
+    return redact(Pack.format(pack));
   }
   /* The frozen copy of a pack a save names (plan decision C): one record per
      hash, shared by every save of that exact pack, written once (the map,
@@ -40458,7 +40477,7 @@ const Storage = (() => {
     setReadOnly, takeOver, claim, keepAside, holdHand, heldHand, dropHand,
     undoFlush, undoReset, undoResume, undoKept, undoIdle, UNDO_DB, UNDO_STORE,
     // Wave 37, Creator Mode: envelope v2, the pack a save plays, IndexedDB v2 and the story packs on this device.
-    SAVE_VERSION, DB_VERSION, serialise, resolvePack, openDb, tx, Library,
+    SAVE_VERSION, DB_VERSION, serialise, redact, resolvePack, openDb, tx, Library,
     // Wave 37, Creator Mode, milestone 5: the drafts the editor writes.
     Drafts,
     get tabId() { return tab(); },
@@ -41037,11 +41056,26 @@ const UI = (() => {
      focus goes back where it was, as ask()'s does. */
   const CONSENT_WARN_MAX = 120;
   const CONSENT_WARN_LIST = 12;
+  /* Wave 37, Creator Mode, milestone 8 (R8's N2): the ask on screen ({ id, promise, onClose, settle, was }). A
+     second ask while it is open (a double tap, Play then New game) gets the same promise when it is for the same
+     story; for another story the first is settled "Not now" (false) and its listener taken off before the dialog
+     is filled again, so the one on screen is the one its Continue answers. */
+  let consentPending = null;
   function askConsent(pack) {
     if (!isObj(pack) || !isObj(pack.meta) || Pack.promptAllowed(pack)) return Promise.resolve(true);
     const m = pack.meta;
     const id = typeof m.id === 'string' ? m.id : '';
-    return new Promise(resolve => {
+    if (consentPending && d.consent && d.consent.open && consentPending.id === id) return consentPending.promise;
+    let earlier = null;
+    if (consentPending) {
+      earlier = consentPending;
+      consentPending = null;
+      if (d.consent) d.consent.removeEventListener('close', earlier.onClose);
+      earlier.settle(false);
+    }
+    const entry = { id, promise: null, onClose: null, settle: null, was: null };
+    entry.promise = new Promise(resolve => {
+      entry.settle = resolve;
       const dlg = d.consent;
       const title = String(m.title || id || 'This story');
       const yes = () => { if (id) Storage.savePerPack(id, { adultOk: true }); return !!id; };
@@ -41061,18 +41095,27 @@ const UI = (() => {
       d.consentCheck.checked = false;
       d.consentYes.disabled = true;
       dlg.returnValue = '';
-      const was = document.activeElement;
-      dlg.addEventListener('close', () => {
+      // An ask that replaced an earlier one gives the focus back where the earlier one found it, not into the dialog.
+      const was = entry.was = earlier ? earlier.was : document.activeElement;
+      /* R8's N2: the close event is queued, so the one from closing an earlier ask can arrive after this one is
+         open; a close while the dialog is open again is not this ask's answer. */
+      entry.onClose = () => {
+        if (dlg.open) return;
+        dlg.removeEventListener('close', entry.onClose);
+        if (consentPending === entry) consentPending = null;
         syncBanner();
         resolve(dlg.returnValue === 'yes' ? yes() : false);
         if (was && was.isConnected && typeof was.focus === 'function') was.focus({ preventScroll: true });
         if (!document.activeElement || document.activeElement === document.body) focusScreen(screen);
-      }, { once: true });
+      };
+      dlg.addEventListener('close', entry.onClose);
+      consentPending = entry;
       dlg.showModal();
       syncBanner();
       // The safe answer takes the focus, as ask()'s does.
       d.consentNo.focus();
     });
+    return entry.promise;
   }
 
   // ----- screens -----
@@ -46036,11 +46079,15 @@ const Creator = (() => {
     node('creator-persist').hidden = !storesRead || (Storage.Library.persistent && Storage.Drafts.persistent);
   }
 
-  /* Play this story: it is the one New game plays (settings.selectedPackId), and New game starts. */
+  /* Play this story: it is the one New game plays (settings.selectedPackId), and New game starts. Wave 37, Creator
+     Mode, milestone 8 (R8's S4): a story that needs the player's 18+ yes asks for it first, so "Not now" changes
+     nothing, not even which story the title screen offers; after a yes, App.newGame finds it given
+     (Pack.promptAllowed) and does not ask again. */
   function play(item) {
     if (item.kind === 'draft') return false;
-    Storage.saveSettings({ selectedPackId: item.id });
-    return App.newGame();
+    const go = () => { Storage.saveSettings({ selectedPackId: item.id }); return App.newGame(); };
+    if (!Pack.needsConsent(item.pack) || Pack.promptAllowed(item.pack)) return go();
+    return UI.askConsent(item.pack).then(yes => (yes ? go() : false));
   }
   /* Open in Creator: a pack is edited as a draft (its own copy); the built-in story is frozen, so it is first
      duplicated into a pack of its own (Library.duplicate) and that is what the draft edits. A pack with a
@@ -46068,7 +46115,15 @@ const Creator = (() => {
     openEditor(dr.id);
     return dr.id;
   }
-  function fileName(pack) { const m = metaOf(pack); return `${m.id || 'story'}-${m.version || '0.0.0'}.json`; }
+  /* Wave 37, Creator Mode, milestone 8 (R8's N4): a draft's id and version are whatever was typed or imported
+     ("../../evil/x"), so each is used only when it has its schema's form (meta.id's and meta.version's patterns),
+     else "story" and "0.0.0". */
+  function fileName(pack) {
+    const m = metaOf(pack);
+    const meta = Pack.SCHEMA.fields.meta.fields;
+    const ok = (v, spec) => typeof v === 'string' && new RegExp(spec.pattern).test(v);
+    return `${ok(m.id, meta.id) ? m.id : 'story'}-${ok(m.version, meta.version) ? m.version : '0.0.0'}.json`;
+  }
   /* Export: the pack's file, "<id>-<version>.json", as Pack.format writes it (Library.exportText), in the share
      sheet (task M8-A). */
   function exportItem(item) {
@@ -46084,7 +46139,8 @@ const Creator = (() => {
      Copy JSON). A modal dialog sits above the toast, so a button closes the sheet before it acts and its toast
      shows; the focus goes back where it was. */
   const SHEET_MAX = 20;
-  const SHARE_NOTE = 'A story pack holds your story and its settings. It never holds your API key or a saved game.';
+  // R8's S3: true since Library.exportText blanks the key (Storage.redact).
+  const SHARE_NOTE = 'A story pack holds your story and its settings, never a saved game. It never holds your API key: one typed into a field is blanked on export.';
   function sheet(fill) {
     const dlg = node('creator-share');
     if (!dlg || typeof dlg.showModal !== 'function') return Promise.resolve('');
@@ -46708,9 +46764,15 @@ const Creator = (() => {
   function step(from, to) {
     Form.flush();
     if (!work || !work[from].length) return false;
+    /* Wave 37, Creator Mode, milestone 8 (R8's S2): the stacks come back from IndexedDB with the draft, so an
+       entry is a pack from outside like any other and is cleaned the way the draft was when it loaded
+       (Pack.cleanStrings, lengths kept for the editor to report). An entry that is not JSON is dropped, and the
+       draft stays as it is, rather than a throw out of the Undo button. Checked before the draft is pushed. */
+    let next;
+    try { next = Pack.cleanStrings(JSON.parse(work[from].pop()), { lengths: false }); } catch (e) { return false; }
     work[to].push(JSON.stringify(state.draft));
     if (work[to].length > Storage.Drafts.UNDO_MAX) work[to].splice(0, work[to].length - Storage.Drafts.UNDO_MAX);
-    state.draft = JSON.parse(work[from].pop());
+    state.draft = next;
     changed(true);
     return true;
   }
@@ -49905,7 +49967,8 @@ const Creator = (() => {
     if (note) { note.hidden = !cut; note.textContent = cut ? `Showing the first ${JSON_HEAD} of ${lines.toLocaleString('en-US')} lines. Copy JSON and Download .json give the whole file.` : ''; }
     return view;
   }
-  function jsonText() { Form.flush(); return Pack.format(state.draft); }
+  // R8's S3: Copy JSON leaves the page like Download does, so the key is blanked in it too (Storage.redact).
+  function jsonText() { Form.flush(); return Storage.redact(Pack.format(state.draft)); }
   function copyByHand(text) {
     const ta = el('textarea', { class: 'cr-copy', readonly: true, 'aria-hidden': 'true', tabindex: '-1' });
     ta.value = text;
@@ -50467,6 +50530,37 @@ const Creator = (() => {
       }
       return false;
     }
+    /* Wave 37, Creator Mode, milestone 8 (R8's S1). inText only says the quote is somewhere in the text, so an
+       invented record could ride a real sentence about someone else, or a one-word quote ("harbour") that every
+       story holds. The owner: "I want to keep the story itself away from AI generated", so a record counts as
+       in your text only when its quote is a real stretch of it (at least six words, found by inText) AND the
+       record's name (a thread's title, a rumour's text, a seed's effect or cause) is in that quote, or in the
+       sentence just before it, where an author's "She is fifty..." finds its "Mara Quell". */
+    const QUOTE_MIN_WORDS = 6;
+    const sentencesOf = story => (String(story || '').match(/[^.!?\n]+(?:[.!?]+["'’”)\]]*|$)/g) || []).map(x => x.trim()).filter(Boolean);
+    function recordInText(names, source, story) {
+      if (words(source).length < QUOTE_MIN_WORDS || !inText(source, story)) return false;
+      const list = names.filter(n => words(n).length);
+      if (!list.length) return true; // the opening: no name to find, the quote alone
+      if (list.some(n => inText(n, source))) return true;
+      // The sentence the quote starts in: the last one from which the rest of the text still holds the quote (a binary search, as that only fails further on).
+      const ss = sentencesOf(story);
+      let lo = 0;
+      let hi = ss.length - 1;
+      while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (inText(source, ss.slice(mid).join(' '))) lo = mid; else hi = mid - 1; }
+      const near = ss.slice(Math.max(0, lo - 1), lo + 1).join(' ');
+      return list.some(n => inText(n, near));
+    }
+    /* A number the reply gives (an age, a day) is ticked only when the quote states it, as digits or in words. */
+    const ONES = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+    const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+    function numberInQuote(n, source) {
+      if (!Number.isInteger(n) || n < 0) return false;
+      if (new RegExp('(^|[^0-9])' + n + '(?![0-9])').test(String(source || ''))) return true;
+      if (n >= 100) return false;
+      const said = n < 20 ? ONES[n] : TENS[Math.floor(n / 10)] + (n % 10 ? ' ' + ONES[n % 10] : '');
+      return (' ' + words(source).join(' ') + ' ').includes(' ' + said + ' ');
+    }
 
     // ----- the run -----
     const listOf = (d, key) => arr(isObj(d) && isObj(d.world) ? d.world[key] : null).filter(x => isObj(x) && typeof x.id === 'string');
@@ -50484,16 +50578,23 @@ const Creator = (() => {
        kept where they name a listed id (the exits by name, from the places found), and the quote's check. */
     function itemsOf(kind, reply, known, taken, story, d) {
       const out = [];
+      /* Wave 37, Creator Mode, milestone 8 (R8's N3): the reply's strings lose the characters Pack.cleanStrings
+         takes out of a pack (control characters, text-direction marks) before anything reads them, so an id is
+         made from the name the review shows ("Ellie Wren", npc_ellie, not npc_ell_ie) and the review never
+         draws a hidden character. */
+      reply = Pack.cleanStrings({ reply }, { lengths: false }).reply;
       const ids = k => new Set(known[k].map(x => x.id));
       const has = (k, v) => typeof v === 'string' && ids(k).has(v);
+      const anyId = v => typeof v === 'string' && ['places', 'people', 'factions', 'threads'].some(k => has(k, v));
       const exists = new Set(listOf(d, PackConvert.LISTS[kind] || 'none').map(x => nameOf(x).toLowerCase()));
       if (kind === 'opening') {
         if (!isObj(reply)) return out;
         const was = isObj(d.opening) ? d.opening : {};
-        const fields = ['premise', 'text', 'firstTurn'].filter(k => text(reply[k])).map(k => ({ k, value: text(reply[k]), on: !text(was[k]) }));
+        // R8's S1: a field the opening already has stays unticked, and so does one whose words are not the author's.
+        const fields = ['premise', 'text', 'firstTurn'].filter(k => text(reply[k])).map(k => ({ k, value: text(reply[k]), on: !text(was[k]) && inText(text(reply[k]), story) }));
         if (!fields.length) return out;
         const source = text(reply.source);
-        const found = inText(source, story);
+        const found = recordInText([], source, story);
         out.push({ key: 'opening', kind, id: null, name: 'The opening', source, inText: found, on: found, fields, error: null });
         return out;
       }
@@ -50506,7 +50607,21 @@ const Creator = (() => {
         const id = Pack.idFor(ID_KIND[kind], base, [...taken]);
         taken.add(id);
         const fields = [];
-        const keep = (k, v) => { if (v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && !v.length)) fields.push({ k, value: v, on: true }); };
+        const source = text(row.source);
+        /* R8's S1: which fields start ticked. A string (or each string of a list) only when it is words of the
+           author's text or one of the ids listed to the model; a number only when the quote states it; an enum or
+           a yes/no is ticked, as it is the model's classification of the quoted words (pronouns, a thread's
+           status, "out of town"), not a fact it could invent; the author can untick it. */
+        const ENUMS = ['pronouns', 'status', 'away', 'true', 'knownToPlayer', 'hidden', 'danger'];
+        const said = v => typeof v === 'string' && (anyId(v) || inText(v, story));
+        function ticked(k, v) {
+          if (ENUMS.includes(k)) return true;
+          if (typeof v === 'number') return numberInQuote(v, source);
+          if (k === 'trigger') return v.type === 'day' ? numberInQuote(v.value, source) : true; // otherwise a listed id
+          if (Array.isArray(v)) return v.every(said);
+          return said(v);
+        }
+        const keep = (k, v) => { if (v !== null && v !== undefined && v !== '' && !(Array.isArray(v) && !v.length)) fields.push({ k, value: v, on: ticked(k, v) }); };
         for (const k of PackConvert.FIELDS[kind]) {
           if (k === nameKey) continue;
           const v = row[k];
@@ -50534,8 +50649,7 @@ const Creator = (() => {
           const ph = arr(row.phases).slice(0, 4).map(x => (has('places', x) ? x : ''));
           if (ph.some(Boolean)) fields.push({ k: 'phases', value: PHASE_WORDS.map((p, i) => ph[i] || ''), on: true });
         }
-        const source = text(row.source);
-        const found = inText(source, story);
+        const found = recordInText(kind === 'seeds' ? [name, text(row.cause)] : [name], source, story);
         out.push({ key: `${kind}:${id}`, kind, id, name, source, inText: found, on: found, fields, error: null });
         if (known[kind]) known[kind].push({ id, name });
       }
@@ -50684,7 +50798,9 @@ const Creator = (() => {
     const accept = () => write(false);
     const acceptAll = () => write(true);
     /* Accept: the ticked records (all: every record found in the text, and one not in it only when ticked by hand)
-       with their ticked fields (all: every field), one Editor.set each, each tried on a copy first. */
+       with their ticked fields, one Editor.set each, each tried on a copy first. Accept all too takes only the
+       ticked fields (R8's S1): a field the converter could not find in your words (Mara Quell's "age 90") stays
+       out unless you tick it. */
     function write(all) {
       if (!conv || conv.running || !state.draft) return 0;
       Form.flush();
@@ -50695,7 +50811,7 @@ const Creator = (() => {
       for (const it of take) {
         const next = Pack.copy(state.draft);
         const trial = new Map(wants);
-        const path = put(next, it, !all, trial);
+        const path = put(next, it, true, trial);
         const bad = firstNew(next, before);
         it.error = bad ? `${bad.path}: ${bad.message}` : null;
         if (bad) { it.on = false; continue; }
@@ -51376,7 +51492,10 @@ const App = (() => {
      way into a game of a story that needs the player's yes (Pack.needsConsent)
      asks for it (UI.askConsent) before anything of it shows or reaches a
      prompt: New game before character creation, a test from a draft, and
-     Continue, Load and Restore previous before the game screen. With the yes
+     Continue, Load and Restore previous before the game screen. A way in that
+     skips the ask (the yes withdrawn by Forget mid-game, a read-only tab's
+     Play here) still sends nothing: Pipeline's runTurn, arrival and
+     updateGame each refuse without the yes (R8's M1). With the yes
      already given (Pack.promptAllowed) go() runs at once, as before; else a
      promise of go()'s result, or false after "Not now", which changes
      nothing (the screen it was asked from stays as it was). */

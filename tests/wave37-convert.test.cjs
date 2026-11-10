@@ -316,7 +316,8 @@ s.test('a record whose addition raises an engine error is shown with that error 
   ] }));
   await convert(page);
   const rum = (await review(page)).find(i => i.kind === 'rumours');
-  assert.equal(rum.inText, true);
+  // R8's S1: its text is not in its quote (an invented rumour riding a real sentence), so it is "not in your text" too.
+  assert.equal(rum.inText, false);
   assert.equal(rum.on, false);
   assert.match(rum.error, /^world\.rumours\[0\]\.text: the name "Board" matches no person, place or faction/);
   const row = `#creator-convert .cr-cv-item[data-key="rumours:${rum.id}"]`;
