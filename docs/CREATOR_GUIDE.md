@@ -903,7 +903,7 @@ A section. The town: its places, people, factions and what is going on. Needs `n
 - `world.factions[].clocks[].onComplete`: a section. **When it fills**.
 - `world.factions[].clocks[].onComplete.text`: text, up to 2,000 characters. **Text**.
 - `world.factions[].clocks[].onComplete.effects`: a list, each a free value. **Effects**.
-- `world.factions[].clocks[].onComplete.requires`: a free value. **Condition**. A when or requires condition (flagsSet, flagsUnset, npcFree, npcAt, clockAtLeast, attitudeAtLeast, attitudeBelow, obligationStatus, obligationOpen, relAtLeast, relBelow, threadOpen, playerAt); PackRules (M1-C2) checks it field by field.
+- `world.factions[].clocks[].onComplete.requires`: a free value. **Condition**. A when or requires condition (flagsSet, flagsUnset, npcFree, npcAt, clockAtLeast, attitudeAtLeast, attitudeBelow, obligationStatus, obligationOpen, relAtLeast, relBelow, threadOpen, playerAt); it is checked field by field when the story is checked: a known condition, its values of the right kind, and ids that exist.
 - `world.factions[].clocks[].onComplete.alt`: a section. **Otherwise**.
 - `world.factions[].clocks[].onComplete.alt.text`: text, up to 2,000 characters. **Text instead**.
 - `world.factions[].clocks[].onComplete.alt.effects`: a list, each a free value. **Effects**.
@@ -928,7 +928,7 @@ A section. The town: its places, people, factions and what is going on. Needs `n
 - `world.seeds[].trigger.value`: a free value. **Value**. day: a whole day; location: a place id or a list of them; npc: a person id or a list; clock: "fac_x:3".
 - `world.seeds[].notBeforeDay`: a whole number, at least 1. **Not before day**.
 - `world.seeds[].effects`: a list, each a free value. **Effects**.
-- `world.seeds[].requires`: a free value. **Condition**. A when or requires condition (flagsSet, flagsUnset, npcFree, npcAt, clockAtLeast, attitudeAtLeast, attitudeBelow, obligationStatus, obligationOpen, relAtLeast, relBelow, threadOpen, playerAt); PackRules (M1-C2) checks it field by field.
+- `world.seeds[].requires`: a free value. **Condition**. A when or requires condition (flagsSet, flagsUnset, npcFree, npcAt, clockAtLeast, attitudeAtLeast, attitudeBelow, obligationStatus, obligationOpen, relAtLeast, relBelow, threadOpen, playerAt); it is checked field by field when the story is checked: a known condition, its values of the right kind, and ids that exist.
 - `world.seeds[].alt`: a section. **Otherwise**.
 - `world.seeds[].alt.text`: text, up to 2,000 characters. **Text instead**.
 - `world.seeds[].alt.effects`: a list, each a free value. **Effects**.
@@ -956,7 +956,7 @@ A section. The town: its places, people, factions and what is going on. Needs `n
 - `world.events[].attendees`: a list of ids of people. **Attendees**.
 - `world.events[].branches`: a list of records. **Branches**.
 - `world.events[].branches[]`: one record.
-- `world.events[].branches[].when`: a free value. **Condition**. A when or requires condition (flagsSet, flagsUnset, npcFree, npcAt, clockAtLeast, attitudeAtLeast, attitudeBelow, obligationStatus, obligationOpen, relAtLeast, relBelow, threadOpen, playerAt); PackRules (M1-C2) checks it field by field.
+- `world.events[].branches[].when`: a free value. **Condition**. A when or requires condition (flagsSet, flagsUnset, npcFree, npcAt, clockAtLeast, attitudeAtLeast, attitudeBelow, obligationStatus, obligationOpen, relAtLeast, relBelow, threadOpen, playerAt); it is checked field by field when the story is checked: a known condition, its values of the right kind, and ids that exist.
 - `world.events[].branches[].text`: text, up to 2,000 characters. **Text**.
 - `world.events[].branches[].effects`: a list, each a free value. **Effects**.
 - `world.events[].default`: a section. **Otherwise**.
@@ -967,7 +967,7 @@ A section. The town: its places, people, factions and what is going on. Needs `n
 - `world.epilogue.orFlagsSet`: a list of flag names. **Or when set**.
 - `world.epilogue.branches`: a list of records. **Branches**.
 - `world.epilogue.branches[]`: one record.
-- `world.epilogue.branches[].when`: a free value. **Condition**. A when or requires condition (flagsSet, flagsUnset, npcFree, npcAt, clockAtLeast, attitudeAtLeast, attitudeBelow, obligationStatus, obligationOpen, relAtLeast, relBelow, threadOpen, playerAt); PackRules (M1-C2) checks it field by field.
+- `world.epilogue.branches[].when`: a free value. **Condition**. A when or requires condition (flagsSet, flagsUnset, npcFree, npcAt, clockAtLeast, attitudeAtLeast, attitudeBelow, obligationStatus, obligationOpen, relAtLeast, relBelow, threadOpen, playerAt); it is checked field by field when the story is checked: a known condition, its values of the right kind, and ids that exist.
 - `world.epilogue.branches[].text`: text, up to 2,000 characters. **Text**.
 - `world.epilogue.branches[].effects`: a list, each a free value. **Effects**.
 - `world.epilogue.default`: a section. **Otherwise**.
@@ -1013,7 +1013,7 @@ A section. The town: its places, people, factions and what is going on. Needs `n
 - `world.grudgeTemplates[].forTags`: a list, each one line of text, up to 500 characters. **For tags**. (not in the forms)
 - `world.grudgeTemplates[].notForTags`: a list, each one line of text, up to 500 characters. **Not for tags**. (not in the forms)
 - `world.grudgeTemplates[].to`: one of `police`, `family`. **Reported to**. (not in the forms)
-- `world.grudgeTemplates[].needs`: a section. **How they feel about you at the start**. (not in the forms)
+- `world.grudgeTemplates[].needs`: a section. **Needs at least**. (not in the forms)
 - `world.grudgeTemplates[].needs.liking`: a whole number, -100 to 100. **Liking**. (not in the forms)
 - `world.grudgeTemplates[].needs.trust`: a whole number, -100 to 100. **Trust**. (not in the forms)
 - `world.grudgeTemplates[].needs.fear`: a whole number, 0 to 100. **Fear**. (not in the forms)
@@ -1029,7 +1029,7 @@ A section. The town: its places, people, factions and what is going on. Needs `n
 - `world.favourTemplates[].forTags`: a list, each one line of text, up to 500 characters. **For tags**. (not in the forms)
 - `world.favourTemplates[].notForTags`: a list, each one line of text, up to 500 characters. **Not for tags**. (not in the forms)
 - `world.favourTemplates[].to`: one of `police`, `family`. **Reported to**. (not in the forms)
-- `world.favourTemplates[].needs`: a section. **How they feel about you at the start**. (not in the forms)
+- `world.favourTemplates[].needs`: a section. **Needs at least**. (not in the forms)
 - `world.favourTemplates[].needs.liking`: a whole number, -100 to 100. **Liking**. (not in the forms)
 - `world.favourTemplates[].needs.trust`: a whole number, -100 to 100. **Trust**. (not in the forms)
 - `world.favourTemplates[].needs.fear`: a whole number, 0 to 100. **Fear**. (not in the forms)
@@ -1042,13 +1042,13 @@ A section. The town: its places, people, factions and what is going on. Needs `n
 - `world.law.newsTemplate`: one line of text, up to 500 characters. **News line**. {npc} is the person asked about.
 - `world.gates`: a section. **Gates**.
 - `world.gates.council`: records keyed by a name you choose. **The council**.
-- `world.gates.council{}`: one record. **How they feel about you at the start**.
+- `world.gates.council{}`: one record. **Thresholds**.
 - `world.gates.council{}.liking`: a whole number, -100 to 100. **Liking**.
 - `world.gates.council{}.trust`: a whole number, -100 to 100. **Trust**.
 - `world.gates.council{}.fear`: a whole number, 0 to 100. **Fear**.
 - `world.gates.council{}.knows`: a whole number, 0 to 100. **Knows you**.
 - `world.gates.epilogue`: records keyed by a name you choose. **The epilogue**.
-- `world.gates.epilogue{}`: one record. **How they feel about you at the start**.
+- `world.gates.epilogue{}`: one record. **Thresholds**.
 - `world.gates.epilogue{}.liking`: a whole number, -100 to 100. **Liking**.
 - `world.gates.epilogue{}.trust`: a whole number, -100 to 100. **Trust**.
 - `world.gates.epilogue{}.fear`: a whole number, 0 to 100. **Fear**.

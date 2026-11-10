@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Lockett&#39;s Ferry">
+<meta name="apple-mobile-web-app-title" content="Novatria">
 <meta name="theme-color" content="#17130f" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f4ecda" media="(prefers-color-scheme: light)">
 <title>One-Town Text RPG</title>
@@ -47563,7 +47563,7 @@ const Creator = (() => {
     }
     const placesTab = EntityTab({
       key: 'places', listPath: 'world.locations', label: 'Places', singular: 'place', idKind: 'loc', nameField: 'name',
-      placeholder: 'The Low Water',
+      placeholder: 'The Blue Door',
       note: 'Every place the player can go, with its exits; who is there when is on the Schedules tab.',
       // The schedules are the Schedules tab's problems, not the place's row.
       owns: p => !/^world\.locations\[\d+\]\.npcIdsBySchedule/.test(p),
@@ -48661,7 +48661,7 @@ const Creator = (() => {
 
     // ----- Rumours -----
     const rumoursTab = EntityTab({
-      key: 'rumours', listPath: 'world.rumours', label: 'Rumours', singular: 'rumour', idKind: 'rumour', nameField: 'text', placeholder: 'The mayor owes Carter money',
+      key: 'rumours', listPath: 'world.rumours', label: 'Rumours', singular: 'rumour', idKind: 'rumour', nameField: 'text', placeholder: 'The mayor owes someone money',
       note: 'What the town says, true or not, and who will tell it.',
       summary: (x, d) => [x.true === false ? 'false' : 'true', x.sourceNpcId ? `from ${nameOf(listAt(d, 'world.npcs').find(n => n.id === x.sourceNpcId)) || x.sourceNpcId}` : 'no source yet', plural(arrOf(x.tellerIds).length, 'teller')].join(' · '),
       onAdd: (name, ids) => newRumour(name, Pack.idFor('rumour', name.split(/\s+/).slice(0, 4).join(' '), ids)),
@@ -48670,7 +48670,7 @@ const Creator = (() => {
 
     // ----- Events and Seeds -----
     const seedsTab = EntityTab({
-      key: 'seeds', listPath: 'world.seeds', label: 'Seeds', singular: 'seed', idKind: 'seed', nameField: 'cause', placeholder: 'Dewayne is behind on the boat loan',
+      key: 'seeds', listPath: 'world.seeds', label: 'Seeds', singular: 'seed', idKind: 'seed', nameField: 'cause', placeholder: 'Someone is behind on a loan',
       note: 'Trouble already planted: something that happens on a day, at a place, or on meeting someone.',
       summary: x => {
         const t = isObj(x.trigger) ? x.trigger : {};
@@ -50607,7 +50607,7 @@ const Creator = (() => {
       const phase = el('select', { class: 'input', 'aria-label': 'Phase', dataset: { dev: 'phase' } }, PHASES.map(p => el('option', { value: p, selected: p === s.time.phase }, capFirst(p))));
       const day = el('input', { type: 'number', class: 'input', min: '1', step: '1', inputmode: 'numeric', value: String(s.time.day), 'aria-label': 'Day', dataset: { dev: 'day' } });
       const clockSec = el('section', { class: 'dev-sec', dataset: { dev: 'clock' } }, el('h3', null, 'Set the clock'),
-        el('p', { class: 'hint' }, `Now: Day ${s.time.day} · ${capFirst(s.time.phase)}. No narration; the town's events on the way happen as the clock passes them.`),
+        el('p', { class: 'hint' }, `Now: Day ${s.time.day} · ${Pack.phaseLabel(s.time.phase)}. No narration; the town's events on the way happen as the clock passes them.`),
         el('div', { class: 'dev-row' }, phase, day, el('button', { type: 'button', class: 'btn small', dataset: { dev: 'set-clock' }, onclick: () => { Pipeline.setClock(phase.value, parseInt(day.value, 10)); redraw(); } }, 'Set')));
       const who = el('select', { class: 'input', 'aria-label': 'Who to place here', dataset: { dev: 'who' }, disabled: !away.length },
         away.length ? away.map(n => el('option', { value: n.id }, `${n.name} (${n.id})`)) : el('option', { value: '' }, 'Everyone is here'));
