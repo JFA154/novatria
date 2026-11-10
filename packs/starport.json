@@ -1,0 +1,3064 @@
+{
+  "packFormat": 1,
+  "meta": {
+    "id": "starport",
+    "title": "Corvid Station",
+    "author": "Novatria",
+    "version": "1.0.0",
+    "description": "Corvid Station is an old refuelling ring at the edge of a mining belt, where the air on C-deck is going bad and the owners' inspector is aboard to decide whether Corvid is worth keeping.",
+    "language": "en",
+    "rating": "teen",
+    "contentWarnings": ["violence", "illness"],
+    "tags": ["future", "space station", "crime", "labour"],
+    "lints": [],
+    "notes": "The second sample pack. Credits are written after the number (\"40 cr\"). The law is station security under Ruth Adeyemi, with the brig in the security office; the marshal on the Long Lane is the law beyond Corvid. Ships come in as events: the water tanker on day 4 and the company freighter on day 10.",
+    "storyText": "Corvid Station is an old refuelling ring at the edge of the Varga Belt, built when the belt still made people rich. About two hundred people live on it now: dock crews, scrubber techs, a doctor, a chaplain, a cantina, a chandler, three security officers and a stationmaster who meant to stay three years and stayed twenty-two. Everything they cannot grow or mend comes out from the Inner Worlds on a company freighter, nineteen days each way, and every decision about them is made there too.\n\nThe air on C-deck is going bad. The scrubbers have run on patched filters for two years, a woman named Nkem Okafor died of it in the spring, and the boy Pip Quill has started to cough. The new filter cartridges came in on the spring freighter and vanished from the stores cage. The stationmaster's logs say every filter was changed in July. Nobody on C-deck saw it done.\n\nNow the owners have sent an inspector, Selwyn Achterberg, to decide whether Corvid is worth keeping. If he finds Corvid sound and the books clean, it closes at the end of the year as no longer worth the money. If he finds a fault the owners can be blamed for, they will have to fix it. Ines Varro, the dock master, skims water and fuel from every delivery and sells it in the belt, and she wants the books clean. Teodor Brask, the stationmaster, signed the false logs and wants to retire with his name intact. Mateo Quill, the union steward, wants the truth in the inspector's hands before his son gets worse. Ruth Adeyemi, the security chief, wants a case against the syndicate before the owners replace her office with a contract.\n\nOut in the belt, a miner named Esme Halloran went silent eleven days ago, two days after she filed the best claim of her life. Her brother Jory has been waiting in the transient berths ever since, and the claim has been refiled under another name.\n\nThe water tanker docks on the fourth day and the company freighter on the tenth. What the freighter brings, new scrubbers or an order to close, depends on what the inspector has seen by then. You arrive with a comm unit, a few credits and three loose ends, and nobody on Corvid knows you yet."
+  },
+  "setting": {
+    "era": "future",
+    "blurb": "An aging refuelling station at the edge of an asteroid mining belt, nineteen days from the worlds that own it, in 2091.",
+    "vocabulary": {
+      "police": ["security", "officer", "the chief", "marshal"],
+      "essentials": ["a berth", "air tax", "a meal", "water"],
+      "teen": ["kid", "teen", "youngster"],
+      "lodging": ["berth", "bunk", "pod"]
+    },
+    "phaseLabels": {
+      "morning": "First shift",
+      "afternoon": "Second shift",
+      "evening": "Third shift",
+      "night": "Sleep cycle"
+    }
+  },
+  "world": {
+    "name": "Corvid Station",
+    "setting": "Corvid Station is an old refuelling ring at the edge of the Varga Belt, where the ore haulers take on fuel and water and the belt miners spend their claims. About two hundred people live aboard: dock crews, scrubber techs, a doctor, a chaplain, a cantina and a chandler, three security officers and a stationmaster near the end of his career. The owners are nineteen days away in the Inner Worlds, and their inspector is aboard to decide whether Corvid is worth keeping. The air on C-deck is going bad, the new filter cartridges have vanished from stores, and the Dock Syndicate skims water and fuel from every delivery. Business is done face to face, on the concourse, at the Slack Line and on the dock ring, because the comms desk listens to everything.",
+    "currency": {
+      "symbol": "cr",
+      "name": "credits",
+      "before": false,
+      "words": ["credit", "credits", "cr"]
+    },
+    "startLocationIds": { "gate": "loc_shuttle_gate", "docks": "loc_dock_ring" },
+    "romance": [
+      {
+        "npcId": "npc_tamsin",
+        "sparkRate": 1.2,
+        "opensAt": { "knows": 10 },
+        "difficulty": "normal"
+      },
+      { "npcId": "npc_noor", "sparkRate": 0.8, "opensAt": { "knows": 20 }, "difficulty": "normal" },
+      { "npcId": "npc_kofi", "sparkRate": 1, "opensAt": { "knows": 15 }, "difficulty": "easy" },
+      { "npcId": "npc_dario", "sparkRate": 1, "opensAt": { "knows": 10 }, "difficulty": "normal" }
+    ],
+    "policeHead": "npc_ruth",
+    "policeFallback": "npc_dov",
+    "ties": [
+      {
+        "from": "npc_mateo",
+        "to": "npc_ines",
+        "kind": "enemy",
+        "w": -40,
+        "t": -50,
+        "why": "She has turned down every union request for the scrubbers."
+      },
+      {
+        "from": "npc_ines",
+        "to": "npc_mateo",
+        "kind": "enemy",
+        "w": -20,
+        "t": -40,
+        "why": "He is the one person on C-deck she cannot buy."
+      },
+      {
+        "from": "npc_ruth",
+        "to": "npc_cal",
+        "w": 10,
+        "t": -30,
+        "why": "She knows he is bought and needs him anyway."
+      },
+      {
+        "from": "npc_jory",
+        "to": "npc_felix",
+        "kind": "other",
+        "w": -30,
+        "t": -60,
+        "why": "He thinks Felix Aubry jumped his sister's claim."
+      },
+      {
+        "from": "npc_teodor",
+        "to": "npc_ines",
+        "kind": "payer",
+        "w": 10,
+        "t": 20,
+        "why": "She pays him for the clean logs."
+      },
+      {
+        "from": "npc_amara",
+        "to": "npc_teodor",
+        "kind": "other",
+        "w": -40,
+        "t": -40,
+        "why": "She found the two sets of logs."
+      },
+      {
+        "from": "npc_tamsin",
+        "to": "npc_felix",
+        "kind": "lover",
+        "w": 40,
+        "t": 10,
+        "why": "She has been seeing him for three months."
+      },
+      {
+        "from": "npc_felix",
+        "to": "npc_tamsin",
+        "kind": "lover",
+        "w": 30,
+        "t": 30,
+        "why": "She is the one person he talks to."
+      }
+    ],
+    "secretTies": [
+      {
+        "secretOf": "npc_wick",
+        "learnedBy": "npc_mateo",
+        "ties": [{ "from": "npc_mateo", "to": "npc_wick", "w": -30, "t": -60 }],
+        "why": "the C-deck cartridges"
+      },
+      {
+        "secretOf": "npc_cal",
+        "learnedBy": "npc_imogen",
+        "ties": [{ "from": "npc_imogen", "to": "npc_cal", "w": -20, "t": -50 }],
+        "why": "the syndicate money"
+      }
+    ],
+    "year": 2091,
+    "calendar": { "season": "autumn", "startDate": "2091-10-08" },
+    "history": "Corvid was built in 2052 where the freighter lane crossed the Varga Belt, and for twenty years the belt made everyone aboard rich. The reactor accident of 2063 killed eleven people and started the memorial wall in the garden. The owners cut security from twelve officers to three in 2080, when the belt began to run thin, and the union struck twice, in 2081 and 2087, over pay and air. The scrubber plant has not had a refit since 2074. What is left is the dock ring, the concourse, C-deck, the Slack Line and two hundred people who argue about whether the owners will close it.",
+    "recent": [
+      {
+        "when": "March 2090",
+        "what": "Nkem Okafor died in the medbay of scarred lungs after a year on a C-deck work crew."
+      },
+      {
+        "when": "April 2091",
+        "what": "The spring freighter brought new filter cartridges for C-deck, and they went into the stores cage."
+      },
+      {
+        "when": "July 2091",
+        "what": "The stationmaster's logs record every C-deck filter as changed."
+      },
+      {
+        "when": "September 2091",
+        "what": "Esme Halloran filed a nickel claim at the customs desk, and two days later her beacon went silent."
+      },
+      {
+        "when": "October 2091",
+        "what": "The owners' inspector, Selwyn Achterberg, arrived on the company freighter."
+      }
+    ],
+    "map": {
+      "width": 360,
+      "height": 300,
+      "roads": [
+        "M60,150 C60,60 300,60 300,150 C300,240 60,240 60,150",
+        "M180,40 L180,260",
+        "M60,100 L300,230",
+        "M60,230 L300,70"
+      ],
+      "labels": [
+        { "text": "spinward", "x": 330, "y": 20, "anchor": "end" },
+        { "text": "hub", "x": 180, "y": 135, "anchor": "middle" }
+      ]
+    },
+    "locations": [
+      {
+        "id": "loc_dock_ring",
+        "name": "The Dock Ring",
+        "type": "dock",
+        "typeLabel": "Dock ring",
+        "map": { "x": 180, "y": 40, "label": "Dock ring", "anchor": "n" },
+        "description": "A curved hall of eight cargo berths along the outer hull, each with a blast door, a fuel coupling and a status board. Sleds of ore and water tanks move along a painted lane, and the floor hums when a ship couples on.",
+        "details": "The dock master's glass office sits over berth one with a view of every lock. A board by the office lists the ship schedule for the week, and someone has written WATER SHORT AGAIN under the tanker's line.",
+        "hours": "Open every shift; the locks cycle day and night",
+        "history": "The dock ring was the first part of Corvid built, in 2052, when the Varga Belt still paid for everything. Ines Varro has run it as dock master since 2077.",
+        "aka": ["the docks", "the ring", "the berths", "the dock master's office"],
+        "exits": ["loc_concourse", "loc_shuttle_gate", "loc_maintenance"],
+        "npcIdsBySchedule": {
+          "morning": ["npc_ines", "npc_dario", "npc_hana", "npc_jory"],
+          "afternoon": ["npc_ines", "npc_bram", "npc_felix", "npc_hana"],
+          "evening": ["npc_felix"],
+          "night": ["npc_ines", "npc_bram", "npc_cal"]
+        },
+        "discovered": true,
+        "closed": false
+      },
+      {
+        "id": "loc_shuttle_gate",
+        "name": "The Shuttle Gate",
+        "type": "gate",
+        "typeLabel": "Shuttle gate",
+        "map": { "x": 300, "y": 70, "label": "Shuttle gate", "anchor": "e" },
+        "description": "A small lock and a waiting area with bolted seats, where the belt shuttle and the mining tugs tie up. A customs desk checks idents under a sign that reads ALL ARRIVALS PAY AIR TAX.",
+        "details": "Noor Haddad works the customs desk with a scanner that takes three tries to read anything. A rack by the lock holds rental vacuum suits, most of them patched.",
+        "hours": "The customs desk is staffed first and second shift; the lock never closes",
+        "history": "The gate was cut into the hull in 2068 for the tugs, so miners would stop clogging the dock ring.",
+        "aka": ["the gate", "the shuttle lock", "customs"],
+        "exits": ["loc_concourse", "loc_dock_ring"],
+        "npcIdsBySchedule": {
+          "morning": ["npc_noor"],
+          "afternoon": ["npc_jory", "npc_noor"],
+          "evening": [],
+          "night": []
+        },
+        "discovered": true,
+        "closed": false
+      },
+      {
+        "id": "loc_concourse",
+        "name": "The Concourse",
+        "type": "street",
+        "typeLabel": "Concourse",
+        "map": { "x": 180, "y": 150, "label": "Concourse", "anchor": "e" },
+        "description": "The main corridor of Corvid, two decks high and wide enough for a cargo sled, lined with shuttered stalls, a noodle counter and a public board. Light panels follow a day cycle, and half of them flicker.",
+        "details": "Birgit Lund runs the noodle counter under a hand-painted sign. The public board carries the ship schedule, the air tax rate and a union notice calling a meeting about the scrubbers.",
+        "hours": "Always open",
+        "history": "In the good years the concourse had forty stalls; now it has nine, and the rest are shuttered.",
+        "aka": ["the main corridor", "the promenade", "the noodle counter"],
+        "exits": [
+          "loc_dock_ring",
+          "loc_shuttle_gate",
+          "loc_cantina",
+          "loc_chandlery",
+          "loc_security",
+          "loc_garden",
+          "loc_medbay",
+          "loc_master_office",
+          "loc_berths",
+          "loc_quarters"
+        ],
+        "npcIdsBySchedule": {
+          "morning": ["npc_birgit"],
+          "afternoon": [
+            "npc_ruth",
+            "npc_birgit",
+            "npc_tamsin",
+            "npc_lucien",
+            "npc_gideon",
+            "npc_pip"
+          ],
+          "evening": ["npc_cal", "npc_birgit", "npc_noor", "npc_amara", "npc_suki"],
+          "night": ["npc_imogen"]
+        },
+        "discovered": true,
+        "closed": false
+      },
+      {
+        "id": "loc_cantina",
+        "name": "The Slack Line",
+        "type": "bar",
+        "typeLabel": "Cantina",
+        "map": { "x": 100, "y": 110, "label": "Slack Line", "anchor": "w" },
+        "description": "A low, crowded cantina with a bar made from a hull plate, mismatched stools and a back booth where a card game runs most nights. It smells of fried tofu and still-spirit.",
+        "details": "Margit Szabo keeps the bar and a list of people she will not serve taped behind it. Lucien Ferro deals cards at the card table in the back booth and keeps his ledger in his coat.",
+        "hours": "Second shift until the end of third shift every day",
+        "history": "Margit Szabo bought the Slack Line in 2070 with her severance from the ore haulers, and the union has met in its back room since the first strike in 2081.",
+        "aka": ["the cantina", "the bar", "the back booth", "the card table"],
+        "exits": ["loc_concourse", "loc_berths"],
+        "npcIdsBySchedule": {
+          "morning": ["npc_margit", "npc_lucien"],
+          "afternoon": ["npc_margit"],
+          "evening": [
+            "npc_ines",
+            "npc_dario",
+            "npc_bram",
+            "npc_wick",
+            "npc_mateo",
+            "npc_jory",
+            "npc_selwyn",
+            "npc_yusuf",
+            "npc_margit",
+            "npc_tamsin",
+            "npc_lucien",
+            "npc_gideon"
+          ],
+          "night": ["npc_margit", "npc_tamsin", "npc_lucien"]
+        },
+        "discovered": true,
+        "closed": false
+      },
+      {
+        "id": "loc_chandlery",
+        "name": "Okafor's Chandlery",
+        "type": "shop",
+        "typeLabel": "Chandlery",
+        "map": { "x": 260, "y": 120, "label": "Chandlery", "anchor": "e" },
+        "description": "A narrow shop stacked to the ceiling with suit seals, tools, patch kits and ration packs, with a counter at the front and a loft above it where the Okafors live.",
+        "details": "Yusuf Okafor buys and sells almost anything a ship or a spacer needs, and asks few questions about where it came from. A hand-lettered card by the till says FILTER CARTRIDGES: NONE, DO NOT ASK.",
+        "hours": "First and second shift, closed Sundays",
+        "history": "Yusuf Okafor opened the chandlery in 2058 and raised his daughter Nkem in the loft above it.",
+        "aka": ["the chandlery", "Okafor's", "the shop"],
+        "exits": ["loc_concourse"],
+        "npcIdsBySchedule": {
+          "morning": ["npc_yusuf"],
+          "afternoon": ["npc_yusuf", "npc_amara"],
+          "evening": [],
+          "night": ["npc_yusuf", "npc_amara"]
+        },
+        "discovered": true,
+        "closed": false,
+        "closedOn": ["Sunday"]
+      },
+      {
+        "id": "loc_security",
+        "name": "The Security Office",
+        "type": "police",
+        "typeLabel": "Security office",
+        "map": { "x": 260, "y": 190, "label": "Security", "anchor": "e" },
+        "description": "A front counter, three desks and a door into the brig, two cells with steel benches and a camera that works. The coffee machine is older than the stationmaster.",
+        "details": "A board lists the shift rota for three officers: Chief Adeyemi, Cal Pruett and Imogen Sato. The chief sleeps in a bunk room behind the brig.",
+        "hours": "Staffed every shift",
+        "history": "Security had twelve officers when Corvid opened; the owners have cut it to three, and the chief's budget is up for review again this year.",
+        "aka": ["security", "the brig", "the cells"],
+        "exits": ["loc_concourse", "loc_master_office"],
+        "npcIdsBySchedule": {
+          "morning": ["npc_ruth"],
+          "afternoon": ["npc_cal"],
+          "evening": ["npc_ruth", "npc_imogen"],
+          "night": ["npc_ruth"]
+        },
+        "discovered": true,
+        "closed": false
+      },
+      {
+        "id": "loc_garden",
+        "name": "The Garden",
+        "type": "garden",
+        "typeLabel": "Garden and chapel",
+        "map": { "x": 100, "y": 190, "label": "Garden", "anchor": "w" },
+        "description": "A hydroponics bay under full-spectrum lamps, with racks of greens, two dwarf lemon trees and a quiet corner of benches that serves as the chapel. The air here is the cleanest on Corvid.",
+        "details": "Lena Brask keeps the garden and the memorial wall in the chapel corner, where names of the dead are written on small brass plates.",
+        "hours": "Open first and second shift",
+        "history": "The garden was built as a food bay in 2055 and became a chapel after the reactor accident of 2063, when the first plates went on the wall.",
+        "aka": ["the chapel", "hydroponics", "the memorial wall"],
+        "exits": ["loc_concourse", "loc_medbay"],
+        "npcIdsBySchedule": {
+          "morning": ["npc_lena", "npc_amara", "npc_gideon"],
+          "afternoon": ["npc_lena"],
+          "evening": ["npc_teodor", "npc_odile"],
+          "night": []
+        },
+        "discovered": true,
+        "closed": false
+      },
+      {
+        "id": "loc_quarters",
+        "name": "The C-Deck Quarters",
+        "type": "housing",
+        "typeLabel": "Crew quarters",
+        "map": { "x": 180, "y": 260, "label": "C-deck quarters", "anchor": "s" },
+        "description": "Three tiers of crew cabins along a narrow gallery, with a shared galley and wash room at one end. The scrubber vents rattle, and the air tastes of metal.",
+        "details": "Most of Corvid's workers live here. A union notice on the galley door counts the days since the scrubbers were last serviced, and someone keeps changing the number.",
+        "hours": "A private home",
+        "history": "C-deck was meant to house shift crews for a year at a time in 2052; families have lived in it for three generations.",
+        "aka": ["C-deck", "the quarters", "the cabins", "the galley"],
+        "exits": ["loc_concourse", "loc_maintenance"],
+        "npcIdsBySchedule": {
+          "morning": ["npc_bram", "npc_cal", "npc_imogen", "npc_kofi", "npc_tamsin", "npc_pip"],
+          "afternoon": ["npc_imogen", "npc_kofi"],
+          "evening": ["npc_hana"],
+          "night": [
+            "npc_dario",
+            "npc_wick",
+            "npc_mateo",
+            "npc_hana",
+            "npc_birgit",
+            "npc_noor",
+            "npc_gideon",
+            "npc_pip",
+            "npc_suki"
+          ]
+        },
+        "discovered": true,
+        "closed": false
+      },
+      {
+        "id": "loc_berths",
+        "name": "The Transient Berths",
+        "type": "hotel",
+        "typeLabel": "Transient berths",
+        "map": { "x": 60, "y": 100, "label": "Berths", "anchor": "w" },
+        "description": "A row of rented sleeping pods stacked two high, each with a curtain, a reading light and a locker. A machine by the hatch sells a night in a berth for thirty credits.",
+        "details": "Miners waiting on a claim, freight crew between ships and anyone else passing through sleep here. The pods at the end, nearest the cantina, are the loudest and the cheapest.",
+        "hours": "Always open",
+        "history": "The berths were cargo storage until 2071, when the dock master had them fitted out for crews the ships left behind.",
+        "aka": ["the pods", "transient berths", "the hostel"],
+        "exits": ["loc_concourse", "loc_cantina"],
+        "npcIdsBySchedule": {
+          "morning": ["npc_felix"],
+          "afternoon": [],
+          "evening": [],
+          "night": ["npc_jory", "npc_selwyn"]
+        },
+        "discovered": true,
+        "closed": false
+      },
+      {
+        "id": "loc_medbay",
+        "name": "The Medbay",
+        "type": "clinic",
+        "typeLabel": "Medbay",
+        "map": { "x": 60, "y": 230, "label": "Medbay", "anchor": "w" },
+        "description": "Four beds behind curtains, a scanner, an autodoc that needs a new arm, and a desk covered in patient files. It smells of antiseptic and old coffee.",
+        "details": "Dr. Marchetti keeps a separate file for every patient from C-deck with a cough, and the file is getting thick.",
+        "hours": "Open every shift; knock at night",
+        "history": "Odile Marchetti came out on a one-year contract in 2071 and never left; the medbay has had no second doctor since 2084.",
+        "aka": ["medical", "the infirmary", "the doctor's"],
+        "exits": ["loc_concourse", "loc_garden"],
+        "npcIdsBySchedule": {
+          "morning": ["npc_odile"],
+          "afternoon": ["npc_odile"],
+          "evening": ["npc_kofi"],
+          "night": ["npc_odile", "npc_kofi"]
+        },
+        "discovered": true,
+        "closed": false
+      },
+      {
+        "id": "loc_master_office",
+        "name": "The Stationmaster's Office",
+        "type": "office",
+        "typeLabel": "Stationmaster's office",
+        "map": { "x": 300, "y": 230, "label": "Stationmaster", "anchor": "e" },
+        "description": "A wood-panelled office over the concourse with a big desk, a wall of maintenance screens and a viewport over the dock ring. The Brasks live in the suite behind it.",
+        "details": "Teodor Brask signs every maintenance log on Corvid at this desk. Noor Haddad files them, and the owners' inspector has a chair in the corner.",
+        "hours": "First and second shift on weekdays",
+        "history": "Teodor Brask has been stationmaster since 2069, and the panelling came out with him from the Inner Worlds.",
+        "aka": ["the stationmaster's office", "the master's office", "the office"],
+        "exits": ["loc_concourse", "loc_security"],
+        "npcIdsBySchedule": {
+          "morning": ["npc_teodor"],
+          "afternoon": ["npc_teodor", "npc_selwyn"],
+          "evening": ["npc_lena"],
+          "night": ["npc_teodor", "npc_lena"]
+        },
+        "discovered": true,
+        "closed": false
+      },
+      {
+        "id": "loc_maintenance",
+        "name": "The Maintenance Level",
+        "type": "industrial",
+        "typeLabel": "Maintenance level",
+        "map": { "x": 320, "y": 150, "label": "Maintenance", "anchor": "e" },
+        "description": "A low, hot deck of pipes, scrubber housings and pump rooms under the dock ring, lit by work lamps. The main scrubber plant roars, and Corvid's stores sit behind a cage at one end.",
+        "details": "Mateo Quill and his apprentice keep the scrubbers running on patched filters. Wick Danner keeps the stores cage and its keys.",
+        "hours": "Crews work first and second shift; stores open first shift only",
+        "history": "The scrubber plant has not had a full refit since 2074, and the owners have turned down four requests for one.",
+        "aka": [
+          "maintenance",
+          "the scrubber plant",
+          "the stores",
+          "the stores cage",
+          "the old cargo lock"
+        ],
+        "exits": ["loc_dock_ring", "loc_quarters"],
+        "npcIdsBySchedule": {
+          "morning": ["npc_wick", "npc_mateo", "npc_selwyn", "npc_suki"],
+          "afternoon": ["npc_dario", "npc_wick", "npc_mateo", "npc_suki"],
+          "evening": ["npc_pip"],
+          "night": ["npc_felix"]
+        },
+        "discovered": true,
+        "closed": false
+      },
+      {
+        "id": "loc_inner_worlds",
+        "name": "The Inner Worlds",
+        "type": "region",
+        "description": "The settled worlds sunward, where the owners keep their offices and the company freighters come from.",
+        "details": "Everything Corvid cannot make comes from there, and every decision about Corvid is made there.",
+        "hours": "Always open",
+        "history": "Spacers on Corvid talk about the Inner Worlds the way people talk about a landlord.",
+        "aka": ["the inner system", "sunward"],
+        "exits": [],
+        "npcIdsBySchedule": { "morning": [], "afternoon": [], "evening": [], "night": [] },
+        "discovered": false,
+        "closed": false,
+        "away": true,
+        "distance": "nineteen days by freighter, sunward"
+      },
+      {
+        "id": "loc_varga_belt",
+        "name": "The Varga Belt",
+        "type": "belt",
+        "description": "A thin field of nickel and ice rocks where independent miners work claims from tugs and pressure huts.",
+        "details": "Claims are filed at the customs desk on Corvid, and a tug that goes silent out there can drift for weeks before anyone finds it.",
+        "hours": "Always open",
+        "history": "The belt made Corvid rich for twenty years and has been running thin since 2080.",
+        "aka": ["the belt", "Varga", "the claims"],
+        "exits": [],
+        "npcIdsBySchedule": { "morning": [], "afternoon": [], "evening": [], "night": [] },
+        "discovered": false,
+        "closed": false,
+        "away": true,
+        "distance": "six hours out by tug, two days by ore hauler"
+      },
+      {
+        "id": "loc_long_lane",
+        "name": "The Long Lane",
+        "type": "route",
+        "description": "The freighter lane that runs outward from Corvid to the depots at the edge of the system, worked by haulers and one patrol cutter.",
+        "details": "The marshal's cutter calls at Corvid every few weeks, when it calls at all.",
+        "hours": "Always open",
+        "history": "The lane was charted in 2049 and Corvid was built where it crossed the belt.",
+        "aka": ["the lane", "the freighter lane"],
+        "exits": [],
+        "npcIdsBySchedule": { "morning": [], "afternoon": [], "evening": [], "night": [] },
+        "discovered": false,
+        "closed": false,
+        "away": true,
+        "distance": "the freighter route outward from Corvid to the far depots, patrolled by one marshal's cutter"
+      }
+    ],
+    "npcs": [
+      {
+        "id": "npc_ines",
+        "name": "Ines Varro",
+        "pronouns": "she",
+        "age": 52,
+        "presence": "here",
+        "role": "dock master, who runs the berths and the Dock Syndicate",
+        "factionId": "fac_syndicate",
+        "tags": ["dockmaster", "lender", "merchant", "syndicate"],
+        "look": "Compact woman of fifty-two in a dock jacket with the sleeves pushed up, grey hair cropped short and a tablet always in one hand.",
+        "voice": "Quick and pleasant, all numbers; calls everyone by their berth or their ship, and ends every deal with \"we're square, then.\"",
+        "personality": ["shrewd", "protective"],
+        "goal": "Keep Corvid open and the dock ring hers, with enough water and fuel off the books to pay her people when the owners do not.",
+        "secret": "She skims water and fuel from every delivery and sells it to belt miners, and she has paid Teodor Brask to sign clean maintenance logs so the inspector finds nothing worth fixing.",
+        "history": "Ines Varro came to Corvid as a cargo loader in 2061 and has run the dock ring since 2077. She raised her son Dario alone in the office over berth one.",
+        "attitude": 5,
+        "relations": [
+          { "npcId": "npc_dario", "relation": "son" },
+          { "npcId": "npc_bram", "relation": "employee" },
+          { "npcId": "npc_felix", "relation": "employee" }
+        ],
+        "home": "loc_dock_ring",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_dario",
+        "name": "Dario Varro",
+        "pronouns": "he",
+        "age": 26,
+        "presence": "here",
+        "role": "berth hand and the dock master's son",
+        "factionId": "fac_syndicate",
+        "tags": ["dockhand", "smuggler", "cardplayer"],
+        "look": "Tall, loose-limbed man of twenty-six with his mother's sharp face, a shaved head and grease to the elbows.",
+        "voice": "Easy and joking until someone mentions his mother, then very quiet; says \"relax\" when nobody needs telling.",
+        "personality": ["restless", "loyal"],
+        "goal": "Get a berth on a long-haul freighter and off Corvid before his mother hands him the syndicate.",
+        "secret": "He has been losing at Lucien Ferro's card table for a year and has paid his debt with fuel he took from his mother's own skim.",
+        "history": "Dario Varro was born on Corvid and has worked the berths since he was fifteen. He has applied to four freighter crews and his mother has made sure none of them took him.",
+        "attitude": 0,
+        "relations": [{ "npcId": "npc_ines", "relation": "mother" }],
+        "home": "loc_quarters",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_bram",
+        "name": "Bram Hesketh",
+        "pronouns": "he",
+        "age": 44,
+        "presence": "here",
+        "role": "syndicate loader who collects the dock master's debts",
+        "factionId": "fac_syndicate",
+        "tags": ["enforcer", "collector", "enemy", "syndicate"],
+        "look": "Broad, heavy man of forty-four with a burn scar across one cheek and a loader's harness he never takes off.",
+        "voice": "Slow and flat, says your full name before anything else, and never raises his voice.",
+        "personality": ["patient", "hard"],
+        "goal": "Get every credit owed to the dock master collected before the inspector leaves, and his own cut with it.",
+        "secret": "He was on the berth tug with Felix Aubry the day Esme Halloran's beacon stopped, and he has told nobody what they did out there.",
+        "history": "Bram Hesketh worked the ore haulers until a fuel fire scarred him in 2079. Ines Varro gave him a job on the dock ring when nobody else would.",
+        "attitude": 0,
+        "relations": [{ "npcId": "npc_ines", "relation": "boss" }],
+        "home": "loc_quarters",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_felix",
+        "name": "Felix Aubry",
+        "pronouns": "he",
+        "age": 28,
+        "presence": "here",
+        "role": "tug pilot for the dock ring and the syndicate's fuel runner",
+        "factionId": "fac_syndicate",
+        "tags": ["pilot", "smuggler", "enemy", "syndicate"],
+        "look": "Lean, handsome man of twenty-eight in a flight jacket with the patches picked off, always chewing something.",
+        "voice": "Fast and charming, calls everyone \"friend\", and laughs a beat before the joke is finished.",
+        "personality": ["reckless", "charming"],
+        "goal": "Make enough off the fuel runs to buy his own tug and stop flying for Ines Varro.",
+        "secret": "He jumped Esme Halloran's claim in the Varga Belt and cut her tug's beacon, and he does not know if she is still alive out there.",
+        "history": "Felix Aubry came out from the Inner Worlds on a freighter in 2088 and talked his way into the berth tug's seat inside a month. He lives in a transient berth and owns nothing he cannot carry.",
+        "attitude": 0,
+        "relations": [{ "npcId": "npc_ines", "relation": "boss" }],
+        "home": "loc_berths",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_wick",
+        "name": "Wick Danner",
+        "pronouns": "he",
+        "age": 50,
+        "presence": "here",
+        "role": "quartermaster of Corvid's stores",
+        "factionId": "fac_syndicate",
+        "tags": ["stores", "clerk", "merchant"],
+        "look": "Soft, round-shouldered man of fifty with reading lenses pushed up on his forehead and a ring of keys on his belt.",
+        "voice": "Fussy and polite; quotes stock numbers from memory and says \"that is above my clearance\" about anything he does not want to answer.",
+        "personality": ["nervous", "careful"],
+        "goal": "Keep his daughter Suki fed and off C-deck, and keep the stores cage closed to anyone who counts.",
+        "secret": "He signed the spring shipment of filter cartridges for C-deck into stores and sold them out the back to the syndicate, a crate at a time.",
+        "history": "Wick Danner has kept the stores since 2072. His wife left for the Inner Worlds in 2080 and he raised Suki on his own.",
+        "attitude": 0,
+        "relations": [{ "npcId": "npc_suki", "relation": "daughter" }],
+        "home": "loc_quarters",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_ruth",
+        "name": "Ruth Adeyemi",
+        "pronouns": "she",
+        "age": 48,
+        "presence": "here",
+        "role": "chief of station security",
+        "factionId": "fac_security",
+        "tags": ["police", "chief", "watch"],
+        "look": "Tall, upright woman of forty-eight in a pressed grey uniform, her hair in tight braids, with a stun baton she has never drawn on Corvid.",
+        "voice": "Calm and exact; repeats your words back to you to check them, and writes everything down on paper because paper cannot be wiped.",
+        "personality": ["methodical", "stubborn"],
+        "goal": "Build a case against the Dock Syndicate the owners cannot ignore, before they replace her office with a company contract.",
+        "secret": "She has known for two months that Cal Pruett takes syndicate money and has kept him on, because she needs him to testify when she makes her case.",
+        "history": "Ruth Adeyemi served on the patrol cutters of the Long Lane for twelve years before she took the chief's job in 2083. She divorced the marshal, Dov Lindqvist, the same year.",
+        "attitude": -5,
+        "relations": [
+          { "npcId": "npc_cal", "relation": "employee" },
+          { "npcId": "npc_imogen", "relation": "employee" },
+          { "npcId": "npc_dov", "relation": "ex-husband" }
+        ],
+        "home": "loc_security",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_cal",
+        "name": "Cal Pruett",
+        "pronouns": "he",
+        "age": 33,
+        "presence": "here",
+        "role": "security officer",
+        "factionId": "fac_security",
+        "tags": ["police", "officer"],
+        "look": "Fit, fair man of thirty-three with a boyish face, a uniform cap pushed back and new boots nobody on his pay could afford.",
+        "voice": "Friendly and loud, laughs at his own jokes, and says \"no harm done\" a little too often.",
+        "personality": ["easygoing", "weak"],
+        "goal": "Pay off the debt he ran up at the card table without the chief finding out how.",
+        "secret": "He takes syndicate money to keep his patrols away from the dock ring at night, and he logs the berth tug's runs as inspections.",
+        "history": "Cal Pruett grew up on C-deck and joined security in 2084. He owes Lucien Ferro more than a year of his pay.",
+        "attitude": 0,
+        "relations": [{ "npcId": "npc_ruth", "relation": "boss" }],
+        "home": "loc_quarters",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_imogen",
+        "name": "Imogen Sato",
+        "pronouns": "she",
+        "age": 29,
+        "presence": "here",
+        "role": "security officer on the night shift",
+        "factionId": "fac_security",
+        "tags": ["police", "officer"],
+        "look": "Small, sharp-eyed woman of twenty-nine with a buzz cut and a notebook in her chest pocket.",
+        "voice": "Short and dry; answers a question with a question and never gives her first name.",
+        "personality": ["watchful", "ambitious"],
+        "goal": "Prove herself to the chief and be the one who breaks the syndicate.",
+        "secret": "She has a list of every night the berth tug went out with its transponder off, and she is keeping it from Cal Pruett and the chief alike until she is sure.",
+        "history": "Imogen Sato transferred from a depot on the Long Lane in 2089. She works third shift and sleeps through the first.",
+        "attitude": 0,
+        "relations": [{ "npcId": "npc_ruth", "relation": "boss" }],
+        "home": "loc_quarters",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_dov",
+        "name": "Dov Lindqvist",
+        "pronouns": "he",
+        "age": 55,
+        "presence": "away",
+        "where": "aboard the marshal's patrol cutter on the Long Lane",
+        "reach": "a call through the comms desk, when the cutter is in range; it calls at Corvid every few weeks",
+        "role": "system marshal on the patrol cutter, the law beyond Corvid",
+        "factionId": null,
+        "tags": ["police", "marshal"],
+        "look": "Weathered, white-bearded man of fifty-five in a marshal's long coat with the badge pinned inside it.",
+        "voice": "Slow on a bad comms line, apologises for the lag and then talks over it.",
+        "personality": ["tired", "fair"],
+        "goal": "Retire off the cutter in two years without one more body in the belt on his record.",
+        "secret": "He has asked the owners twice to give Corvid a second marshal and been told it is not worth the money.",
+        "history": "Dov Lindqvist has run the patrol cutter on the Long Lane since 2071. He was married to Ruth Adeyemi for nine years.",
+        "attitude": 0,
+        "relations": [{ "npcId": "npc_ruth", "relation": "ex-wife" }],
+        "home": "loc_long_lane",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "gone"
+      },
+      {
+        "id": "npc_teodor",
+        "name": "Teodor Brask",
+        "pronouns": "he",
+        "age": 66,
+        "presence": "here",
+        "role": "stationmaster of Corvid",
+        "factionId": null,
+        "tags": ["master", "records", "official"],
+        "look": "Tall, stooped man of sixty-six in a good grey suit gone shiny at the elbows, with white hair combed straight back.",
+        "voice": "Gentle and formal; calls Corvid \"the old girl\", and says \"I will look into it\" when he means no.",
+        "personality": ["tired", "proud"],
+        "goal": "Get through one clean inspection and retire to a desk in the Inner Worlds before Corvid falls apart around him.",
+        "secret": "He has signed false maintenance logs for the C-deck scrubbers for two years, and Ines Varro pays him for every one.",
+        "history": "Teodor Brask came out as stationmaster in 2069 and meant to stay three years. He and Lena raised their son Ansel on Corvid and sent him sunward for school.",
+        "attitude": 0,
+        "relations": [
+          { "npcId": "npc_lena", "relation": "wife" },
+          { "npcId": "npc_ansel", "relation": "son" },
+          { "npcId": "npc_noor", "relation": "employee" }
+        ],
+        "home": "loc_master_office",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_lena",
+        "name": "Lena Brask",
+        "pronouns": "she",
+        "age": 63,
+        "presence": "here",
+        "role": "keeper of the garden and Corvid's lay chaplain",
+        "factionId": null,
+        "tags": ["chaplain", "gardener"],
+        "look": "Small, straight-backed woman of sixty-three with soil under her nails, a grey plait and a cardigan buttoned wrong.",
+        "voice": "Warm and plain; asks what you are carrying before she asks your name, and means the question both ways.",
+        "personality": ["kind", "perceptive"],
+        "goal": "Keep the garden alive and see her husband leave Corvid with his name clean.",
+        "secret": "She knows Teodor signs logs he has not checked, and she has started writing the true scrubber readings in the back of the memorial book.",
+        "history": "Lena Brask came out with her husband in 2069 and took over the garden when its keeper died. She has put a plate on the memorial wall for every death on Corvid since.",
+        "attitude": 0,
+        "relations": [
+          { "npcId": "npc_teodor", "relation": "husband" },
+          { "npcId": "npc_ansel", "relation": "son" }
+        ],
+        "home": "loc_master_office",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_ansel",
+        "name": "Ansel Brask",
+        "pronouns": "he",
+        "age": 38,
+        "presence": "away",
+        "where": "in the Inner Worlds, in the owners' head office",
+        "reach": "a message on the freighter's mail, nineteen days each way",
+        "role": "the Brasks' son, a clerk in the owners' head office",
+        "factionId": null,
+        "tags": ["clerk"],
+        "look": "Neat, thin man of thirty-eight in an office suit, his father's face without the stoop.",
+        "voice": "Polite and careful in his messages, and always signs them with his full name.",
+        "personality": ["dutiful", "anxious"],
+        "goal": "Bring his parents sunward before Corvid is closed.",
+        "secret": "He has seen the owners' draft order to close Corvid at the end of the year, and he has not told his father.",
+        "history": "Ansel Brask grew up on Corvid and left for school in the Inner Worlds at sixteen. He works in the owners' head office and has not been back in twelve years.",
+        "attitude": 0,
+        "relations": [
+          { "npcId": "npc_teodor", "relation": "father" },
+          { "npcId": "npc_lena", "relation": "mother" }
+        ],
+        "home": "loc_inner_worlds",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "gone"
+      },
+      {
+        "id": "npc_noor",
+        "name": "Noor Haddad",
+        "pronouns": "she",
+        "age": 34,
+        "presence": "here",
+        "role": "customs clerk at the shuttle gate, who files Corvid's records",
+        "factionId": null,
+        "tags": ["clerk", "records", "informant"],
+        "look": "Slim woman of thirty-four in a customs vest over a bright scarf, with a stylus behind each ear.",
+        "voice": "Brisk and dry, reads your ident aloud before she looks at you, and remembers everything she files.",
+        "personality": ["sharp", "bored"],
+        "goal": "Save enough for a ticket sunward and a job where the scanners work.",
+        "secret": "She has copies of the real claim filings from the Varga Belt, including Esme Halloran's, and she sells what she knows to whoever pays.",
+        "history": "Noor Haddad came to Corvid for a two-year contract in 2084 and is still here. She files every log the stationmaster signs.",
+        "attitude": 0,
+        "relations": [{ "npcId": "npc_teodor", "relation": "boss" }],
+        "home": "loc_quarters",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_selwyn",
+        "name": "Selwyn Achterberg",
+        "pronouns": "he",
+        "age": 40,
+        "presence": "here",
+        "role": "the owners' inspector, sent to decide whether Corvid is worth keeping",
+        "factionId": null,
+        "tags": ["inspector", "official"],
+        "look": "Neat, pale man of forty in a company jumpsuit with creases still in it, carrying a sealed case he never sets down.",
+        "voice": "Soft and courteous; says \"help me understand\" before every hard question, and writes nothing down in front of you.",
+        "personality": ["careful", "honest"],
+        "goal": "Finish his inspection and file a report the owners cannot argue with, whatever it says.",
+        "secret": "His orders say to close Corvid unless he finds a fault the owners can be made liable for, and he does not like his orders.",
+        "history": "Selwyn Achterberg has inspected stations for the owners for nine years and closed four of them. He arrived on the last freighter and took a pod in the transient berths rather than a room in the stationmaster's suite.",
+        "attitude": 0,
+        "relations": [],
+        "home": "loc_berths",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_mateo",
+        "name": "Mateo Quill",
+        "pronouns": "he",
+        "age": 38,
+        "presence": "here",
+        "role": "scrubber technician and union steward",
+        "factionId": "fac_union",
+        "tags": ["union", "mechanic", "tech"],
+        "look": "Wiry man of thirty-eight in a stained work suit, a breathing mask hung round his neck and a cough he keeps under his breath.",
+        "voice": "Low and steady; explains everything twice, the second time with his hands, and swears only at machines.",
+        "personality": ["principled", "worn out"],
+        "goal": "Get the C-deck scrubbers refitted before somebody else's child gets the cough his son has.",
+        "secret": "He has been stealing parts from the stores cage to keep the scrubbers running, and Wick Danner has let him, because Wick owes him silence too.",
+        "history": "Mateo Quill grew up on C-deck and has kept the scrubbers running since 2075. He was elected union steward in 2087, after the second strike.",
+        "attitude": 0,
+        "relations": [
+          { "npcId": "npc_hana", "relation": "wife" },
+          { "npcId": "npc_pip", "relation": "son" },
+          { "npcId": "npc_suki", "relation": "apprentice" }
+        ],
+        "home": "loc_quarters",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_hana",
+        "name": "Hana Quill",
+        "pronouns": "she",
+        "age": 35,
+        "presence": "here",
+        "role": "cargo loader on the dock ring and a union member",
+        "factionId": "fac_union",
+        "tags": ["union", "dockhand", "loader"],
+        "look": "Strong, freckled woman of thirty-five with her hair tied up in a cargo strap and a loader's gloves tucked in her belt.",
+        "voice": "Blunt and funny, says what everyone else is thinking, and laughs loudest at herself.",
+        "personality": ["bold", "warm"],
+        "goal": "Keep her son breathing and her husband from working himself to death.",
+        "secret": "She has seen the water tanks come off the tanker and the count change on Ines Varro's tablet, and she has kept quiet because the syndicate pays the loaders a bonus.",
+        "history": "Hana Quill came out from the belt as a girl and has loaded cargo on the dock ring since 2073. She married Mateo in 2074.",
+        "attitude": 0,
+        "relations": [
+          { "npcId": "npc_mateo", "relation": "husband" },
+          { "npcId": "npc_pip", "relation": "son" },
+          { "npcId": "npc_birgit", "relation": "friend" }
+        ],
+        "home": "loc_quarters",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_pip",
+        "name": "Pip Quill",
+        "pronouns": "he",
+        "age": 16,
+        "presence": "here",
+        "role": "the Quills' son, who runs messages around Corvid",
+        "factionId": null,
+        "tags": ["teen", "runner"],
+        "look": "Skinny boy of sixteen in a hand-me-down work suit with the cuffs rolled four times, and a cough he pretends is nothing.",
+        "voice": "Fast and cheeky, knows every hatch on Corvid, and calls adults by their berth numbers.",
+        "personality": ["curious", "brave"],
+        "goal": "Prove to his father he is old enough to help, and find out who is moving crates through the old cargo lock at night.",
+        "secret": "He has seen Felix Aubry and Wick Danner move crates through the old cargo lock on the maintenance level, and he thinks they are filter cartridges.",
+        "history": "Pip Quill was born on C-deck and takes his lessons on a tablet from a school in the Inner Worlds. He has had the cough since the summer.",
+        "attitude": 0,
+        "relations": [
+          { "npcId": "npc_mateo", "relation": "father" },
+          { "npcId": "npc_hana", "relation": "mother" }
+        ],
+        "home": "loc_quarters",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free",
+        "protector": ["npc_mateo", "npc_hana"]
+      },
+      {
+        "id": "npc_suki",
+        "name": "Suki Danner",
+        "pronouns": "she",
+        "age": 17,
+        "presence": "here",
+        "role": "apprentice scrubber technician, Wick Danner's daughter",
+        "factionId": null,
+        "tags": ["teen", "apprentice", "tech"],
+        "look": "Tall girl of seventeen with a shaved undercut, tool loops on her trousers and a breathing mask pushed up on her forehead.",
+        "voice": "Quiet and precise, talks about machines like people, and goes silent when anyone asks about her father.",
+        "personality": ["clever", "guarded"],
+        "goal": "Earn her technician's ticket and get a berth on a ship before Corvid closes.",
+        "secret": "She knows her father sold the C-deck cartridges, and she has not told Mateo Quill, who taught her everything she knows.",
+        "history": "Suki Danner has apprenticed under Mateo Quill on the maintenance level since she was fourteen. Her mother left for the Inner Worlds when she was six.",
+        "attitude": 0,
+        "relations": [
+          { "npcId": "npc_wick", "relation": "father" },
+          { "npcId": "npc_mateo", "relation": "boss" }
+        ],
+        "home": "loc_quarters",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free",
+        "protector": ["npc_wick"]
+      },
+      {
+        "id": "npc_birgit",
+        "name": "Birgit Lund",
+        "pronouns": "she",
+        "age": 46,
+        "presence": "here",
+        "role": "cook who runs the noodle counter on the concourse",
+        "factionId": "fac_union",
+        "tags": ["cook", "merchant", "union"],
+        "look": "Big, red-faced woman of forty-six in a paper hat and a stained apron, with forearms like a loader's.",
+        "voice": "Loud and cheerful; feeds you before she lets you talk, and repeats gossip as fact.",
+        "personality": ["generous", "nosy"],
+        "goal": "Keep her counter open and feed C-deck through the water rationing.",
+        "secret": "She buys black-market water from Felix Aubry for her noodles and knows exactly where it comes from.",
+        "history": "Birgit Lund has cooked on the concourse since 2076. She feeds the union meetings for free and everyone else for eight credits a bowl.",
+        "attitude": 0,
+        "relations": [{ "npcId": "npc_hana", "relation": "friend" }],
+        "home": "loc_quarters",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_jory",
+        "name": "Jory Halloran",
+        "pronouns": "he",
+        "age": 42,
+        "presence": "here",
+        "role": "belt miner and tug pilot whose sister has gone silent",
+        "factionId": "fac_union",
+        "tags": ["miner", "pilot", "union", "cardplayer", "bereaved"],
+        "look": "Gaunt, sunburned man of forty-two with a miner's squint, a patched vacuum suit worn as clothes and a claim beacon on a cord round his neck.",
+        "voice": "Hoarse and short; talks about his sister in the present tense and gets angry when anyone does not.",
+        "personality": ["desperate", "proud"],
+        "goal": "Find his sister Esme alive and the man who jumped their claim.",
+        "secret": "He went back out to the belt alone, found Esme's claim with syndicate markers on it, and pulled them all off and threw them into the dark.",
+        "history": "Jory Halloran and his sister Esme have worked claims in the Varga Belt together for twenty years. He came into Corvid eleven days ago when her beacon went silent and has not left.",
+        "attitude": 0,
+        "relations": [
+          { "npcId": "npc_esme", "relation": "sister" },
+          { "npcId": "npc_gideon", "relation": "friend" }
+        ],
+        "home": "loc_berths",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_esme",
+        "name": "Esme Halloran",
+        "pronouns": "she",
+        "age": 40,
+        "presence": "away",
+        "where": "somewhere in the Varga Belt, her tug's beacon silent",
+        "reach": "nobody can reach her; her beacon has been silent for eleven days",
+        "role": "belt miner, Jory Halloran's sister, missing in the belt",
+        "factionId": null,
+        "tags": ["miner"],
+        "look": "Remembered as a wiry, laughing woman of forty with her brother's squint and a shaved head.",
+        "voice": "In her last message she sounds pleased with herself and says the rock is the best they have found in years.",
+        "personality": ["bold", "cheerful"],
+        "goal": "Prove the nickel claim and buy her brother a share in a real ship.",
+        "secret": "She filed the claim at the customs desk on Corvid two days before she went silent, and the filing has since been changed.",
+        "history": "Esme Halloran has mined the Varga Belt since she was twenty. Her beacon went silent eleven days ago, six hours out from Corvid.",
+        "attitude": 0,
+        "relations": [{ "npcId": "npc_jory", "relation": "brother" }],
+        "home": "loc_varga_belt",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "gone"
+      },
+      {
+        "id": "npc_gideon",
+        "name": "Gideon Rhee",
+        "pronouns": "he",
+        "age": 71,
+        "presence": "here",
+        "role": "retired ore pilot and cantina regular",
+        "factionId": null,
+        "tags": ["elderly", "cardplayer", "informant"],
+        "look": "Tiny, bald man of seventy-one with a white moustache and a pilot's wings pinned to a cardigan.",
+        "voice": "Rambling and fond, starts every story with the year, and hears more than he lets on.",
+        "personality": ["sociable", "sly"],
+        "goal": "See Corvid through to the end, and die on it, not in some home sunward.",
+        "secret": "He sold his berth fee rights to Ines Varro years ago for drinking money and lives on her goodwill.",
+        "history": "Gideon Rhee flew ore haulers out of Corvid from 2052 until his eyes went. He plays cards most nights at the Slack Line and loses gently.",
+        "attitude": 0,
+        "relations": [
+          { "npcId": "npc_yusuf", "relation": "friend" },
+          { "npcId": "npc_jory", "relation": "friend" }
+        ],
+        "home": "loc_quarters",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_yusuf",
+        "name": "Yusuf Okafor",
+        "pronouns": "he",
+        "age": 61,
+        "presence": "here",
+        "role": "owner of Okafor's Chandlery",
+        "factionId": null,
+        "tags": ["merchant", "shopkeeper", "fence", "bereaved"],
+        "look": "Heavy, slow man of sixty-one with a grey beard, half-moon lenses and a jeweller's loupe on a cord.",
+        "voice": "Deep and courteous; prices everything twice, once for friends, and says \"for you\" before the second price.",
+        "personality": ["grieving", "shrewd"],
+        "goal": "See someone answer for the air that killed his daughter, and keep Amara from ever living on C-deck.",
+        "secret": "He buys the syndicate's skimmed fuel cells and resells them to miners, and he has done it for years without asking whose they were.",
+        "history": "Yusuf Okafor opened his chandlery in 2058. His daughter Nkem died of scarred lungs in March 2090 after a year on a C-deck work crew, and he has raised her girl Amara since.",
+        "attitude": 0,
+        "relations": [
+          { "npcId": "npc_amara", "relation": "granddaughter" },
+          { "npcId": "npc_nkem", "relation": "daughter" },
+          { "npcId": "npc_gideon", "relation": "friend" }
+        ],
+        "home": "loc_chandlery",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_amara",
+        "name": "Amara Okafor",
+        "pronouns": "she",
+        "age": 17,
+        "presence": "here",
+        "role": "Yusuf Okafor's granddaughter, who works the chandlery counter",
+        "factionId": null,
+        "tags": ["teen", "cashier", "bereaved"],
+        "look": "Slight girl of seventeen with her hair in long twists, her mother's old work jacket and a stylus she taps on everything.",
+        "voice": "Flat and polite at the counter; sharp and fast with anyone her own age, and silent about her mother.",
+        "personality": ["angry", "clever"],
+        "goal": "Find out who let the C-deck scrubbers fail, and make them say it in front of everyone.",
+        "secret": "She broke into the stationmaster's files last month and found two sets of scrubber logs that do not match.",
+        "history": "Amara Okafor grew up in the loft over the chandlery. Her mother Nkem died in March 2090, and she keeps the brass plate from the memorial wall polished.",
+        "attitude": 0,
+        "relations": [
+          { "npcId": "npc_yusuf", "relation": "grandfather" },
+          { "npcId": "npc_nkem", "relation": "mother" }
+        ],
+        "home": "loc_chandlery",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free",
+        "protector": ["npc_yusuf"]
+      },
+      {
+        "id": "npc_nkem",
+        "name": "Nkem Okafor",
+        "pronouns": "she",
+        "age": 38,
+        "presence": "dead",
+        "died": "March 2090, of scarred lungs after a year on a C-deck work crew",
+        "role": "Yusuf Okafor's daughter and Amara's mother, who died of the bad air",
+        "factionId": null,
+        "tags": ["dead"],
+        "look": "Remembered as a tall, quick woman of thirty-eight with a laugh you could hear across the concourse.",
+        "voice": "Called everyone \"chief\" and never finished a meal sitting down.",
+        "personality": ["energetic", "stubborn"],
+        "goal": "Wanted to save enough to take Amara sunward.",
+        "secret": "She filed two complaints about the C-deck scrubbers with the stationmaster, and neither one is in Corvid's files.",
+        "history": "Nkem Okafor grew up over the chandlery and took a C-deck work crew job for the hazard pay. She died in the medbay in March 2090, and her plate is the newest on the memorial wall.",
+        "attitude": 0,
+        "relations": [
+          { "npcId": "npc_yusuf", "relation": "father" },
+          { "npcId": "npc_amara", "relation": "daughter" }
+        ],
+        "home": null,
+        "memories": [],
+        "alive": false,
+        "knownToPlayer": false,
+        "status": "dead"
+      },
+      {
+        "id": "npc_odile",
+        "name": "Odile Marchetti",
+        "pronouns": "she",
+        "age": 57,
+        "presence": "here",
+        "role": "Corvid's doctor, who runs the medbay",
+        "factionId": null,
+        "tags": ["doctor", "healer"],
+        "look": "Wiry woman of fifty-seven with cropped silver hair, a stethoscope worn like a necklace and bags under her eyes.",
+        "voice": "Brusque and kind, asks where it hurts before hello, and swears in three languages.",
+        "personality": ["tireless", "blunt"],
+        "goal": "Get the inspector to read her C-deck files before another patient dies of the air.",
+        "secret": "She wrote Nkem Okafor's cause of death as pneumonia because Teodor Brask asked her to, and she has regretted it every day since.",
+        "history": "Odile Marchetti came out on a one-year contract in 2071 and stayed. She delivered half the children on C-deck, Pip Quill and Suki Danner among them.",
+        "attitude": 0,
+        "relations": [{ "npcId": "npc_kofi", "relation": "employee" }],
+        "home": "loc_medbay",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_kofi",
+        "name": "Kofi Mensah",
+        "pronouns": "he",
+        "age": 24,
+        "presence": "here",
+        "role": "medbay orderly on the night shift",
+        "factionId": null,
+        "tags": ["nurse", "orderly"],
+        "look": "Gangly young man of twenty-four in scrubs with a cartoon print, his hair in short twists.",
+        "voice": "Soft and earnest, apologises for everything, and talks to patients the whole time he works on them.",
+        "personality": ["gentle", "anxious"],
+        "goal": "Pass his medic's exams by mail and get a post on a ship.",
+        "secret": "He has been taking painkillers from the medbay cabinet and selling them to the berth crews to pay his exam fees.",
+        "history": "Kofi Mensah came out from the Inner Worlds in 2089 to train under Dr. Marchetti. He works nights and sleeps on C-deck through the morning.",
+        "attitude": 0,
+        "relations": [{ "npcId": "npc_odile", "relation": "boss" }],
+        "home": "loc_quarters",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_margit",
+        "name": "Margit Szabo",
+        "pronouns": "she",
+        "age": 59,
+        "presence": "here",
+        "role": "owner and bartender of the Slack Line",
+        "factionId": null,
+        "tags": ["bartender", "merchant"],
+        "look": "Rangy woman of fifty-nine with a shock of dyed red hair, a hauler's tattoos up both arms and a bar towel on one shoulder.",
+        "voice": "Dry and unhurried, calls everybody \"crew\", and answers a question she does not like by asking what you are drinking.",
+        "personality": ["unflappable", "loyal"],
+        "goal": "Keep the Slack Line open and the union meeting in her back room, whoever owns Corvid.",
+        "secret": "She lets Lucien Ferro launder the syndicate's card money through her till, and takes a tenth for the trouble.",
+        "history": "Margit Szabo flew ore haulers for twenty years before she bought the Slack Line in 2070. She lives in the rooms behind the bar.",
+        "attitude": 5,
+        "relations": [
+          { "npcId": "npc_tamsin", "relation": "employee" },
+          { "npcId": "npc_lucien", "relation": "tenant" }
+        ],
+        "home": "loc_cantina",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_tamsin",
+        "name": "Tamsin Rook",
+        "pronouns": "she",
+        "age": 31,
+        "presence": "here",
+        "role": "server at the Slack Line",
+        "factionId": null,
+        "tags": ["bartender", "server"],
+        "look": "Long-legged woman of thirty-one with a dark bob, silver rings on every finger and a tray balanced on one hip.",
+        "voice": "Teasing and quick, remembers your order after one night, and says \"sweetheart\" like a warning.",
+        "personality": ["flirtatious", "observant"],
+        "goal": "Save enough tips to buy into a freighter crew and see somewhere that is not Corvid.",
+        "secret": "She has been seeing Felix Aubry, and he has told her things about the belt that frighten her.",
+        "history": "Tamsin Rook came in on a freighter in 2086 and missed it leaving on purpose. She has served at the Slack Line ever since and lives on C-deck.",
+        "attitude": 0,
+        "relations": [{ "npcId": "npc_margit", "relation": "boss" }],
+        "home": "loc_quarters",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      },
+      {
+        "id": "npc_lucien",
+        "name": "Lucien Ferro",
+        "pronouns": "he",
+        "age": 45,
+        "presence": "here",
+        "role": "card dealer who runs the card game at the Slack Line and lends money",
+        "factionId": null,
+        "tags": ["dealer", "cards", "lender", "bookie"],
+        "look": "Elegant, hollow-cheeked man of forty-five in a black waistcoat, with long fingers and a ledger in his breast pocket.",
+        "voice": "Soft and amused, never says a sum out loud, and writes it on a card instead.",
+        "personality": ["calculating", "courteous"],
+        "goal": "Collect what the crews owe him before Corvid closes and the debts go sunward with the debtors.",
+        "secret": "Half the debts in his ledger he bought from Ines Varro, and he collects them for her at a cut.",
+        "history": "Lucien Ferro arrived on Corvid in 2078 with a deck of cards and nothing else. He rents a room behind the Slack Line from Margit Szabo and has dealt the back booth game ever since.",
+        "attitude": 0,
+        "relations": [{ "npcId": "npc_margit", "relation": "landlady" }],
+        "home": "loc_cantina",
+        "memories": [],
+        "alive": true,
+        "knownToPlayer": false,
+        "status": "free"
+      }
+    ],
+    "factions": [
+      {
+        "id": "fac_syndicate",
+        "name": "The Dock Syndicate",
+        "goal": "Keep Corvid open and the berths in Ines Varro's hands, with water and fuel skimmed off every delivery and sold in the belt.",
+        "methods": "Short counts on the dock ring, a quartermaster on the payroll, a security officer who looks away, debts bought and collected, and the berth tug flying with its transponder off.",
+        "clocks": [
+          {
+            "label": "Clean the books before the inspector reports",
+            "segments": 6,
+            "filled": 1,
+            "onComplete": {
+              "text": "Teodor Brask hands the inspector a full set of maintenance logs, every filter change signed and dated, and the stores count comes out exact for the first time in a year.",
+              "requires": { "flagsUnset": ["logsDelivered"] },
+              "effects": [
+                { "op": "setFlag", "key": "booksClean", "value": true },
+                { "op": "clockAdjust", "factionId": "fac_security", "delta": -1 },
+                { "op": "factionRelation", "a": "fac_syndicate", "b": "fac_union", "delta": -10 },
+                {
+                  "op": "addRumour",
+                  "rumour": {
+                    "id": "rum_books_clean",
+                    "text": "The stationmaster has handed the inspector a full set of logs, and every filter change on C-deck is signed and dated.",
+                    "true": true,
+                    "sourceNpcId": "npc_noor",
+                    "heard": false
+                  }
+                }
+              ],
+              "alt": {
+                "text": "Teodor Brask tries to hand the inspector a clean set of logs, but the inspector already has the union's copies and sets the new ones aside unread.",
+                "effects": [
+                  { "op": "clockAdjust", "factionId": "fac_security", "delta": 1 },
+                  { "op": "factionRelation", "a": "fac_syndicate", "b": "fac_union", "delta": -10 }
+                ]
+              }
+            }
+          },
+          {
+            "label": "Corner the cartridge trade",
+            "segments": 8,
+            "filled": 0,
+            "onComplete": {
+              "text": "Every filter cartridge left on Corvid is in a syndicate locker, and Felix Aubry is selling them one at a time on the dock ring for three times the stores price.",
+              "effects": [
+                { "op": "setFlag", "key": "cartridgesCornered", "value": true },
+                { "op": "priceMultiplier", "factor": 1.2 },
+                { "op": "clockAdjust", "factionId": "fac_union", "delta": 1 },
+                {
+                  "op": "addNews",
+                  "text": "Filter cartridges are selling on the dock ring for three times the stores price, if you know who to ask.",
+                  "public": true
+                }
+              ]
+            }
+          }
+        ],
+        "activeClock": 0,
+        "relations": { "fac_security": -40, "fac_union": -50 }
+      },
+      {
+        "id": "fac_security",
+        "name": "Station Security",
+        "goal": "Make a case against the Dock Syndicate the owners cannot ignore, and keep Corvid's own security office from being sold off to a contract.",
+        "methods": "Patrols, paper notes nobody can wipe, a brig with two cells, and a chief who asks the same question three ways.",
+        "clocks": [
+          {
+            "label": "Build the case against the syndicate",
+            "segments": 8,
+            "filled": 1,
+            "onComplete": {
+              "text": "Chief Ruth Adeyemi files her case against the Dock Syndicate with the inspector: tanker counts, berth tug runs and the stores ledger, side by side.",
+              "requires": { "npcFree": ["npc_ruth"] },
+              "effects": [
+                { "op": "setFlag", "key": "syndicateCase", "value": true },
+                { "op": "clockAdjust", "factionId": "fac_syndicate", "delta": -2 },
+                {
+                  "op": "factionRelation",
+                  "a": "fac_security",
+                  "b": "fac_syndicate",
+                  "delta": -20
+                },
+                {
+                  "op": "addNews",
+                  "text": "Chief Adeyemi has filed a case against the Dock Syndicate with the owners' inspector.",
+                  "public": true
+                }
+              ],
+              "alt": {
+                "text": "Imogen Sato files the case against the Dock Syndicate herself, with the chief's notes and her own list of the berth tug's dark runs.",
+                "effects": [
+                  { "op": "setFlag", "key": "syndicateCase", "value": true },
+                  { "op": "clockAdjust", "factionId": "fac_syndicate", "delta": -2 },
+                  {
+                    "op": "addNews",
+                    "text": "Security has filed a case against the Dock Syndicate with the owners' inspector.",
+                    "public": true
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "label": "Find the beacon in the belt",
+            "segments": 6,
+            "filled": 0,
+            "onComplete": {
+              "text": "The marshal's cutter, sent by Chief Adeyemi, finds Esme Halloran's tug drifting in the Varga Belt with its beacon cut, and Esme alive in her survival pod, starved and furious.",
+              "effects": [
+                { "op": "setFlag", "key": "esmeFound", "value": true },
+                {
+                  "op": "threadUpdate",
+                  "threadId": "thr_esme",
+                  "summary": "The marshal's cutter found Esme Halloran alive in the Varga Belt, her beacon cut. Who cut it is still the question."
+                },
+                {
+                  "op": "addNews",
+                  "text": "The marshal's cutter has found Esme Halloran alive in the Varga Belt, her tug's beacon cut.",
+                  "public": true
+                },
+                {
+                  "op": "plantSeed",
+                  "seed": {
+                    "id": "seed_felix_runs",
+                    "cause": "Felix Aubry knows Esme Halloran is alive and will say who cut her beacon.",
+                    "effect": "Felix Aubry, pale and packing, asks to talk somewhere private and offers a hundred credits for a seat on the next ship out.",
+                    "trigger": { "type": "npc", "value": "npc_felix" },
+                    "fired": false,
+                    "hidden": true
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "activeClock": 0,
+        "relations": { "fac_syndicate": -40, "fac_union": 10 }
+      },
+      {
+        "id": "fac_union",
+        "name": "The Spacers' Union",
+        "goal": "Get the C-deck scrubbers refitted and the truth about them in the inspector's hands before the owners decide Corvid's future.",
+        "methods": "Meetings in the Slack Line's back room, work slowdowns, copies of logs passed hand to hand, and the threat of a strike on the dock ring.",
+        "clocks": [
+          {
+            "label": "Get the true logs to the inspector",
+            "segments": 6,
+            "filled": 1,
+            "onComplete": {
+              "text": "Mateo Quill puts a folder of the true scrubber readings in Selwyn Achterberg's hands at the Slack Line, with Lena Brask's copies and Dr. Marchetti's patient files clipped to the front.",
+              "requires": { "npcFree": ["npc_mateo", "npc_selwyn"], "flagsUnset": ["booksClean"] },
+              "effects": [
+                { "op": "setFlag", "key": "logsDelivered", "value": true },
+                { "op": "threadUpdate", "threadId": "thr_inspector", "knownToPlayer": true },
+                { "op": "clockAdjust", "factionId": "fac_syndicate", "delta": -1 },
+                {
+                  "op": "addNews",
+                  "text": "The union has given the owners' inspector its own copies of the scrubber logs.",
+                  "public": true
+                }
+              ],
+              "alt": {
+                "text": "The union's folder of true scrubber readings goes under the inspector's door in the transient berths, with no name on it.",
+                "effects": [
+                  { "op": "setFlag", "key": "logsDelivered", "value": true },
+                  {
+                    "op": "addNews",
+                    "text": "Someone has given the owners' inspector copies of the true scrubber logs.",
+                    "public": true
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "label": "Call the strike",
+            "segments": 8,
+            "filled": 0,
+            "onComplete": {
+              "text": "The union votes in the Slack Line's back room to stop work on the dock ring until the scrubbers are fixed, and no ship is loaded or unloaded.",
+              "effects": [
+                { "op": "setFlag", "key": "unionStrike", "value": true },
+                { "op": "clockAdjust", "factionId": "fac_syndicate", "delta": -1 },
+                { "op": "factionRelation", "a": "fac_union", "b": "fac_syndicate", "delta": -20 },
+                {
+                  "op": "addNews",
+                  "text": "The union has struck the dock ring: no ship is loaded or unloaded until the C-deck scrubbers are fixed.",
+                  "public": true
+                }
+              ]
+            }
+          }
+        ],
+        "activeClock": 0,
+        "relations": { "fac_syndicate": -50, "fac_security": 10 }
+      }
+    ],
+    "threads": [
+      {
+        "id": "thr_scrubbers",
+        "title": "Bad air on C-deck",
+        "summary": "The C-deck scrubbers have run on patched filters for two years, and the new cartridges vanished from the stores cage in the spring. Nkem Okafor died of the air in March, and now Pip Quill is coughing.",
+        "status": "open",
+        "knownToPlayer": false,
+        "linkedIds": [
+          "fac_union",
+          "npc_mateo",
+          "npc_wick",
+          "npc_pip",
+          "npc_odile",
+          "npc_amara",
+          "npc_yusuf",
+          "loc_quarters",
+          "loc_maintenance"
+        ],
+        "reward": "wits"
+      },
+      {
+        "id": "thr_inspector",
+        "title": "The owners' inspector",
+        "summary": "Selwyn Achterberg will tell the owners whether Corvid is worth keeping. Clean books and a sound station mean it closes at the end of the year; a fault the owners can be blamed for means they must fix it.",
+        "status": "open",
+        "knownToPlayer": false,
+        "linkedIds": [
+          "fac_syndicate",
+          "fac_security",
+          "npc_selwyn",
+          "npc_teodor",
+          "npc_ines",
+          "npc_ruth",
+          "npc_lena",
+          "loc_master_office"
+        ],
+        "reward": "charm"
+      },
+      {
+        "id": "thr_esme",
+        "title": "The silent beacon",
+        "summary": "Esme Halloran's tug went silent in the Varga Belt eleven days ago, two days after she filed a nickel claim. Her brother Jory says someone jumped the claim, and the filing has been changed.",
+        "status": "open",
+        "knownToPlayer": false,
+        "linkedIds": [
+          "npc_jory",
+          "npc_esme",
+          "npc_felix",
+          "npc_bram",
+          "npc_noor",
+          "loc_shuttle_gate",
+          "loc_varga_belt"
+        ],
+        "reward": "stealth"
+      }
+    ],
+    "seeds": [
+      {
+        "id": "seed_ore_hauler",
+        "cause": "The ore hauler from the belt is due in with half its fuel allotment already sold on by Felix Aubry.",
+        "effect": "The ore hauler docked overnight and its captain is shouting at Ines Varro in her glass office, wanting to know why berth four pumped him a third short of his fuel.",
+        "trigger": { "type": "day", "value": 3 },
+        "requires": { "npcFree": ["npc_ines"] },
+        "effects": [
+          { "op": "clockAdjust", "factionId": "fac_syndicate", "delta": 1 },
+          {
+            "op": "addNews",
+            "text": "The ore hauler's captain says berth four pumped him a third short of his fuel.",
+            "public": true
+          }
+        ],
+        "alt": {
+          "text": "The ore hauler docked overnight a third short of its fuel, and nobody in the dock master's office will say why."
+        },
+        "fired": false,
+        "hidden": true
+      },
+      {
+        "id": "seed_cartridge_crate",
+        "cause": "Felix Aubry has a crate of filter cartridges from the stores waiting for the berth tug.",
+        "effect": "Behind a fuel coupling at berth six, half hidden under a tarp, is a sealed crate stencilled C-DECK SCRUBBERS, the stores seal cut and taped back down.",
+        "trigger": { "type": "location", "value": "loc_dock_ring" },
+        "notBeforeDay": 3,
+        "effects": [
+          {
+            "op": "placeItem",
+            "name": "Sealed cartridge crate",
+            "notes": "Twelve filter cartridges marked for C-deck, the stores seal cut and taped back."
+          }
+        ],
+        "fired": false,
+        "hidden": true
+      },
+      {
+        "id": "seed_inspector_logs",
+        "cause": "Selwyn Achterberg has asked Teodor Brask for the original scrubber logs, not the printed copies.",
+        "effect": "Selwyn Achterberg spent the morning in the stationmaster's office asking for the original scrubber logs, and Teodor Brask told him they are being moved to a new system.",
+        "trigger": { "type": "day", "value": 5 },
+        "requires": { "npcFree": ["npc_selwyn", "npc_teodor"] },
+        "effects": [
+          { "op": "threadUpdate", "threadId": "thr_inspector", "knownToPlayer": true },
+          {
+            "op": "addNews",
+            "text": "The owners' inspector has asked the stationmaster for the original scrubber logs.",
+            "public": true
+          }
+        ],
+        "fired": false,
+        "hidden": true
+      },
+      {
+        "id": "seed_pip_cough",
+        "cause": "The air on C-deck has got worse since the last filter patch failed.",
+        "effect": "Pip Quill collapsed coughing on the concourse last night, and Dr. Marchetti has him on oxygen in the medbay and is telling anyone who asks that it is the air.",
+        "trigger": { "type": "day", "value": 7 },
+        "requires": { "npcFree": ["npc_pip", "npc_odile"] },
+        "effects": [
+          { "op": "threadUpdate", "threadId": "thr_scrubbers", "knownToPlayer": true },
+          { "op": "clockAdjust", "factionId": "fac_union", "delta": 2 },
+          {
+            "op": "addNews",
+            "text": "Pip Quill collapsed coughing on the concourse, and Dr. Marchetti says it is the C-deck air.",
+            "public": true
+          }
+        ],
+        "fired": false,
+        "hidden": true
+      },
+      {
+        "id": "seed_jory_asks",
+        "cause": "Jory Halloran needs someone who is not from Corvid to go through the claim filings at the customs desk.",
+        "effect": "Jory Halloran stops you with a hand on your arm and asks, low, whether you can read a claim filing, because he thinks his sister's has been changed.",
+        "trigger": { "type": "npc", "value": "npc_jory" },
+        "effects": [{ "op": "threadUpdate", "threadId": "thr_esme", "knownToPlayer": true }],
+        "fired": false,
+        "hidden": true
+      },
+      {
+        "id": "seed_strike_talk",
+        "cause": "The union is three meetings into talking about a strike, and Ines Varro has heard.",
+        "effect": "Mateo Quill has called a work slowdown on the dock ring, and Bram Hesketh is going from berth to berth writing down the names of the loaders who stopped.",
+        "trigger": { "type": "clock", "value": "fac_union:3" },
+        "requires": { "npcFree": ["npc_mateo", "npc_bram"] },
+        "effects": [
+          {
+            "op": "addNews",
+            "text": "The union has called a slowdown on the dock ring, and the syndicate is taking names.",
+            "public": true
+          }
+        ],
+        "fired": false,
+        "hidden": true
+      },
+      {
+        "id": "seed_dock_shakedown",
+        "cause": "Bram Hesketh means to make Jory Halloran pay berth fees on a tug he has not moved in eleven days.",
+        "effect": "Bram Hesketh has Jory Halloran pinned against a cargo sled at the shuttle end of the dock ring over eleven days of berth fees, one hand on his throat.",
+        "trigger": { "type": "location", "value": "loc_dock_ring" },
+        "notBeforeDay": 6,
+        "requires": { "npcFree": ["npc_bram", "npc_jory"] },
+        "danger": true,
+        "fired": false,
+        "hidden": true
+      },
+      {
+        "id": "seed_cantina_debt",
+        "cause": "Dario Varro owes Lucien Ferro more than his mother would cover, and Lucien Ferro has stopped asking politely.",
+        "effect": "Lucien Ferro has Dario Varro's hand flat on the card table in the back booth and a fork held over it, asking quietly when the money is coming.",
+        "trigger": { "type": "location", "value": "loc_cantina" },
+        "notBeforeDay": 8,
+        "requires": { "npcFree": ["npc_lucien", "npc_dario"] },
+        "danger": true,
+        "fired": false,
+        "hidden": true
+      },
+      {
+        "id": "seed_stores_threat",
+        "cause": "Felix Aubry paid Wick Danner for a crate of cartridges that never came.",
+        "effect": "Felix Aubry has Wick Danner backed into the stores cage on the maintenance level, wanting the crate he paid for, and Wick cannot find his keys.",
+        "trigger": { "type": "location", "value": "loc_maintenance" },
+        "notBeforeDay": 9,
+        "requires": { "npcFree": ["npc_felix", "npc_wick"] },
+        "danger": true,
+        "fired": false,
+        "hidden": true
+      }
+    ],
+    "rumours": [
+      {
+        "id": "rum_short_tanks",
+        "text": "Every water delivery comes up a few tanks short on the dock master's count, and the shortfall turns up for sale in the Varga Belt.",
+        "true": true,
+        "sourceNpcId": "npc_hana",
+        "tellerIds": ["npc_birgit", "npc_jory"],
+        "threadId": "thr_inspector",
+        "heard": false
+      },
+      {
+        "id": "rum_cartridges_gone",
+        "text": "The new filter cartridges for C-deck came in on the spring freighter, and Wick Danner signed them into stores and never signed them out.",
+        "true": true,
+        "sourceNpcId": "npc_suki",
+        "tellerIds": ["npc_pip", "npc_mateo"],
+        "threadId": "thr_scrubbers",
+        "heard": false
+      },
+      {
+        "id": "rum_july_logs",
+        "text": "The stationmaster's logs say every filter on C-deck was changed in July, and nobody on C-deck saw it done.",
+        "true": true,
+        "sourceNpcId": "npc_noor",
+        "tellerIds": ["npc_mateo", "npc_kofi"],
+        "threadId": "thr_scrubbers",
+        "heard": false
+      },
+      {
+        "id": "rum_cal_chits",
+        "text": "Cal Pruett pays his bar tab at the Slack Line in syndicate chits, the kind the dock master hands out to her berth crews.",
+        "true": true,
+        "sourceNpcId": "npc_tamsin",
+        "tellerIds": ["npc_margit", "npc_gideon"],
+        "threadId": "thr_inspector",
+        "heard": false
+      },
+      {
+        "id": "rum_claim_refiled",
+        "text": "Esme Halloran filed a nickel claim two days before her beacon went silent, and the claim has since been refiled under a syndicate name.",
+        "true": true,
+        "sourceNpcId": "npc_noor",
+        "tellerIds": ["npc_jory", "npc_gideon"],
+        "threadId": "thr_esme",
+        "heard": false
+      },
+      {
+        "id": "rum_tug_hours",
+        "text": "The berth tug was out nine hours on the day Esme Halloran went silent, and it was logged as a hull inspection.",
+        "true": true,
+        "sourceNpcId": "npc_imogen",
+        "tellerIds": ["npc_hana", "npc_jory"],
+        "threadId": "thr_esme",
+        "heard": false
+      },
+      {
+        "id": "rum_closing_anyway",
+        "text": "The inspector wrote his report before he ever left the Inner Worlds, and Corvid closes at the new year whatever anybody does.",
+        "true": false,
+        "sourceNpcId": "npc_birgit",
+        "tellerIds": ["npc_gideon", "npc_tamsin"],
+        "threadId": "thr_inspector",
+        "heard": false
+      },
+      {
+        "id": "rum_brask_desk",
+        "text": "Teodor Brask has a desk in the Inner Worlds waiting for him, if his last inspection on Corvid goes clean.",
+        "true": true,
+        "sourceNpcId": "npc_lena",
+        "tellerIds": ["npc_odile", "npc_noor"],
+        "threadId": "thr_inspector",
+        "heard": false
+      },
+      {
+        "id": "rum_three_lungs",
+        "text": "Dr. Marchetti has three patients from C-deck with the same scarred lungs that killed Nkem Okafor.",
+        "true": true,
+        "sourceNpcId": "npc_kofi",
+        "tellerIds": ["npc_odile", "npc_hana"],
+        "threadId": "thr_scrubbers",
+        "heard": false
+      },
+      {
+        "id": "rum_strikebreakers",
+        "text": "The dock master has hired belt crews to break the strike if the union calls one, and they are already on their way.",
+        "true": false,
+        "sourceNpcId": "npc_bram",
+        "tellerIds": ["npc_dario", "npc_birgit"],
+        "threadId": "thr_scrubbers",
+        "heard": false
+      },
+      {
+        "id": "rum_ledger",
+        "text": "Lucien Ferro keeps a ledger of every debt on Corvid, and half the names in it owe the dock master too.",
+        "true": true,
+        "sourceNpcId": "npc_tamsin",
+        "tellerIds": ["npc_gideon", "npc_cal"],
+        "heard": false
+      },
+      {
+        "id": "rum_inspector_bought",
+        "text": "The dock master bought the inspector a case of real coffee and a private cabin on his first night aboard.",
+        "true": false,
+        "sourceNpcId": "npc_felix",
+        "tellerIds": ["npc_dario", "npc_birgit"],
+        "threadId": "thr_inspector",
+        "heard": false
+      },
+      {
+        "id": "rum_cargo_ghost",
+        "text": "Something cycles the old cargo lock on the maintenance level at night, and the techs say it is Nkem Okafor's ghost.",
+        "true": false,
+        "sourceNpcId": "npc_pip",
+        "tellerIds": ["npc_suki", "npc_amara"],
+        "threadId": "thr_scrubbers",
+        "heard": false
+      },
+      {
+        "id": "rum_esme_dead",
+        "text": "Esme Halloran ran her tug into a rock and is dead, and her brother cannot bear to say it.",
+        "true": false,
+        "sourceNpcId": "npc_felix",
+        "tellerIds": ["npc_bram", "npc_tamsin"],
+        "threadId": "thr_esme",
+        "heard": false
+      }
+    ],
+    "events": [
+      {
+        "id": "evt_water_tanker",
+        "day": 4,
+        "phase": "afternoon",
+        "locationId": "loc_dock_ring",
+        "title": "The water tanker docks",
+        "attendees": ["npc_ines", "npc_felix", "npc_hana", "npc_ruth"],
+        "branches": [
+          {
+            "when": { "flagsSet": ["syndicateCase"], "npcFree": ["npc_ruth", "npc_ines"] },
+            "text": "Chief Ruth Adeyemi meets the water tanker at the lock with her case file under her arm and counts every tank off herself. The count comes up four tanks short of what Ines Varro signed for last month, and the chief says so out loud on the dock ring.",
+            "effects": [
+              { "op": "setFlag", "key": "tankerCounted", "value": true },
+              { "op": "clockAdjust", "factionId": "fac_syndicate", "delta": -1 },
+              { "op": "factionRelation", "a": "fac_security", "b": "fac_syndicate", "delta": -10 },
+              {
+                "op": "addNews",
+                "text": "Chief Adeyemi counted the water tanker off herself, and last month's delivery was four tanks short.",
+                "public": true
+              }
+            ]
+          },
+          {
+            "when": { "npcFree": ["npc_ines", "npc_felix"] },
+            "text": "The water tanker docks on time, and Felix Aubry runs the transfer hose himself while Ines Varro signs the manifest without reading it. By evening four tanks are on the books as lost to a seal fault, and water goes on ration on C-deck again.",
+            "effects": [
+              { "op": "setFlag", "key": "tankerSkimmed", "value": true },
+              { "op": "clockAdjust", "factionId": "fac_syndicate", "delta": 1 },
+              { "op": "clockAdjust", "factionId": "fac_union", "delta": 1 },
+              {
+                "op": "addNews",
+                "text": "Four tanks from the water tanker were lost to a seal fault, and C-deck is on water ration again.",
+                "public": true
+              }
+            ]
+          },
+          {
+            "when": { "npcFree": ["npc_hana"], "flagsUnset": ["unionStrike"] },
+            "text": "With nobody from the syndicate at the transfer hose, Hana Quill and the loaders count the water tanker off by hand, and every tank goes into Corvid's cistern. For once C-deck gets its full ration.",
+            "effects": [
+              { "op": "clockAdjust", "factionId": "fac_union", "delta": 1 },
+              {
+                "op": "addNews",
+                "text": "The loaders counted the water tanker off by hand, and C-deck got its full ration for once.",
+                "public": true
+              }
+            ]
+          }
+        ],
+        "default": {
+          "text": "The water tanker docks and unloads with the berth crews short-handed, and the count is whatever the tanker's own log says. Water goes on ration on C-deck until the next delivery.",
+          "effects": [
+            {
+              "op": "addNews",
+              "text": "The water tanker has unloaded, and C-deck is on water ration until the next delivery.",
+              "public": true
+            }
+          ]
+        }
+      },
+      {
+        "id": "evt_company_freighter",
+        "day": 10,
+        "phase": "evening",
+        "locationId": "loc_dock_ring",
+        "title": "The company freighter docks",
+        "attendees": ["npc_selwyn", "npc_teodor", "npc_ines", "npc_mateo"],
+        "branches": [
+          {
+            "when": { "flagsSet": ["logsDelivered"], "npcFree": ["npc_selwyn", "npc_mateo"] },
+            "text": "Selwyn Achterberg walks down the ramp beside six crates of new scrubber cores, ordered on his own signature from the logs the union put in his hands. Mateo Quill has the first crate open before the cargo sled stops.",
+            "effects": [
+              { "op": "setFlag", "key": "scrubbersFixed", "value": true },
+              {
+                "op": "threadUpdate",
+                "threadId": "thr_scrubbers",
+                "status": "resolved",
+                "summary": "The owners sent new scrubber cores for C-deck on the inspector's order, and Mateo Quill is fitting them."
+              },
+              { "op": "clockAdjust", "factionId": "fac_union", "delta": 1 },
+              {
+                "op": "addNews",
+                "text": "The company freighter brought new scrubber cores for C-deck, ordered by the owners' inspector.",
+                "public": true
+              }
+            ]
+          },
+          {
+            "when": { "flagsSet": ["booksClean"], "npcFree": ["npc_selwyn", "npc_teodor"] },
+            "text": "Selwyn Achterberg reads the owners' answer to Teodor Brask on the dock ring: the books are clean and no fault is on record, so Corvid closes at the end of the year as no longer worth running. Teodor Brask thanks him and walks back to his office without a word to anyone.",
+            "effects": [
+              { "op": "setFlag", "key": "stationCondemned", "value": true },
+              {
+                "op": "threadUpdate",
+                "threadId": "thr_inspector",
+                "status": "failed",
+                "summary": "The owners have ordered Corvid closed at the end of the year, on the inspector's clean report."
+              },
+              {
+                "op": "addNews",
+                "text": "The company freighter brought the owners' order: Corvid closes at the end of the year.",
+                "public": true
+              }
+            ]
+          }
+        ],
+        "default": {
+          "text": "The company freighter docks, unloads spare parts and dry stores, and leaves on schedule with no word from the owners about the inspection. On C-deck the scrubbers still run on patched filters.",
+          "effects": [
+            {
+              "op": "addNews",
+              "text": "The company freighter came and went with dry stores and no word from the owners.",
+              "public": true
+            }
+          ]
+        }
+      }
+    ],
+    "epilogue": {
+      "onDay": 21,
+      "orFlagsSet": ["stationCondemned"],
+      "branches": [
+        {
+          "when": { "flagsSet": ["scrubbersFixed", "syndicateCase"] },
+          "text": "The new scrubbers run on C-deck, and for the first time in two years the air there tastes of nothing. The owners have kept Corvid open to fix what they let fail, and the case against the Dock Syndicate has gone sunward with the inspector's report. Ines Varro still runs the dock ring, but every tank is counted twice now. Lena Brask has put up a new brass plate on the memorial wall, with the date the air came back.",
+          "effects": [
+            {
+              "op": "threadUpdate",
+              "threadId": "thr_scrubbers",
+              "status": "resolved",
+              "knownToPlayer": true,
+              "summary": "The new scrubbers run on C-deck, and the air is clean."
+            },
+            {
+              "op": "threadUpdate",
+              "threadId": "thr_inspector",
+              "status": "resolved",
+              "knownToPlayer": true,
+              "summary": "The owners kept Corvid open to fix what they let fail, and the case against the syndicate went sunward."
+            },
+            {
+              "op": "plantSeed",
+              "seed": {
+                "id": "seed_after_ines",
+                "cause": "Ines Varro wants to know who helped the chief build her case.",
+                "effect": "Ines Varro, her office half packed into crates, asks to talk somewhere private and wants to know who on Corvid helped the chief count her tanks.",
+                "trigger": { "type": "npc", "value": "npc_ines" },
+                "fired": false,
+                "hidden": true
+              }
+            },
+            {
+              "op": "plantSeed",
+              "seed": {
+                "id": "seed_after_freighter",
+                "cause": "The owners' auditors are due on the next company freighter.",
+                "effect": "The next company freighter brings two auditors from the owners, and they ask for the dock master's books before they ask for a berth.",
+                "trigger": { "type": "day", "value": 24 },
+                "fired": false,
+                "hidden": true
+              }
+            }
+          ]
+        },
+        {
+          "when": { "flagsSet": ["scrubbersFixed"] },
+          "text": "The new scrubbers run on C-deck, and Pip Quill is out of the medbay and back to running messages. The owners have kept Corvid open to fix the air, but nobody has asked where the old cartridges went, and the Dock Syndicate counts the tanks the way it always has.",
+          "effects": [
+            {
+              "op": "threadUpdate",
+              "threadId": "thr_scrubbers",
+              "status": "resolved",
+              "knownToPlayer": true,
+              "summary": "The new scrubbers run on C-deck, and the air is clean."
+            },
+            {
+              "op": "threadUpdate",
+              "threadId": "thr_inspector",
+              "status": "resolved",
+              "knownToPlayer": true,
+              "summary": "The owners kept Corvid open to fix the air; the syndicate carries on."
+            },
+            {
+              "op": "plantSeed",
+              "seed": {
+                "id": "seed_after_wick",
+                "cause": "Wick Danner is afraid someone will ask where the old cartridges went.",
+                "effect": "Wick Danner, sweating, asks to talk somewhere private and offers a hundred credits to anyone who will keep his name out of the stores audit.",
+                "trigger": { "type": "npc", "value": "npc_wick" },
+                "fired": false,
+                "hidden": true
+              }
+            }
+          ]
+        },
+        {
+          "when": { "flagsSet": ["stationCondemned"] },
+          "text": "The owners' order is posted on the concourse board: Corvid closes at the end of the year, and every resident will be offered passage sunward on the company freighters. Teodor Brask has his clean inspection and his desk in the Inner Worlds. On C-deck the scrubbers still run on patched filters, and nobody will fix them now.",
+          "effects": [
+            {
+              "op": "threadUpdate",
+              "threadId": "thr_inspector",
+              "status": "failed",
+              "knownToPlayer": true,
+              "summary": "Corvid closes at the end of the year."
+            },
+            {
+              "op": "threadUpdate",
+              "threadId": "thr_scrubbers",
+              "status": "failed",
+              "knownToPlayer": true,
+              "summary": "The scrubbers will never be fixed now; C-deck breathes patched air until the end."
+            },
+            {
+              "op": "plantSeed",
+              "seed": {
+                "id": "seed_after_mateo",
+                "cause": "Mateo Quill means to make the owners pay for C-deck before Corvid closes.",
+                "effect": "Mateo Quill, grey with lack of sleep, asks to talk somewhere private and says he has the true logs, and needs someone to carry them sunward.",
+                "trigger": { "type": "npc", "value": "npc_mateo" },
+                "fired": false,
+                "hidden": true
+              }
+            }
+          ]
+        },
+        {
+          "when": { "flagsSet": ["unionStrike"] },
+          "text": "The dock ring has been still for days, and the ships go round Corvid to the depots on the Long Lane rather than wait. The owners have sent no answer to the strike, and the union holds its meetings in the Slack Line's back room with the lights turned low to save power.",
+          "effects": [
+            {
+              "op": "threadUpdate",
+              "threadId": "thr_scrubbers",
+              "status": "failed",
+              "knownToPlayer": true,
+              "summary": "The strike holds, and the scrubbers are no closer to being fixed."
+            },
+            {
+              "op": "threadUpdate",
+              "threadId": "thr_inspector",
+              "status": "failed",
+              "knownToPlayer": true,
+              "summary": "The inspector left with the strike unsettled and his report unsent."
+            }
+          ]
+        }
+      ],
+      "default": {
+        "text": "Nothing on Corvid is settled. The inspector has gone sunward with his report and nobody knows what it says, the scrubbers on C-deck still run on patched filters, and the dock ring still counts its tanks short. At the Slack Line they say the owners will decide in the spring, the way they always say it.",
+        "effects": [
+          {
+            "op": "threadUpdate",
+            "threadId": "thr_scrubbers",
+            "status": "failed",
+            "knownToPlayer": true,
+            "summary": "The scrubbers still run on patched filters."
+          },
+          {
+            "op": "threadUpdate",
+            "threadId": "thr_inspector",
+            "status": "failed",
+            "knownToPlayer": true,
+            "summary": "The inspector went sunward and nobody knows what his report says."
+          }
+        ]
+      }
+    },
+    "tables": {
+      "npc": {
+        "firstNames": [
+          "Ade",
+          "Bex",
+          "Cato",
+          "Della",
+          "Ezra",
+          "Fen",
+          "Gus",
+          "Hollis",
+          "Iko",
+          "Juno",
+          "Kas",
+          "Lio",
+          "Mira",
+          "Nils",
+          "Oona",
+          "Pell",
+          "Quin",
+          "Rosa",
+          "Sol",
+          "Tova",
+          "Ulla",
+          "Vik",
+          "Wren",
+          "Yara",
+          "Zed"
+        ],
+        "occupations": [
+          "ore hauler",
+          "cargo loader",
+          "tug pilot",
+          "suit fitter",
+          "reactor tech",
+          "hydroponics hand",
+          "comms operator",
+          "galley cook",
+          "hull welder",
+          "customs clerk",
+          "belt miner",
+          "water hauler",
+          "fuel tech",
+          "freight purser",
+          "med orderly",
+          "lock operator",
+          "electrician",
+          "courier",
+          "card dealer",
+          "deckhand"
+        ]
+      },
+      "location": {
+        "types": [
+          "pump room",
+          "storage locker",
+          "repair bay",
+          "suit shop",
+          "shuttered stall",
+          "machine shop",
+          "observation blister",
+          "recycling bay",
+          "cold store",
+          "air lock"
+        ],
+        "details": [
+          "a light panel that buzzes and never quite goes out",
+          "a pressure gauge someone has taped a warning to",
+          "a hatch that sticks halfway",
+          "old union notices layered three deep",
+          "a frost line on the outer wall",
+          "a hand-painted berth number",
+          "a vent that whistles when the scrubbers cycle",
+          "a cot behind a curtain"
+        ],
+        "problems": [
+          "the air in it tastes of metal",
+          "the dock master has called in the note on it",
+          "the owners stopped paying for its power",
+          "a seal on its door leaks",
+          "nobody has the code to its lock any more",
+          "its last owner left on a freighter without paying"
+        ]
+      },
+      "items": {
+        "goods": [
+          {
+            "name": "Bulb of coffee",
+            "price": 4,
+            "kind": "drink",
+            "synonyms": ["coffee", "a coffee"]
+          },
+          {
+            "name": "Shot of still-spirit",
+            "price": 6,
+            "kind": "drink",
+            "synonyms": ["still-spirit", "a shot", "spirit"]
+          },
+          {
+            "name": "Bottle of algae beer",
+            "price": 5,
+            "kind": "drink",
+            "synonyms": ["beer", "a beer", "algae beer"]
+          },
+          {
+            "name": "Ration of clean water",
+            "price": 3,
+            "kind": "drink",
+            "synonyms": ["water", "clean water"]
+          },
+          {
+            "name": "Bowl of noodles",
+            "price": 8,
+            "kind": "food",
+            "synonyms": ["noodles", "a bowl of noodles"]
+          },
+          {
+            "name": "Plate of fried tofu and rice",
+            "price": 11,
+            "kind": "food",
+            "synonyms": ["tofu", "a hot meal", "a meal"]
+          },
+          {
+            "name": "Protein bar",
+            "price": 3,
+            "kind": "food",
+            "synonyms": ["a ration bar", "ration pack"]
+          },
+          {
+            "name": "Night in a transient berth",
+            "price": 30,
+            "kind": "service",
+            "synonyms": ["a berth", "a bunk", "a pod", "a berth for the night"]
+          },
+          {
+            "name": "Air tax for a day",
+            "price": 5,
+            "kind": "service",
+            "synonyms": ["air tax", "the air tax"]
+          },
+          { "name": "Shower ration", "price": 4, "kind": "service", "synonyms": ["a shower"] },
+          {
+            "name": "Visit to the medbay",
+            "price": 40,
+            "kind": "service",
+            "synonyms": ["a doctor", "patching up"]
+          },
+          {
+            "name": "Suit seal check",
+            "price": 15,
+            "kind": "service",
+            "synonyms": ["a seal check"]
+          },
+          {
+            "name": "Filter cartridge",
+            "price": 60,
+            "kind": "good",
+            "synonyms": ["a cartridge", "a filter", "an air filter"]
+          },
+          {
+            "name": "Multitool",
+            "price": 35,
+            "kind": "good",
+            "synonyms": ["a multitool", "a tool"]
+          },
+          {
+            "name": "Pressure patch kit",
+            "price": 25,
+            "kind": "good",
+            "synonyms": ["a patch kit", "patches"]
+          },
+          {
+            "name": "Hand torch",
+            "price": 12,
+            "kind": "good",
+            "synonyms": ["a torch", "a flashlight"]
+          },
+          {
+            "name": "Stun baton",
+            "price": 90,
+            "kind": "good",
+            "synonyms": ["a baton", "a stunner"]
+          },
+          { "name": "Utility knife", "price": 15, "kind": "good", "synonyms": ["a knife"] },
+          {
+            "name": "Comm unit",
+            "price": 45,
+            "kind": "good",
+            "synonyms": ["a comm", "a comm unit"]
+          },
+          { "name": "Deck of cards", "price": 6, "kind": "good", "synonyms": ["cards", "a deck"] },
+          {
+            "name": "Vacuum-rated gloves",
+            "price": 30,
+            "kind": "good",
+            "synonyms": ["gloves", "suit gloves"]
+          },
+          { "name": "Tin of real tobacco", "price": 50, "kind": "good", "synonyms": ["tobacco"] }
+        ],
+        "trinkets": [
+          "a brass plate from a ship that was scrapped",
+          "a claim beacon with a dead battery",
+          "a union card with the photo scratched off",
+          "a lucky ore nugget on a chain",
+          "a child's drawing of a planet",
+          "a deck of cards with one ace missing",
+          "a cracked tablet with a message still on it",
+          "a freighter crew patch"
+        ]
+      },
+      "complications": [
+        { "text": "it takes far longer than it should", "tiers": ["both"], "kinds": ["any"] },
+        {
+          "text": "you get it, but you tear your hand on a bulkhead doing it",
+          "tiers": ["partial"],
+          "kinds": ["physical"],
+          "effects": [{ "op": "playerHp", "delta": -1 }]
+        },
+        {
+          "text": "it costs more than you meant to spend",
+          "tiers": ["partial"],
+          "kinds": ["social"]
+        },
+        {
+          "text": "{witness} goes along with it, but wants a favour back",
+          "tiers": ["partial"],
+          "kinds": ["social"],
+          "needsPerson": true
+        },
+        {
+          "text": "{witness} notices more than you would like",
+          "tiers": ["partial"],
+          "kinds": ["social", "stealth"],
+          "needsPerson": true
+        },
+        {
+          "text": "a hatch alarm goes off behind you",
+          "tiers": ["partial", "failure"],
+          "kinds": ["stealth"]
+        },
+        {
+          "text": "{witness} takes it personally",
+          "tiers": ["failure"],
+          "kinds": ["social"],
+          "needsPerson": true,
+          "effects": [{ "op": "attitudeDelta", "npcId": "{witnessId}", "delta": -5 }]
+        },
+        {
+          "text": "you slip on a wet deck plate and come down hard",
+          "tiers": ["failure"],
+          "kinds": ["physical"],
+          "effects": [{ "op": "playerHp", "delta": -1 }]
+        },
+        {
+          "text": "a camera on the corridor catches your face",
+          "tiers": ["failure"],
+          "kinds": ["stealth"]
+        },
+        {
+          "text": "you drop something you needed and it rolls under a grating",
+          "tiers": ["failure"],
+          "kinds": ["physical", "stealth"]
+        }
+      ],
+      "weather": {
+        "spring": [
+          "Steady air and the lights on day cycle",
+          "A pressure drop on C-deck, ears popping all morning",
+          "A dust storm of belt grit rattling against the outer hull",
+          "A comms blackout from a solar flare",
+          "The scrubbers running loud and the air smelling of hot metal",
+          "Cold in the outer corridors after a heater fault"
+        ],
+        "summer": [
+          "Steady air and the lights on day cycle",
+          "Warm and close on every deck while the coolant pumps are serviced",
+          "A dust storm of belt grit rattling against the outer hull",
+          "A comms blackout from a solar flare",
+          "The scrubbers running loud and the air smelling of hot metal",
+          "A power brownout, half the light panels dark"
+        ],
+        "autumn": [
+          "Steady air and the lights on day cycle",
+          "A pressure drop on C-deck, ears popping all morning",
+          "A dust storm of belt grit rattling against the outer hull",
+          "A comms blackout from a solar flare",
+          "The scrubbers running loud and the air smelling of hot metal",
+          "Cold in the outer corridors after a heater fault"
+        ],
+        "winter": [
+          "Steady air and the lights on day cycle",
+          "Frost on the inside of the viewports on the dock ring",
+          "A dust storm of belt grit rattling against the outer hull",
+          "A comms blackout from a solar flare",
+          "The scrubbers running loud and the air smelling of hot metal",
+          "Cold in the outer corridors after a heater fault"
+        ]
+      }
+    },
+    "grudgeTemplates": [
+      {
+        "effect": "{npc} tells Chief Adeyemi that {player} was seen near the stores cage when things went missing, and security starts keeping an eye on {player}.",
+        "kind": "police",
+        "about": ["theft"],
+        "dayOffset": [2, 4],
+        "effects": [
+          {
+            "op": "socialEvent",
+            "npcId": "npc_ruth",
+            "event": "crossed",
+            "d": { "w": -10, "t": -10 },
+            "text": "{npc} says {playerName} was hanging around the stores cage when things went missing.",
+            "weight": 2,
+            "secondhand": true
+          }
+        ],
+        "public": false,
+        "notForTags": ["police"]
+      },
+      {
+        "effect": "{npc} tells everyone on the concourse that {player} is a thief, and for days every counter on Corvid charges {player} more and watches their hands.",
+        "kind": "money",
+        "dayOffset": [2, 3],
+        "effects": [
+          { "op": "playerPrice", "factor": 1.25, "days": 5 },
+          { "op": "reputationDelta", "key": "town", "delta": -5 }
+        ],
+        "public": true
+      },
+      {
+        "effect": "{npc} puts {player}'s name on the list behind the bar of people the Slack Line will not serve.",
+        "kind": "ban",
+        "dayOffset": [2, 3],
+        "effects": [
+          { "op": "banFrom", "locationId": "loc_cantina", "days": 3, "byNpcId": "{npcId}" }
+        ],
+        "public": true,
+        "forTags": ["bartender"]
+      },
+      {
+        "effect": "{npc} catches {player} alone in a service corridor and puts them into a bulkhead, hard, as a warning.",
+        "kind": "violence",
+        "about": ["violence", "insult"],
+        "dayOffset": [3, 5],
+        "effects": [
+          { "op": "playerHp", "delta": -2 },
+          { "op": "addCondition", "name": "Cracked rib", "effect": "-1 might", "days": 2 }
+        ],
+        "public": false,
+        "forTags": ["enforcer", "smuggler"],
+        "notForTags": ["elderly", "teen", "police"]
+      },
+      {
+        "effect": "{npc} shoves {player} into a cargo sled in front of the berth crews and dares them to do something about it.",
+        "kind": "violence",
+        "dayOffset": [2, 4],
+        "effects": [
+          { "op": "playerHp", "delta": -1 },
+          { "op": "reputationDelta", "key": "town", "delta": -3 }
+        ],
+        "public": true,
+        "forTags": ["dockhand", "loader", "pilot"],
+        "notForTags": ["elderly", "teen", "police"]
+      },
+      {
+        "effect": "{npc} tells the berth crews that {player} cannot be trusted with a manifest, and the dock ring goes quiet whenever {player} walks by.",
+        "kind": "gossip",
+        "dayOffset": [2, 5],
+        "effects": [
+          {
+            "op": "propagate",
+            "npcId": "{npcId}",
+            "event": "crossed",
+            "factor": 2,
+            "text": "heard from {npc} that {playerName} cannot be trusted with a manifest"
+          },
+          { "op": "reputationDelta", "key": "town", "delta": -5 }
+        ],
+        "public": false,
+        "notForTags": ["police", "elderly"]
+      },
+      {
+        "effect": "{npc} tells C-deck that {player} has been carrying tales to the dock master, and the union stops talking when {player} comes near.",
+        "kind": "gossip",
+        "dayOffset": [2, 5],
+        "effects": [
+          {
+            "op": "propagate",
+            "npcId": "{npcId}",
+            "event": "crossed",
+            "factor": 2,
+            "text": "heard from {npc} that {playerName} carries tales to the dock master"
+          },
+          { "op": "reputationDelta", "key": "fac_union", "delta": -10 }
+        ],
+        "public": false,
+        "forTags": ["union"]
+      },
+      {
+        "effect": "{npc} has {player}'s berth fees doubled at the dock master's office for the rest of the week.",
+        "kind": "money",
+        "dayOffset": [2, 3],
+        "effects": [{ "op": "playerPrice", "factor": 1.5, "days": 4 }],
+        "public": false,
+        "forTags": ["dockmaster", "smuggler"]
+      }
+    ],
+    "favourTemplates": [
+      {
+        "effect": "{npc} finds {player} and says quietly that security has been asking about them, and which officer.",
+        "dayOffset": [2, 3],
+        "effects": [
+          {
+            "op": "addNews",
+            "text": "{npc} warned {playerName} that security has been asking about them.",
+            "public": false
+          }
+        ],
+        "public": false,
+        "notForTags": ["police"]
+      },
+      {
+        "effect": "{npc} sells {player} what they need at cost and tells them to keep quiet about the price.",
+        "dayOffset": [2, 4],
+        "effects": [{ "op": "playerPrice", "factor": 0.8, "days": 3 }],
+        "public": false,
+        "forTags": ["merchant", "shopkeeper", "bartender", "cook"]
+      },
+      {
+        "effect": "{npc} tells {player} the name of somebody on Corvid who can help with what {player} came here to do, and where to find them.",
+        "dayOffset": [3, 5],
+        "effects": [
+          {
+            "op": "addMemory",
+            "npcId": "{npcId}",
+            "text": "Pointed {playerName} toward somebody on Corvid who could help them.",
+            "weight": 1,
+            "act": "own"
+          }
+        ],
+        "public": false
+      },
+      {
+        "effect": "{npc} slips {player} a spare air filter for their berth and says not to mention where it came from.",
+        "dayOffset": [2, 4],
+        "effects": [
+          {
+            "op": "giveItem",
+            "name": "Spare air filter",
+            "notes": "A used filter with a few weeks left in it."
+          }
+        ],
+        "public": false,
+        "forTags": ["tech", "mechanic", "stores"]
+      },
+      {
+        "effect": "{npc} patches {player} up in a quiet corner of the medbay and will not take payment.",
+        "dayOffset": [2, 3],
+        "effects": [{ "op": "playerHp", "delta": 2 }],
+        "public": false,
+        "forTags": ["doctor", "nurse"]
+      },
+      {
+        "effect": "{npc} puts in a word for {player} with the berth crews, and the dock ring is friendlier for a few days.",
+        "dayOffset": [2, 4],
+        "effects": [{ "op": "reputationDelta", "key": "town", "delta": 5 }],
+        "public": true,
+        "forTags": ["union", "dockhand"]
+      },
+      {
+        "effect": "{npc} lets {player} sleep a night in a spare bunk for nothing.",
+        "dayOffset": [2, 4],
+        "effects": [{ "op": "playerGold", "delta": 30 }],
+        "public": false,
+        "forTags": ["bartender", "chaplain"]
+      }
+    ],
+    "law": {
+      "factionId": "fac_security",
+      "headNpcId": "npc_ruth",
+      "fallbackNpcId": "npc_dov",
+      "arrestPlaceId": "loc_security",
+      "newsTemplate": "Chief Adeyemi has been asking questions about {npc}."
+    },
+    "gates": {
+      "council": {
+        "steward": { "trust": 30, "knows": 25 },
+        "friendly": { "liking": 15 },
+        "bought": { "trust": 20 }
+      },
+      "epilogue": { "margit": { "liking": 40 } }
+    }
+  },
+  "player": {
+    "backgrounds": [
+      {
+        "id": "bg_deckhand",
+        "name": "Deckhand",
+        "blurb": "You worked the cargo decks of an ore freighter until the captain paid you off at Corvid with half what you were owed.",
+        "age": 27,
+        "stats": { "might": 2, "wits": 0, "charm": 0, "stealth": 1 },
+        "gold": 120,
+        "items": [
+          {
+            "id": "item_cargo_hook",
+            "name": "Cargo hook",
+            "qty": 1,
+            "notes": "Steel, worn smooth at the grip."
+          },
+          {
+            "id": "item_crew_patch",
+            "name": "Crew patch",
+            "qty": 1,
+            "notes": "From the ship that left without you."
+          },
+          {
+            "id": "item_comm_deckhand",
+            "name": "Comm unit",
+            "qty": 1,
+            "notes": "A battered comm unit on Corvid's network, with your last pay slip still on it."
+          }
+        ],
+        "arrival": "docks",
+        "hook": {
+          "npcId": "npc_hana",
+          "text": "Hana Quill sizes up {player}'s shoulders, asks what ship {player} came off, and says the loaders are a hand short this week if {player} can keep their mouth shut about the counts.",
+          "dayOffset": 0,
+          "trigger": { "type": "npc", "value": "npc_hana" }
+        }
+      },
+      {
+        "id": "bg_courier",
+        "name": "Courier",
+        "blurb": "You carry sealed packages between stations for people who do not trust the mail, and the one in your bag is due on Corvid.",
+        "age": 30,
+        "stats": { "might": 0, "wits": 1, "charm": 1, "stealth": 1 },
+        "gold": 260,
+        "items": [
+          {
+            "id": "item_sealed_case",
+            "name": "Sealed courier case",
+            "qty": 1,
+            "notes": "Addressed to the stationmaster. You do not know what is in it."
+          },
+          {
+            "id": "item_travel_pass",
+            "name": "Travel pass",
+            "qty": 1,
+            "notes": "Good for one more shuttle."
+          },
+          {
+            "id": "item_comm_courier",
+            "name": "Comm unit",
+            "qty": 1,
+            "notes": "A good comm unit with an encrypted channel you are not supposed to use for anything personal."
+          }
+        ],
+        "arrival": "gate",
+        "hook": {
+          "npcId": "npc_teodor",
+          "text": "Teodor Brask takes the sealed case from {player} with shaking hands, reads the first line inside, and asks {player} to wait while he writes an answer that must not go through the comms desk.",
+          "dayOffset": 0,
+          "trigger": { "type": "npc", "value": "npc_teodor" }
+        }
+      },
+      {
+        "id": "bg_medic",
+        "name": "Ship's medic",
+        "blurb": "You patched up crews on the freighter lane until a death on your watch made you want somewhere quieter.",
+        "age": 41,
+        "stats": { "might": -1, "wits": 3, "charm": 1, "stealth": 0 },
+        "gold": 220,
+        "items": [
+          {
+            "id": "item_med_kit",
+            "name": "Field med kit",
+            "qty": 1,
+            "notes": "Bandages, sealant, two doses of painkiller."
+          },
+          {
+            "id": "item_licence",
+            "name": "Medic's licence",
+            "qty": 1,
+            "notes": "Still valid for another year."
+          },
+          {
+            "id": "item_comm_medic",
+            "name": "Comm unit",
+            "qty": 1,
+            "notes": "A comm unit with your old ship's medical channel still saved on it."
+          }
+        ],
+        "arrival": "gate",
+        "hook": {
+          "npcId": "npc_odile",
+          "text": "Dr. Marchetti looks at {player}'s hands, asks where {player} trained, and says she has three patients from C-deck she would like a second opinion on, quietly.",
+          "dayOffset": 0,
+          "trigger": { "type": "npc", "value": "npc_odile" }
+        }
+      },
+      {
+        "id": "bg_stowaway",
+        "name": "Stowaway",
+        "blurb": "You came aboard Corvid in a cargo container, with no ident, no ticket and nobody who knows you are here.",
+        "age": 19,
+        "stats": { "might": 0, "wits": 1, "charm": -1, "stealth": 3 },
+        "gold": 30,
+        "items": [
+          {
+            "id": "item_pry_bar",
+            "name": "Pry bar",
+            "qty": 1,
+            "notes": "Short enough to hide in a sleeve."
+          },
+          {
+            "id": "item_ration_pack",
+            "name": "Ration pack",
+            "qty": 2,
+            "notes": "Taken from the container you came in."
+          },
+          {
+            "id": "item_comm_stowaway",
+            "name": "Comm unit",
+            "qty": 1,
+            "notes": "A cheap comm unit with somebody else's name on it and twenty minutes of credit."
+          }
+        ],
+        "arrival": "docks",
+        "hook": {
+          "npcId": "npc_pip",
+          "text": "Pip Quill finds {player} behind the cargo stacks, grins, and says he will not tell security if {player} helps him find out what goes through the old cargo lock at night.",
+          "dayOffset": 0,
+          "trigger": { "type": "npc", "value": "npc_pip" }
+        }
+      },
+      {
+        "id": "bg_safety_inspector",
+        "name": "Laid-off safety inspector",
+        "blurb": "You inspected stations for a rival company until it went under, and you know exactly what a failing scrubber sounds like.",
+        "age": 45,
+        "stats": { "might": 0, "wits": 2, "charm": 1, "stealth": 0 },
+        "gold": 300,
+        "items": [
+          {
+            "id": "item_air_meter",
+            "name": "Air quality meter",
+            "qty": 1,
+            "notes": "Reads carbon dioxide and particulates, if you hold it still."
+          },
+          {
+            "id": "item_old_badge",
+            "name": "Old inspector's badge",
+            "qty": 1,
+            "notes": "From a company that no longer exists."
+          },
+          {
+            "id": "item_comm_inspector",
+            "name": "Comm unit",
+            "qty": 1,
+            "notes": "A comm unit with your old inspection reports still on it."
+          }
+        ],
+        "arrival": "gate",
+        "hook": {
+          "npcId": "npc_mateo",
+          "text": "Mateo Quill sees the meter on {player}'s belt, coughs, and asks if {player} would take a reading on C-deck before the inspector does.",
+          "dayOffset": 0,
+          "trigger": { "type": "npc", "value": "npc_mateo" }
+        }
+      },
+      {
+        "id": "bg_card_sharp",
+        "name": "Card sharp",
+        "blurb": "You work the cantinas of the freighter lane with a good memory and a bad reputation, and Corvid is the last place that still lets you sit down.",
+        "age": 33,
+        "stats": { "might": -1, "wits": 1, "charm": 2, "stealth": 1 },
+        "gold": 340,
+        "items": [
+          {
+            "id": "item_marked_deck",
+            "name": "Deck of cards",
+            "qty": 1,
+            "notes": "Your own deck, worn soft."
+          },
+          {
+            "id": "item_lucky_chip",
+            "name": "Lucky chip",
+            "qty": 1,
+            "notes": "From a casino on a station that no longer exists."
+          },
+          {
+            "id": "item_comm_sharp",
+            "name": "Comm unit",
+            "qty": 1,
+            "notes": "A slim comm unit with a dozen numbers in it you would rather not call."
+          }
+        ],
+        "arrival": "docks",
+        "hook": {
+          "npcId": "npc_lucien",
+          "text": "Lucien Ferro watches {player} shuffle, smiles, and writes a number on a card: what he will stake {player} for a night at his table, and what {player} owes him if it goes wrong.",
+          "dayOffset": 0,
+          "trigger": { "type": "npc", "value": "npc_lucien" }
+        }
+      }
+    ],
+    "flaws": [
+      "Cannot pass a card table without buying in.",
+      "Cannot let an insult go, even from someone in a uniform.",
+      "Drinks still-spirit to sleep, and some nights to wake up.",
+      "Trusts anyone who claims to be from the same ship.",
+      "Takes what is not nailed down, out of old habit.",
+      "Lies first and works out the truth later.",
+      "Panics in a tight space with no air gauge."
+    ],
+    "goalPresets": [
+      "Find out who let the C-deck scrubbers fail.",
+      "Find Esme Halloran, alive or dead.",
+      "Earn enough on Corvid to buy passage sunward.",
+      "Prove the Dock Syndicate skims the water.",
+      "Get the truth to the owners' inspector before he files his report."
+    ],
+    "looseEnds": {
+      "debt": {
+        "label": "A debt",
+        "options": [
+          "I owe a man on Corvid four hundred credits from a card game I should have walked away from.",
+          "I borrowed against my berth fees from the dock master's office, and the note is due.",
+          "I skipped out on a berth bill on another station, and the man who collects it works out of Corvid."
+        ],
+        "link": { "tag": "lender", "optionTags": ["dealer", "dockmaster", "collector"] },
+        "seed": {
+          "dayOffset": [3, 4],
+          "effect": "{npc} finds you, reads your name off a debt slip with a number under it, and says the money is due in three days.",
+          "trigger": "day"
+        },
+        "obligation": {
+          "kind": "debt",
+          "amount": 400,
+          "dueOffset": 3,
+          "text": "Pay {npc} the four hundred credits you owe.",
+          "missText": "{npc} came for the four hundred credits and took {playerName}'s comm unit as a start on it.",
+          "onMiss": [
+            { "op": "takeItem", "name": "Comm unit" },
+            {
+              "op": "socialEvent",
+              "npcId": "{npcId}",
+              "event": "broke_word",
+              "d": { "w": -15 },
+              "text": "{playerName} let the four hundred go past due, so I took the comm unit as a start.",
+              "weight": 3,
+              "act": "own"
+            },
+            {
+              "op": "addNews",
+              "text": "{npc} came for the four hundred credits and took {playerName}'s comm unit as a start on it.",
+              "public": false
+            }
+          ],
+          "onMet": [
+            {
+              "op": "socialEvent",
+              "npcId": "{npcId}",
+              "event": "paid_back",
+              "d": { "w": 10 },
+              "text": "{playerName} paid the four hundred in full and on time.",
+              "weight": 2
+            }
+          ]
+        }
+      },
+      "enemy": {
+        "label": "An enemy",
+        "options": [
+          "Someone I wronged on another station is already here, waiting for me.",
+          "I testified against a man's crew, and he works on Corvid now.",
+          "I left a pilot stranded in the belt once, and he made it home."
+        ],
+        "link": { "tag": "enemy", "optionTags": ["enemy", "collector", "pilot"] },
+        "seed": {
+          "dayOffset": [4, 7],
+          "effect": "{npc} steps in front of you in a corridor, says your full name slowly, and says it gets settled before the week is out.",
+          "trigger": "day"
+        },
+        "followUp": {
+          "dayOffset": [3, 5],
+          "effect": "{npc} comes up on you from the side, puts you against the nearest bulkhead and hits you twice, hard, and says that was the first part of it.",
+          "effects": [
+            { "op": "playerHp", "delta": -2 },
+            { "op": "addCondition", "name": "Bruised ribs", "effect": "-1 might", "days": 2 },
+            {
+              "op": "addMemory",
+              "npcId": "{npcId}",
+              "text": "Put {playerName} against a bulkhead and hit them twice, the first part of what they have coming.",
+              "weight": 3,
+              "act": "own"
+            }
+          ],
+          "alt": {
+            "text": "{npc} passes you close enough to touch, looks at you a long moment, and keeps walking."
+          }
+        }
+      },
+      "secret": {
+        "label": "A secret",
+        "options": [
+          "Someone here knows what I did before I came.",
+          "I am travelling on an ident that is not mine.",
+          "I am carrying something stolen, and someone here knows it."
+        ],
+        "link": { "tag": "informant" },
+        "seed": {
+          "dayOffset": [3, 6],
+          "effect": "{npc} gets you to one side, repeats one true detail of your secret, and names a price for keeping it quiet: two hundred credits, by the day after tomorrow.",
+          "trigger": "day"
+        },
+        "obligation": {
+          "kind": "blackmail",
+          "amount": 200,
+          "dueOffset": 2,
+          "text": "Pay {npc} two hundred credits to keep your secret quiet.",
+          "missText": "{npc} did not get the two hundred credits and has told Chief Adeyemi what {playerName} is hiding.",
+          "onMiss": [
+            {
+              "op": "socialEvent",
+              "npcId": "npc_ruth",
+              "event": "told_anyway",
+              "d": { "w": -10 },
+              "text": "{npc} told me what {playerName} is hiding.",
+              "weight": 2
+            },
+            {
+              "op": "socialEvent",
+              "npcId": "{npcId}",
+              "event": "broke_word",
+              "d": { "w": -10 },
+              "text": "{playerName} would not pay, so I told the chief what {playerName} is hiding.",
+              "weight": 3,
+              "act": "own"
+            },
+            {
+              "op": "addNews",
+              "text": "{npc} has been telling people what {playerName} is hiding.",
+              "public": true
+            }
+          ],
+          "onMet": [
+            {
+              "op": "socialEvent",
+              "npcId": "{npcId}",
+              "event": "paid_silence",
+              "text": "{playerName} paid me two hundred credits to keep quiet.",
+              "weight": 2
+            }
+          ]
+        }
+      },
+      "lost": {
+        "label": "Someone lost",
+        "options": [
+          "A miner I crewed with went silent in the Varga Belt, and I want to know why.",
+          "My sister died on Corvid, and the file on how she died does not add up.",
+          "A friend of mine came to Corvid for work last year and stopped writing."
+        ],
+        "link": { "tag": "records", "optionTags": ["miner", "bereaved", "records"] },
+        "seed": {
+          "dayOffset": [4, 8],
+          "effect": "{npc} draws you aside and says, low, that there is something to tell about what you came here to find out, but not here and not now.",
+          "trigger": "day"
+        }
+      },
+      "promise": {
+        "label": "A promise",
+        "options": [
+          "I promised a dying crewmate I would hand in her union card and see her name read out at the meeting.",
+          "I promised a tug pilot in the belt I would look in on a friend of his here.",
+          "I promised a woman on the freighter lane I would light a lamp for her son in Corvid garden."
+        ],
+        "link": { "tag": "union", "optionTags": ["union", "pilot", "chaplain"] },
+        "seed": {
+          "dayOffset": [2, 4],
+          "effect": "{npc} catches you looking a second too long, and asks, flat and careful, who sent you to Corvid.",
+          "trigger": "day"
+        },
+        "obligation": {
+          "kind": "promise",
+          "dueOffset": 4,
+          "text": "Keep your word to {npc}.",
+          "missText": "{npc} finds {playerName} and asks, flat, what happened to the promise {playerName} made.",
+          "onMiss": [
+            {
+              "op": "socialEvent",
+              "npcId": "{npcId}",
+              "event": "broke_word",
+              "d": { "w": -10 },
+              "text": "{playerName} made me a promise and let the day go by.",
+              "weight": 2
+            }
+          ],
+          "onMet": [
+            {
+              "op": "socialEvent",
+              "npcId": "{npcId}",
+              "event": "kept_word",
+              "d": { "w": 10 },
+              "text": "{playerName} kept the promise they made me.",
+              "weight": 2
+            }
+          ]
+        }
+      }
+    },
+    "stats": {
+      "might": {
+        "label": "Muscle",
+        "blurb": "Strength and toughness: fights, lifting cargo, holding a hatch shut."
+      },
+      "wits": {
+        "label": "Tech",
+        "blurb": "Noticing, figuring out, reading logs, fixing machines."
+      },
+      "charm": {
+        "label": "Talk",
+        "blurb": "Talking people round: persuading, lying, calming, flirting."
+      },
+      "stealth": {
+        "label": "Shadow",
+        "blurb": "Not being seen: sneaking, picking locks, slipping through a hatch."
+      }
+    },
+    "start": { "hp": 10, "storyPoints": 2 },
+    "ageRange": [16, 90],
+    "arrivals": {
+      "gate": {
+        "label": "By shuttle",
+        "opening": "You come through the lock at {place} off the belt shuttle, onto {town}, with your bag on your shoulder.",
+        "summary": "arriving by shuttle from the belt"
+      },
+      "docks": {
+        "label": "By freighter",
+        "opening": "You step off a freighter onto {place} at {town}, your bag on your shoulder and the ship already uncoupling behind you.",
+        "summary": "arriving off a freighter"
+      }
+    },
+    "creation": {
+      "steps": [
+        { "id": "name", "title": "Name", "sub": "What people on Corvid will call you." },
+        {
+          "id": "background",
+          "title": "Background and age",
+          "sub": "Sets your starting stats, credits, three things (one a comm unit), and whether you arrive by shuttle or freighter. Your age starts at what the background suggests."
+        },
+        {
+          "id": "stats",
+          "title": "Stats",
+          "sub": "You can move one point: take it from one stat with −, give it to another with +. Stats run from −1 to +3."
+        },
+        {
+          "id": "goal",
+          "title": "Goal and flaw",
+          "sub": "Why you came to Corvid, in one line, and the habit that gets you into trouble."
+        },
+        {
+          "id": "loose",
+          "title": "Three loose ends",
+          "sub": "Pick three. Each becomes a real person aboard, with consequences."
+        }
+      ]
+    }
+  },
+  "opening": {
+    "premise": "Corvid Station is an old refuelling ring at the edge of the Varga Belt, and the air on C-deck is going bad. The owners' inspector is aboard to decide whether Corvid is worth keeping, and everyone on it wants him to see something different.",
+    "text": "The lock cycles, the pressure door grinds open, and Corvid smells of hot metal, fried tofu and too many people breathing the same air. A board by the door lists the ship schedule: the water tanker in three days, the company freighter in nine. Under it someone has written AIR TAX DUE ON ARRIVAL in marker, and under that, in a smaller hand, ASK WHO TOOK THE FILTERS.",
+    "firstTurn": "Show the player where they are standing, the first person nearby who is working, and one thing about the air. Do not explain Corvid; let them find it."
+  },
+  "narration": {
+    "preset": "casual",
+    "banned": [
+      "the air is thick with",
+      "a testament to",
+      "little did you know",
+      "somewhere in the distance",
+      "you can't help but",
+      "a sense of",
+      "palpable",
+      "tapestry",
+      "whispers of",
+      "the weight of",
+      "sends shivers",
+      "unbeknownst",
+      "in the grand scheme",
+      "it's worth noting",
+      "echoes through",
+      "hangs in the air",
+      "a mix of",
+      "as if on cue",
+      "time seems to slow",
+      "eyes glinting with",
+      "the cold void",
+      "vastness of space",
+      "hum of Corvid"
+    ]
+  },
+  "directions": {
+    "arrival": "When the player arrives somewhere new on Corvid, give the hatch or lock they come through, the air (its smell, its temperature), and one person at work nearby. Never describe space beyond what a viewport shows."
+  },
+  "rules": { "gamble": { "stake": 20 }, "law": { "fine": 60 } },
+  "freedom": { "preset": "guided" }
+}
