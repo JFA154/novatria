@@ -1359,13 +1359,157 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .cr-ring-fill { fill: none; stroke: var(--accent); stroke-width: 3.5; stroke-linecap: round; transition: stroke-dasharray .3s ease; }
 .cr-ring[data-full="1"] .cr-ring-fill { stroke: var(--att-mild); }
 .cr-ring-num { position: absolute; inset: 0; display: grid; place-items: center; font-size: 10px; letter-spacing: -.02em; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
-/* The empty state: one sentence and the two buttons. */
+/* The empty state (wave 38): an invitation to write a first story, its heading in Literata, one sentence and the two buttons. */
 .cr-empty {
-  margin: 20px 0 0; padding: 28px 20px; border: 1px dashed var(--field); border-radius: 14px; text-align: center;
-  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  margin: 20px 0 0; padding: 36px 20px 32px; border: 1px solid var(--border); border-radius: 14px; text-align: center;
+  background:
+    radial-gradient(120% 140% at 50% 0%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 62%),
+    color-mix(in srgb, var(--surface) 70%, transparent);
 }
-.cr-empty p { margin: 0 auto 16px; max-width: 30em; font-family: var(--read-font); font-size: calc(var(--read-size) - 1px); line-height: 1.55; color: var(--muted); }
+.cr-empty-title { margin: 0 0 8px; font-family: var(--read-font); font-size: 26px; font-weight: 600; line-height: 1.2; }
+.cr-empty p { margin: 0 auto 20px; max-width: 30em; font-family: var(--read-font); font-size: calc(var(--read-size) - 1px); line-height: 1.55; color: var(--muted); }
 .cr-empty .row-btns { justify-content: center; }
+
+/* ----- The first pages (wave 38; Creator.Begin) -----
+   The owner: "Creating a story should be an experience, not something clunky and daunting." A new story is asked
+   for one question at a time, the question in Literata at reading size and one or two fields under it, while the
+   story's title page fills in beside it (from 900px; on a phone the page waits for the last step). The last step
+   shows the page whole, with Step inside and Keep writing. The game's tokens in both themes, fades only, 44px
+   targets, 16px or larger inputs, nothing wider than a 375px phone. */
+#screen-creator { --cr-paper: color-mix(in srgb, var(--surface-2) 90%, var(--accent)); }
+:root[data-theme="parchment"] #screen-creator { --cr-paper: color-mix(in srgb, var(--bg) 45%, #fffdf6); }
+/* In the first pages the screen's own heading steps back: the question is the heading that matters. */
+#screen-creator[data-view="begin"] .cr-top { margin-bottom: 10px; align-items: center; }
+#screen-creator[data-view="begin"] .cr-top .eyebrow { margin: 0; }
+#screen-creator[data-view="begin"] .cr-top .page-title { font-family: var(--ui-font); font-size: 14px; font-weight: 400; color: var(--muted); }
+/* The steps: a thin bar each with its name under it, a button to that step; under 720px the bars alone
+   (.cr-begin-bar, not buttons: the step's own line says "Page 3 of 9", and Back and Continue move). */
+.cr-begin-steps { list-style: none; display: flex; gap: 6px; margin: 0 0 30px; padding: 0; }
+.cr-begin-steps li { flex: 1 1 0; min-width: 0; }
+.cr-begin-step {
+  position: relative; display: block; width: 100%; min-height: var(--tap); padding: 14px 0 0; border: 0; border-radius: 4px;
+  background: none; color: var(--faint); font-family: var(--ui-font); font-size: 12px; letter-spacing: .06em; text-transform: uppercase;
+  text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: color .15s ease;
+}
+.cr-begin-step::before { content: ""; position: absolute; left: 0; right: 0; top: 4px; height: 3px; border-radius: 2px; background: var(--border); transition: background-color .2s ease; }
+.cr-begin-step:hover { color: var(--text); }
+.cr-begin-step[data-done="1"] { color: var(--muted); }
+.cr-begin-step[data-done="1"]::before { background: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+.cr-begin-step[aria-current="step"] { color: var(--text); }
+.cr-begin-step[aria-current="step"]::before { background: var(--accent); }
+.cr-begin-bar { display: none; gap: 4px; margin: 0 0 22px; }
+.cr-begin-bar span { flex: 1 1 0; height: 3px; border-radius: 2px; background: var(--border); }
+.cr-begin-bar span[data-done="1"] { background: color-mix(in srgb, var(--accent) 50%, var(--border)); }
+.cr-begin-bar span[data-on="1"] { background: var(--accent); }
+@media (max-width: 719px) {
+  .cr-begin-steps { display: none; }
+  .cr-begin-bar { display: flex; }
+}
+.cr-begin-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 32px; align-items: start; }
+.cr-begin-side { display: none; min-width: 0; }
+@media (min-width: 900px) {
+  .cr-begin-cols { grid-template-columns: minmax(0, 1fr) minmax(300px, 372px); gap: 56px; }
+  .cr-begin-side { display: block; position: sticky; top: 0; }
+}
+/* The last step: one column, the page in the middle of it. */
+.cr-begin[data-step="ready"] .cr-begin-cols { grid-template-columns: minmax(0, 600px); justify-content: center; }
+.cr-begin[data-step="ready"] .cr-begin-side { display: none; }
+.cr-begin-main { min-width: 0; }
+.cr-begin-body { animation: fade-in .3s ease-out; }
+.cr-begin-count { margin: 0 0 10px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); font-variant-numeric: tabular-nums; }
+.cr-begin-q {
+  margin: 0 0 12px; font-family: var(--read-font); font-size: clamp(27px, 4.4vw, 38px); font-weight: 600; line-height: 1.15;
+  letter-spacing: -.01em; text-wrap: balance; overflow-wrap: anywhere;
+}
+.cr-begin-q:focus { outline: none; }
+.cr-begin-lede { margin: 0 0 28px; max-width: 34em; font-family: var(--read-font); font-size: var(--read-size); line-height: 1.55; color: var(--muted); }
+.cr-begin-field { display: grid; gap: 8px; margin: 0 0 24px; min-width: 0; }
+.cr-begin-field > .label { margin: 0; }
+.cr-begin-field > .cr-note { margin: 0; }
+.cr-begin .input { padding: 12px 14px; border-radius: 10px; font-size: 17px; }
+.cr-begin textarea.input { min-height: 7.6em; resize: vertical; font-family: var(--read-font); line-height: 1.55; }
+/* The title is written on a line, not in a box. */
+.cr-begin .input.cr-begin-big {
+  padding: 6px 0 10px; border: 0; border-bottom: 2px solid var(--field); border-radius: 0; background: transparent;
+  font-family: var(--read-font); font-size: clamp(24px, 4vw, 32px); font-weight: 600; line-height: 1.2;
+}
+.cr-begin .input.cr-begin-big:focus { border-bottom-color: var(--accent); box-shadow: 0 1px 0 var(--accent); }
+.cr-begin .input.cr-begin-big::placeholder { font-weight: 400; font-style: italic; }
+/* A choice: radios drawn as pills (the era, the pronouns, who it is for, where someone is found) or as cards (the voice). */
+.cr-opts { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.cr-opt { position: relative; display: inline-flex; min-width: 0; cursor: pointer; }
+.cr-opt input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.cr-opt-face {
+  display: inline-flex; align-items: center; min-height: var(--tap); padding: 0 16px; border: 1px solid var(--field); border-radius: 999px;
+  background: var(--surface); color: var(--text); font-size: 15px; overflow-wrap: anywhere; transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.cr-opt:hover .cr-opt-face { border-color: var(--muted); }
+.cr-opt input:checked + .cr-opt-face { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--surface)); box-shadow: inset 0 0 0 1px var(--accent); }
+.cr-opt input:focus-visible + .cr-opt-face { outline: 2px solid var(--focus); outline-offset: 2px; }
+.cr-opts.cards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+@media (min-width: 620px) { .cr-opts.cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.cr-opts.cards .cr-opt { display: flex; }
+.cr-opts.cards .cr-opt-face { display: grid; align-content: start; gap: 8px; width: 100%; padding: 16px; border-radius: 12px; }
+.cr-opt-name { font-family: var(--read-font); font-size: 19px; font-weight: 600; }
+.cr-opt-sample { font-family: var(--read-font); font-size: 15px; line-height: 1.55; color: var(--muted); }
+/* Two things asked side by side (the two places): a card each. */
+.cr-begin-pair { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; margin: 0 0 24px; }
+@media (min-width: 620px) { .cr-begin-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.cr-begin-card { min-width: 0; padding: 16px 16px 2px; border: 1px solid var(--border); border-radius: 12px; background: color-mix(in srgb, var(--surface) 60%, transparent); }
+.cr-begin-card-title { margin: 0 0 14px; font-family: var(--read-font); font-size: 18px; font-weight: 600; }
+.cr-begin-card .cr-begin-field { margin-bottom: 16px; }
+.cr-begin-two { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 14px; }
+@media (min-width: 620px) { .cr-begin-two { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.cr-begin-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 6px; }
+.cr-begin-nav .btn.primary { min-width: 9.5em; }
+.cr-begin-nav .btn[hidden] { display: none; }
+.cr-begin-foot { margin: 18px 0 0; }
+.cr-begin-link {
+  min-height: var(--tap); padding: 0; border: 0; background: none; color: var(--muted); font-family: var(--ui-font); font-size: 14px;
+  text-decoration: underline; text-decoration-color: var(--field); text-underline-offset: 3px; cursor: pointer;
+}
+.cr-begin-link:hover { color: var(--text); }
+/* The last step: what is still missing, each a button back to its step; then the two ways on. */
+.cr-begin-missing { list-style: none; display: grid; gap: 8px; margin: 0 0 24px; padding: 0; }
+.cr-begin-missing .btn { width: 100%; justify-content: space-between; padding: 10px 16px; text-align: left; line-height: 1.35; }
+.cr-begin-missing .btn::after { content: ""; flex: none; width: 7px; height: 7px; border: solid var(--muted); border-width: 1.5px 1.5px 0 0; transform: rotate(45deg); }
+.cr-begin-go { display: flex; flex-wrap: wrap; gap: 10px; margin: 24px 0 0; }
+.cr-begin-go .btn { flex: 1 1 12em; min-height: 52px; font-size: 16px; }
+.cr-begin-go + .cr-note { margin-top: 12px; }
+.cr-begin[data-step="ready"] .cr-begin-body { text-align: center; }
+.cr-begin[data-step="ready"] .cr-begin-lede { margin-left: auto; margin-right: auto; }
+.cr-begin[data-step="ready"] .cr-begin-nav, .cr-begin[data-step="ready"] .cr-begin-foot { justify-content: center; text-align: center; }
+/* The title page: paper with a thin inner frame, everything centred, a line of ghost text wherever the story has
+   nothing yet. A line that has just been written fades in. */
+.cr-page {
+  position: relative; min-width: 0; padding: 40px 30px 30px; border: 1px solid var(--border); border-radius: 3px;
+  background: var(--cr-paper); box-shadow: var(--shadow); font-family: var(--read-font); text-align: center; overflow-wrap: anywhere;
+}
+.cr-page::before { content: ""; position: absolute; inset: 9px; border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent); border-radius: 1px; pointer-events: none; }
+.cr-page > * { position: relative; }
+.cr-page-kicker { margin: 0 0 14px; font-family: var(--ui-font); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); }
+.cr-page-title { margin: 0; font-size: 30px; font-weight: 600; line-height: 1.15; letter-spacing: -.01em; text-wrap: balance; }
+.cr-page-title.none { color: var(--faint); font-weight: 400; font-style: italic; }
+.cr-page-by { margin: 8px 0 0; font-size: 15px; font-style: italic; color: var(--muted); }
+.cr-page-rule { display: flex; align-items: center; gap: 10px; width: 62%; margin: 20px auto; color: var(--accent); }
+.cr-page-rule::before, .cr-page-rule::after { content: ""; flex: 1 1 0; height: 1px; background: currentColor; opacity: .55; }
+.cr-page-rule span { width: 6px; height: 6px; background: currentColor; transform: rotate(45deg); }
+.cr-page-town { margin: 0 0 8px; font-family: var(--ui-font); font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--text); }
+.cr-page-about { margin: 0 0 12px; font-size: 15px; font-style: italic; line-height: 1.55; color: var(--muted); }
+.cr-page-premise { margin: 0; font-size: 16px; line-height: 1.55; }
+.cr-page-lists { display: grid; gap: 14px; margin: 22px 0 0; }
+.cr-page-list { margin: 0; }
+.cr-page-list dt { margin: 0 0 3px; font-family: var(--ui-font); font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); }
+.cr-page-list dd { margin: 0; font-size: 15px; line-height: 1.5; }
+.cr-page-list dd small { font-size: inherit; color: var(--muted); }
+.cr-page-foot { margin: 22px 0 0; font-family: var(--ui-font); font-size: 12px; color: var(--faint); }
+.cr-page-ghost { display: block; height: 8px; margin: 9px auto; border-radius: 4px; background: var(--border); opacity: .7; }
+.cr-page-new { animation: fade-in .6s ease-out; }
+.cr-begin[data-step="ready"] .cr-page { margin: 4px 0 0; text-align: center; animation: fade-in .7s ease-out; }
+@media (max-width: 480px) { .cr-page { padding: 34px 22px 26px; } .cr-page-title { font-size: 26px; } }
+/* The Overview's way back into the first pages: one quiet row above the fields. */
+.cr-again { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 16px; margin: 0 0 16px; border: 1px solid var(--border); border-radius: 14px; background: color-mix(in srgb, var(--surface) 55%, transparent); }
+.cr-again p { flex: 1 1 16em; margin: 0; font-family: var(--read-font); font-size: 16px; line-height: 1.5; color: var(--muted); }
 
 /* The editor's header card: title, author, the thin token meter and its number, then Undo, Redo, Save, Test. */
 .cr-head { display: grid; gap: 10px; padding: 18px; margin: 0 0 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
@@ -1409,6 +1553,9 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
 .panel-tabs.cr-tabs::-webkit-scrollbar { display: none; }
 .panel-tabs.cr-tabs button { flex: none; min-width: var(--tap); padding: 0 14px; font-size: 14px; overflow: visible; text-overflow: clip; }
 .panel-tabs.cr-tabs button:hover { color: var(--text); }
+/* Wave 38: the twelve tabs read as four groups (the story, the telling, the rules, the workings); a hairline before each group's first tab. */
+.panel-tabs.cr-tabs button[data-cr-group-start="1"] { position: relative; margin-left: 13px; }
+.panel-tabs.cr-tabs button[data-cr-group-start="1"]::before { content: ""; position: absolute; left: -7px; top: 30%; bottom: 30%; width: 1px; background: var(--border); }
 .cr-tab-count { display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: var(--bg); font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; }
 .cr-body { animation: fade-in .2s ease-out; }
 /* A section card per tab: the heading in Literata and one line saying what the section is for. */
@@ -2299,12 +2446,35 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
           <input type="file" id="creator-import-file" accept=".json,application/json" hidden>
           <p class="cr-err" id="creator-persist" role="status" hidden>Packs and drafts can't be kept on this device; export your work before you leave.</p>
           <div class="cr-grid" id="creator-cards"></div>
+          <!-- Wave 38: the empty Library invites a first story (the guided first pages, Creator.Begin), not a blank form. -->
           <div class="cr-empty" id="creator-empty" hidden>
-            <p>Nothing of yours here yet. Start a story from a blank page, or bring one in from a file.</p>
+            <h2 class="cr-empty-title">Write one of your own</h2>
+            <p>A name, a place, the trouble in it, and someone to meet. Answer a few questions and step inside to play it.</p>
             <div class="row-btns">
-              <button type="button" class="btn primary" id="creator-empty-new">New story</button>
+              <button type="button" class="btn primary" id="creator-empty-new">Begin a story</button>
               <button type="button" class="btn" id="creator-empty-import">Import a .json</button>
             </div>
+          </div>
+        </div>
+        <!-- Wave 38, the first pages (Creator.Begin): a new story one question at a time, with the story's title page
+             filling in beside it; the last page plays it or opens the editor. Drawn by Creator through el()/textContent. -->
+        <div id="creator-begin" class="cr-view cr-begin" hidden>
+          <ol class="cr-begin-steps" id="creator-begin-steps" aria-label="The first pages"></ol>
+          <div class="cr-begin-bar" id="creator-begin-bar" aria-hidden="true"></div>
+          <div class="cr-begin-cols">
+            <div class="cr-begin-main">
+              <form class="cr-begin-form" id="creator-begin-form" novalidate autocomplete="off">
+                <div class="cr-begin-body" id="creator-begin-body"></div>
+                <div class="cr-begin-nav" id="creator-begin-nav">
+                  <button type="button" class="btn" id="creator-begin-prev">Back</button>
+                  <button type="submit" class="btn primary" id="creator-begin-next">Continue</button>
+                </div>
+              </form>
+              <p class="cr-begin-foot"><button type="button" class="cr-begin-link" id="creator-begin-skip">Skip to the full editor</button></p>
+            </div>
+            <aside class="cr-begin-side" id="creator-begin-side" aria-label="Your story so far">
+              <div class="cr-page" id="creator-begin-page"></div>
+            </aside>
           </div>
         </div>
         <div id="creator-editor" class="cr-view" hidden>
@@ -10818,7 +10988,7 @@ const Pack = (() => {
       'player.creation.steps': { label: 'Steps' },
       opening: { label: 'Opening', help: 'How the story begins.' },
       'opening.premise': { help: 'One or two sentences shown at New game and on the story card.', placeholder: 'What the player walks into.' },
-      'opening.text': { help: 'The first scene, before the player types anything.', placeholder: 'The first thing the player reads.' },
+      'opening.text': { help: 'The first thing the player reads, before the arrival is told. {place} and {town} are filled in. Left empty, the story opens with the arrival.', placeholder: 'The first thing the player reads.' },
       'opening.firstTurn': { placeholder: 'What the narrator is told about the first turn.' },
       narration: { label: 'Narration', help: 'How the narrator writes.' },
       'narration.banned': { label: 'Banned phrases' },
@@ -26294,6 +26464,19 @@ const Town = (() => {
   }
   // {place} and {town} filled as the old template literals filled them; split and join, so a $ in a name is only a $.
   function fillArrival(text, place, town) { return String(text).split('{place}').join(place).split('{town}').join(town); }
+  /* The story's own first words (wave 38). opening.text has been in the pack format since wave 37 ("the first
+     scene, before the player types anything") and nothing read it; the first pages of a new story ask for it, so now
+     the game shows it. A story that has one opens with it, word for word, {place} and {town} filled as an arrival's
+     are, and the arrival follows it (the narrator's, or the local text below); a story without one (the built-in
+     story) opens as it always did. '' when the playing pack has none. */
+  function ownOpening(s) {
+    s = s || State.current;
+    let text = null;
+    try { text = Pack.get('opening.text'); } catch (e) { text = null; }
+    if (typeof text !== 'string' || !text.trim() || !s) return '';
+    const l = State.loc(s.player.locationId);
+    return fillArrival(text.trim(), l ? l.name.replace(/^The /, 'the ') : '', s.meta.townName);
+  }
   function openingScene(s) {
     s = s || State.current;
     const p = s.player;
@@ -26308,7 +26491,7 @@ const Town = (() => {
     return `${weather}${first} ${l.description}\n\n${second}`;
   }
 
-  return { data, instantiate, plausible, guessKind, properName, validate, resolveLooseEnd, obligationFor, openingScene, arrivalOf, EFFECT_OPS, headPhrase, rolePhrases, mentions, nameMentions, matchExisting, placeType, goodsFor, sameRel, relWord, placesMade, harmlessHead, isPersonWord, weaponOf, makerFirst,
+  return { data, instantiate, plausible, guessKind, properName, validate, resolveLooseEnd, obligationFor, openingScene, ownOpening, arrivalOf, EFFECT_OPS, headPhrase, rolePhrases, mentions, nameMentions, matchExisting, placeType, goodsFor, sameRel, relWord, placesMade, harmlessHead, isPersonWord, weaponOf, makerFirst,
     // Wave 30: where a loose end's person starts (Upgrade's version 9 reads them).
     LOOSE_END_ATTITUDE: Object.freeze(Object.assign({}, LOOSE_END_ATTITUDE)), LOOSE_END_TRUST };
 })();
@@ -40829,6 +41012,9 @@ const UI = (() => {
     'btn-create', 'set-developer',
     'creator-scroll', 'creator-head', 'creator-back', 'creator-title', 'creator-library', 'creator-toolbar', 'creator-new', 'creator-import',
     'creator-import-file', 'creator-persist', 'creator-cards', 'creator-empty', 'creator-empty-new', 'creator-empty-import',
+    // Wave 38: the first pages (Creator.Begin); the Overview's way back into them is drawn with the tab.
+    'creator-begin', 'creator-begin-steps', 'creator-begin-bar', 'creator-begin-form', 'creator-begin-body', 'creator-begin-nav', 'creator-begin-prev',
+    'creator-begin-next', 'creator-begin-skip', 'creator-begin-side', 'creator-begin-page', 'creator-begin-again',
     'creator-editor', 'creator-editor-head', 'creator-editor-kind', 'creator-editor-title', 'creator-editor-sub', 'creator-meter',
     'creator-meter-fill', 'creator-meter-num', 'creator-undo', 'creator-redo', 'creator-save', 'creator-test', 'creator-tabs', 'creator-body',
     'creator-problems', 'creator-json', 'creator-json-copy', 'creator-json-download', 'creator-json-import', 'creator-preview',
@@ -46233,6 +46419,7 @@ const UI = (() => {
    'editor', draftId, tab, draft } (draft, task M5-B: the working copy of
    the open draft's pack, which Editor.set changes and autosaves). */
 const Creator = (() => {
+  // Wave 38: view is also 'begin', the first pages of a new story (Begin).
   const state = { view: 'library', draftId: null, tab: 'overview', draft: null };
   const node = id => document.getElementById(id);
   const RATINGS = ['general', 'teen', 'mature', 'adult'];
@@ -46364,7 +46551,8 @@ const Creator = (() => {
     openEditor(dr.id);
     return dr.id;
   }
-  /* New story: a blank pack (Pack.blank) as a draft, straight into the editor. */
+  /* A blank pack (Pack.blank) as a draft, straight into the editor. Wave 38: the Library's New story opens the first
+     pages instead (Begin.open); their "Skip to the full editor" comes here by another road (Begin.toEditor). */
   function newStory() {
     const dr = Storage.Drafts.put({ fromPackId: null, pack: Pack.blank('Untitled story') });
     openEditor(dr.id);
@@ -46788,20 +46976,22 @@ const Creator = (() => {
      pagehide or a hidden page) and checks the pack (check(), when the page is
      next idle from 300 ms after the last change). */
   const TABS = Object.freeze([
-    { id: 'overview', label: 'Overview', render: d => renderOverview(d) },
-    { id: 'world', label: 'World', render: d => renderWorld(d) }, // task M5-C1: the World tab's lists
-    { id: 'player', label: 'Player', render: d => renderPlayer(d) }, // task M5-D: backgrounds, flaws, goals, loose ends, stats, start, arrivals, steps
+    /* Wave 38: group says which of the strip's five groups a tab is in (the story, the telling, the rules, the
+       workings, the test); the strip draws a hairline where the group changes. */
+    { id: 'overview', label: 'Overview', group: 'story', render: d => renderOverview(d) },
+    { id: 'world', label: 'World', group: 'story', render: d => renderWorld(d) }, // task M5-C1: the World tab's lists
+    { id: 'player', label: 'Player', group: 'story', render: d => renderPlayer(d) }, // task M5-D: backgrounds, flaws, goals, loose ends, stats, start, arrivals, steps
     /* Milestone 6 (tasks M6-A, M6-B, M6-C run side by side): each tab below calls its own sub-region's render, laid
        down as a coming-soon stub first, so three tasks never edit the same lines of this table. */
-    { id: 'opening', label: 'Opening', render: d => Opening.render(d) },
-    { id: 'narrator', label: 'Narrator', render: d => Narrator.render(d) },
-    { id: 'directions', label: 'Directions', render: d => Directions.render(d) },
-    { id: 'rules', label: 'Rules', render: d => Rules.render(d) },
-    { id: 'freedom', label: 'Freedom', render: d => Freedom.render(d) },
-    { id: 'prompts', label: 'Prompts', render: d => Prompts.render(d) },
-    { id: 'json', label: 'JSON', render: d => renderJson(d) },
-    { id: 'preview', label: 'Prompt view', render: d => Preview.render(d) }, // task M6-C: Show me the prompt
-    { id: 'test', label: 'Test', render: d => Test.render(d) } // task M7-A: Test from a draft
+    { id: 'opening', label: 'Opening', group: 'story', render: d => Opening.render(d) },
+    { id: 'narrator', label: 'Narrator', group: 'telling', render: d => Narrator.render(d) },
+    { id: 'directions', label: 'Directions', group: 'telling', render: d => Directions.render(d) },
+    { id: 'rules', label: 'Rules', group: 'rules', render: d => Rules.render(d) },
+    { id: 'freedom', label: 'Freedom', group: 'rules', render: d => Freedom.render(d) },
+    { id: 'prompts', label: 'Prompts', group: 'workings', render: d => Prompts.render(d) },
+    { id: 'json', label: 'JSON', group: 'workings', render: d => renderJson(d) },
+    { id: 'preview', label: 'Prompt view', group: 'workings', render: d => Preview.render(d) }, // task M6-C: Show me the prompt
+    { id: 'test', label: 'Test', group: 'test', render: d => Test.render(d) } // task M7-A: Test from a draft
   ].map(t => Object.freeze(t)));
   const NEXT_TASK_NOTE = 'This tab arrives with the next task.';
   /* A tab that is not drawn yet: its name and the note (renderBody draws the same for a tab with no render). */
@@ -46855,9 +47045,11 @@ const Creator = (() => {
     return n;
   }
   const meterText = n => `${n.toLocaleString('en-US')} of ${Pack.TOKEN_BUDGET.toLocaleString('en-US')} tokens · estimate`;
-  function tabButton({ id, label }) {
+  function tabButton({ id, label, group }, i) {
     const on = id === state.tab;
-    return el('button', { type: 'button', role: 'tab', id: 'creator-tab-' + id, 'aria-selected': String(on), 'aria-controls': 'creator-body', tabindex: on ? '0' : '-1', dataset: { crTab: id }, onclick: () => selectTab(id) }, label);
+    const b = el('button', { type: 'button', role: 'tab', id: 'creator-tab-' + id, 'aria-selected': String(on), 'aria-controls': 'creator-body', tabindex: on ? '0' : '-1', dataset: { crTab: id }, onclick: () => selectTab(id) }, label);
+    if (i > 0 && TABS[i - 1].group !== group) b.dataset.crGroupStart = '1';
+    return b;
   }
   function renderBody() {
     Form.flush();
@@ -46889,12 +47081,13 @@ const Creator = (() => {
     e.preventDefault();
     selectTab(to, true);
   }
-  /* The header card follows the draft as it is typed: the title, then the author, version and id. */
+  /* The header card follows the draft as it is typed: the title, then the author and version (wave 38: the pack's
+     id is the file's business, and stays on the Overview's Pack id field and its "About this file" line). */
   function renderHead() {
     const pack = state.draft || {};
     const m = metaOf(pack);
     node('creator-editor-title').textContent = titleOf(pack);
-    node('creator-editor-sub').textContent = [m.author ? `by ${m.author}` : 'No author yet', m.version ? `version ${m.version}` : '', m.id ? `id ${m.id}` : ''].filter(Boolean).join(' · ');
+    node('creator-editor-sub').textContent = [m.author ? `by ${m.author}` : 'No author yet', m.version ? `version ${m.version}` : ''].filter(Boolean).join(' · ');
   }
   function syncButtons() {
     node('creator-undo').disabled = !work || !work.undo.length;
@@ -47135,16 +47328,19 @@ const Creator = (() => {
     refreshWorld(); // task M5-C1: the World tab's list buttons and rows count their errors too
     PlayerTab.refresh(); // task M5-D: the Player tab's background rows count their errors the same way
   }
+  /* Three views: the Library, the editor, and (wave 38) the first pages of a new story (Begin). */
   function setView() {
-    const lib = state.view !== 'editor';
-    node('creator-library').hidden = !lib;
-    node('creator-editor').hidden = lib;
-    node('creator-title').textContent = lib ? 'Your stories' : 'Story editor';
-    node('creator-back').setAttribute('aria-label', lib ? 'Back to the title screen' : 'Back to your stories');
+    const view = state.view === 'editor' || state.view === 'begin' ? state.view : 'library';
+    node('creator-library').hidden = view !== 'library';
+    node('creator-editor').hidden = view !== 'editor';
+    node('creator-begin').hidden = view !== 'begin';
+    node('screen-creator').dataset.view = view;
+    node('creator-title').textContent = view === 'library' ? 'Your stories' : view === 'editor' ? 'Story editor' : 'A new story';
+    node('creator-back').setAttribute('aria-label', view === 'library' ? 'Back to the title screen' : 'Back to your stories');
   }
   function render() {
     setView();
-    if (state.view === 'editor') renderEditor(); else renderLibrary();
+    if (state.view === 'editor') renderEditor(); else if (state.view === 'begin') Begin.draw(); else renderLibrary();
   }
   function focusHead() { const h = node('creator-title'); if (h) h.focus({ preventScroll: true }); }
   function scrollTop() { const sc = node('creator-scroll'); if (sc) sc.scrollTop = 0; }
@@ -47187,13 +47383,15 @@ const Creator = (() => {
     scrollTop();
     return true;
   }
-  function back() { if (state.view === 'editor') showLibrary(); else UI.showScreen('title'); }
+  function back() { if (state.view === 'editor') showLibrary(); else if (state.view === 'begin') Begin.leave(); else UI.showScreen('title'); }
   /* Called once from UI.init (the title's Create is wired there). */
   function wire() {
     if (wired) return;
     wired = true;
     node('creator-back').addEventListener('click', back);
-    for (const id of ['creator-new', 'creator-empty-new']) node(id).addEventListener('click', () => newStory());
+    // Wave 38: New story opens the first pages (Begin); newStory(), a blank draft straight into the editor, stays for callers.
+    for (const id of ['creator-new', 'creator-empty-new']) node(id).addEventListener('click', () => Begin.open());
+    Begin.wire();
     for (const id of ['creator-import', 'creator-empty-import']) node(id).addEventListener('click', () => node('creator-import-file').click());
     node('creator-import-file').addEventListener('change', onImportFile);
     node('creator-tabs').addEventListener('keydown', onTabKey);
@@ -47209,6 +47407,681 @@ const Creator = (() => {
     // S3: another tab saved the draft open here.
     Storage.Drafts.onChange(reloadDraft);
   }
+
+  // ----- Creator: Begin -----
+  /* The first pages (wave 38). The owner: "Creating a story should be an
+     experience, not something clunky and daunting." New story used to open a
+     blank draft in the twelve-tab editor, which could not be played until
+     its author had found two places, a schedule and a background on three
+     different tabs. Now it opens here: nine steps, one question each (the
+     name, the world, the trouble, two places, someone to meet, who the
+     player is, the voice, the first line, and the story ready), with the
+     story's title page filling in beside the question. Nothing here is
+     generated: every word is the author's, and every step may be left empty.
+
+     The pack is the only record. A step reads its fields from the draft and
+     writes them straight back (write(): the change, then Editor's changed(),
+     so the autosave, the check and the meter run as they do for the forms;
+     no undo step, so Undo in the editor never walks back through this). The
+     draft is made on the first thing typed (ensure()), so opening the first
+     pages and leaving makes nothing, and one left blank is taken away again.
+     The four things a story needs to be played are made here with what the
+     validator asks of them: a place at each arrival point with an exit to
+     the other, a person who is somewhere in all four phases, and a
+     background with its age, stats, money, things and arrival. made holds
+     the ids made in this visit: only those are dropped when emptied, linked
+     by an exit, placed on a schedule, or given a better id (tidy(): an id is
+     slugged from the name once it is whole, "loc_lantern_inn" and not the
+     "loc_t" of its first letter; nothing else can name an id this young).
+     Opened on a draft that already has places and people (the Overview's
+     "Open the first pages"), a step shows the arrival places, the first
+     person and the first background, and changes only the field typed in. */
+  const Begin = (() => {
+    const STEPS = Object.freeze([
+      { id: 'name', label: 'Name' }, { id: 'world', label: 'World' }, { id: 'trouble', label: 'Trouble' },
+      { id: 'places', label: 'Places' }, { id: 'person', label: 'Someone' }, { id: 'you', label: 'You' },
+      { id: 'voice', label: 'Voice' }, { id: 'first', label: 'First line' }, { id: 'ready', label: 'Ready' }
+    ].map(x => Object.freeze(x)));
+    const ERAS = [['modern', 'Present day'], ['historic', 'The past'], ['future', 'The future'], ['fantasy', 'A fantasy']];
+    const ERA_KICKER = { modern: 'A story of the present day', historic: 'A story of the past', future: 'A story of the future', fantasy: 'A fantasy' };
+    const AUDIENCE = [['general', 'Everyone'], ['teen', 'Teens and up'], ['mature', 'Mature'], ['adult', 'Adults only']];
+    const AUDIENCE_NOTE = {
+      general: 'Nothing a family table would mind.', teen: 'Some violence and hard subjects, lightly drawn.',
+      mature: 'Violence, drink, drugs and sex may come up, without the detail.', adult: 'Adult content. A player is asked to confirm they are 18 before it plays.'
+    };
+    const PRONOUN_WORDS = [['she', 'She'], ['he', 'He'], ['they', 'They']];
+    // The same moment in each voice, so the choice is heard and not explained.
+    const VOICES = [
+      { id: 'casual', name: 'Plain and close', foot: 'Told plainly', sample: 'The door sticks, then gives. Three people look up. One of them is already on her way over.' },
+      { id: 'literary', name: 'Literary', foot: 'Told like a novel', sample: 'The door sticks and then gives, and three faces turn in the lamplight. One of them is already crossing the room, drying her hands as she comes.' }
+    ];
+    /* What a field suggests while it is empty, by the era picked: an example to write against, never a value. */
+    const HINTS = {
+      modern: {
+        town: 'Harlan Crossing', about: 'A highway town of nine hundred. The mill shut in the spring, and nobody has said out loud what comes next.',
+        trouble: 'The mill\'s owner is back for three days, and half the town wants a word with him before the other half gets one.',
+        a: 'The bus stop on Route 9', aText: 'A bench, a timetable nobody trusts, and a view of the whole main street.',
+        b: 'The Copper Kettle', bText: 'The diner where everything in town gets said twice.',
+        who: 'June Abbott', role: 'runs the diner', look: 'A quick woman of sixty with a pencil behind her ear, who knows your order before you do.',
+        you: 'Drifter', blurb: 'You got off the bus here because the ticket ran out.',
+        first: 'The bus pulls away before you have your bag on your shoulder.'
+      },
+      historic: {
+        town: 'Saltmarsh', about: 'A fishing port of four hundred souls in 1787, three days\' ride from anyone who would care what happens here.',
+        trouble: 'A revenue cutter has anchored in the bay, and every boat in the harbour has something in its hold it should not.',
+        a: 'The Coast Road', aText: 'A rutted track along the cliff, with the whole harbour laid out below.',
+        b: 'The Anchor', bText: 'A low inn on the quay where the catch is sold and the news is traded.',
+        who: 'Thomas Reeve', role: 'keeps the inn', look: 'A broad man gone grey, with a ledger he never lets out of his sight.',
+        you: 'Discharged sailor', blurb: 'You were paid off in the last port with half your wages and no ship.',
+        first: 'The carter sets you down where the road tips toward the sea.'
+      },
+      future: {
+        town: 'Tessera Station', about: 'A refuelling ring of three hundred people, eleven days from anywhere. The water is rationed and the owners are late.',
+        trouble: 'The supply ship is nine days overdue, and somebody has been taking water from the reserve tanks.',
+        a: 'The Arrivals Lock', aText: 'A scuffed pressure door, a customs desk nobody staffs, and a board of ships that have not come.',
+        b: 'The Commons', bText: 'The one deck with real light, where everyone eats and everyone listens.',
+        who: 'Ana Okoro', role: 'runs the water office', look: 'A small, exact woman with a tablet under one arm, who counts things while she talks to you.',
+        you: 'Contract mechanic', blurb: 'Your contract ended the day your ship left without you.',
+        first: 'The lock cycles twice before it lets you through.'
+      },
+      fantasy: {
+        town: 'Harrowmere', about: 'A walled town at the end of a causeway, where the sea takes the road twice a day and the lord has not been seen since midwinter.',
+        trouble: 'The causeway bell rang last night with nobody at the rope, and this morning a fishing boat came home empty of its crew.',
+        a: 'The Causeway Gate', aText: 'Salt-eaten stone, a rusted portcullis, and a gatekeeper who counts everyone in.',
+        b: 'The Lantern Inn', bText: 'Low beams and a peat fire, and a table by the hearth nobody sits at.',
+        who: 'Mara Voss', role: 'keeps the inn', look: 'A tall, tired woman with ink on her fingers and a ring of keys she never puts down.',
+        you: 'Sellsword', blurb: 'You walked the causeway at low tide with a sword you still owe money on.',
+        first: 'The tide is already over the stones behind you when the gate comes into sight.'
+      }
+    };
+    const UNTITLED = 'Untitled story';
+    // step: the step shown; fresh: the draft was made in this visit; played: a game was started from it; made: ids made in this visit.
+    const st = { step: 0, fresh: false, played: false, made: new Set() };
+    // What was picked for someone who is not written yet: their pronouns and where they are found.
+    let wish = { pronouns: null, at: null };
+    const PHASES = ['morning', 'afternoon', 'evening', 'night'];
+    const str = v => (typeof v === 'string' ? v : '');
+    const arr = v => (Array.isArray(v) ? v : []);
+    const sub = (o, k) => (isObj(o) && isObj(o[k]) ? o[k] : {});
+    const filled = v => str(v).trim() !== '';
+    const blurbOf = text => { const one = firstSentence(str(text).trim()).trim(); return one.length > 240 ? one.slice(0, 239).trimEnd() + '…' : one; };
+
+    // ----- reading the draft -----
+    function places(d) {
+      const w = sub(d, 'world');
+      const locs = arr(w.locations).filter(isObj);
+      const start = sub(w, 'startLocationIds');
+      const byId = id => (typeof id === 'string' && locs.find(l => l.id === id)) || null;
+      let a = byId(start.gate);
+      let b = byId(start.docks);
+      if (b === a) b = null;
+      if (!a && !start.gate) a = locs.find(l => l !== b) || null;
+      if (!b && !start.docks) b = locs.find(l => l !== a) || null;
+      return { a, b };
+    }
+    const person = d => arr(sub(d, 'world').npcs).filter(isObj)[0] || null;
+    const you = d => arr(sub(d, 'player').backgrounds).filter(isObj)[0] || null;
+    // The place someone is on a schedule at (the first that has them), else their home.
+    function whereIs(d, who) {
+      const locs = arr(sub(d, 'world').locations).filter(isObj);
+      return locs.find(l => PHASES.some(p => arr(sub(l, 'npcIdsBySchedule')[p]).includes(who.id))) || locs.find(l => l.id === who.home) || null;
+    }
+    /* What the steps and the title page show, from the draft (or from nothing, before the first key). */
+    function view() {
+      const d = state.draft || {};
+      const meta = sub(d, 'meta'), w = sub(d, 'world'), opening = sub(d, 'opening');
+      const title = str(meta.title).trim() === UNTITLED ? '' : str(meta.title).trim();
+      const town = str(w.name).trim();
+      const { a, b } = places(d);
+      const who = person(d);
+      const preset = str(sub(d, 'narration').preset);
+      return {
+        title, author: str(meta.author).trim(), town: town === UNTITLED || town === title ? '' : town,
+        era: ERAS.some(e => e[0] === sub(d, 'setting').era) ? d.setting.era : 'modern',
+        about: str(w.setting), premise: str(opening.premise), first: str(opening.text),
+        a, b, who, at: who ? whereIs(d, who) : null, you: you(d),
+        voice: VOICES.some(x => x.id === preset) ? preset : Pack.DEFAULTS.narration.preset, voiceSet: filled(preset),
+        rating: RATINGS.includes(meta.rating) ? meta.rating : 'general'
+      };
+    }
+    /* What stands between the draft and a first scene, in the author's words, each with the step that mends it. */
+    function missing() {
+      const v = view();
+      const out = [];
+      if (!v.a || !v.b || !filled(v.a.name) || !filled(v.b.name)) out.push({ step: 'places', text: v.a || v.b ? 'A second place, so there is somewhere to go' : 'Two places: where a newcomer arrives, and where people gather' });
+      if (!v.who || !filled(v.who.name)) out.push({ step: 'person', text: 'Someone to meet' });
+      if (!v.you || !filled(v.you.name)) out.push({ step: 'you', text: 'Who the player is' });
+      return out;
+    }
+    function done(id) {
+      const v = view();
+      switch (id) {
+        case 'name': return !!v.title;
+        case 'world': return !!v.town || filled(v.about);
+        case 'trouble': return filled(v.premise);
+        case 'places': return !!(v.a && v.b && filled(v.a.name) && filled(v.b.name));
+        case 'person': return !!(v.who && filled(v.who.name));
+        case 'you': return !!(v.you && filled(v.you.name));
+        case 'voice': return v.voiceSet;
+        case 'first': return filled(v.first);
+        default: return !!state.draft && !missing().length;
+      }
+    }
+
+    // ----- writing the draft -----
+    function ensure() {
+      if (work && state.draft) return state.draft;
+      const dr = Storage.Drafts.put({ fromPackId: null, pack: Pack.blank(UNTITLED) });
+      state.draftId = dr.id;
+      load(dr.id);
+      st.fresh = true;
+      st.made = new Set();
+      return state.draft;
+    }
+    function write(fn) {
+      const d = ensure();
+      fn(d);
+      changed(false);
+      drawPage();
+      markSteps();
+    }
+    const obj = (o, k) => { if (!isObj(o[k])) o[k] = {}; return o[k]; };
+    const lst = (o, k) => { if (!Array.isArray(o[k])) o[k] = []; return o[k]; };
+    // A text field of an object: written when there is something, taken away when there is not.
+    function put(o, k, v) { const t = str(v).trim(); if (t) o[k] = t; else delete o[k]; }
+    function setTitle(v) {
+      write(d => {
+        const meta = obj(d, 'meta'), w = obj(d, 'world');
+        const was = str(meta.title);
+        meta.title = str(v).trim() || UNTITLED;
+        // Until the place has a name of its own it goes by the story's (Pack.blank starts it so).
+        if (!filled(w.name) || w.name === was) w.name = meta.title;
+      });
+    }
+    function setTown(v) { write(d => { obj(d, 'world').name = str(v).trim() || str(obj(d, 'meta').title) || UNTITLED; }); }
+    function setAbout(v) {
+      write(d => {
+        const w = obj(d, 'world'), s = obj(d, 'setting');
+        const was = blurbOf(w.setting);
+        w.setting = str(v).trim();
+        // The one-line blurb is the first sentence of it, until the author writes a blurb of their own.
+        if (!filled(s.blurb) || s.blurb === was) s.blurb = blurbOf(w.setting);
+      });
+    }
+    function setOpening(k, v) {
+      write(d => {
+        put(obj(d, 'opening'), k, v);
+        if (!Object.keys(d.opening).length) delete d.opening;
+      });
+    }
+    const idsOf = list => arr(list).filter(isObj).map(x => x.id);
+    /* The records, as the World and Player tabs add them, with what those tabs leave for the author to choose (a
+       background's things and arrival) filled in, so the story plays. */
+    const newPlace = (d, name) => ({
+      id: Pack.idFor('loc', name, idsOf(d.world.locations)), name, type: 'other', description: '', exits: [],
+      npcIdsBySchedule: { morning: [], afternoon: [], evening: [], night: [] }, discovered: true, closed: false
+    });
+    const newPerson = (d, name) => ({
+      id: Pack.idFor('npc', name, idsOf(d.world.npcs)), name, pronouns: wish.pronouns || 'they', role: '', factionId: null, tags: [], home: null,
+      personality: [], relations: [], memories: [], attitude: 0, alive: true, knownToPlayer: false, status: 'free', presence: 'here'
+    });
+    const newYou = (d, name) => ({
+      id: Pack.idFor('background', name, idsOf(d.player.backgrounds)), name, blurb: '', age: 30, stats: { might: 1, wits: 1, charm: 1, stealth: 0 }, gold: 100, items: [], arrival: 'gate'
+    });
+    function unschedule(d, id) {
+      for (const l of arr(d.world.locations)) {
+        if (!isObj(l) || !isObj(l.npcIdsBySchedule)) continue;
+        for (const p of PHASES) if (Array.isArray(l.npcIdsBySchedule[p])) l.npcIdsBySchedule[p] = l.npcIdsBySchedule[p].filter(x => x !== id);
+      }
+    }
+    // Someone at a place all day and night, and at home there.
+    function settle(d, who, loc) {
+      unschedule(d, who.id);
+      const sch = obj(loc, 'npcIdsBySchedule');
+      for (const p of PHASES) lst(sch, p).push(who.id);
+      who.home = loc.id;
+    }
+    function dropPlace(d, id) {
+      const w = d.world;
+      w.locations = arr(w.locations).filter(l => !isObj(l) || l.id !== id);
+      for (const l of w.locations) if (isObj(l) && Array.isArray(l.exits)) l.exits = l.exits.filter(x => x !== id);
+      const start = obj(w, 'startLocationIds');
+      for (const k of Object.keys(start)) if (start[k] === id) delete start[k];
+      for (const n of arr(w.npcs)) if (isObj(n) && n.home === id) n.home = null;
+      st.made.delete(id);
+    }
+    /* After a change to the places or the person: each arrival point names its place, two places made here have an
+       exit to each other, and someone made here who is nowhere yet is put where they were asked to be, else where a
+       newcomer arrives. */
+    function link(d) {
+      const w = d.world;
+      const start = obj(w, 'startLocationIds');
+      const { a, b } = places(d);
+      const has = id => arr(w.locations).some(l => isObj(l) && l.id === id);
+      if (a && !has(start.gate)) start.gate = a.id;
+      if (b && !has(start.docks)) start.docks = b.id;
+      if (a && b && (st.made.has(a.id) || st.made.has(b.id))) {
+        for (const [x, y] of [[a, b], [b, a]]) if (!lst(x, 'exits').includes(y.id)) x.exits.push(y.id);
+      }
+      const who = person(d);
+      if (who && st.made.has(who.id)) {
+        const want = arr(w.locations).find(l => isObj(l) && l.id === wish.at) || null;
+        const at = whereIs(d, who);
+        if (want ? at !== want : !at) { const to = want || a || b; if (to) settle(d, who, to); }
+      }
+    }
+    function setPlace(slot, field, v) {
+      write(d => {
+        const w = obj(d, 'world');
+        lst(w, 'locations');
+        const text = str(v).trim();
+        let p = places(d)[slot];
+        if (!p) {
+          if (!text) return;
+          p = newPlace(d, field === 'name' ? text : '');
+          p.name = '';
+          w.locations.push(p);
+          st.made.add(p.id);
+          obj(w, 'startLocationIds')[slot === 'a' ? 'gate' : 'docks'] = p.id;
+        }
+        p[field] = text;
+        if (st.made.has(p.id) && !filled(p.name) && !filled(p.description)) dropPlace(d, p.id);
+        link(d);
+      });
+    }
+    function setWho(field, v) {
+      write(d => {
+        const w = obj(d, 'world');
+        lst(w, 'npcs');
+        const text = str(v).trim();
+        let p = person(d);
+        if (!p) {
+          if (!text) return;
+          p = newPerson(d, field === 'name' ? text : '');
+          p.name = '';
+          w.npcs.push(p);
+          st.made.add(p.id);
+        }
+        if (field === 'name' || field === 'role') p[field] = text; else put(p, field, text);
+        if (st.made.has(p.id) && !filled(p.name) && !filled(p.role) && !filled(p.look)) {
+          unschedule(d, p.id);
+          w.npcs = w.npcs.filter(n => n !== p);
+          st.made.delete(p.id);
+        }
+        link(d);
+      });
+    }
+    function setPronouns(v) {
+      wish.pronouns = v;
+      const p = state.draft ? person(state.draft) : null;
+      if (p) write(() => { p.pronouns = v; });
+    }
+    function setWhere(locId) {
+      wish.at = locId;
+      if (state.draft && person(state.draft)) write(d => link(d));
+    }
+    function setYou(field, v) {
+      write(d => {
+        const pl = obj(d, 'player');
+        lst(pl, 'backgrounds');
+        const text = str(v).trim();
+        let b = you(d);
+        if (!b) {
+          if (!text) return;
+          b = newYou(d, field === 'name' ? text : '');
+          b.name = '';
+          pl.backgrounds.push(b);
+          st.made.add(b.id);
+        }
+        b[field] = text;
+        if (st.made.has(b.id) && !filled(b.name) && !filled(b.blurb)) { pl.backgrounds = pl.backgrounds.filter(x => x !== b); st.made.delete(b.id); }
+      });
+    }
+    /* Ids from the names as they stand (leaving a step, and before the story is played or opened in the editor): each
+       thing made in this visit, and the pack's own id from its title while the draft is this visit's. Never after a
+       game was started from it: that game's save names the pack by its id. */
+    function tidy() {
+      if (!work || !state.draft || st.played) return false;
+      let d = state.draft;
+      let moved = false;
+      const picks = [
+        x => ['loc', places(x).a, x.world.locations], x => ['loc', places(x).b, x.world.locations],
+        x => ['npc', person(x), x.world.npcs], x => ['background', you(x), sub(x, 'player').backgrounds]
+      ];
+      for (const pick of picks) {
+        const [kind, it, all] = pick(d);
+        if (!it || !st.made.has(it.id) || !filled(it.name)) continue;
+        const want = Pack.idFor(kind, it.name, idsOf(all).filter(id => id !== it.id));
+        if (want === it.id) continue;
+        st.made.delete(it.id);
+        st.made.add(want);
+        if (wish.at === it.id) wish.at = want;
+        d = Pack.renameId(d, it.id, want).pack;
+        moved = true;
+      }
+      if (st.fresh && isObj(d.meta)) {
+        const tail = /-[a-z0-9]{4}$/.exec(str(d.meta.id));
+        const want = tail ? Pack.blank(d.meta.title).meta.id.replace(/-[a-z0-9]{4}$/, tail[0]) : d.meta.id;
+        if (want !== d.meta.id) { d.meta.id = want; moved = true; }
+      }
+      if (moved) { state.draft = d; changed(false); }
+      return moved;
+    }
+    /* A draft of this visit with nothing written in it is not kept. */
+    function untouched(d) {
+      const w = sub(d, 'world'), pl = sub(d, 'player');
+      return str(sub(d, 'meta').title) === UNTITLED && !filled(sub(d, 'meta').author) && !filled(w.setting) && !arr(w.locations).length && !arr(w.npcs).length
+        && !arr(pl.backgrounds).length && d.opening === undefined && d.narration === undefined && sub(d, 'meta').rating === 'general' && sub(d, 'setting').era === 'modern';
+    }
+
+    // ----- drawing -----
+    const root = () => node('creator-begin');
+    const here = () => STEPS[st.step];
+    function field(o) {
+      const id = 'creator-begin-' + o.key;
+      const attrs = {
+        class: 'input' + (o.big ? ' cr-begin-big' : ''), id, value: o.value || '', placeholder: o.hint || null, maxlength: o.max || 500,
+        autocomplete: 'off', 'aria-describedby': o.note ? id + '-note' : null, enterkeyhint: o.rows ? null : 'next'
+      };
+      const ctl = o.rows ? el('textarea', Object.assign(attrs, { rows: o.rows })) : el('input', Object.assign(attrs, { type: 'text' }));
+      ctl.addEventListener('input', () => o.on(ctl.value));
+      return el('div', { class: 'cr-begin-field' },
+        el('label', { class: 'label' + (o.hideLabel ? ' cr-sr' : ''), for: id }, o.label), ctl,
+        o.note ? el('p', { class: 'cr-note', id: id + '-note' }, o.note) : null);
+    }
+    /* A choice of one: radios, drawn as pills, or as cards when a choice has a sample to read. */
+    function picks(o) {
+      const id = 'creator-begin-' + o.key;
+      const note = o.note ? el('p', { class: 'cr-note', id: id + '-note' }, o.note(o.value)) : null;
+      const one = c => {
+        const radio = el('input', { type: 'radio', name: id, value: c.value, checked: c.value === o.value, onchange: () => { o.on(c.value); if (note) note.textContent = o.note(c.value); } });
+        const face = c.sample
+          ? el('span', { class: 'cr-opt-face' }, el('span', { class: 'cr-opt-name' }, c.text), el('span', { class: 'cr-opt-sample' }, c.sample))
+          : el('span', { class: 'cr-opt-face' }, c.text);
+        return el('label', { class: 'cr-opt' }, radio, face);
+      };
+      return el('div', { class: 'cr-begin-field' },
+        el('span', { class: 'label', id: id + '-label' }, o.label),
+        el('div', { class: 'cr-opts' + (o.cards ? ' cards' : ''), id, role: 'radiogroup', 'aria-labelledby': id + '-label', 'aria-describedby': note ? id + '-note' : null }, o.options.map(one)),
+        note);
+    }
+    function stepBody(id, v) {
+      const h = HINTS[v.era] || HINTS.modern;
+      switch (id) {
+        case 'name': return {
+          q: 'What is your story called?',
+          lede: 'Start with a name. It can change later, and so can everything else here.',
+          kids: [
+            field({ key: 'title', label: 'Title', hideLabel: true, big: true, value: v.title, hint: UNTITLED, max: 120, on: setTitle }),
+            field({ key: 'author', label: 'Written by', value: v.author, hint: 'Your name, or the name you write under', max: 120, on: x => write(d => put(obj(d, 'meta'), 'author', x)) })
+          ]
+        };
+        case 'world': return {
+          q: 'Where does it happen?',
+          lede: 'One place, small enough that everyone in it knows everyone else: a town, a station, a ship, a keep.',
+          kids: [
+            picks({ key: 'era', label: 'When', value: v.era, options: ERAS.map(([value, text]) => ({ value, text })), on: x => { write(d => { obj(d, 'setting').era = x; }); hints(); } }),
+            field({ key: 'town', label: 'Its name', value: v.town, hint: h.town, max: 120, on: setTown }),
+            field({ key: 'about', label: 'What it is like there', value: v.about, hint: h.about, rows: 4, max: 2000, on: setAbout, note: 'A few sentences. The narrator reads this before every turn.' })
+          ]
+        };
+        case 'trouble': return {
+          q: 'What is going on when the story begins?',
+          lede: 'The trouble a newcomer walks into. A sentence or two is plenty: it is what a player reads before they choose to play.',
+          kids: [field({ key: 'premise', label: 'The trouble', hideLabel: true, value: v.premise, hint: h.trouble, rows: 4, max: 1200, on: x => setOpening('premise', x) })]
+        };
+        case 'places': {
+          const card = (slot, title, p, hint, hintText) => el('div', { class: 'cr-begin-card' },
+            el('h3', { class: 'cr-begin-card-title' }, title),
+            field({ key: slot + '-name', label: 'Its name', value: p ? str(p.name) : '', hint, max: 120, on: x => setPlace(slot, 'name', x) }),
+            field({ key: slot + '-text', label: 'What a newcomer sees', value: p ? str(p.description) : '', hint: hintText, rows: 3, max: 1000, on: x => setPlace(slot, 'description', x) }));
+          return {
+            q: 'Where do they arrive, and where does everyone gather?',
+            lede: 'Two places are enough to begin. The rest of the map can wait for the editor.',
+            kids: [el('div', { class: 'cr-begin-pair' }, card('a', 'Where a newcomer arrives', v.a, h.a, h.aText), card('b', 'Where people gather', v.b, h.b, h.bText))]
+          };
+        }
+        case 'person': {
+          const mine = !v.who || st.made.has(v.who.id);
+          const spots = [v.a, v.b].filter(p => p && filled(p.name));
+          return {
+            q: 'Who is the first person they meet?',
+            lede: 'One face to start with. Give them something to do and a look a stranger would remember.',
+            kids: [
+              el('div', { class: 'cr-begin-two' },
+                field({ key: 'who', label: 'Their name', value: v.who ? str(v.who.name) : '', hint: h.who, max: 120, on: x => setWho('name', x) }),
+                field({ key: 'role', label: 'What they do here', value: v.who ? str(v.who.role) : '', hint: h.role, max: 200, on: x => setWho('role', x) })),
+              picks({ key: 'pronouns', label: 'Spoken of as', value: v.who && PRONOUN_WORDS.some(p => p[0] === v.who.pronouns) ? v.who.pronouns : wish.pronouns || 'they', options: PRONOUN_WORDS.map(([value, text]) => ({ value, text })), on: setPronouns }),
+              field({ key: 'look', label: 'How a stranger would know them', value: v.who ? str(v.who.look) : '', hint: h.look, rows: 3, max: 500, on: x => setWho('look', x), note: 'Begin with what they are ("A tall woman with ink on her fingers"): the story introduces them in these words.' }),
+              // Where they are found: asked only of someone made here, whose whole schedule this is.
+              mine && spots.length > 1 ? picks({ key: 'at', label: 'Where they are found', value: (v.at && spots.includes(v.at) ? v.at : spots[0]).id, options: spots.map(p => ({ value: p.id, text: p.name })), on: setWhere }) : null
+            ]
+          };
+        }
+        case 'you': return {
+          q: 'Who is the player when they arrive?',
+          lede: 'A background the player can choose at the start: what they were, said to them in a sentence. One is enough for now.',
+          kids: [
+            field({ key: 'you', label: 'What they are', value: v.you ? str(v.you.name) : '', hint: h.you, max: 80, on: x => setYou('name', x) }),
+            field({ key: 'blurb', label: 'Their story so far', value: v.you ? str(v.you.blurb) : '', hint: h.blurb, rows: 3, max: 500, on: x => setYou('blurb', x) })
+          ]
+        };
+        case 'voice': return {
+          q: 'How should it be told?',
+          lede: 'The narrator writes every turn in the voice you choose. Here is the same moment in each.',
+          kids: [
+            picks({ key: 'voice', label: 'The voice', cards: true, value: v.voice, options: VOICES.map(x => ({ value: x.id, text: x.name, sample: x.sample })), on: x => write(d => { obj(d, 'narration').preset = x; }) }),
+            picks({ key: 'rating', label: 'Who it is for', value: v.rating, options: AUDIENCE.map(([value, text]) => ({ value, text })), note: x => AUDIENCE_NOTE[x] || '', on: x => write(d => { obj(d, 'meta').rating = x; }) })
+          ]
+        };
+        case 'first': return {
+          q: 'How does the first page begin?',
+          lede: 'The first thing the player reads, before they do anything. Leave it empty and the narrator opens the story for you.',
+          kids: [field({ key: 'first', label: 'The first lines', hideLabel: true, value: v.first, hint: h.first, rows: 6, max: 1200, on: x => setOpening('text', x) })]
+        };
+        default: return null;
+      }
+    }
+    /* The last step: the page whole, what is still missing (each a button back to its step), then Step inside and
+       Keep writing. Step inside is off until the story can be played (Test.start would refuse it). */
+    function readyBody() {
+      const need = state.draft ? missing() : [{ step: 'name', text: 'A name, to begin with' }, ...missing()];
+      const errs = state.draft && !need.length ? Pack.errors(check()) : [];
+      const ok = !need.length && !errs.length;
+      const page = el('div', { class: 'cr-page', id: 'creator-begin-final' });
+      fillPage(page);
+      const live = !Storage.settings().mockMode && !!Storage.getApiKey();
+      return [
+        el('h2', { class: 'cr-begin-q', id: 'creator-begin-q', tabindex: '-1' }, ok ? 'Your story is ready.' : 'Nearly there.'),
+        el('p', { class: 'cr-begin-lede' }, ok
+          ? 'Step inside and play its first scene. Or keep writing: more places, more people, what they want and what they hide.'
+          : need.length ? 'A story needs a few things before anyone can walk into it.'
+            : `The editor found ${errs.length} thing${errs.length === 1 ? '' : 's'} to mend before this can be played. Keep writing and it will show you where.`),
+        need.length ? el('ul', { class: 'cr-begin-missing', id: 'creator-begin-missing' }, need.map(n => el('li', null,
+          el('button', { type: 'button', class: 'btn', dataset: { step: n.step }, onclick: () => go(n.step) }, n.text)))) : null,
+        page,
+        el('div', { class: 'cr-begin-go' },
+          el('button', { type: 'button', class: 'btn primary', id: 'creator-begin-play', disabled: !ok, onclick: () => enter() }, 'Step inside'),
+          el('button', { type: 'button', class: 'btn', id: 'creator-begin-edit', onclick: () => toEditor() }, 'Keep writing')),
+        ok ? el('p', { class: 'cr-note' }, live ? 'Played by the real narrator on your API key, as a test game with a sample character.'
+          : 'Played in the offline demo, with canned replies, as a test game with a sample character. Add an API key in Settings to hear it told.') : null
+      ];
+    }
+    function drawSteps() {
+      node('creator-begin-steps').replaceChildren(...STEPS.map((s, i) => el('li', null,
+        el('button', { type: 'button', class: 'cr-begin-step', dataset: { step: s.id }, 'aria-current': i === st.step ? 'step' : null, onclick: () => go(i) }, s.label))));
+      markSteps();
+    }
+    function markSteps() {
+      const list = node('creator-begin-steps');
+      if (!list) return;
+      for (const b of list.querySelectorAll('.cr-begin-step')) b.dataset.done = done(b.dataset.step) ? '1' : '0';
+      // The phone's bars say the same without the names.
+      node('creator-begin-bar').replaceChildren(...STEPS.map((s, i) => el('span', { dataset: { done: done(s.id) ? '1' : '0', on: i === st.step ? '1' : '0' } })));
+    }
+    /* The empty fields' examples follow the era as it is picked. */
+    function hints() {
+      const h = HINTS[view().era] || HINTS.modern;
+      const map = { town: h.town, about: h.about };
+      for (const k of Object.keys(map)) { const c = node('creator-begin-' + k); if (c) c.placeholder = map[k]; }
+    }
+    function renderStep() {
+      const s = here();
+      root().dataset.step = s.id;
+      const body = node('creator-begin-body');
+      const last = s.id === 'ready';
+      if (last) body.replaceChildren(...readyBody().filter(Boolean));
+      else {
+        const b = stepBody(s.id, view());
+        body.replaceChildren(
+          el('p', { class: 'cr-begin-count' }, `Page ${st.step + 1} of ${STEPS.length}`),
+          el('h2', { class: 'cr-begin-q', id: 'creator-begin-q', tabindex: '-1' }, b.q),
+          el('p', { class: 'cr-begin-lede' }, b.lede),
+          ...b.kids.filter(Boolean));
+      }
+      // The fade again for the new step.
+      body.style.animation = 'none';
+      void body.offsetWidth;
+      body.style.animation = '';
+      node('creator-begin-prev').hidden = st.step === 0;
+      const next = node('creator-begin-next');
+      next.hidden = last;
+      next.textContent = STEPS[st.step + 1] && STEPS[st.step + 1].id === 'ready' ? 'See your story' : 'Continue';
+      node('creator-begin-skip').hidden = last;
+      for (const b of node('creator-begin-steps').querySelectorAll('.cr-begin-step')) {
+        if (b.dataset.step === s.id) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+      }
+      markSteps();
+    }
+    /* The title page into a box: the side column's, or the last step's. A line whose words changed since the box was
+       last filled fades in (cr-page-new); a line with nothing yet is ghost text. */
+    const seen = new WeakMap();
+    function fillPage(box) {
+      if (!box) return;
+      const v = view();
+      const was = seen.get(box) || null;
+      const now = new Map();
+      const line = (key, sig, make) => {
+        now.set(key, sig);
+        const n = make();
+        if (sig && was && was.get(key) !== sig) n.classList.add('cr-page-new');
+        return n;
+      };
+      const ghost = (...widths) => el('div', { 'aria-hidden': 'true' }, widths.map(w => { const g = el('span', { class: 'cr-page-ghost' }); g.style.width = w + '%'; return g; }));
+      const names = (key, label, rows, widths) => {
+        const sig = rows.map(r => r.join(', ')).join(' | ');
+        return line(key, sig, () => el('dl', { class: 'cr-page-list' }, el('dt', null, label),
+          rows.length ? rows.map(([name, more]) => el('dd', null, name, more ? el('small', null, ', ' + more) : null)) : el('dd', null, ghost(...widths))));
+      };
+      const voice = VOICES.find(x => x.id === v.voice) || VOICES[0];
+      const audience = (AUDIENCE.find(x => x[0] === v.rating) || AUDIENCE[0])[1];
+      const blurb = blurbOf(v.about);
+      box.replaceChildren(
+        line('kicker', v.era, () => el('p', { class: 'cr-page-kicker' }, ERA_KICKER[v.era])),
+        line('title', v.title, () => el('p', { class: 'cr-page-title' + (v.title ? '' : ' none') }, v.title || 'Untitled')),
+        line('by', v.author, () => (v.author ? el('p', { class: 'cr-page-by' }, `by ${v.author}`) : ghost(28))),
+        el('div', { class: 'cr-page-rule', 'aria-hidden': 'true' }, el('span')),
+        line('town', v.town, () => (v.town ? el('p', { class: 'cr-page-town' }, v.town) : ghost(36))),
+        line('about', blurb, () => (blurb ? el('p', { class: 'cr-page-about' }, blurb) : ghost(78, 60))),
+        line('premise', v.premise.trim(), () => (filled(v.premise) ? el('p', { class: 'cr-page-premise' }, v.premise.trim()) : ghost(84, 88, 52))),
+        el('div', { class: 'cr-page-lists' },
+          names('places', 'Places', [v.a, v.b].filter(p => p && filled(p.name)).map(p => [p.name.trim()]), [46, 38]),
+          names('people', 'People', v.who && filled(v.who.name) ? [[v.who.name.trim(), str(v.who.role).trim()]] : [], [52]),
+          names('you', 'You', v.you && filled(v.you.name) ? [[v.you.name.trim()]] : [], [30])),
+        line('foot', `${voice.id} ${v.rating}`, () => el('p', { class: 'cr-page-foot' }, `${voice.foot} · For ${audience.toLowerCase()}`)));
+      seen.set(box, now);
+    }
+    function drawPage() { fillPage(node('creator-begin-page')); }
+    function focusStep() {
+      const body = node('creator-begin-body');
+      // A keyboard or a laptop goes straight to the first field; a phone hears the question and keeps its keyboard down.
+      const first = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches ? body.querySelector('input[type=text], textarea') : null;
+      const to = first || node('creator-begin-q');
+      if (to) to.focus({ preventScroll: true });
+    }
+    function draw() {
+      drawSteps();
+      renderStep();
+      drawPage();
+    }
+
+    // ----- moving -----
+    function go(to) {
+      const i = typeof to === 'number' ? to : STEPS.findIndex(s => s.id === to);
+      if (i < 0 || i >= STEPS.length || state.view !== 'begin') return false;
+      tidy();
+      st.step = i;
+      renderStep();
+      drawPage();
+      scrollTop();
+      focusStep();
+      return true;
+    }
+    const next = () => go(Math.min(STEPS.length - 1, st.step + 1));
+    const prev = () => go(Math.max(0, st.step - 1));
+    /* The first pages for a new story (no id: the draft is made by the first key), or for a draft already there. */
+    function open(id) {
+      if (id) {
+        if (!Storage.Drafts.get(id)) { UI.toast('That draft is not on this device any more.'); showLibrary(); return false; }
+        if (work && work.id !== id) closeDraft();
+        state.draftId = id;
+        if (!work && !load(id)) { showLibrary(); return false; }
+      } else {
+        closeDraft();
+        state.draftId = null;
+      }
+      st.step = 0;
+      st.fresh = false;
+      st.played = false;
+      st.made = new Set();
+      wish = { pronouns: null, at: null };
+      // The editor's last tab is cleared away: its controls belong to whatever draft was open there.
+      node('creator-body').replaceChildren();
+      state.view = 'begin';
+      if (UI.screen !== 'creator') UI.showScreen('creator'); else render();
+      scrollTop();
+      focusStep();
+      return true;
+    }
+    /* Leaving for the Library: the draft is kept (and said so), unless it is this visit's and still blank. */
+    function leave() {
+      tidy();
+      const d = state.draft;
+      const id = work ? work.id : null;
+      const blank = !!d && st.fresh && untouched(d);
+      const title = d ? titleOf(d) : '';
+      showLibrary();
+      if (!id) return;
+      if (blank) { Storage.Drafts.remove(id); renderLibrary(); } else UI.toast(`Kept "${title}" as a draft.`);
+    }
+    /* Keep writing, and Skip to the full editor: the draft (made now if nothing was typed) in the editor. */
+    function toEditor() {
+      ensure();
+      tidy();
+      return openEditor(state.draftId);
+    }
+    /* Step inside: a test game from the draft, as the Test tab starts one, with the story's first background. */
+    function enter() {
+      if (!work || !state.draft) return false;
+      tidy();
+      if (missing().length || Pack.errors(check()).length) { renderStep(); return false; }
+      const bg = you(state.draft);
+      // Played once it has started (the replace ask and the 18+ ask may each be answered no).
+      const mark = ok => { if (ok) st.played = true; return ok; };
+      const r = Test.start(state.draft, { backgroundId: bg ? bg.id : null, seed: undefined });
+      return r && typeof r.then === 'function' ? r.then(mark) : mark(r);
+    }
+    function wire() {
+      node('creator-begin-form').addEventListener('submit', e => { e.preventDefault(); next(); });
+      // Enter in a box is a new line; with Ctrl or the command key it goes on, as Enter does in a one-line field.
+      node('creator-begin-form').addEventListener('keydown', e => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.target && e.target.tagName === 'TEXTAREA') { e.preventDefault(); next(); }
+      });
+      node('creator-begin-prev').addEventListener('click', () => prev());
+      node('creator-begin-skip').addEventListener('click', () => toEditor());
+    }
+    return { STEPS, state: st, open, draw, go, next, prev, leave, toEditor, enter, tidy, view, missing, wire };
+  })();
 
   // ----- Creator: Overview -----
   /* The Overview tab (task M5-B draws it; M5-D may add to it): the meta
@@ -47251,6 +48124,10 @@ const Creator = (() => {
     const on = (path, value) => set(path, value);
     const meta = isObj(d.meta) ? d.meta : {};
     return [
+      // Wave 38: the first pages again, for the name, the place, two places, a person and who the player is.
+      el('div', { class: 'cr-again' },
+        el('p', null, 'The name, the place, someone to meet and who the player is: the first pages ask for them one at a time.'),
+        el('button', { type: 'button', class: 'btn', id: 'creator-begin-again', onclick: () => Begin.open(state.draftId) }, 'Open the first pages')),
       Form.render(S.meta, meta, 'meta', on, { skip: ['storyText', 'notes'] }),
       Form.render(S.setting, d.setting, 'setting', on, { only: ['era', 'blurb'], note: 'The kind of world the story is set in, in a word and a sentence.' }),
       settingRest(d, on),
@@ -51228,6 +52105,8 @@ const Creator = (() => {
 
   return {
     open, render, renderLibrary, showLibrary, openEditor, openItem, newStory, selectTab, wire, back, TABS, NEXT_TASK_NOTE, BUILT_IN_NOTE,
+    // Wave 38: the first pages of a new story.
+    Begin,
     // Task M5-B: the form renderer and the editor's working calls (tests and the later tabs use them).
     Form,
     Editor: Object.freeze({
@@ -51832,7 +52711,10 @@ const App = (() => {
     Storage.requestPersist();
     // Wave 37, Creator Mode, milestone 8 (task M8-B): no narrated arrival for a story still waiting on the 18+ yes (a start that skipped the ask): the local opening text.
     const live = !Storage.settings().mockMode && !!Storage.getApiKey() && Pack.promptAllowed(Pack.current());
+    // Wave 38: a story with first words of its own (opening.text) opens with them, and the arrival follows.
+    const own = Town.ownOpening(s);
     if (live) {
+      if (own) State.apply({ logEntry: { input: '', roll: null, narration: own, day: s.time.day, phase: s.time.phase } });
       State.apply({ journalEntry: `Arrived in ${s.meta.townName}.` });
       UI.rebuildFeed();
       UI.showScreen('game');
@@ -51840,7 +52722,7 @@ const App = (() => {
       return State.current;
     }
     State.apply({
-      logEntry: { input: '', roll: null, narration: Town.openingScene(s), day: s.time.day, phase: s.time.phase },
+      logEntry: { input: '', roll: null, narration: own ? `${own}\n\n${Town.openingScene(s)}` : Town.openingScene(s), day: s.time.day, phase: s.time.phase },
       journalEntry: `Arrived in ${s.meta.townName}.`
     });
     UI.rebuildFeed();

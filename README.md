@@ -1649,7 +1649,12 @@ the Story to Pack converter, only sorts the author's own prose into fields,
 quoting the sentence each value came from, and invents nothing.
 
 - **Create** on the title screen opens the Library: a card for each story,
-  with Play this story and Open in Creator. New story starts a blank draft;
+  with Play this story and Open in Creator. New story opens the first
+  pages: nine short steps, one question each (the name, the world, the
+  trouble, two places, someone to meet, who the player is, the voice, the
+  first lines), with the story's title page filling in beside them, and a
+  last step that plays the story at once (Step inside) or opens the editor
+  on it (Keep writing). Skip to the full editor starts a blank draft;
   Open in Creator on Low Water opens a copy of it to learn from; Import a
   .json reads a pack someone gave you.
 - **The editor** has a tab for each part of a pack (Overview, World,

@@ -74,8 +74,16 @@ and **Delete**.
 
 Three ways to start:
 
-- **New story** (the Library's toolbar) opens a blank draft with the few
-  fields a pack must have.
+- **New story** (the Library's toolbar; **Begin a story** when the Library
+  has nothing of yours yet) opens the first pages: nine short steps, one
+  question each (the name, the world, the trouble, two places, someone to
+  meet, who the player is, the voice, the first lines, and the story ready),
+  with the story's title page filling in beside them. Every step may be left
+  empty, and nothing is kept until you type. The last step has **Step
+  inside**, which plays what you wrote as a test game at once, and **Keep
+  writing**, which opens the editor on it. **Skip to the full editor** on any
+  step opens a blank draft with the few fields a pack must have. The
+  editor's Overview has **Open the first pages** to come back to them.
 - **Open in Creator** on Low Water puts a copy of it in your Library (badge
   Copy, with an id of its own) and opens that as a draft ("Opened a copy; the
   built-in story cannot be changed."). This is the quickest way to learn the
@@ -1165,7 +1173,7 @@ A section. Who the player can be, and how they arrive.
 A section. How the story begins.
 
 - `opening.premise`: text, up to 1,200 characters. **Premise**. One or two sentences shown at New game and on the story card.
-- `opening.text`: text, up to 1,200 characters. **Opening text**. The first scene, before the player types anything.
+- `opening.text`: text, up to 1,200 characters. **Opening text**. The first thing the player reads, before the arrival is told. {place} and {town} are filled in. Left empty, the story opens with the arrival.
 - `opening.firstTurn`: text, up to 1,200 characters. **First turn**.
 
 #### `narration`: Narration

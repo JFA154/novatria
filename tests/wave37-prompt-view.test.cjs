@@ -342,7 +342,9 @@ s.test('a build with no game running leaves no game, no autosave and the built-i
   assert.deepEqual(r, { state: null, auto: null, builtIn: true, combat: true, blank: 'unknown background' });
   await page.click('#btn-create');
   await page.waitForSelector('#creator-library:not([hidden])');
+  // Wave 38: New story opens the first pages; their Skip makes the blank draft and opens the editor.
   await page.click('#creator-empty-new');
+  await page.click('#creator-begin-skip');
   await page.waitForSelector('#creator-editor:not([hidden])');
   await page.click('#creator-tab-preview');
   await page.waitForSelector('#creator-preview .cr-preview-err');

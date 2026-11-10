@@ -1955,7 +1955,8 @@ different.", then "Do it 7 then, the more detailed the better." Tests:
 - **Creator Mode** (`#screen-creator`): the Library ("Your stories": story
   cards with the title in Literata, author and version, a rating chip, the
   premise, a completeness ring, a badge, Play this story and Open in
-  Creator, Export, Duplicate and Delete; New story and Import a .json in the
+  Creator, Export, Duplicate and Delete; New story (wave 38: it opens the
+  first pages, `#creator-begin`, see `docs/notes/creator-mode.md`) and Import a .json in the
   toolbar; an empty state; a persistent note when packs cannot be kept on
   the device) and the editor (a header card with the token meter, Undo,
   Redo, Test and Save; the tab strip Overview, World, Player, Opening,

@@ -213,6 +213,61 @@ it"), and the shared tracks node carries the label "How they feel about
 you at the start" into `world.gates` and the templates' `needs`, where it
 means a threshold, not a start.
 
+## Wave 38: the first pages
+
+The owner, after using wave 37: "Creating a story should be an experience,
+not something clunky and daunting. At the moment it does the job but it is
+clunky and ugly." New story dropped an author into the twelve-tab editor on
+a pack that could not be played until they had found two places, a schedule
+and a background on three different tabs.
+
+- **`Creator.Begin`** (sub-region `// ----- Creator: Begin -----`, view
+  `#creator-begin`, `Creator.state.view === 'begin'`): nine steps, one
+  question each, `STEPS` (name, world, trouble, places, person, you, voice,
+  first, ready). The Library's New story and the empty state's Begin a story
+  call `Begin.open()`; `Creator.newStory()` (a blank draft straight into the
+  editor) stays for callers, and "Skip to the full editor" does the same
+  through `Begin.toEditor()`.
+- **The pack is the only record.** A step reads its fields from the draft
+  and writes them back (`write()`, then the editor's `changed()`, so the
+  autosave, the check and the meter run as for the forms). No undo steps:
+  the editor's Undo never walks back through the first pages. The draft is
+  made on the first key (`ensure()`); one left blank is removed on the way
+  out (`leave()`).
+- **What a story needs to play is made with what the validator asks**: a
+  place at each arrival point (`world.startLocationIds.gate` and `.docks`)
+  with an exit to the other, a person on all four phases of one place's
+  schedule, a background with age, stats, money, `items: []` and
+  `arrival: 'gate'`. `made` holds the ids made in this visit; only those are
+  dropped when emptied, linked, scheduled or re-slugged (`tidy()`:
+  `Pack.renameId` to the id of the finished name when a step is left, and
+  the pack's own id from the title while the draft is this visit's; never
+  after a game was started from it).
+- **Re-entry is safe.** `Begin.open(draftId)` (the Overview's "Open the
+  first pages") shows the arrival places, the first person and the first
+  background of any draft and changes only the field typed in
+  (`tests/wave38-begin.test.cjs` pins this on a copy of Low Water).
+- **The title page** (`.cr-page`, `fillPage()`): the story as written so
+  far, ghost lines for the rest, beside the step from 900px and whole on the
+  last step. Nothing is generated; the examples in empty fields (`HINTS`, by
+  era) are placeholders, never values.
+- **Step inside** is `Test.start` with the story's first background, so the
+  18+ ask, the replace ask and the test bar behave as from the Test tab.
+- **`opening.text` is read by the game now.** The field was in the pack
+  format from wave 37 and nothing showed it. `Town.ownOpening(s)` fills
+  `{place}` and `{town}`; `App.begin` puts it first: in the demo it leads the
+  local arrival in the same log entry, with a key it is its own entry and
+  the narrated arrival follows. A story without it (Low Water) opens as
+  before. The starport sample has one, so it now opens with its own lines.
+- **Smaller changes**: the editor header's sub line no longer carries the
+  pack's id (it stays on the Overview); `TABS` entries have a `group` and the
+  strip draws a hairline where it changes; the empty Library is an
+  invitation, not a dashed box.
+- **Not done here**: a blank story still starts with Low Water's weather
+  and goods tables (`Pack.blank` copies them), so a fantasy story's first
+  scene can open on "First frost, the pickups white with it at dawn." The
+  first pages do not ask for a currency either.
+
 ## Phone checklist
 
 - Milestone 1: New game plays as before; Debug shows the three cached blocks
@@ -239,3 +294,6 @@ means a threshold, not a start.
   money in credits after the number, the shift names in the toolbar, an
   arrest held in the brig; the demo mode's replies name the starport's goods
   and people.
+- Wave 38: New story on a phone: the nine steps with the keyboard up, the
+  page on the last step, Step inside, Back to the editor, Open the first
+  pages from the Overview.

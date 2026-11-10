@@ -143,7 +143,7 @@ s.test('Create (after Load on the title) opens the Library, whose first card is 
   assert.equal(await page.evaluate(() => Game.Pack.completeness(Game.Pack.builtIn())), 1);
   // Nothing else here yet: the empty state's one sentence and two buttons, and the header's pair steps aside.
   assert.ok(await page.isVisible('#creator-empty'));
-  assert.deepEqual(await page.$$eval('#creator-empty button', bs => bs.map(x => x.textContent)), ['New story', 'Import a .json']);
+  assert.deepEqual(await page.$$eval('#creator-empty button', bs => bs.map(x => x.textContent)), ['Begin a story', 'Import a .json']);
   assert.ok(!(await page.isVisible('#creator-toolbar')));
   await page.click('#creator-back');
   await page.waitForSelector('#screen-title.active');
@@ -152,7 +152,9 @@ s.test('Create (after Load on the title) opens the Library, whose first card is 
 s.test('New story makes a blank draft in Storage.Drafts and opens the editor shell: the header card with its title and the meter, twelve tabs, and each later tab\'s placeholder (Overview and JSON are drawn since task M5-B); Back returns to the Library, which shows the draft card with Play off', async h => {
   const page = await open(h);
   await library(page);
+  // Wave 38: New story opens the first pages; their Skip makes the blank draft and opens the editor.
   await page.click('#creator-empty-new');
+  await page.click('#creator-begin-skip');
   await page.waitForSelector('#creator-editor:not([hidden])');
   const st = await page.evaluate(() => ({ state: Object.assign({}, Game.Creator.state), drafts: Game.Storage.Drafts.index() }));
   assert.equal(st.state.view, 'editor');
@@ -445,7 +447,9 @@ async function toLibrary(page) {
 /* A new blank draft in the editor, from the Library's New story. */
 async function newDraft(page) {
   await toLibrary(page);
+  // Wave 38: New story opens the first pages; their Skip makes the blank draft and opens the editor.
   await page.click('#creator-empty-new');
+  await page.click('#creator-begin-skip');
   await page.waitForSelector('#creator-editor:not([hidden])');
   await page.waitForSelector('#creator-body [data-path="meta.title"]');
   return page.evaluate(() => Game.Creator.state.draftId);
@@ -563,7 +567,7 @@ s.test('typing a title changes the header card at once and the JSON tab within a
   // Live: a change while the JSON tab is open reaches its view within a second.
   await page.evaluate(() => Game.Creator.Editor.set('meta.author', 'Sam Ortiz'));
   await page.waitForFunction(() => document.getElementById('creator-json').textContent.includes('"author": "Sam Ortiz"'), null, { timeout: 1000 });
-  assert.equal(await page.textContent('#creator-editor-sub'), await page.evaluate(() => `by Sam Ortiz · version 0.1.0 · id ${Game.Creator.state.draft.meta.id}`));
+  assert.equal(await page.textContent('#creator-editor-sub'), 'by Sam Ortiz · version 0.1.0'); // wave 38: the header no longer carries the pack's id
   await page.click('#creator-tab-overview');
   assert.equal(await page.inputValue('[data-path="meta.author"]'), 'Sam Ortiz', 'the form shows the change made elsewhere');
   await page.fill('[data-path="meta.title"]', '');

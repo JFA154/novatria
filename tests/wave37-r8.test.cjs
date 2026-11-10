@@ -52,7 +52,9 @@ async function draftWithStory(page) {
   await page.evaluate(() => Game.Storage.saveSettings({ mockMode: true }));
   await page.click('#btn-create');
   await page.waitForSelector('#screen-creator.active #creator-library:not([hidden])');
+  // Wave 38: New story opens the first pages; their Skip makes the blank draft and opens the editor.
   await page.click('#creator-empty-new');
+  await page.click('#creator-begin-skip');
   await page.waitForSelector('#creator-body [data-path="meta.title"]');
   await page.fill('[data-path="meta.storyText"]', STORY);
   await page.waitForFunction(t => Game.Creator.state.draft.meta.storyText === t, STORY);
@@ -239,7 +241,9 @@ s.test('8 (N4): the share sheet names a draft with a "../" id and version story-
   const page = await open(h, { contextOptions: { reducedMotion: 'reduce', acceptDownloads: true } });
   await page.click('#btn-create');
   await page.waitForSelector('#screen-creator.active #creator-library:not([hidden])');
+  // Wave 38: New story opens the first pages; their Skip makes the blank draft and opens the editor.
   await page.click('#creator-empty-new');
+  await page.click('#creator-begin-skip');
   await page.waitForSelector('#creator-body [data-path="meta.title"]');
   const sheetName = async () => {
     await page.evaluate(() => Game.Creator.selectTab('json'));

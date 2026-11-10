@@ -72,7 +72,9 @@ async function open(h, opts) {
 async function draftWithStory(page, story) {
   await page.click('#btn-create');
   await page.waitForSelector('#screen-creator.active #creator-library:not([hidden])');
+  // Wave 38: New story opens the first pages; their Skip makes the blank draft and opens the editor.
   await page.click('#creator-empty-new');
+  await page.click('#creator-begin-skip');
   await page.waitForSelector('#creator-body [data-path="meta.title"]');
   if (story !== undefined) {
     await page.fill('[data-path="meta.storyText"]', story);
