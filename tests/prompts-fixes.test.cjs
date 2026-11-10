@@ -372,7 +372,8 @@ s.test('parse packet and mock parser: LAST TURN, present traits and wants, TIME 
   assert.equal(r.after.timeCost, 'short', 'the walk takes time');
   assert.deepEqual([r.before.actionType, r.before.destinationId, r.before.moveWhen], ['search', r.bridge, 'before']);
   assert.deepEqual([r.bet.actionType, r.bet.summary, r.bet.needsRoll], ['gamble', 'bets $20 at cards', false]);
-  assert.deepEqual([r.poker.actionType, r.poker.summary], ['gamble', 'bets $10 at cards']);
+  // Wave 37, Creator Mode (task M9-B): a bet that names no stake puts up the story's rules.gamble.stake (20 in Low Water), as the engine deals it, not the mock's old flat ten.
+  assert.deepEqual([r.poker.actionType, r.poker.summary], ['gamble', 'bets $20 at cards']);
   assert.notEqual(r.elsewhere.actionType, 'gamble', 'no game runs there');
   assert.deepEqual([r.norm.moveWhen, r.norm.aboutIds], ['after', [r.other]], 'unknown ids and the targets leave aboutIds');
   assert.deepEqual([r.normNoDest.actionType, r.normNoDest.moveWhen], ['gamble', null], 'no destination, no moveWhen; gamble is a type');
