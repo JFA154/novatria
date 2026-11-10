@@ -6,7 +6,9 @@ Wave 37, Creator Mode. The town used to be eight JavaScript constants between
 `packs/low-water.json`, and JSON has no comments. These are every comment that block held,
 with its line in 74cd698:index.html, the key path written last before it ("after") and
 the key path it sits above ("before"; most comments explain that one). Field semantics
-move to docs/CREATOR_GUIDE.md in milestone 9 (plan decision A). Written once by
+are in docs/CREATOR_GUIDE.md, "What the fields mean" (plan decision A). The
+names below (`TOWN_DATA` and the rest, `tests/validate-town.cjs`) are the
+old block's, kept as history. Written once by
 `tests/pack-extract.cjs`; edit freely.
 
 37 comments (115 counting each // line on its own).

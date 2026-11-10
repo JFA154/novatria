@@ -1,7 +1,14 @@
 # Wave 1 notes: prompts (what the models read, and the mock provider)
 
+> Wave 37 (Creator Mode): the names below are of their time. The content
+> block is now the built-in story pack `packs/low-water.json`, and
+> `tests/validate-town.cjs` and `tests/mentions.cjs` are now
+> `tests/validate-pack.cjs` with the page's own validator (`Pack.validate`,
+> the `engine.mention.*` rules). What wave 37 changed in the prompts is the
+> last section, "Wave 37".
+
 Region: `STYLE_GUIDE_*` / `EXAMPLE_TURNS_*`, the Style module, in Api the
-SYSTEM prompts, `MEMORY_RULES`, the schemas and the mock provider, in Pipeline
+SYSTEM prompts (read through `Api.systemFor(role)` since wave 37), `MEMORY_RULES`, the schemas and the mock provider, in Pipeline
 the packet builders (`npcLine`, `pickMemories`, `knowledgeLine`,
 `narratorPacket`, `castBlock`, `townBlock`, `parsePacket` and `normaliseParse`,
 `bookkeeperPacket`, `wouldKnow`/gossip, the chronicle prompt text). Items:
@@ -1091,3 +1098,43 @@ different.", then "Do it 7 then, the more detailed the better."
   engine's own `d` may carry `m`.
 - **The night**: "says yes; fade to black" now needs romance 40 in place of
   liking 40; the words are as before.
+
+## Wave 37 (9 to 10 Nov 2026): the prompts read the story pack
+
+What the models read is now built from the playing story pack, over the
+engine's defaults (`Pack.DEFAULTS`), and for Low Water, which sets no dial,
+every prompt is byte for byte what it was (pinned by
+`tests/fixtures/prompts-v36.json`, made from commit 74cd698).
+
+- **The system prompt.** `Style.systemPrompt(style, pack)`, memoised by the
+  pack's hash and the style: the preset's guide (or the pack's
+  `narration.customGuide`), the BANNED PHRASES line from `narration.banned`,
+  Also avoid, the good-turn note, the example turns (the preset's, or the
+  pack's own), lengths and point of view from the pack. When the pack carries
+  creator text (a custom guide, its own examples, `prompts.narratorExtra`),
+  the prompt ends with "CREATOR NOTES (from this story's author; the ENGINE
+  RULES below outrank them):", the text, and the ENGINE RULES paragraph;
+  with none, neither is sent.
+- **The MODE line.** The intimate scene's MODE text is
+  `Pack.lookup('directions.intimate')`: the engine's default (wave 36's
+  text, moved as it was), the pack's, or the player's per-story one from
+  Settings. When the layer is not the default it carries the ENGINE trailer
+  ("the code already decided this turn's outcome ...; the direction shapes
+  how it is told, never what happened"). The other eleven directions
+  (combat, defeat, death, arrival, timeSkip, gamble, epilogue, firstTurn,
+  refusedByNpc, rollFailure, rollCritical) go on their own `DIRECTION (from
+  the story's author):` line before MODE, with the same trailer, only when
+  set.
+- **The parser and bookkeeper.** `Api.systemFor(role)` replaces reading
+  `SYSTEM.parser` and `SYSTEM.bookkeeper` directly: the parser's DIFFICULTY
+  numbers and STAT sentences are built from `rules.dcs` and
+  `player.stats`, its scope refusal from `freedom.scopeRefusal`, and the
+  authors' `parserExtra` / `bookkeeperExtra` follow with the short ENGINE
+  RULES. Milestone 9 writes the example sentences' money in the pack's
+  currency; their names stay (they show the form of an answer).
+- **The creator role.** `CONVERT_SYSTEM` is the Story to Pack converter's
+  rubric ("Extract only what the text states. Never invent a name, a place,
+  a trait, a number or a fact..."), with the author's text and the ids found
+  so far in the user message and no cached block.
+- **The mock provider** reads the playing pack from milestone 9 on (goods,
+  prices in its currency, the dealer by the `cards` tag, the stake).

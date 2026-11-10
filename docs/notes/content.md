@@ -1,5 +1,12 @@
 # Content pass (wave 1): what changed, what the engine must read
 
+> Wave 37 (Creator Mode): the names below are of their time. The content
+> block, `TOWN_DATA` and its neighbours, is now the built-in story pack
+> `packs/low-water.json` (read through `Pack`), and `tests/validate-town.cjs`
+> and `tests/mentions.cjs` are now `tests/validate-pack.cjs` with the page's
+> own validator (`Pack.validate`, the `engine.mention.*` rules). See
+> `docs/notes/creator-mode.md`.
+
 The content agent's share of the approved review (REVIEW.md section 4 and the
 content parts of sections 2 and 3), written to the shapes in CONTRACTS.md
 sections 1 to 5, 7, 9 and 11. Everything below is data in the `BEGIN CONTENT`
@@ -1073,3 +1080,37 @@ difficulty refused, `open` refused ("open is gone (wave 34)"). `docs/CAST.md`
 (`tests/cast-doc.cjs`) says "Easy to win over (spark rate 1.2; opens at
 knows 20)" for a listed person, and its opening says everyone else over 18
 is hard.
+
+## Wave 37 (9 to 10 Nov 2026): the content block becomes a story pack
+
+The owner: "convert Low Water to a JSON so it can be used as a story pack.
+No hard coded story allowed." The `BEGIN CONTENT` block of eight JavaScript
+constants is gone. The town is `packs/low-water.json`, the built-in story
+pack, inlined into `index.html` as an inert JSON element by `node
+tests/pack-inline.cjs` (`--check` in CI). Edit the file, never the copy.
+
+- **Where each constant went.** `TOWN_DATA` is the pack's `world`; `TABLES`
+  `world.tables`; `GRUDGE_TEMPLATES` and `FAVOUR_TEMPLATES`
+  `world.grudgeTemplates` and `world.favourTemplates`; `BACKGROUNDS`,
+  `FLAWS`, `LOOSE_ENDS` and `GOAL_PRESETS` `player.backgrounds`, `.flaws`,
+  `.looseEnds` and `.goalPresets`. The pack adds `meta` (id `low-water`,
+  title Low Water, rated `adult` with six content warnings, the
+  `lockett-house` lint set), `setting`, the law (`world.law`: the police
+  faction, head, fallback, the arrest place and the inquiry's news line),
+  the gates (`world.gates`), `typeLabel` on `loc_bluff` and
+  `loc_town_hall`, and the player's stats, start, age range, arrivals and
+  creation steps as data. Its dials (`narration`, `directions`, `rules`,
+  `freedom`, `prompts`) are left out, so every one is the engine's default.
+- **The comments** the block carried are in `docs/notes/low-water-comments.md`;
+  what the fields mean is in `docs/CREATOR_GUIDE.md` ("What the fields
+  mean").
+- **The validator** is the page's own (`Pack.validate`): every check of
+  `validate-town.cjs` became a rule with an id and a path, the house rules
+  this town keeps (a cast of 40 to 45, rumours 10 to 20, a prepaid phone in
+  every background and the rest) are the `lockett-house` set, and
+  `mentions.cjs` became the `engine.mention.*` rules. `node
+  tests/validate-pack.cjs` validates the built-in pack in the strict
+  profile, `node tests/validate-pack.cjs my-pack.json` any pack file.
+- **The roster** (`tests/cast-doc.cjs`) reads the pack.
+- **A second sample**, `packs/starport.json` (milestone 9), is importable
+  and not built in.

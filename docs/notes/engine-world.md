@@ -1,5 +1,12 @@
 # Engine-world fixes (wave 1)
 
+> Wave 37 (Creator Mode): the names below are of their time. The content
+> block, `TOWN_DATA` and its neighbours, is now the built-in story pack
+> `packs/low-water.json` (read through `Pack`), and `tests/validate-town.cjs`
+> and `tests/mentions.cjs` are now `tests/validate-pack.cjs` with the page's
+> own validator (`Pack.validate`, the `engine.mention.*` rules). See
+> `docs/notes/creator-mode.md`.
+
 Region: Helpers, Rng, Dice, Tables (code and the `TABLES.complications`
 data), Town, World in `index.html`. Tests: `tests/engine-world-fixes.test.cjs`
 (19 tests, mock mode, driven through `window.Game`).

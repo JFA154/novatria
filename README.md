@@ -242,7 +242,7 @@ can't go there."
 ## The cast
 
 Everyone who can appear in Lockett's Ferry is written by hand: 41 people in
-`TOWN_DATA` in `index.html`, in households (the Mangums, the Pittmans, the
+the built-in story pack, `packs/low-water.json`, in households (the Mangums, the Pittmans, the
 Deeses at the parsonage, the Overstreets, the Gentrys, the Haskins farm, the
 Lotts' trailer, the Sturdivant house, the motor court's long-stay rooms) and
 the regulars, staff and loose-end people around them: a dispatcher, a
@@ -1549,6 +1549,18 @@ else as it was. Someone who was "sweet on you" by the old reading (a spark
 and real liking) may read "wants you" or "has noticed you" until romance
 grows; set Romance on their card (Edit) to where the story is.
 
+**A story pack** (version 11, wave 37) names the pack a game plays from.
+Since wave 37 a save also carries a reference to its pack (`saveVersion` 2:
+the pack's id, version and fingerprint), a local save of a story other than
+Low Water keeps a frozen copy of that exact pack on the device, and an
+exported save carries the whole pack, so it plays on another device even
+if that device has never seen the story. An older save loads as it always
+did. Two things change for a game of Low Water from wave 37 on: a night
+together rolls the intimacy roll (charm at normal; the yes stands, the roll
+shapes the night), which also moves the seeded dice after it, and the
+story is rated adult, so Continue asks the 18+ question once before the
+first turn. See Creator Mode.
+
 Behind the scenes a save carries `state.meta.rulesVersion` (11 now; a save
 without it reads as 1). The steps that bring a game up to date are listed in
 `Upgrade.MIGRATIONS` in `index.html`.
@@ -1624,26 +1636,76 @@ is asked for again with twice the room and is never saved half finished.
 Either way, if the turn fails, nothing changes and your words go back in the
 box.
 
+## Creator Mode
+
+Since wave 37 the game plays story packs: one JSON file holds a whole story
+(the town, its people and what is going on, who the player can be, how it
+opens, and dials for how the narrator writes and how the rules play), and the
+one engine plays any of them. The owner wanted to "convert the story to a
+json" with "No hard coded story allowed", and the story itself kept
+human-written: "ideally as little as possible generative AI in the creator
+mode". So the editor's forms need no AI and no key, and the one AI feature,
+the Story to Pack converter, only sorts the author's own prose into fields,
+quoting the sentence each value came from, and invents nothing.
+
+- **Create** on the title screen opens the Library: a card for each story,
+  with Play this story and Open in Creator. New story starts a blank draft;
+  Open in Creator on Low Water opens a copy of it to learn from; Import a
+  .json reads a pack someone gave you.
+- **The editor** has a tab for each part of a pack (Overview, World,
+  Player, Opening, Narrator, Directions, Rules, Freedom, Prompts), the pack
+  as JSON, Prompt view (exactly what the models would be sent, nothing
+  sent), and Test (a real game from the draft, with the Dev tab in play). A
+  meter in its header shows the cached prompt against the 13,000-token
+  budget. Drafts save themselves on the device; Save puts the pack in the
+  Library.
+- **Two packs.** Low Water, built in (`packs/low-water.json`, inlined into
+  `index.html` by `node tests/pack-inline.cjs`), and a starport sample,
+  `packs/starport.json`, a second, smaller story (credits after the number,
+  a security chief for the law, a brig), shipped as a file to import so the
+  page stays its size.
+- **Sharing is by file only.** Export opens a share sheet (Download, Share,
+  Copy JSON); import cleans and checks every pack first and refuses one with
+  an error, naming where. A pack never holds a key or a save, and there is
+  no server: every player uses their own key or the offline demo.
+- **Some rules no pack can change**: the code rolls the dice and owns every
+  number, the narrator describes only what the game has, every data call
+  uses a schema, a pack is data, a refusal stays a refusal, and an author's
+  text goes in labelled slots with the engine's rules after it. A story
+  rated adult asks the player's 18+ yes once before it plays.
+
+**`docs/CREATOR_GUIDE.md`** is the guide for writing a pack: every tab and
+every field with an example, the fixed rules, who wins between the engine,
+the pack and the player's per-story Settings, the budget, testing, the
+rating gate, sharing, the converter and troubleshooting. Its field list is
+generated from the format's own definition (`node tests/guide-doc.cjs`), so
+it never falls behind. The engineering notes are `docs/notes/creator-mode.md`.
+
 ## Editing the town
 
-The whole town is one JSON file, `packs/low-water.json`: its `world`
-(places, people, factions and their clocks, threads, seeds, rumours, the
-calendar, town events and the ending, the random `tables` and the grudge and
-favour templates) and its `player` (backgrounds, flaws, loose ends and goal
-suggestions); in the page they are still read as `TOWN_DATA`, `TABLES`,
-`BACKGROUNDS`, `FLAWS`, `LOOSE_ENDS`, `GRUDGE_TEMPLATES`, `FAVOUR_TEMPLATES`
-and `GOAL_PRESETS`. Edit the file, never the copy in `index.html`: `node
-tests/pack-inline.cjs` inlines it into the page (CI runs it with `--check`,
-which fails when the two differ), and `node tests/validate-pack.cjs` validates
-it. The shape is in `docs/BUILD_PLAN.md` under "Shared data contract".
+The town is the built-in story pack, one JSON file, `packs/low-water.json`:
+its `world` (places, people, factions and their clocks, threads, seeds,
+rumours, the calendar, town events and the ending, the random `tables` and
+the grudge and favour templates) and its `player` (backgrounds, flaws, loose
+ends and goal suggestions). There are two ways to change it.
 
-Creator Mode (wave 37) is under way: the town is the built-in Story Pack, and
-the same format will carry other stories. For now a pack is edited by hand as
-above; the in-app editor arrives in a later milestone.
+- **In the game**: Create, then Open in Creator on Low Water, edits a copy
+  with the editor (see Creator Mode and `docs/CREATOR_GUIDE.md`). Export it
+  to keep it as a file. The built-in story itself never changes in the app.
+- **By hand, for the built-in story**: edit `packs/low-water.json`, never the
+  copy in `index.html`; `node tests/pack-inline.cjs` inlines it into the page
+  (CI runs it with `--check`, which fails when the two differ), and `node
+  tests/validate-pack.cjs` validates it (`node tests/validate-pack.cjs
+  my-pack.json` validates any pack file).
+
+Every field of the format, with what it takes and an example, is in
+`docs/CREATOR_GUIDE.md` ("Every field", generated from the format's
+definition); the effect ops' fields are in `docs/BUILD_PLAN.md` ("Effect
+ops"). The paths below are the pack's.
 
 The fields that make the town move:
 
-- `TOWN_DATA.calendar = { season, startDate }` (day 1 is that date); a
+- `world.calendar = { season, startDate }` (day 1 is that date); a
   place's `closedOn: ["Sunday"]`; a person's `awayOn: { days, phases, where }`
   (school days).
 - Faction clocks of 4 to 10 `segments`, and on a clock's `onComplete`
@@ -1660,16 +1722,16 @@ The fields that make the town move:
   `leverageSet` (`{ id, status?, aware?, playerKnows?, knownBy?, tell?,
   use? }`: a leverage record's change; `id` may be `{leverageId}` in a
   template).
-- `TOWN_DATA.events` (the council meeting: a day, phase, place, `attendees`,
+- `world.events` (the council meeting: a day, phase, place, `attendees`,
   and `branches` of `{ when, text, effects }` with a `default`; the first
-  branch whose `when` holds wins) and `TOWN_DATA.epilogue` (`onDay`,
+  branch whose `when` holds wins) and `world.epilogue` (`onDay`,
   `orFlagsSet`, the same branches).
 - Rumours: `tellerIds` (at least two people besides the source who can tell
   it), `threadId`, `factionId`. Threads: `reward` (the stat it raises).
-- `LOOSE_ENDS[kind].obligation` (the kind's default) and `obligations` (one
+- `player.looseEnds.<kind>.obligation` (the kind's default) and `obligations` (one
   per option, lined up with `options`): `{ kind, amount, dueOffset, text,
   itemName, onStart, onMiss, onMet }`.
-- `BACKGROUNDS[].hook = { npcId, text, dayOffset, trigger }`, the first lead
+- `player.backgrounds[].hook = { npcId, text, dayOffset, trigger }`, the first lead
   for a background.
 - Grudge and favour templates: `effects`, `public`, `forTags` and
   `notForTags` (who can hold it).
@@ -1682,14 +1744,14 @@ The fields that make the town move:
   ends' obligations and the grudge templates use for a word kept or broken
   and what a third party hears. A person's `protector` (whom they go to when
   you frighten or hurt them: an id, a list, `"nobody"`, or `{ npcId, hidden:
-  true }` for a tie the town does not know); `TOWN_DATA.policeHead` (whom a
+  true }` for a tie the town does not know); `world.policeHead` (and `world.law.headNpcId`) (whom a
   report to the police goes to); a seed's `danger: true` (someone in trouble
   the player can step in on: the people its words name after the first, the
   one doing it; it needs a location trigger and `requires.npcFree` for
   everyone it names); grudge templates of kind `report`, with `to`
   (`police` or `family`), `about` (`threat` or `violence`), a 1 to 2 day
   `dayOffset` and `{protector}` / `{protectorId}`.
-- What people hold (wave 29): `TOWN_DATA.romance` (wave 34: how easily each
+- What people hold (wave 29): `world.romance` (wave 34: how easily each
   adult is won over, `{ npcId, sparkRate, opensAt: { knows }, difficulty }`:
   `sparkRate` 0.1 to 2 scales a welcome flirt's spark (and, wave 35, what
   grows romance, unless an optional `romanceRate` 0.1 to 2 says otherwise), `opensAt.knows` is
@@ -1719,7 +1781,7 @@ The fields that make the town move:
   thoughts after Carter bought him at `{ trust: 20 }`; the ending's Loretta
   line is `{ liking: 40 }`. `attitudeAtLeast` still works and reads liking.
   Spark is not readable by a condition, and there is no branch on fear.
-- How people feel about each other (wave 31): `TOWN_DATA.ties`, `[{ from,
+- How people feel about each other (wave 31): `world.ties`, `[{ from,
   to, kind?, w, t, hidden?, revealedBy?: { rumours?, flags? }, why? }]`.
   Every relation in the cast is already a tie both ways with its kind's
   liking and trust (`w`, `t`, -100 to 100: a parent toward a child 70/30, a
@@ -1734,7 +1796,7 @@ The fields that make the town move:
   only the cast. A clock's arrest may name its officer: `npcStatus` with
   `by` (someone tagged police; else the police head), whose arrest turns the
   family of the arrested against them.
-- Ties that change (wave 32): `TOWN_DATA.secretTies`, `[{ secretOf,
+- Ties that change (wave 32): `world.secretTies`, `[{ secretOf,
   learnedBy, ties: [{ from, to, w?, t? }], why, seed? }]`: when the player
   tells `learnedBy` what they hold over `secretOf` (who must have a secret),
   each tie listed moves by liking `w` and trust `t` (whole numbers within
@@ -1776,6 +1838,8 @@ it finds and exits 1. After changing the cast, regenerate the roster:
 ```
 node tests/cast-doc.cjs           # rewrites docs/CAST.md from the data
 node tests/cast-doc.cjs --check   # exits 1 when docs/CAST.md is out of date (the content suite runs this)
+node tests/guide-doc.cjs          # rewrites the field list of docs/CREATOR_GUIDE.md after a change to Pack.SCHEMA
+node tests/guide-doc.cjs --check  # exits 1 when it is out of date or an example names a field the format lacks (tests/run.cjs runs this)
 ```
 
 A game already in progress keeps the town it started with.
@@ -1783,7 +1847,7 @@ A game already in progress keeps the town it started with.
 ## Running the tests
 
 ```
-node tests/run.cjs              # everything: the town check, then every tests/*.test.cjs
+node tests/run.cjs              # everything: the pack check and the guide check, then every tests/*.test.cjs
 node tests/run.cjs acceptance   # only files whose name contains "acceptance"
 TEST_FILTER='\[4\]' node tests/acceptance.test.cjs     # tests whose title matches
 PLAYTEST_TRANSCRIPT=1 node tests/playtest.test.cjs     # print the 30-turn playtest's story

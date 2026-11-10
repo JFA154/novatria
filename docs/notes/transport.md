@@ -912,3 +912,33 @@ R9 and demo D10 to D14. Tests: `tests/wave6-fixes.test.cjs`.
   short lines.
 - The card's notes comment said "the last 20 turns" (SPEC.md 13's number);
   the code reads 10 (`recent: 10`). The comment says 10 now.
+
+## Wave 37 (9 to 10 Nov 2026): the creator role, and the gates on a turn
+
+- **A new role, `creator`** (beside narrator, parser, bookkeeper, chronicle
+  and the upgrade's memories, places, clock and people), for the Story to
+  Pack converter only: the
+  parser's model, the bookkeeper's effort dial, 4,000 tokens
+  (`MAX_TOKENS.creator`), structured output with a schema from
+  `Pack.jsonSchemaFor(kind)` for each of seven calls in order (places,
+  people, factions, threads, rumours, seeds, the opening), no cached block.
+  `Api.convert` is the Creator module's only model call; a refusal shows the
+  notice and changes nothing. The mock provider has `convert` too.
+- **`Api.systemFor(role)`** is how a role's system prompt is read: the role's
+  own text, then a story author's note (`prompts.parserExtra`,
+  `bookkeeperExtra`) with the short ENGINE RULES after it.
+- **The turn's gates.** `Pipeline.runTurn` refuses a turn of a story that
+  needs the player's 18+ yes and does not have it ("This story needs your
+  18+ confirmation first; start it again from the title screen, which
+  asks."), before anything of the pack reaches a prompt. `Commands.allowed`
+  answers "Not in this story." for a command the story hides, unless the
+  player allowed it for that story, Developer mode is on, or the game is a
+  test of a draft.
+- **Saves.** Envelopes are `saveVersion` 2 with a `packRef`; exports embed
+  the pack, and every pack read from outside (a Library import, a save's
+  embedded pack, a draft read back) goes through `Pack.cleanStrings` and a
+  check. Upgrade 11 "A story pack" attaches the built-in pack to an older
+  Low Water save (no call).
+- **`Pipeline.lastCtx`**, `Pipeline.setClock` and `Pipeline.hooks.nextTier`
+  serve the Dev tab, which changes a game only through the engine's own
+  paths.

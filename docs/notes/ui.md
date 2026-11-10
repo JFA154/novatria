@@ -11,7 +11,8 @@ to the scratchpad `shots2/` folder (set `UI_SHOTS` to put them elsewhere).
 
 ### First five minutes
 - **Title**: name, a one-line tagline (`TOWN_DATA.tagline` if the town has
-  one, else a generic line), then the buttons, so New game is above the fold
+  one, else a generic line; historical: since wave 37 the title shows the
+  selected story's title, author, rating and premise), then the buttons, so New game is above the fold
   at 375x740 and 1280x800. Under them a chip: "Offline demo — canned replies
   · Add API key" or "Playing with Claude · claude-opus-5-5" (or "Playing
   with Claude, no API key yet · Add API key"). Then the first two sentences
@@ -234,7 +235,8 @@ to the scratchpad `shots2/` folder (set `UI_SHOTS` to put them elsewhere).
   stamped `heardDay` itself: the UI stamps it today in State's listener (new
   ones get the day, ones heard before a load get `null`).
 - content: `Game.data.GOAL_PRESETS` (strings, or `{ text }`), and
-  optionally `TOWN_DATA.tagline` for the title.
+  optionally `TOWN_DATA.tagline` for the title (historical names; since wave
+  37 the pack's `player.goalPresets`, and no tagline).
 
 ## README / BUILD_PLAN text to fold in
 - How to play, step 3: "The first time you start a game the game asks how
@@ -1943,3 +1945,34 @@ different.", then "Do it 7 then, the more detailed the better." Tests:
   heels, `Rel.words('owed', net)` owes you a lot / owes you one / even /
   you owe them one / you owe them a lot. Two columns at 375, as before.
 - **Debug** prints the seven on each person's line.
+
+## Wave 37 (9 to 10 Nov 2026): Creator Mode's screens
+
+- **Title.** A Create button opens Creator Mode. The title and New game show
+  the selected story (Library's Play this story): its title, author, rating
+  and premise. Save / Load rows and the Continue line read "title · author ·
+  rating".
+- **Creator Mode** (`#screen-creator`): the Library ("Your stories": story
+  cards with the title in Literata, author and version, a rating chip, the
+  premise, a completeness ring, a badge, Play this story and Open in
+  Creator, Export, Duplicate and Delete; New story and Import a .json in the
+  toolbar; an empty state; a persistent note when packs cannot be kept on
+  the device) and the editor (a header card with the token meter, Undo,
+  Redo, Test and Save; the tab strip Overview, World, Player, Opening,
+  Narrator, Directions, Rules, Freedom, Prompts, JSON, Prompt view, Test; a
+  sticky Back and Save bar on the phone). Its ids are in `UI.IDS`; its CSS
+  is the section "Creator Mode (wave 37)", decision L's design system.
+- **Sheets.** `#creator-share` (the import warnings with Import anyway, and
+  the share sheet: Download, Share, Copy JSON) and `#consent` (the 18+ ask:
+  title, rating chip, content warnings, "I am 18 or older", Not now and
+  Continue), filled with textContent only.
+- **Settings.** Developer mode; the Play controls Permadeath, Show dice
+  rolls, Narration style, the intimate scene direction and Allow cheats
+  anyway are per story, each with its layer noted; "You confirmed you are 18
+  or older for this story." with Forget.
+- **In play.** A test of a draft shows "Testing: <title>" with Back to the
+  editor above the feed; the game panel's Dev tab (after Debug) in a test
+  or with Developer mode on. From milestone 9 the toolbar's time, the feed's
+  day dividers and the map's title use the pack's `setting.phaseLabels`.
+- **The mobile audit** covers the Library and every editor tab at 375 and
+  390 with every fold open.

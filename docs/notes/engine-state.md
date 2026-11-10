@@ -1,5 +1,12 @@
 # Engine-state: wave 1 of the review fixes
 
+> Wave 37 (Creator Mode): the names below are of their time. The content
+> block, `TOWN_DATA` and its neighbours, is now the built-in story pack
+> `packs/low-water.json` (read through `Pack`), and `tests/validate-town.cjs`
+> and `tests/mentions.cjs` are now `tests/validate-pack.cjs` with the page's
+> own validator (`Pack.validate`, the `engine.mention.*` rules). See
+> `docs/notes/creator-mode.md`.
+
 Region: the State module (`index.html`, `// ===== Module: State =====` to
 `// ===== Module: Town =====`), plus two seams CONTRACTS gives this area:
 `Town.resolveLooseEnd` (the loose end's obligation copied onto its seed,

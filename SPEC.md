@@ -20,9 +20,9 @@ Non-negotiable rules:
 2. **Code rolls the dice.** The LLM never decides success or failure. It receives the result and must narrate it faithfully, including failure.
 3. **Code owns all numbers.** HP, gold, inventory, attitudes, clocks and time live in state. The LLM proposes changes as JSON; code validates, clamps and applies them.
 4. **The narrator never acts for the player.** It never decides what the player character says, thinks, feels or does beyond what the player typed.
-5. **Short turns.** Default narration is 2 to 4 sentences, ending at the first moment that needs the player's input. No option menus.
+5. **Short turns.** Default narration is 2 to 4 sentences, ending at the first moment that needs the player's input. No option menus. *Per pack, within the fixed rules (wave 37):* a story pack may set its own lengths, guide and example turns (`narration`); this is the engine's default, and the rules no pack can change are in `docs/CREATOR_GUIDE.md`, "The fixed rules no pack can change".
 6. **No unearned surprises.** Every surprise must trace back to something already in state: a hidden seed, a faction clock, an NPC's goal, or the player's own past actions or backstory.
-7. **Content:** mature themes, violence and romance are fine; an intimate scene between adults who said yes is written out, sensual and not graphic (no anatomical close-ups), at its own length, and ends on them afterwards.
+7. **Content:** mature themes, violence and romance are fine; an intimate scene between adults who said yes is written out, sensual and not graphic (no anatomical close-ups), at its own length, and ends on them afterwards. *Per pack, within the fixed rules (wave 37):* a story pack sets its rating, content warnings and intimate scene direction, and a story rated adult (or one with its own intimate direction) asks the player's 18+ yes before it plays; nobody under 18 is ever a romance, whatever a pack says (`docs/CREATOR_GUIDE.md`, "The fixed rules no pack can change").
 8. **Everything persists.** Nothing important lives only in chat history. If it matters later, it is in state.
 
 ## 2. Tech setup
@@ -86,11 +86,13 @@ Rules for state:
 
 ## 4. The starter town
 
-The town is written once, as data, and locked. Put it in a clearly marked `TOWN_DATA` constant near the top of the file so I can edit it by hand. Claude Code writes the first version at build time following these rules; it is not generated during play.
+*Wave 37:* the starter town is now the built-in story pack, `packs/low-water.json` (Low Water: Lockett's Ferry, the present-day river town the setting change of 27 Oct made of this brief), inlined into `index.html` and edited as a file or as a copy in Creator Mode. `TOWN_DATA` and `TABLES` below are the historical names of its `world` and `world.tables`; any other pack is a starter town of its own, written to the same rules (`docs/CREATOR_GUIDE.md`).
+
+The town is written once, as data, and locked. Put it in a clearly marked `TOWN_DATA` constant (historical: now the pack file) near the top of the file so I can edit it by hand. Claude Code writes the first version at build time following these rules; it is not generated during play.
 
 **Setting:** grounded low fantasy. A small trade town of about 800 people on a river crossing. Magic is rare, rumoured and never casual. No prophecies, chosen ones, dark lords or hooded mysterious strangers.
 
-**Contents of `TOWN_DATA`:**
+**Contents of `TOWN_DATA` (historical name; the pack's `world`):**
 
 - **8 to 10 locations**, connected by exits: e.g. a tavern, market square, docks, temple, a noble's house, a smithy, the town watch house, a poor quarter, the road out. Each has a two-sentence description and a schedule of which NPCs are there in each time phase.
 - **12 to 15 named NPCs**, each with role, faction, look, voice, 2 personality traits, a goal, and a secret. At least half the secrets must connect to another NPC or a faction. Voices must be clearly different from each other.
@@ -183,7 +185,7 @@ The town keeps moving whether or not the player is involved. All of this runs in
 **World tick (on every phase change):**
 
 1. **Faction clocks.** Each faction rolls d6; on 5 or 6 its clock fills one segment. Player actions can add or remove at most 1 segment per turn (via the bookkeeper's diff), e.g. sabotaging the smugglers removes one.
-2. **Clock complete.** Apply its `onComplete` outcome to state as concrete changes: a location closes, an NPC is arrested or leaves, prices rise, a new thread opens. Add a rumour describing it. Each faction has 2 or 3 clocks in sequence in `TOWN_DATA`; the next one starts when the last finishes.
+2. **Clock complete.** Apply its `onComplete` outcome to state as concrete changes: a location closes, an NPC is arrested or leaves, prices rise, a new thread opens. Add a rumour describing it. Each faction has 2 or 3 clocks in sequence in `TOWN_DATA` (historical name; the pack's `world.factions`); the next one starts when the last finishes.
 3. **Schedules.** NPCs move to their location for the new phase.
 4. **Grudges and favours.** Any NPC with attitude ≤ −60 and a memory of weight 3 plants a seed to act against the player within 2 to 5 days, using a template list (report them to the watch, raise prices, send someone, spread a rumour). Attitude ≥ 60 plants a favour seed the same way (a tip-off, a discount, a warning).
 5. **News spreads.** Off-screen events become rumours. When the player next talks to someone likely to know, the narrator packet includes one fresh rumour as something that NPC might mention.
@@ -194,7 +196,7 @@ The town keeps moving whether or not the player is involved. All of this runs in
 
 ## 9. Writing style guide
 
-Store this in a `STYLE_GUIDE` constant and put it in the narrator's system prompt word for word.
+Store this in a `STYLE_GUIDE` constant and put it in the narrator's system prompt word for word. *Wave 37:* this guide (and the casual one beside it) is the engine's default; a story pack may replace it with a guide, banned phrases and example turns of its own (`narration`), sent with the engine's rules after them.
 
 ```
 You narrate a text RPG. Write like a sharp, economical novelist, not like an AI.
@@ -229,6 +231,8 @@ Also avoid: lists of three adjectives, rhetorical questions, and starting with "
 **Code-side checks:** reject and regenerate if the narration contains a banned phrase (case-insensitive), runs over 90 words (150 in zoom), contains "What do you do", or starts with "As you".
 
 ## 10. Prompts and tool schemas
+
+*Wave 37:* each prompt below may carry a story author's note in a labelled slot (CREATOR NOTES, then ENGINE RULES, which outrank it), and a direction for a moment goes on its own DIRECTION line with an ENGINE line after it; with no author text the prompts are exactly as below. See `docs/CREATOR_GUIDE.md`, "The fixed rules no pack can change", rule 7.
 
 ### Parser: tool `parse_action`
 
@@ -351,19 +355,22 @@ Typed in the input box. Show a small autocomplete list when the player types `/`
 
 **Story points:** start with 2, earn 1 when a thread resolves or on a natural 20. Max 3.
 
+*Wave 37:* a story pack may hide `/undo` and the cheats (and `/fact`); typing one answers "Not in this story." The player may have them back for that story in Settings ("Allow cheats anyway"), and Developer mode always has them.
+
 ## 13. Saving, settings and cost control
 
 **Saving**
 
 - `localStorage`: one autosave (after every turn) plus 3 named slots. Wrap every read and write in try/catch and show a warning if storage fails.
 - **Export** a save as a `.json` file download and **Import** one from a file, so saves can move between laptop and phone.
-- Saves include the full state and the town data, so editing `TOWN_DATA` later doesn't break old saves.
+- Saves include the full state and the town data, so editing `TOWN_DATA` (historical; since wave 37 the story pack) later doesn't break old saves. Since wave 37 a save also names its pack and keeps a frozen copy of it, and an exported save carries the whole pack.
 
 **Settings**
 
 - API key, with a "Remember on this device" checkbox (`localStorage` if ticked, `sessionStorage` if not). The key is never included in exported saves.
 - Narrator model and parser model (text fields with the defaults filled in).
 - Show dice rolls (on/off), Permadeath (off by default), Theme (dark/parchment), Text size (S/M/L).
+- *Wave 37:* a per-story layer above the story pack: Show dice rolls, Permadeath, Narration style, the intimate scene direction and Allow cheats anyway are kept for each story on its own (`docs/CREATOR_GUIDE.md`, "Who wins: the engine, the pack or the player").
 
 **Cost control**
 
@@ -377,7 +384,7 @@ Typed in the input box. Show a small autocomplete list when the player types `/`
 Build and test one milestone at a time. Stop after each so I can try it.
 
 1. **Shell.** Responsive layout, themes, story feed, input bar, side panel and mobile sheet using dummy data. Save, load, export and import working.
-2. **World and state.** `TOWN_DATA`, `TABLES`, seeded RNG, `State.apply()` with all validation, character creation. Panels show real data.
+2. **World and state.** `TOWN_DATA`, `TABLES` (historical names; since wave 37 the built-in story pack), seeded RNG, `State.apply()` with all validation, character creation. Panels show real data.
 3. **Pipeline with a fake API.** Mock parser, narrator and bookkeeper responses so the full turn loop, dice, time, commands and `/undo` can be tested without spending tokens. Keep the mock mode as a Settings toggle.
 4. **Real API.** Parser, streamed narrator, bookkeeper, style check and regeneration, error handling, settings.
 5. **Living world.** World tick, faction clocks, seeds and due events, grudges and favours, rumours, chronicle compression, debug view.

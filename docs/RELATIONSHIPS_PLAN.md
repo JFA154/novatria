@@ -1,5 +1,9 @@
 # People who remember: the relationship system plan
 
+> Wave 37 (Creator Mode): `TOWN_DATA` and `validate-town.cjs` below are the
+> names of their time; the town is now `packs/low-water.json`, validated by
+> `tests/validate-pack.cjs` (see `docs/notes/creator-mode.md`).
+
 1 Nov 2026 · a plan being built. **Tiers A and B have landed (waves 26 to
 32), and the branch is merged with main's Objectives tab (its wave 26, 3 Nov
 2026); wave 33 (3 Nov 2026, from the owner's own save) makes a flirt land

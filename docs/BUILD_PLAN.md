@@ -9,16 +9,24 @@ organised and the shared data contract).
 - One file: `index.html` at the repo root. Inline CSS and vanilla JavaScript.
   No build step, no framework, no bundler, no backend. Opening the file from
   disk must work (`file://`), so no module scripts and no fetches of local files.
-- Script organised into clearly delimited sections, one per module, in this
-  order: `TOWN_DATA`, `TABLES`, `BACKGROUNDS`, `FLAWS`, `LOOSE_ENDS`,
-  `GRUDGE_TEMPLATES`, `FAVOUR_TEMPLATES`, `STYLE_GUIDE`, `EXAMPLE_TURNS`,
-  then modules `Rng`, `Dice`, `Tables`, `State`, `Rel`, `Town`, `World`, `Style`,
-  `Api`, `Pipeline`, `Storage`, `UI`, `Commands`, `App`. Each module starts
-  with a banner comment: `// ===== Module: State =====`.
+- Script organised into clearly delimited sections, one per module. Since
+  wave 37 (Creator Mode) the story is not script at all: the built-in story
+  pack is an inert `<script type="application/json" id="pack-low-water">`
+  element (`packs/low-water.json`, inlined by `tests/pack-inline.cjs`), then
+  the style guides and example turns (the engine's narration defaults), then
+  modules `Pack`, `PackRules` (with `PackConsent`, `PackBudget`,
+  `PackImport`, `PackConvert` after it), `Rng`, `Dice`, `Cards`, `Tables`,
+  `State`, `Rel`, `Town`, `World`, `Style`, `Api`, `Upgrade`, `Pipeline`,
+  `Storage`, `UI`, `Creator`, `Commands`, `App`. Before wave 37 the order
+  began with the content constants `TOWN_DATA`, `TABLES`, `BACKGROUNDS`,
+  `FLAWS`, `LOOSE_ENDS`, `GRUDGE_TEMPLATES`, `FAVOUR_TEMPLATES` (historical
+  names; now the pack's `world` and `player`). Each module starts with a
+  banner comment: `// ===== Module: State =====`.
 - Expose every module on `window.Game` (`Game.State`, `Game.Dice`, ...) so
   Playwright tests can drive the engine with `page.evaluate`. Also expose
   `Game.state` (the live state object, read-only by convention) and
-  `Game.town` (the loaded `TOWN_DATA`).
+  `Game.town` (the running game's town: a working copy of its pack's
+  `world`; before wave 37, the loaded `TOWN_DATA`).
 - Only one Google Font (Literata), loaded with a `<link>`; fall back to
   Georgia. Nothing else external. The font will not load in this sandbox and
   that is fine.
@@ -33,6 +41,8 @@ SPEC.md             the design spec (do not edit)
 docs/API_NOTES.md   Claude API wire format (do not edit)
 docs/BUILD_PLAN.md  this file
 docs/CAST.md        the cast roster, written by tests/cast-doc.cjs (never by hand)
+docs/CREATOR_GUIDE.md  how to write a story pack; its field list written by tests/guide-doc.cjs
+packs/              story packs: low-water.json (the built-in story, inlined into index.html) and starport.json (a sample to import)
 docs/notes/         one file per area of the 30 Oct 2026 review fixes (direction change 10)
 content/            staging area for authored data; deleted once inlined
 tests/              Playwright scripts, CommonJS (.cjs), run with plain node
@@ -50,10 +60,20 @@ dependency on Playwright. Open the game with
 
 ## Shared data contract
 
+**Since wave 37 (Creator Mode) the contract's home is the story pack format.**
+A pack's `world` is what this section calls `TOWN_DATA`, `world.tables` is
+`TABLES`, and `player` holds the character creation data; the format's
+definition is `Pack.SCHEMA` in `index.html` (which the editor's forms and
+the validator both read), and every field, with an example, is listed in
+`docs/CREATOR_GUIDE.md` ("Every field", generated from it by
+`tests/guide-doc.cjs`). The subsections below are kept as the contract's
+history and for the effect-ops table, which is still the reference for each
+op's fields; where they and `Pack.SCHEMA` differ, the schema is right.
+
 All ids are lowercase slugs with a type prefix: `loc_`, `npc_`, `fac_`,
 `thr_`, `seed_`, `rum_`, `item_`, `cond_`, `bg_`. Ids never change.
 
-### TOWN_DATA
+### TOWN_DATA (historical name; now the pack's `world`)
 
 ```js
 const TOWN_DATA = {
@@ -203,7 +223,8 @@ Effect ops (applied by `World.applyEffects` through `State.apply`):
 | `propagate` | `npcId` (or `"{npcId}"` in a template), `event` (one that travels: not `Rel.STAYS`), `factor?` (0.1..2), `via?` (`now`, `overnight`, `morning`, `meet`), `text?` | wave 32: `Rel.propagate` from that person along their ties as if the event had been done to them, one hop: queued as hearsay by each tie (or `via`), or `now` heard at once; the grudge templates' gossip ([7], [8], [11]) |
 
 `State.EFFECT_OPS` is the list (33 with `placeItem`, `obligationPaid`, `socialEvent`, since wave 29 `owedSettle` and `leverageSet`, and since wave 32 `tieDelta` and `propagate`),
-and `tests/validate-town.cjs` keeps the same list in `OPS`. Wave 27's
+and the pack validator reads it directly (before wave 37,
+`tests/validate-town.cjs` kept a copy in `OPS`). Wave 27's
 `relSettle`, `relTurn`, `relAsk` and `relStart` are engine-only keys of
 `State.apply` (like `relSet` and `relDay`), not effect ops: content never
 writes them. `socialEvent` also takes `public?` from content (it made news:
@@ -215,7 +236,7 @@ the town's reputation moves by the event's row) and, from the engine,
 `World.fillEffects` before `State.apply`, which refuses an id that still
 starts with `{`. In content they appear only in loose ends and templates.
 
-### TABLES
+### TABLES (historical name; now the pack's `world.tables`)
 
 ```js
 const TABLES = {
@@ -321,7 +342,7 @@ npc.memories[i].seen                // wave 30: false for a line planted where t
 
 ### Map
 
-Optional. `TOWN_DATA.map` and each location's `map` draw the town map at the
+Optional. `world.map` (`TOWN_DATA.map` before wave 37) and each location's `map` draw the town map at the
 top of the Places tab (`UI.renderMap`, an inline SVG; numbers are viewBox
 units):
 
@@ -339,8 +360,8 @@ location.map = { x, y, label, anchor }; // label 1-3 words; anchor n | s | e | w
 ```
 
 Roads between places come from `exits` (one per connected pair, a gentle
-curve toward open space, never into the river). Once `TOWN_DATA.map` exists,
-`tests/validate-town.cjs` wants `map` on every location, inside the bounds,
+curve toward open space, never into the river). Once `world.map` exists,
+the pack validator (`tests/validate-pack.cjs`; `validate-town.cjs` before wave 37) wants `map` on every location, inside the bounds,
 places at least 28 apart. A place without `map` (made in play, or a town
 without map data) goes beside its first mapped exit, else on a grid. People
 the player has met show by where they were last seen (`state.seen`). A tap on
@@ -382,17 +403,23 @@ under 18, set aside for the minor rule).
 | `Tables` | minor location / item / complication / weather from `TABLES` via `Rng`; `price` (with the player's own factor). No person maker |
 | `State` | `newGame(town, character)`, `apply(diff)`, `snapshot()`, `restore()`, the undo and redo stacks (`undoSteps`, `redoSteps`, `undoRecord`, `resumeUndo`), helpers like `npcsAt(locId, phase)`, `entityById(id)`, `reputationTier()`; the calendar (`season`, `weekday`, `dateLine`, `isClosed`, `isBanned`), `restQuality`, `obligations`, `tickObligations`, `expireDaily`, `news` |
 | `Rel` | how people feel about the player (liking, trust, fear, knows-you, spark, owed), leverage, the event table, trait axes, decay, stance, cue and reasons, the minor rule; tier B ties and hearsay plans. Pure: State's ops write what it returns (wave 26: `recompute`, `applyEvent`, `landTo`, `stance`, `isMinor`, `eligible`, `rng`, the frozen tables; wave 31: `tiesPlan`, `propagate`, `carry`, `settleSpread`, `household`, `deliveryOf`, `tieFactor`, `arrestTies`, `TIE_KINDS`, `RELATION_KINDS`, `FACTORS`, `DELIVERY`) |
-| `Town` | loads `TOWN_DATA` into state at new game; plausibility check for `new:` targets by location type; who people mean (`matchExisting`: names, roles, tags, kin words, titles); `resolveLooseEnd` (the obligation onto the seed) |
+| `Pack` | the story pack: `builtIn`, `current`, `lookup`/`get` over the engine default, the pack and the player's per-story layer, `SCHEMA`, `validate`, `hash`, `format`, `townOf`, `idFor`, `renameId`, `freedom`, `moneyRe`; with `PackRules` (the validator's rules, by id and class), `PackConsent` (the 18+ gate), `PackBudget` (the cached-prompt estimate), `PackImport` (`importText`, `cleanStrings`) and `PackConvert` (the converter's schemas) after it (wave 37) |
+| `Town` | loads the pack's `world` (`TOWN_DATA` before wave 37) into state at new game; plausibility check for `new:` targets by location type; who people mean (`matchExisting`: names, roles, tags, kin words, titles); `resolveLooseEnd` (the obligation onto the seed) |
 | `World` | world tick (clocks with `requires`/`alt` and news, missed obligations, schedules, grudges and favours, town events and the epilogue, a new morning's weather, conditions and drift), seed firing, `applyEffects`, `fillEffects`, `knockDown`, `arrestPlayer` |
 | `Style` | banned-phrase and length checks, hard and soft problems, invented names |
 | `Api` | real provider and mock provider behind one interface: `parse(packet)`, `narrate(packet, onDelta)`, `bookkeep(packet)`, `chronicle(entries)`; usage accounting (1-hour cache writes); timeouts, `abort()`, retries, `checkKey()`, `prewarm()` |
 | `Pipeline` | the 13 steps of SPEC.md section 6; the status listener, `abort()`, the one-deep queue, the card game, `/recap`, the epilogue turn |
 | `Storage` | autosave (and the previous autosave), slots, export, import, settings and presets (key storage per SPEC.md section 13), the second-tab guard, the undo stack kept in IndexedDB |
 | `UI` | rendering, feed, panels, sheet, screens, autocomplete, the ⋯ actions, the status line |
+| `Creator` | Creator Mode (wave 37): the Library of story cards, the editor (forms from `Pack.SCHEMA`, drafts, Undo/Redo, Save as pack), the World and Player lists, the dial tabs, the JSON tab, Prompt view, Test, the Dev overlay and the Story to Pack converter |
 | `Commands` | the `/` commands |
 | `App` | boot, screen routing |
 
 ## Milestones and who builds them
+
+(The original build of 27 Oct 2026. The content names here are the
+constants of then, `TOWN_DATA` and the rest; since wave 37 they are the
+built-in story pack.)
 
 Agents do not commit. The coordinator reviews and commits after each
 milestone so every milestone is a checkout-able state.
@@ -473,6 +500,13 @@ The real town is Ommelveer (`content/town-data.js`, validated by
     nobody carries them yet); `council` marks the five seats for people only.
 
 ## Setting change: modern day (owner direction, 27 Oct)
+
+(History, here and in the direction changes below: these entries name the
+content as it was then, the `TOWN_DATA` constant and its neighbours,
+checked by `tests/validate-town.cjs` and `tests/mentions.cjs`. Since wave
+37 the content is `packs/low-water.json`, checked by `tests/validate-pack.cjs`
+with the page's own validator, whose `engine.mention.*` rules replaced
+`mentions.cjs`.)
 
 The owner wants the game set in the present day, not a fantasy era: modern
 but not futuristic. This supersedes the "grounded low fantasy" line in
@@ -2015,3 +2049,29 @@ talking, I can direct it to one person or all."
      `tests/wave35-romance-track.test.cjs`, waves 26, 29, 30, 33 and 34,
      examples 10 and 15, and `tests/relationships.test.cjs` (its checks
      and fuzz carry `rel.m`).
+12. **Creator Mode** (wave 37, 9 to 10 Nov 2026). The owner: "convert Low
+   Water to a JSON so it can be used as a story pack. No hard coded story
+   allowed.", and for the editor, "ideally as little as possible generative
+   AI in the creator mode", and the second sample "a space station or
+   starport". The town became the built-in story pack
+   (`packs/low-water.json`, inlined as an inert JSON element; the eight
+   content constants are gone, read through `Pack` from the pack that
+   plays), with one validator in the page (`Pack.validate`, rules in
+   `PackRules` with ids and classes; `tests/validate-pack.cjs` replaced
+   `validate-town.cjs` and `mentions.cjs`). Every Low Water assumption the
+   engine held became pack data or generic (`docs/CREATOR_GUIDE.md`, "What
+   the engine used to assume about Low Water"). Dials with engine defaults
+   (`narration`, `directions`, `rules`, `freedom`, `prompts`) and the
+   player's per-story layer in Settings (`settings.perPack`,
+   `SETTINGS_VERSION` 3). Saves name their pack (`saveVersion` 2,
+   `packRef`), keep a frozen copy by hash in IndexedDB (`novatria` v2:
+   `packs`, `drafts`, `frozen`), and exports embed it; Upgrade 11 "A story
+   pack". The Creator screen (Library, editor, JSON tab, Prompt view, Test,
+   the Dev overlay), import and export by file with the share sheet, the
+   rating gate (Low Water rated adult), and the Story to Pack converter
+   (the `creator` role, extraction only). The intimacy roll is on in Low
+   Water too (the owner's decision). The guide is `docs/CREATOR_GUIDE.md`;
+   the engineering notes, deviations and phone checklist are
+   `docs/notes/creator-mode.md`; tests: `tests/wave37-*.test.cjs`,
+   `tests/validate-pack.cjs`, `tests/pack-inline.cjs --check`,
+   `tests/guide-doc.cjs --check`.
