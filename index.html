@@ -29994,7 +29994,28 @@ const Api = (() => {
   const MOCK_GAME_WORDS = /\b(?:(?:a|another|one more) (?:hand|game|round) of (?:five[\s-]*card\s+)?(?:draw|hold[\s'-]*'?em|holdem|texas hold[\s'-]*'?em)|(?:play|playing|let's play|deal|deal me in at|deal us in at|i'll play)\s+(?:some\s+)?(?:texas\s+)?(?:hold[\s'-]*'?em|holdem|draw poker|five[\s-]*card(?: draw)?)|deal (?:everyone|everybody|us all|all of us|the (?:whole )?table) in|heads[\s-]*up\s+(?:game|hand|poker|hold[\s'-]*'?em|holdem|draw|with)|(?:play|deal|let's play)\s+(?:it\s+)?heads[\s-]*up)\b/;
   // Wave 14 (QA #14): "a hand of cards", "sit in" ("Mind if I sit in?", "Can I sit in for a hand?"; not "sit in the corner"); and a game named in a short line ("hold'em? no, five card draw", "texas hold'em, twenty bucks": MOCK_GAME_NAME).
   const MOCK_GAME_NAME = /\b(?:five[\s-]*card\s+draw|texas\s+hold[\s'-]*'?em|hold[\s'-]*'?em|holdem|draw\s+poker)\b/;
-  const MOCK_GAMBLE = /\b((?:a|another|one more) hand of (?:cards|poker)|sit(?:s|ting)?(?: down)? in(?=\s*(?:[.!?,]|$|for\b|with\b|tonight\b|today\b|this\b))|gamble|gambles|gambling|poker|deal me in|deal me (?:another|a hand|one more)|deal (?:again|another|one more)|(?:another|one more) hand|play (?:a|another|one more) hand|sit in on|sit (?:down )?(?:in )?at the (?:card|poker) (?:table|game)|buy into the game|join (?:the |a )?(?:card|poker|dice) game|shoot dice|roll dice|play (?:a hand of )?(?:cards|poker)|plays (?:cards|poker)|ante|antes|anted|ante up|(?:i'm|i am|count me) in for(?= (?:\$|\d|(?:five|ten|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundred)\b))|raises? (?:you |it |the pot )?(?:\$\s?\d+|\d+)|(?:i'm|i am|i go|go|going) all[ -]in\b|all[ -]in(?= for (?:\$|\d))|put (?:\$\s?\d+|\d+\s*(?:dollars|bucks)) (?:in|into the pot|in the pot|on the table)(?=\s*(?:[.!?,]|$|and\b)))\b|^\s*(?:let's play(?: cards| poker| a hand)?|(?:i\s+)?raise|all[ -]in)\s*[.!?]*\s*$/;
+  /* Wave 37, Creator Mode, task M9-B: the money in a bet and in a sum handed
+     over is the pack's (Pack.moneyRe: "$20" or "20 cr", its money words),
+     so the demo sits a starport's player down and counts their credits as it
+     does Low Water's dollars. Built once per money; Low Water's gamble
+     pattern is the old literal character for character. gamble: the words
+     that sit down at the card table; sum: an amount, figures with the symbol
+     (captured first) or with a money word (captured second). */
+  const mockMoneyCache = new WeakMap();
+  function mockMoney() {
+    const R = Pack.moneyRe;
+    const hit = mockMoneyCache.get(R);
+    if (hit) return hit;
+    const SYM = R.symbol;
+    const SUM = R.before ? `${SYM}\\s?\\d+` : `\\d+\\s?${SYM}`;
+    const WORDS = R.wordList;
+    const out = {
+      gamble: new RegExp(String.raw`\b((?:a|another|one more) hand of (?:cards|poker)|sit(?:s|ting)?(?: down)? in(?=\s*(?:[.!?,]|$|for\b|with\b|tonight\b|today\b|this\b))|gamble|gambles|gambling|poker|deal me in|deal me (?:another|a hand|one more)|deal (?:again|another|one more)|(?:another|one more) hand|play (?:a|another|one more) hand|sit in on|sit (?:down )?(?:in )?at the (?:card|poker) (?:table|game)|buy into the game|join (?:the |a )?(?:card|poker|dice) game|shoot dice|roll dice|play (?:a hand of )?(?:cards|poker)|plays (?:cards|poker)|ante|antes|anted|ante up|(?:i'm|i am|count me) in for(?= (?:${SYM}|\d|(?:five|ten|fifteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundred)\b))|raises? (?:you |it |the pot )?(?:${SUM}|\d+)|(?:i'm|i am|i go|go|going) all[ -]in\b|all[ -]in(?= for (?:${SYM}|\d))|put (?:${SUM}|\d+\s*(?:${WORDS})) (?:in|into the pot|in the pot|on the table)(?=\s*(?:[.!?,]|$|and\b)))\b|^\s*(?:let's play(?: cards| poker| a hand)?|(?:i\s+)?raise|all[ -]in)\s*[.!?]*\s*$`, 'i'),
+      sum: new RegExp(R.before ? `${SYM}\\s?(\\d+)|\\b(\\d+)\\s*(?:${WORDS})\\b` : `(?<![\\d.,])(\\d+)\\s?${SYM}|\\b(\\d+)\\s*(?:${WORDS})\\b`, 'i')
+    };
+    mockMoneyCache.set(R, out);
+    return out;
+  }
   const GAMBLE_PLACES = ['bar', 'tavern', 'inn', 'casino'];
   /* Wave 15 (QA N7): softer ways to sit in, read as a bet only where a
      dealer is at the card table now (mockDealerHere): "Mind if I join you
@@ -30008,6 +30029,12 @@ const Api = (() => {
      "I'm in trouble" or "I'm in for a long night". */
   const MOCK_COUNT_IN = /\b(?:count (?:me|us)|i'm|i am|we're) in(?: too| again| on (?:the|this|that|your) (?:game|hand|next one)| for (?:a|another|one more|the next) (?:hand|game|round))?(?=\s*(?:[.!?,;:]|$))/;
   const MOCK_CARD_NAMED = /\b(?:cards?|hands?|poker|table|game|round|deal|hold[\s'-]*'?em|holdem)\b/;
+  /* The stake a bet that names none puts up (wave 37, Creator Mode, task M9-B): the story's rules.gamble.stake, 20 by default, as the engine deals it. */
+  function mockStake() {
+    let v;
+    try { v = Pack.get('rules.gamble.stake'); } catch (e) { v = undefined; }
+    return Number.isInteger(v) && v > 0 ? v : 20;
+  }
   /* A dealer at the card table where the player is (the demo's parser, wave 15). */
   function mockDealerHere(packet) {
     const l = packet.location ? State.loc(packet.location.id) : null;
@@ -30028,7 +30055,7 @@ const Api = (() => {
      a bet, a hand or the game named, a join; l is the line in lower case
      with a space at each end. */
   function mockSitWords(l, raw, packet) {
-    return MOCK_GAMBLE.test(l) || MOCK_GAME_WORDS.test(l) || (MOCK_GAME_NAME.test(l) && l.split(/\s+/).filter(Boolean).length <= 8) || ['bet', 'bare'].includes(Style.betTalk(raw)) || mockJoins(l, packet);
+    return mockMoney().gamble.test(l) || MOCK_GAME_WORDS.test(l) || (MOCK_GAME_NAME.test(l) && l.split(/\s+/).filter(Boolean).length <= 8) || ['bet', 'bare'].includes(Style.betTalk(raw)) || mockJoins(l, packet);
   }
   /* A sit-down with the dealer, the table or the hand named after it or
      before it (wave 20, QA N5): "all in, Curtis", "Curtis, all in", "I bet
@@ -30067,7 +30094,6 @@ const Api = (() => {
     }
     return out;
   }
-  const MOCK_STAKE = /\$\s?(\d+)|\b(\d+)\s*(?:dollars|bucks)\b/;
   /* The demo's read of an ask for table stakes (wave 19, QA D1): the
      words plainly about the stakes (Pipeline.STAKES_ASK) where a dealer
      deals, aimed at him: his name or his game or table named
@@ -30256,7 +30282,8 @@ const Api = (() => {
       || inv.filter(i => shared(i) > 0).sort((x, y) => shared(y) - shared(x) || errandThing(y) - errandThing(x))[0];
     const where = (packet.location && packet.location.type) || '';
     // A bet at cards, a sit-down (the gamble branch below; wave 20, QA N5: a betting word with the dealer, the table or the hand named too).
-    const sits = (mockSitWords(lower, input, packet) || mockBetNamed(lower, packet)) && GAMBLE_PLACES.includes(where) && !aboutAt;
+    // Wave 37, Creator Mode, task M9-B: or any place whose card table has its dealer here now (a pack's cantina or saloon), not only the types a game runs at.
+    const sits = (mockSitWords(lower, input, packet) || mockBetNamed(lower, packet)) && (GAMBLE_PLACES.includes(where) || mockDealerHere(packet)) && !aboutAt;
     // A search for something not lying here rolls (the engine makes it only on a success; wave 3, playtest N12).
     if (vague) { out.actionType = 'search'; out.timeCost = 'short'; }
     else if (thing && seek) { out.actionType = 'search'; out.timeCost = 'short'; if (!lying) roll('wits', 'normal'); }
@@ -30285,9 +30312,10 @@ const Api = (() => {
     else if (has(/\b(insult|insults|mock|mocks|sneer at|curse at)\b/)) { out.actionType = 'intimidate'; out.targets = target(); out.timeCost = 'instant'; }
     else if (sits) {
       // The engine deals the hand: no roll here, and the stake goes in the summary.
-      const st = MOCK_STAKE.exec(lower);
+      const st = mockMoney().sum.exec(lower);
       out.actionType = 'gamble';
-      out.summary = `bets $${st ? parseInt(st[1] || st[2], 10) : 10} at cards`;
+      // Wave 37, Creator Mode, task M9-B: in the pack's money, and a bet that names no stake puts up the story's (rules.gamble.stake, as Pipeline deals it), not a flat ten.
+      out.summary = `bets ${money(st ? parseInt(st[1] || st[2], 10) : mockStake())} at cards`;
       out.timeCost = 'short';
       out.targets = target();
     }
@@ -30382,8 +30410,9 @@ const Api = (() => {
   /* Something asked of the player (wave 26, the demo's one deterministic
      case): "what do you want from me" or "what do you need" said in Say mode
      to someone present, with no roll or a roll that succeeded. The demo
-     narration has them ask for the outboard part by the day after tomorrow
-     ("Royce Pittman wants the outboard part by Day 3."), and the demo
+     narration has them ask for a thing of their trade (mockAskThing) by the
+     day after tomorrow ("Royce Pittman wants a five-gallon can of outboard
+     gas by Day 3."), and the demo
      bookkeeper records the seed (State makes it an ask). Returns { npc, day,
      thing } or null. */
   const MOCK_ASK = /\bwhat (?:do|would) you (?:want|need)\b/i;
@@ -30394,7 +30423,25 @@ const Api = (() => {
     if (!MOCK_ASK.test(String(c.input || '').replace(/[’‘]/g, "'"))) return null;
     const n = State.npc(sp.to);
     if (!n || !(c.presentIds || State.npcsAt(s.player.locationId).map(x => x.id)).includes(n.id)) return null;
-    return { npc: n, day: s.time.day + 2, thing: 'the outboard part' };
+    return { npc: n, day: s.time.day + 2, thing: mockAskThing(n) };
+  }
+  /* What the demo's ask is for (wave 37, Creator Mode, task M9-B; it was a
+     fixed "outboard part", a thing only Low Water's river has): a thing
+     the pack sells that can be carried and handed over (Pack.tables()
+     goods of kind good), the one whose words most name the asker's own
+     role, goal and history (the gas station's owner: a can of outboard
+     gas; a card dealer: a deck of cards), else one picked by who asks;
+     "a favour" in a pack that sells nothing. */
+  function mockAskThing(n) {
+    const goods = (Pack.tables().items.goods || []).filter(g => g && g.name && goodKind(g) === 'good');
+    if (!goods.length) return 'a favour';
+    const own = `${n.role || ''} ${n.goal || ''} ${n.history || ''}`.toLowerCase();
+    const score = g => g.name.toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 3 && !MOCK_GOOD_STOP.includes(w))
+      .filter(w => new RegExp(`(^|[^a-z])${w.replace(/s$/, '')}s?([^a-z]|$)`).test(own)).length;
+    let best = null;
+    for (const g of goods) if (score(g) > (best ? score(best) : 0)) best = g;
+    const g = best || vary(goods, n.id);
+    return `${article(g.name)} ${lowerFirst(g.name)}`;
   }
   function mockAskLine(ask) { return `${ask.npc.name} wants ${ask.thing} by Day ${ask.day}. "Bring it by ${State.weekday(ask.day)} and I'll make it worth your while."`; }
   /* The next stretch of the day, for a time someone names. */
@@ -30492,16 +30539,37 @@ const Api = (() => {
   // Words before "you" that make it the object, and the verbs secondPerson puts in the plain form after a subject "you".
   const OBJECT_BEFORE = new Set(('to at with for from on in by about of toward towards behind beside near past into onto catches finds sees meets gives invites offers warns lets shows pays asks tells calls follows stops shoves beats hires thanks watches hands sells brings sends takes leaves helps owes').split(' '));
   const PLAIN_VERB = /^(stands|sits|looks|seems|knows|wants|needs|comes|goes|keeps|says|owes|works|lives|stays|sleeps|walks|talks|means|gets|makes|takes|plays|pays|drinks|smokes|tells|asks|shuffles|carries|tries|watches|holds|hides|runs|sells|buys|waits|leaves|owns|thinks|came|gives|finds|reads|writes|hears|sees|turns)$/;
+  /* One of the pack's money (wave 37, Creator Mode, task M9-B): "a dollar", "a credit" (currency.name, singular), else "any gold". */
+  function mockMoneyUnit() {
+    const c = currency();
+    const name = c && typeof c.name === 'string' && c.name.trim() ? c.name.trim().toLowerCase().replace(/s$/, '') : '';
+    return name ? `${article(name)} ${name}` : 'any gold';
+  }
+  /* A dealer's own weekday game (wave 37, Creator Mode, task M9-B; it was
+     one dealer's by his id): when the dealer's record names "<weekday>
+     game" ("one Friday game at a time") and today is that day, "Friday
+     game", at the table the place's own words name ("the card game runs
+     at the back table": "at the back table"); else null. */
+  const MOCK_WEEKLY = /\b(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)(?: night)? game\b/;
+  function mockWeeklyGame(dealer, weekday) {
+    const m = MOCK_WEEKLY.exec(`${dealer.role || ''} ${dealer.goal || ''} ${dealer.history || ''}`);
+    if (!m || m[1] !== weekday) return null;
+    const s = State.current;
+    const l = s ? State.loc(s.player.locationId) : null;
+    const at = l ? /\bat the ((?:[a-z]+ )?table)\b/.exec(`${l.details || ''} ${l.description || ''}`) : null;
+    return `${m[1]} game${at ? ` at the ${at[1]}` : ''}`;
+  }
   /* The card game as the engine dealt it (Pipeline.gamble: ctx.gamble):
      no game and why, or the hands by name and what the player won or lost
      (wave 10: the table showed the cards, so the cards are not listed);
-     Curtis Pruett's Friday game at the back table when it is his and it is
-     Friday. */
+     the dealer's own weekday game on that day (mockWeeklyGame: Curtis
+     Pruett's Friday game at the back table). */
   function mockGamble(c, key) {
     const g = c.gamble;
     if (!g) return vary(['You buy into the next hand.', 'You get dealt into the next hand.', 'Cards go round the table, and you are in.'], key);
     if (!g.played) {
-      if (/no money/.test(g.why || '')) return "You don't have a dollar to put up, so there is no game for you tonight.";
+      // Wave 37, Creator Mode, task M9-B: the pack's money by its own name ("a dollar", "a credit").
+      if (/no money/.test(g.why || '')) return `You don't have ${mockMoneyUnit()} to put up, so there is no game for you tonight.`;
       // Wave 11 (L6, H2, L7): he will not deal to someone he caught; a bet said to someone else; when the dealer deals.
       // Someone not met yet is named as the Say picker names them (wave 12, L10).
       const dealerSaid = g.dealerLabel || g.dealerName || 'the dealer';
@@ -30515,7 +30583,8 @@ const Api = (() => {
     const day = State.current ? State.current.time.day : 0;
     let weekday = '';
     try { weekday = State.weekday(day); } catch (e) { weekday = ''; }
-    const table = dealer ? (weekday === 'Friday' && dealer.id === 'npc_curtis' ? `${dealer.name}'s Friday game at the back table` : `${dealer.name}'s table`) : 'the table';
+    const night = dealer ? mockWeeklyGame(dealer, weekday) : null;
+    const table = dealer ? (night ? `${dealer.name}'s ${night}` : `${dealer.name}'s table`) : 'the table';
     const theirs = dealer ? `${dealer.name}'s` : "the dealer's";
     const amount = money(Math.abs(g.delta | 0));
     // A hand's name in a sentence; one with a comma in it ("two pair, kings and sevens") closes with a comma before the verb.
@@ -30559,6 +30628,8 @@ const Api = (() => {
     const terms = g.rules ? `"${String(g.rules).replace(/\.$/, ',')}" ${dealer ? dealer.name : 'the dealer'} says as you sit down. ` : '';
     return terms + told + marks + street;
   }
+  // The words of a good's name that name nothing in particular ("Five-gallon can of ..."); mockGood and mockAskThing skip them.
+  const MOCK_GOOD_STOP = ['the', 'and', 'for', 'set', 'ten', 'five', 'dozen', 'cup', 'jug', 'bed', 'hot', 'old', 'round', 'pair', 'some'];
   /* A good the words name, preferring one sold here and then the cheapest
      (Town.goodsFor's scoring): "a beer" at the bar is a bottle, not a case. */
   function mockGood(text, l) {
@@ -30566,7 +30637,7 @@ const Api = (() => {
     let best = [];
     let top = 0;
     for (const g of Pack.tables().items.goods) {
-      const words = g.name.toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 3 && !['the', 'and', 'for', 'set', 'ten', 'five', 'dozen', 'cup', 'jug', 'bed', 'hot', 'old', 'round', 'pair', 'some'].includes(w));
+      const words = g.name.toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 3 && !MOCK_GOOD_STOP.includes(w));
       const score = words.filter(w => new RegExp(`(^|[^a-z])${w.replace(/s$/, '')}s?([^a-z]|$)`).test(t)).length;
       if (score > top) { best = [g]; top = score; } else if (score && score === top) best.push(g);
     }
@@ -30575,21 +30646,29 @@ const Api = (() => {
     if (own && best.includes(own) && (best.length === 1 || mockSold(own, l))) return own;
     return best.find(g => mockSold(g, l)) || best.slice().sort((x, y) => x.price - y.price)[0];
   }
-  /* What a good is (content may tag kind: good, service, drink or food). */
+  /* What a good is (content may tag kind: good, service, drink or food).
+     Wave 37, Creator Mode, task M9-B: an untagged good is read by plain
+     words any pack may use (Low Water tags every good, so its goods never
+     come here). */
   function goodKind(g) {
     if (g && ['good', 'service', 'drink', 'food'].includes(g.kind)) return g.kind;
     const n = String((g && g.name) || '').toLowerCase();
-    if (/\b(beer|whiskey|bourbon|shot|coffee|soda|energy drink)\b/.test(n) && !/\b(case|fifth|bottle of bourbon)\b/.test(n)) return 'drink';
-    if (/\b(catfish|cheeseburger|fries|biscuit|basket|sandwich|plate)\b/.test(n)) return 'food';
-    if (/\b(night at|rented|tune-up|patched|tow)\b/.test(n)) return 'service';
+    if (/\b(beer|ale|wine|whiskey|bourbon|spirits?|shot|coffee|tea|soda|energy drink)\b/.test(n) && !/\b(case|crate|fifth|bottle of bourbon)\b/.test(n)) return 'drink';
+    if (/\b(meal|basket|sandwich|plate|bowl|burger|fries|biscuit|stew|soup|noodles|bread)\b/.test(n)) return 'food';
+    if (/\b(night at|night in|rented|tune-up|patched|repair|tow|visit)\b/.test(n)) return 'service';
     return 'good';
   }
   /* Where it is sold: a good named for a place only there; else by what it is
      and the kind of place (drinks and food at a bar or the station, a room at
      the motel, bait at the landing, pawned things at the pawn shop, the rest
-     at the station or the pawn shop). Never at a shut door. */
+     at the station or the pawn shop). Never at a shut door.
+     Wave 37, Creator Mode, task M9-B: the rules are trades by plain words
+     and place types, never a pack's place ids or names (a place named in the
+     good's own name is read from the game's records below), so any pack
+     sells where its place types say: a night or a berth at a motel, inn or
+     hotel, drinks and food at a bar, a cantina or a diner, goods at a shop. */
   const SOLD_AT = [
-    [/\b(night at|room|motel)\b/, ['motel', 'inn']],
+    [/\b(night at|night in|room|motel|berth|bunk)\b/, ['motel', 'inn', 'hotel']],
     [/\b(crickets|night crawlers|rod and reel|johnboat|outboard gas)\b/, ['marina', 'gas']],
     [/\b(pawned|used shotgun|guitar|wedding ring)\b/, ['pawn']],
     [/\b(tune-up|tire|tow)\b/, ['gas']],
@@ -30612,7 +30691,7 @@ const Api = (() => {
     const rule = SOLD_AT.find(([re]) => re.test(name));
     if (rule) return rule[1].includes(l.type);
     const kind = goodKind(g);
-    if (kind === 'drink' || kind === 'food') return ['bar', 'tavern', 'inn', 'gas', 'diner', 'cafe'].includes(l.type);
+    if (kind === 'drink' || kind === 'food') return ['bar', 'tavern', 'inn', 'gas', 'diner', 'cafe', 'pub', 'saloon', 'cantina', 'canteen'].includes(l.type);
     return ['gas', 'pawn', 'shop', 'store', 'market', 'general', 'marina'].includes(l.type);
   }
   function mockNarration(c) {
@@ -30718,7 +30797,7 @@ const Api = (() => {
     } else if (target && (a.actionType === 'give' || a.actionType === 'sell')) {
       out.push(mockGreeting(target, tkey));
       // Money the player does not have is not handed over (wave 4, playtest D3).
-      const sum = a.actionType === 'give' ? MOCK_STAKE.exec(String(c.input || '').toLowerCase()) : null;
+      const sum = a.actionType === 'give' ? mockMoney().sum.exec(String(c.input || '').toLowerCase()) : null;
       const want = sum ? parseInt(sum[1] || sum[2], 10) : 0;
       if (s && want > (s.player.gold | 0)) out.push(`You reach for ${money(want)} and come up short: you have ${money(s.player.gold | 0)} on you.`);
       // Money is counted; a thing is not (wave 5, playtest D9: a letter).
@@ -30958,9 +31037,10 @@ const Api = (() => {
   const MOCK_HELP = /\b(i help|i'll help|help (?:him|her|them) (?:out|load|carry|move|with)|work for|works for|side with|sides with|vote for|carry .+ for|deliver .+ for|load .+ for)\b/;
   const MOCK_HINDER = /\b(sabotage|sabotages|expose|exposes|rat out|rats out|report|reports|turn in|turns in|wreck|wrecks|tip off)\b/;
   const MOCK_SORRY = /\b(apologi[sz]e|apologi[sz]es|sorry|make it up to|make amends)\b/;
-  const MOCK_MONEY = /\$\s?(\d+)|\b(\d+)\s*(?:dollars|bucks)\b/;
   /* The open obligations (State.obligations once it exists, else the
      player's list read directly). */
+  // The place types that buy what the player sells (wave 37, Creator Mode, task M9-B: Low Water's pawn shop, and a pack's shops).
+  const MOCK_BUYS_AT = ['pawn', 'shop', 'store', 'market', 'trader'];
   function openObligations(s) {
     // What is still owed: the open ones and the missed ones that can be made good (paid late).
     return s ? State.obligations('owed') : [];
@@ -31077,7 +31157,7 @@ const Api = (() => {
         if (src) thing = /\b(till|register|wallet|purse|pocket|cash|tips)\b/.test(src[1]) ? 'money' : '';
         if (/\b(pickpocket|pickpockets|lift a purse)\b/.test(input)) thing = 'money';
         if (thing && s.npcs.some(n => Town.nameMentions(thing, n))) thing = '';
-        if (/^(money|cash|wallet|purse|tips|till)$/.test(thing)) { out.goldDelta = 20; out.journalEntry = `Stole $20${first ? ` from ${first.name}` : ''}.`; }
+        if (/^(money|cash|wallet|purse|tips|till)$/.test(thing)) { out.goldDelta = 20; out.journalEntry = `Stole ${money(20)}${first ? ` from ${first.name}` : ''}.`; }
         else if (thing) { out.itemsGained = [capFirst(thing)]; out.journalEntry = `Stole ${article(thing)} ${thing}.`; }
       } else if (first) {
         feel(first, -20);
@@ -31106,7 +31186,8 @@ const Api = (() => {
       }
     }
     // Selling, at the pawn shop: half the listed price, or ten for anything unlisted.
-    if (a.actionType === 'sell' && l && l.type === 'pawn') {
+    // Wave 37, Creator Mode, task M9-B: or at any shop that buys (a pack's chandlery or trading post), by the place's type.
+    if (a.actionType === 'sell' && l && MOCK_BUYS_AT.includes(l.type)) {
       const it = s.player.inventory.find(i => i.id === a.usesItemId);
       if (it) {
         const listed = Tables.price(it.name);
@@ -31118,7 +31199,7 @@ const Api = (() => {
     }
     // Giving: money or a thing, to someone here. Paying off what is owed settles the debt and the memory of it.
     if (a.actionType === 'give' && first) {
-      const m = MOCK_MONEY.exec(input);
+      const m = mockMoney().sum.exec(input);
       const it = a.usesItemId ? s.player.inventory.find(i => i.id === a.usesItemId) : null;
       if (m) {
         // More than the player has is not handed over at all, as the narration says ("come up short"; wave 5, playtest D6).

@@ -190,19 +190,20 @@ s.test('the recap says "Asked of you:" after "Open:" on one line, and the People
   assert.match(dead.recap, /Day 6 \(no longer in town\)\.$/);
 });
 
-s.test('the demo: "What do you want from me?" said to Royce has him ask for the outboard part by a day, and the demo bookkeeper records it; the tab shows it; said to everyone, or without the words, nothing is asked', async h => {
+// Wave 37, Creator Mode, task M9-B: the demo's ask is for one of the pack's goods that names the asker's trade (Royce's gas station: the can of outboard gas), no longer a fixed "outboard part" only Low Water has.
+s.test('the demo: "What do you want from me?" said to Royce has him ask for a thing of his trade from the pack\'s goods by a day, and the demo bookkeeper records it; the tab shows it; said to everyone, or without the words, nothing is asked', async h => {
   const page = await h.open({ viewport: LAPTOP });
   await start(page);
   assert.equal((await say(page, 'What do you want from me?', 'npc_royce')).ok, true);
   const r = await page.evaluate(() => ({ narration: Game.state.log[Game.state.log.length - 1].narration, sd: Game.state.seeds.find(x => x.ask) || null }));
-  assert.ok(r.narration.includes('Royce Pittman wants the outboard part by Day 3. "Bring it by Saturday and I\'ll make it worth your while."'), r.narration);
+  assert.ok(r.narration.includes('Royce Pittman wants a five-gallon can of outboard gas by Day 3. "Bring it by Saturday and I\'ll make it worth your while."'), r.narration);
   assert.ok(r.sd, 'the demo bookkeeper recorded the ask');
-  assert.equal(r.sd.effect, "Royce Pittman wants the outboard part from Tester by Day 3 (Saturday); it will be worth Tester's while.");
+  assert.equal(r.sd.effect, "Royce Pittman wants a five-gallon can of outboard gas from Tester by Day 3 (Saturday); it will be worth Tester's while.");
   assert.deepEqual(r.sd.trigger, { type: 'day', value: 3 });
   assert.deepEqual(r.sd.ask, { npcId: 'npc_royce', dueDay: 3, reward: "it will be worth Tester's while" });
   const tab = await readTab(page);
   assert.equal(tab.label, 'Objectives · 1');
-  assert.deepEqual(section(tab, 'asks').items.map(x => [x.text, x.when, x.stakes]), [['Royce Pittman wants the outboard part from you by Day 3 (Saturday)', 'by Day 3 (Saturday) · in 2 days', 'Stakes: it will be worth your while']]);
+  assert.deepEqual(section(tab, 'asks').items.map(x => [x.text, x.when, x.stakes]), [['Royce Pittman wants a five-gallon can of outboard gas from you by Day 3 (Saturday)', 'by Day 3 (Saturday) · in 2 days', 'Stakes: it will be worth your while']]);
   assert.match(section(tab, 'asks').items[0].more.Asked, /^Day 1 · Thursday · Morning — /);
   for (const [w, to] of [['What do you need?', 'everyone'], ['How is business?', 'npc_royce']]) {
     const n0 = await page.evaluate(() => Game.state.seeds.length);
