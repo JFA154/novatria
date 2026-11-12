@@ -17,7 +17,9 @@
    what each seat is and is not told, the host told only what is public,
    the cost line, a failed call falling back to the script); the player
    out (every role shown, Skip to the end with no calls); a reload; phone
-   widths; no innerHTML and one fetch.
+   widths; the table folded to a strip of faces while a phone's table
+   talks (the owner: "taking too much of the screen on mobile so i can
+   barely see the text"); no innerHTML and one fetch.
    The talk is live (the owner: "how can it feel like 8 humans are talking?
    rather than ai and game"): the table talks on by itself and the player
    speaks whenever they like. Most tests here sit down at a table that
@@ -892,6 +894,83 @@ s.test('typing on a phone with the keyboard up gives the room to the story and t
   assert.ok(tall.log >= 150, 'and with the keyboard down the story has its room under the table: ' + tall.log);
 });
 
+s.test('on a phone the talk is the chat\'s: while the table talks it is a strip of the others\' faces over one line with the count and Call the vote, and the round table is back for the night, the morning and the vote', async h => {
+  const page = await open(h);
+  const look = () => page.evaluate(() => {
+    const box = x => document.querySelector(x).getBoundingClientRect();
+    const seats = [...document.querySelectorAll('.seat')].filter(x => x.offsetParent);
+    return { mode: document.querySelector('#screen-game').dataset.table, area: Math.round(box('.table-area').height), log: Math.round(box('#log-wrap').height), felt: getComputedStyle(document.querySelector('.felt')).display,
+      you: getComputedStyle(document.querySelector('.seat[data-you="1"]')).display, shown: seats.length, rows: new Set(seats.map(x => Math.round(x.getBoundingClientRect().top))).size,
+      small: seats.filter(x => { const r = x.getBoundingClientRect(); return r.width < 44 || r.height < 44 || r.left < 0 || r.right > window.innerWidth; }).length,
+      cut: seats.filter(x => { const n = x.querySelector('.seat-name'); return n.scrollWidth > n.clientWidth; }).map(x => x.querySelector('.seat-name').textContent) };
+  });
+  await sit(page, { seed: 91, role: 'town', wild: false });
+  const role = await look();
+  assert.deepEqual([role.mode, role.felt, role.shown, role.you], ['round', 'block', 8, 'grid'], 'the role: the round table, the player at the foot of it');
+  await begin(page);
+  const night = await look();
+  assert.deepEqual([night.mode, night.felt, night.shown], ['round', 'block', 8], 'the night: the round table');
+  // The morning is staged on the round table; the strip comes when the talk opens.
+  await page.evaluate(() => { Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop(); window.__morning = null; const stage = Game.UI.stage; Game.UI.stage = function (k, text) { const r = stage.apply(this, arguments); if (text === 'Morning.') window.__morning = [Game.state.phase, document.querySelector('#screen-game').dataset.table]; return r; }; });
+  await page.click('#mid-go');
+  await settle(page);
+  assert.deepEqual(await page.evaluate(() => window.__morning), ['talk', 'round'], 'the morning, said in the middle of the round table');
+  const talk = await look();
+  assert.deepEqual([talk.mode, talk.felt, talk.you, talk.shown, talk.rows, talk.small], ['strip', 'none', 'none', 7, 1, 0], 'the talk: the other seven in one row, each big enough to tap');
+  assert.deepEqual(talk.cut, [], 'no name cut short');
+  assert.ok(talk.area <= 130 && night.area - talk.area >= 110, `the strip is less than half the table: ${talk.area} against ${night.area}`);
+  assert.ok(talk.log >= 320, 'and the chat has the room: ' + talk.log);
+  // The count and Call the vote are one line under the faces; the day is in the top bar.
+  const line = await page.evaluate(() => { const r = x => document.querySelector(x).getBoundingClientRect(); const a = r('#mid-ready'); const b = r('#btn-vote'); return { text: document.querySelector('#mid-ready').textContent, day: getComputedStyle(document.querySelector('#mid .mid-k')).display, side: a.right <= b.left && a.top < b.bottom && a.bottom > b.top, under: a.top >= Math.max(...[...document.querySelectorAll('.seat')].filter(x => x.offsetParent).map(x => x.getBoundingClientRect().top + 34)), btn: Math.round(b.height), bar: document.querySelector('#tb-phase').textContent }; });
+  assert.match(line.text, /^7 still in/);
+  assert.deepEqual([line.day, line.side, line.under, line.btn >= 44], ['none', true, true, true]);
+  assert.match(line.bar, /Day 1$/);
+  // A face in the strip is the seat it was: a tap picks them (the row with the marks, the quick replies aimed), and the marks on a seat are drawn on it.
+  const other = await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you));
+  await page.click(`.seat[data-id="${other.id}"]`);
+  assert.equal(await page.textContent('#sheet .sheet-name'), other.name);
+  assert.equal(await page.textContent('#chips .chips-to'), `To ${other.first}:`);
+  await page.click('#sheet [data-mark="sus"]');
+  assert.equal(await page.getAttribute(`.seat[data-id="${other.id}"]`, 'data-mark'), 'sus');
+  await page.evaluate(id => { Game.UI.emote(id, '!'); Game.UI.typing([id]); Game.state.asks.push({ id: 99, who: id, kind: 'asks', text: 'well?' }); Game.UI.renderAsks(); }, other.id);
+  const marks = await page.evaluate(id => { const s = document.querySelector(`.seat[data-id="${id}"]`); const r = s.getBoundingClientRect(); const e = s.querySelector('.seat-emote').getBoundingClientRect(); const q = getComputedStyle(s, '::after'); return { typing: s.dataset.typing, asking: s.dataset.asking, q: q.content, emote: e.left >= r.left - 1 && e.right <= r.right + 1 }; }, other.id);
+  assert.deepEqual(marks, { typing: '1', asking: '1', q: '"?"', emote: true });
+  assert.deepEqual(await overflowReport(page, 375), []);
+  await page.evaluate(() => Game.UI.typing([]));
+  // The vote: the round table again, every seat on it.
+  await page.click(`.seat[data-id="${other.id}"]`);
+  await page.click('#btn-vote');
+  const vote = await look();
+  assert.deepEqual([vote.mode, vote.felt, vote.shown, vote.you], ['round', 'block', 8, 'grid'], 'the vote: the round table');
+  // Ten at the table: two rows of the nine others on a phone, still big enough to tap; a narrow phone keeps eight in one row.
+  await page.evaluate(() => Game.App.quit());
+  await sit(page, { seed: 51, size: 10, role: 'town' });
+  await begin(page);
+  await page.evaluate(() => { Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop(); });
+  await page.click('#mid-go');
+  await settle(page);
+  const ten = await look();
+  assert.deepEqual([ten.mode, ten.shown, ten.rows, ten.small], ['strip', 9, 2, 0], 'ten seats: two rows');
+  assert.deepEqual(ten.cut, []);
+  assert.ok(ten.log >= 260, 'the chat still has the room: ' + ten.log);
+  await page.setViewportSize({ width: 320, height: 568 });
+  const narrowTen = await look();
+  assert.deepEqual([narrowTen.shown, narrowTen.rows, narrowTen.small], [9, 2, 0], 'ten seats at 320');
+  await page.evaluate(() => Game.App.quit());
+  await sit(page, { seed: 91, role: 'town', wild: false });
+  await begin(page);
+  await page.evaluate(() => { Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop(); });
+  await page.click('#mid-go');
+  await settle(page);
+  const narrow = await look();
+  assert.deepEqual([narrow.mode, narrow.shown, narrow.rows, narrow.small], ['strip', 7, 1, 0], 'eight seats at 320: one row');
+  assert.deepEqual(await overflowReport(page, 320), []);
+  // A laptop keeps the round table through the talk.
+  await page.setViewportSize(LAPTOP);
+  const wide = await look();
+  assert.deepEqual([wide.felt, wide.shown, wide.you], ['block', 8, 'grid'], 'a laptop: the round table');
+});
+
 s.test('the seats are told the table is all there is: nothing about where anyone was or was going, nothing to ask the player about but how they play', async h => {
   const bodies = [];
   const page = await open(h, { route: standIn(bodies) });
@@ -940,6 +1019,8 @@ for (const [name, vp] of [['375', PHONE], ['320', { width: 320, height: 568 }], 
     await sit(page, { seed: 51, size: 10, role: 'town' });
     await begin(page);
     assert.deepEqual(await overflowReport(page, w), [], 'night');
+    const round = await page.evaluate(() => { const t = document.querySelector('#table').getBoundingClientRect(); return [...document.querySelectorAll('.seat')].map(x => { const r = x.getBoundingClientRect(); return !!x.offsetParent && r.left >= -1 && r.right <= window.innerWidth + 1 && r.width >= 44 && r.height >= 44 && r.top >= t.top - 60; }); });
+    assert.ok(round.length === 10 && round.every(Boolean), 'at night: ten seats round the table, each on screen and big enough to tap');
     await page.evaluate(() => { Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop(); });
     await page.click('#mid-go');
     await settle(page);
@@ -947,8 +1028,9 @@ for (const [name, vp] of [['375', PHONE], ['320', { width: 320, height: 568 }], 
     await page.click(`.seat[data-id="${other}"]`);
     assert.deepEqual(await overflowReport(page, w), [], 'the talk, a seat picked');
     assert.deepEqual(await small(), [], 'the game\'s buttons');
-    const seats = await page.evaluate(() => { const t = document.querySelector('#table').getBoundingClientRect(); return [...document.querySelectorAll('.seat')].map(x => { const r = x.getBoundingClientRect(); return r.left >= -1 && r.right <= window.innerWidth + 1 && r.width >= 44 && r.height >= 44 && r.top >= t.top - 60; }); });
-    assert.ok(seats.length === 10 && seats.every(Boolean), 'ten seats, each on screen and big enough to tap');
+    // (On a phone the talk's table is a strip of the other nine; on a laptop it is the round table, the player's seat too.)
+    const seats = await page.evaluate(() => { const t = document.querySelector('#table').getBoundingClientRect(); return [...document.querySelectorAll('.seat')].filter(x => x.offsetParent).map(x => { const r = x.getBoundingClientRect(); return r.left >= -1 && r.right <= window.innerWidth + 1 && r.width >= 44 && r.height >= 44 && r.top >= t.top - 60; }); });
+    assert.ok(seats.length === (w < 700 ? 9 : 10) && seats.every(Boolean), 'every seat shown is on screen and big enough to tap');
     await page.fill('#say', 'Hm.');
     await page.click('#btn-say');
     await settle(page);

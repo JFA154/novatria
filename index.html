@@ -100,7 +100,7 @@ a { color: var(--accent); }
 #screen-game[data-phase="night"] .felt { background: #141b22; }
 :root[data-theme="parchment"] #screen-game[data-phase="night"] .felt { background: #8e98a8; }
 .seat {
-  position: absolute; width: 68px; margin: -37px 0 0 -34px; padding: 2px 0 0; display: grid; justify-items: center; gap: 1px;
+  position: absolute; left: var(--x); top: var(--y); width: 68px; margin: -37px 0 0 -34px; padding: 2px 0 0; display: grid; justify-items: center; gap: 1px;
   border: 0; background: transparent; cursor: pointer; border-radius: 10px; min-height: 74px;
 }
 .seat-face { position: relative; width: 46px; height: 46px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 2px var(--border); background: var(--surface-2); }
@@ -271,6 +271,32 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
   .table { height: 212px; }
   .seat { min-height: 56px; margin-top: -28px; }
   .seat-face { width: 34px; height: 34px; }
+}
+/* On a phone, or in any short window, the talk is the chat's (the owner, of
+   the round table on a phone: "taking too much of the screen ... i can
+   barely see the text"). While the table talks it folds to a strip: the
+   others' faces in a row (two rows when ten are playing and one row would
+   make them too small to tap), over one line with the count and Call the
+   vote. The player's own seat is left out of it: the top bar has their
+   role, and nothing in the talk is aimed at it. The night, the vote and
+   anything staged in the middle keep the round table. */
+@media (max-width: 700px), (max-height: 700px) {
+  #screen-game[data-table="strip"] .table-area { padding: 6px 4px 5px; border-bottom: 1px solid var(--border); }
+  #screen-game[data-table="strip"] .table { display: grid; grid-template-columns: repeat(var(--cols, var(--others, 7)), minmax(0, 1fr)); gap: 2px 0; height: auto; }
+  #screen-game[data-table="strip"] .felt, #screen-game[data-table="strip"] .arrows, #screen-game[data-table="strip"] .seat[data-you="1"] { display: none; }
+  #screen-game[data-table="strip"] .seat { position: relative; left: auto; top: auto; width: auto; min-width: 0; min-height: 48px; margin: 0; padding: 3px 0 0; align-content: start; }
+  #screen-game[data-table="strip"] .seat-face { width: 34px; height: 34px; }
+  #screen-game[data-table="strip"] .seat-name { font-size: 11px; }
+  #screen-game[data-table="strip"] .seat-tag { font-size: 9px; }
+  #screen-game[data-table="strip"] .seat-emote { top: -3px; left: calc(50% - 26px); }
+  #screen-game[data-table="strip"] .seat[data-asking="1"]::after { top: 20px; right: calc(50% - 26px); }
+  #screen-game[data-table="strip"] .mid { position: static; grid-column: 1 / -1; order: 1; flex-direction: row; justify-content: flex-start; gap: 8px; padding: 0 8px; text-align: left; }
+  #screen-game[data-table="strip"] .mid-k { display: none; }
+  #screen-game[data-table="strip"] .mid-s { flex: 1 1 auto; min-width: 0; line-height: 1.25; }
+  #screen-game[data-table="strip"] .mid .btn { flex: none; }
+}
+@media (max-width: 403px) {
+  #screen-game[data-table="strip"] .table[data-n="10"] { --cols: 5; }
 }
 /* Typing on a phone with the keyboard up (the box has the focus and the page is short): the table steps aside so the story and the box have the room. */
 @media (max-height: 460px) and (max-width: 700px) {
@@ -1779,6 +1805,8 @@ const Game = (() => {
       const n = state.players.length;
       const me = you();
       const night = state.phase === 'night';
+      table.dataset.n = String(n);
+      table.style.setProperty('--others', String(n - 1));
       state.players.forEach((p, i) => {
         const a = Math.PI / 2 + (2 * Math.PI * i) / n; // the player at the foot of the table, the rest round it
         const x = 50 + 43 * Math.cos(a);
@@ -1795,8 +1823,8 @@ const Game = (() => {
         votes ? el('span', { class: 'seat-votes', 'aria-hidden': 'true' }, String(votes)) : null,
         emote ? el('span', { class: 'seat-emote', 'aria-hidden': 'true', dataset: { e: emote } }, emote) : null);
         if (p.mark && p.alive) seat.dataset.mark = p.mark;
-        seat.style.left = `${x}%`;
-        seat.style.top = `${y}%`;
+        seat.style.setProperty('--x', `${x}%`);
+        seat.style.setProperty('--y', `${y}%`);
         seat.dataset.x = String(x);
         seat.dataset.y = String(y);
         table.append(seat);
@@ -1830,6 +1858,8 @@ const Game = (() => {
     pickSeat(id) { if (busy && !(UI.wait && UI.wait.kind === 'seat')) return; UI.sel = UI.sel === id ? null : id; UI.render(); },
     renderMid() {
       const mid = $('#mid');
+      // While the table talks the screen is the chat's: on a phone the table folds to a strip (the stylesheet's business). Anything staged in the middle, or a seat to choose, has the round table.
+      $('#screen-game').dataset.table = state.phase === 'talk' && !UI.over && !UI.wait ? 'strip' : 'round';
       const me = you();
       const sel = UI.sel ? P(UI.sel) : null;
       const kids = [];

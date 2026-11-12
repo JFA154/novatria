@@ -1930,7 +1930,7 @@ every Knife is out; the Knives win when they are as many as everyone else.
 - **The table is the screen**: everyone's face round it, yours at the foot.
   Tap a face to aim at them, to mark them (Suspect or Trust, a ring only you
   see), to pick them at night or to vote for them. **Call the vote** is in
-  the middle of the table.
+  the middle of the table (on a phone, under the strip of faces).
 - **A live table**: the day is not rounds. The table talks on by itself,
   like a group chat, and you say something whenever you like; nothing waits
   for you and there is nothing to pass. Whoever is typing is shown typing
@@ -1977,9 +1977,13 @@ every Knife is out; the Knives win when they are as many as everyone else.
   answer: **It's you. Liar. Why? I'm with you. Not me.** Each is said at
   once, by name. Or type your own in the box and **Send**.
 - **A phone first**: the story is a chat. Everyone else's messages are on
-  the left under their name (a colour each), yours on the right. With the
-  keyboard up the table steps aside so the chat and the box have the
-  screen.
+  the left under their name (a colour each), yours on the right. While the
+  table talks, a phone (or any short window) folds the round table to a
+  strip: the others' faces in a row (two rows at ten seats) over one line
+  with the count and **Call the vote**, so the chat has the screen. A face
+  in the strip is the seat it was: tap it to aim or to mark. The round
+  table is back for the night, the morning and the vote. With the keyboard
+  up the table steps aside altogether.
 - **It is told like a night at the table**: a host has one line in the
   morning (who is found, and where) and one at the vote. The night is
   played step by step (everyone shuts their eyes, the Knives open theirs,
@@ -2075,8 +2079,8 @@ fails it with a message saying so; the CI checkout fetches it all).
   the middle of it), what a seat carries from one day to the next, the talk
   ending when most would vote, two at each other being cut in on, the
   Claude path against a stand-in API (the request, what each seat and the
-  host are told, a failed call), the player out, phone widths and the
-  keyboard up;
+  host are told, a failed call), the player out, phone widths, the table
+  as a strip of faces while a phone's table talks, and the keyboard up;
 - `wave38-date` for the faces, the strip of who is here, the date table,
   Deal again and the one-tap flirt; `wave39-table-talk` for words said with
   a bet being answered before the cards;
