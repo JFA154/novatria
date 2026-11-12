@@ -1937,15 +1937,21 @@ every Knife is out; the Knives win when they are as many as everyone else.
   name, and two or three of the table answer. Or type your own in the box.
   The button beside it is **Say** with words in the box and **Pass** with
   none: Pass lets the table talk a round without you.
-- **They play like people**: nobody at the table is a detective. Each seat
-  is dealt a way of playing for the game (goes on gut feeling, holds a
-  grudge, goes along with the loudest, jumpy, the joker, the quiet one,
-  always certain and often wrong, sticks up for whoever is piled on, likes
-  the drama, half paying attention; one, and only one, keeps track of the
-  votes), most get a hunch each morning with nothing behind it, and each
-  is told every turn how little to say (mostly a few words, sometimes a
-  sentence, now and then two). A seat that goes on anyway is cut off. When
-  something lands, two or three of the room react in a few words.
+- **What you say is answered**: the first of the table to speak after you
+  is given your words and told to answer them, the second to take them up
+  as well, whether you spoke to one of them or to the whole table.
+- **They play like people who want to win**: nobody at the table is a
+  detective giving a summing-up, and nobody is a fool. Each seat is dealt a
+  temperament for the game (trusts a read of people, takes an accusation
+  personally, builds on a point sooner than start a fight, wary, keeps it
+  light, quiet, confident, dislikes a pile-on, pushes, no patience for
+  waffle; one, and only one, keeps track of the votes). It is a lean on a
+  sharp player, never a script. A few have a slight hunch in the morning,
+  to be dropped when the table gives them something better. Each is told
+  every turn how much to say (a sentence as a rule, sometimes a few words,
+  sometimes two sentences) and a seat that goes on anyway is cut off. Each
+  has a manner of speaking and no pet word. Now and then, when something
+  lands, two or three of the room react in a few words.
 - **A phone first**: what is said is one compact line each (a small face,
   a first name, the words). With the keyboard up the table steps aside so
   the story and the box have the screen.
@@ -2038,8 +2044,8 @@ fails it with a message saying so; the CI checkout fetches it all).
 - `lastcall` for Last Call (`index.html`): the deal and the wild cards, the
   rules, a whole scripted game with the host and the reveal, last words, the
   Fool and the Hothead, what is waiting on the player and the quick replies,
-  the ways of playing and the lengths (a seat that goes on is cut off), the
-  room's reactions, the Claude path against a stand-in API (the request,
+  what the player says being answered, the temperaments and the lengths (a
+  seat that goes on is cut off), the room's reactions, the Claude path against a stand-in API (the request,
   what each seat, the host and the room are told, a failed call), the player
   out, a reload, phone widths and the keyboard up;
 - `wave38-date` for the faces, the strip of who is here, the date table,

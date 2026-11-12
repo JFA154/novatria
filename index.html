@@ -457,73 +457,78 @@ const Game = (() => {
      talk about the town"). The story pack's own voice notes are full of
      the town (engines, ordinances, late fees, the river), so a seat is
      given these instead: manner of speech only, no subject. */
+  /* (Each is a manner and nothing more. The first set gave each a pet word,
+     'sugar', 'ma'am', 'heh', 'noted', and every line came back wearing it:
+     the owner, after a real game, "they are overdoing being dumb".) */
   const TABLE_VOICE = {
-      "npc_loretta": "Flat and unhurried; calls everybody 'hon'; nods at a person rather than say their name when she can.",
-      "npc_royce": "Folksy and slippery; dodges a straight answer; hedges with 'now, I'm not saying'; laughs to fill a silence.",
-      "npc_vada": "Crisp and formal, a schoolteacher's diction; calls grown men 'son'; corrects your grammar mid-sentence.",
-      "npc_carter": "Fast and friendly, like a salesman closing; uses your first name too soon and too often.",
-      "npc_jolene": "Brisk and procedural; likes things done in order; drops to a whisper to say anything kind.",
-      "npc_hollis": "Slow and sideways, never a straight yes or no; weighs everything like a trade.",
-      "npc_wade": "Quiet and dry; lets you talk yourself out before he says a word.",
-      "npc_colt": "Fast and jumpy; talks over you, calls men 'bro' and women 'ma'am', laughs at things that aren't funny.",
-      "npc_marcus": "Courteous and relentless; says 'sir' and 'ma'am'; asks the same question three different ways.",
-      "npc_travis": "Loud and buddy-buddy, all 'my man' and 'hoss'; laughs before his own punchlines.",
-      "npc_ray": "Slow and warm, with a preacher's rhythm; gets the answer out of you instead of giving one.",
-      "npc_june": "Blunt and clinical; swears mildly; never tells anyone not to worry.",
-      "npc_dewayne": "Few words; 'mm-hm' for yes and 'well' for no.",
-      "npc_tammy": "Hoarse and short; says exactly what she thinks; goes very calm and polite when she is angriest.",
-      "npc_mavis": "Clipped and sour; calls people mister or miss like a complaint.",
-      "npc_darlene": "Polite and exact; answers with facts instead of feelings.",
-      "npc_nadine": "Chirpy and thorough; says more than you asked for; says 'bless you' when she means go away.",
-      "npc_odessa": "Soft and exact; hums under her breath when she disapproves.",
-      "npc_lyman": "Gloomy and courteous; expects the worst of everyone and thanks you, sincerely, when you prove him right.",
-      "npc_elbert": "Rambling and certain; corrects other people's account of what was just said.",
-      "npc_pearl": "Talks in headlines; says your words back to you as if she were writing them down.",
-      "npc_glenda": "Clipped shorthand, 'ten-four', 'copy that'; repeats the last thing you said back to you as a question.",
-      "npc_nikki": "Brisk and dry; answers a joke with the single word 'noted'; never fills a silence.",
-      "npc_virgil": "Plain and stubborn; ends an opinion with 'that is not my opinion, that is fact'.",
-      "npc_annette": "Patient and precise; lays things out in numbered steps; checks with 'make sense?'.",
-      "npc_gerald": "Slow and repetitive; says back what he just heard before he answers it.",
-      "npc_lamar": "Slow and careful; takes his time before he answers anything hard.",
-      "npc_trent": "Easy and friendly; calls everybody 'cuz'; laughs off a hard question.",
-      "npc_leon": "Polite and slow; calls you 'friend'; never raises his voice.",
-      "npc_curtis": "Puts odds on everything; offers to settle any argument with a bet.",
-      "npc_boyd": "Says very little, all of it polite; always uses a person's full name, first and last.",
-      "npc_jodie": "Quick and bright, then flat and careful the second she is pressed.",
-      "npc_lorna": "Cheerful chatter; a bright 'you would have to ask them' when she will not answer.",
-      "npc_brianna": "Soft and quick; apologises before she says anything, 'sorry, sorry'.",
-      "npc_shayla": "Sweet and sticky; calls you 'sugar'.",
-      "npc_dwight": "Few words; answers what he does not like with 'that is above my pay'.",
-      "npc_burl": "Talks too loud; says 'what's that?' and then answers what he thought you said."
+      "npc_loretta": "Flat and unhurried; never in a rush to answer.",
+      "npc_royce": "Easygoing and slippery; slow to give a straight answer.",
+      "npc_vada": "Crisp and formal; precise about words.",
+      "npc_carter": "Fast and friendly, with a salesman's ease.",
+      "npc_jolene": "Brisk and orderly; takes things one at a time.",
+      "npc_hollis": "Slow and sideways; weighs a thing before committing.",
+      "npc_wade": "Quiet and dry; lets the others talk first.",
+      "npc_colt": "Fast and restless; jumps in early.",
+      "npc_marcus": "Courteous and persistent; comes back to a question until it is answered.",
+      "npc_travis": "Loud and matey.",
+      "npc_ray": "Slow and warm; asks more than he tells.",
+      "npc_june": "Blunt and clinical; offers no comfort.",
+      "npc_dewayne": "Few words, plainly put.",
+      "npc_tammy": "Hoarse and short; says what she thinks, and goes calm when she is angry.",
+      "npc_mavis": "Clipped and sour.",
+      "npc_darlene": "Polite and exact; facts over feelings.",
+      "npc_nadine": "Chirpy and thorough; says a little more than she was asked.",
+      "npc_odessa": "Soft and exact; disapproves quietly.",
+      "npc_lyman": "Gloomy and courteous; expects the worst.",
+      "npc_elbert": "Sure of himself; quick to correct what others say was said.",
+      "npc_pearl": "Punchy; talks in headlines.",
+      "npc_glenda": "Clipped and efficient, like a radio call.",
+      "npc_nikki": "Brisk and dry; does not fill a silence.",
+      "npc_virgil": "Plain and stubborn; states an opinion as fact.",
+      "npc_annette": "Patient and precise; takes things step by step.",
+      "npc_gerald": "Slow and deliberate; makes sure he heard right.",
+      "npc_lamar": "Slow and careful; takes his time over a hard question.",
+      "npc_trent": "Easy and friendly; laughs off a hard question.",
+      "npc_leon": "Polite and even; never raises his voice.",
+      "npc_curtis": "Thinks in odds; likes a wager.",
+      "npc_boyd": "Says very little, all of it polite.",
+      "npc_jodie": "Quick and bright; careful the second she is pressed.",
+      "npc_lorna": "Cheerful and chatty; breezy when she will not answer.",
+      "npc_brianna": "Soft and quick; a little apologetic.",
+      "npc_shayla": "Sweet and warm, with an edge under it.",
+      "npc_dwight": "Few words; will not be drawn on what he dislikes.",
+      "npc_burl": "Loud; now and then answers a slightly different question from the one asked."
   };
-  /* How a seat plays this game (the owner, after real games: "there is no
-     spontaneity like humans. all ais are playing the perfect game and they
-     are writing paragraphs"). People at a party game are not detectives:
-     they go on hunches, hold grudges, follow the loudest voice, joke, sulk
-     and get it wrong. Each seat is dealt one of these for the game (at
-     most one keeps track of the votes), is given a gut feeling each
-     morning that has nothing behind it, and is told how much to say each
-     time it speaks (LENGTHS: mostly a few words). */
+  /* How a seat plays this game. Two real games set this, from either side.
+     First: "there is no spontaneity like humans. all ais are playing the
+     perfect game and they are writing paragraphs", so each seat was dealt
+     a way of playing and told to say little. Then, with that pushed too
+     far: "no one gave a fuck to what i said. and they are overdoing being
+     dumb". So these are temperaments, a lean on a sharp player and never a
+     script for a silly one: everyone at the table plays to win, listens,
+     and has a reason for what they think. They differ in how they go
+     about it. (At most one is the keeper of the votes.) */
   const STYLES = [
-    { id: 'gut', text: 'You go on gut feeling. You decide fast, you rarely explain, and you say so when someone just "feels wrong".' },
-    { id: 'grudge', text: 'You hold a grudge. Whoever points at you becomes the one you want out, for the rest of the game, whatever happens after.' },
-    { id: 'sheep', text: 'You go along. Whoever sounded surest last is probably right, and you say so. You hate being the only one voting a way.' },
-    { id: 'paranoid', text: 'You are jumpy. Anyone too helpful, too quiet or too calm is suspicious, and your suspect changes often.' },
-    { id: 'joker', text: 'You are here for the fun of it. Half of what you say is a joke or a dig, and you would rather get a laugh than be right.' },
-    { id: 'quiet', text: 'You say very little. A few words at most, and you hate being put on the spot.' },
-    { id: 'sure', text: 'You are always certain and often wrong. You announce your reads as facts and do not back down.' },
-    { id: 'soft', text: 'You hate a pile-on. You stick up for whoever the table is ganging up on, even without a reason.' },
-    { id: 'stirrer', text: 'You like the drama. You poke at people to see how they jump, and you enjoy it when two of them go at each other.' },
-    { id: 'bored', text: 'You are only half paying attention and you want this over. You get details wrong and you do not care much.' },
-    { id: 'tracker', text: 'You are the one at the table who actually remembers who voted for whom, and you bring it up. You are not always right about what it means.' }
+    { id: 'gut', text: 'You trust your read of people more than the arithmetic. You make up your mind early, and you change it when someone gives you a good reason.' },
+    { id: 'grudge', text: 'You take it personally when someone points at you, and you look twice as hard at them afterwards.' },
+    { id: 'sheep', text: 'You would rather build on a good point than start a fight, and you are slow to be the first to name a name.' },
+    { id: 'paranoid', text: 'You are wary. You notice who is too smooth or too quick to agree, and you say so.' },
+    { id: 'joker', text: 'You keep it light. You make your point with a dig as often as not, and you are still playing to win.' },
+    { id: 'quiet', text: 'You say little and listen a lot. When you speak it is short and it counts.' },
+    { id: 'sure', text: 'You are confident. You commit to a read early and argue for it, and it takes something real to move you.' },
+    { id: 'soft', text: 'You dislike a pile-on. You want a reason before the table gangs up on anyone, and you ask for it.' },
+    { id: 'stirrer', text: 'You push. You put people on the spot and watch how they take it.' },
+    { id: 'bored', text: 'You have no patience for waffle. You want names and reasons, and you call out anyone who dodges.' },
+    { id: 'tracker', text: 'You keep track of who voted for whom and who stood up for whom, and you bring it up when it matters.' }
   ];
-  // How much to say on a turn, picked each time: mostly a few words, sometimes a sentence, now and then two.
+  // How much to say on a turn, picked each time: a sentence as a rule, sometimes a few words, sometimes two sentences.
   const LENGTHS = [
-    { w: 40, max: 8, text: 'a few words: eight at most. A fragment is fine.' },
-    { w: 45, max: 16, text: 'one short sentence: sixteen words at most.' },
-    { w: 15, max: 28, text: 'two short sentences: twenty-eight words at most.' }
+    { w: 25, max: 10, text: 'a few words: ten at most. A fragment is fine.' },
+    { w: 50, max: 20, text: 'one sentence: twenty words at most.' },
+    { w: 25, max: 34, text: 'two short sentences: thirty-four words at most.' }
   ];
-  function pickLength(s) { let r = rnd(s) * 100; for (const l of LENGTHS) { if (r < l.w) return l; r -= l.w; } return LENGTHS[1]; }
+  // (An answer to the player is never the shortest: it has to have room to be an answer.)
+  function pickLength(s, full) { let r = rnd(s) * 100; for (const l of LENGTHS) { if (r < l.w) return full && l === LENGTHS[0] ? LENGTHS[1] : l; r -= l.w; } return LENGTHS[1]; }
   /* What was said, held to its length: whole sentences up to the limit and
      a little over; a single sentence far past it is cut at a clause or a
      word. A seat that writes a paragraph anyway does not get to say it. */
@@ -745,7 +750,8 @@ const Game = (() => {
       const b = isKnife(p) ? Bots.top(p, q => !isKnife(q)) : Bots.top(p, q => !clean.has(q.id));
       return b ? b.q : null;
     },
-    say(p) {
+    say(p, answering) {
+      if (answering) { const r = Bots.say(p); const me = you(); return r.aim === me || /\byou\b/i.test(r.text.split(/[.?!]/)[0]) ? r : Object.assign(r, { text: `${pick(state, [`Could be, ${me.first}.`, `I hear you, ${me.first}.`, `Fair, ${me.first}.`, `Maybe, ${me.first}.`])} ${r.text}` }); }
       const tic = TICS[hash(p.id, state.log.length) % TICS.length];
       const t = Bots.target(p);
       // The Fool wants the vote, and must not look as if they do.
@@ -847,7 +853,7 @@ const Game = (() => {
   const nullable = t => ({ anyOf: [{ type: t }, { type: 'null' }] });
   const SCHEMAS = {
     say: { type: 'object', additionalProperties: false, required: ['say', 'about', 'stance', 'suspect', 'trust', 'note'], properties: {
-      say: { type: 'string', description: 'What you say aloud, in your own voice: one to three sentences of spoken words only.' },
+      say: { type: 'string', description: 'What you say aloud: spoken words only, within LENGTH THIS TURN.' },
       about: Object.assign({ description: 'The first name of the one person your words are aimed at or about, or null.' }, nullable('string')),
       stance: { type: 'string', enum: ['accuse', 'vouch', 'question', 'defend', 'claim', 'other'] },
       suspect: Object.assign({ description: 'The first name of who you most want put out next (your real aim, not necessarily what you said), or null.' }, nullable('string')),
@@ -891,9 +897,11 @@ const Game = (() => {
         '',
         'HOW TO PLAY YOUR SEAT',
         '- You are one person at this table. You know only the public record, your own role, and what your private notes below say. You want your side to win.',
-        '- Play it like a person at a party game, never like a detective or a machine. People at this table are impulsive: they go on hunches, hold grudges, get defensive, bandwagon, joke, sulk, misremember, change the subject and refuse to explain. They are often wrong and they do not all think alike. YOUR WAY OF PLAYING, given with your seat, is how you play: lean into it even when it is not the clever move. Never weigh the evidence out loud, never list reasons, never sum up what has happened.',
-        '- If you are Town: you want the Knives out, and you are guessing like everyone else.',
-        '- If you are a Knife: never admit it. Blend in and let other people do the accusing where you can. Lie plainly, the way people do, not cleverly. You may claim a role you do not hold.',
+        '- Play to win, the way a sharp, ordinary person plays a party game. You listen. You remember what was said, who pushed whom and how people voted, and you have a real reason for what you think, even when it is a thin one. You are not a detective giving a summing-up, and you are not a fool or a clown either. You can be wrong, get defensive, hold on to a read too long or change your mind; YOUR TEMPERAMENT, given with your seat, colours how you go about it. It is a lean, never a script: it never makes you play badly, ignore what was said, or act a part.',
+        '- This is a conversation: listen to it. What you say answers what was just said, or the person who spoke to you. Agree, argue, answer the question, push back, add what they missed. When someone says something to the whole table, take it up; never talk past it to run a line of your own.',
+        `- ${you().first} is a player like any other. Take what ${you().first} says as seriously as anyone's: answer it, argue with it, hold them to it.`,
+        '- If you are Town: you want the Knives out. Use what the table gives you: who pushed whom, who went quiet, who voted how, what the dead turned out to be.',
+        '- If you are a Knife: never admit it. Sound like Town, push suspicion where it will stick, and lie when you need to. You may claim a role you do not hold.',
         '- If you are the Witness: what you know wins games and gets you taken in the night. Decide when to say it.',
         wild.fool ? '- If you are the Fool: get yourself voted out without it showing that you want it. Be a little too evasive, a little too slow to deny. If they see what you are doing they will never vote for you.' : null,
         '- Anyone can lie about their role. Weigh every claim.',
@@ -901,10 +909,11 @@ const Game = (() => {
         '- One question at a time. If someone has just been asked something and has not yet had the chance to answer, do not put another question to them: say what you make of things instead.',
         '',
         'HOW TO SPEAK',
-        '- Short. This is talk across a table, not a speech: LENGTH THIS TURN, given with your turn, is the most you may say, and less is better. Fragments, "nah", "come on", "it\'s you, I can feel it" are all good lines. If you go over, your words are cut off.',
-        '- Spoken words only, in this person\'s own way of talking. No narration, no stage directions, no asterisks, no name before your words.',
-        '- One thought a turn: a jab, a hunch, a denial, a question to one person by first name, a joke, a claim, a flat "I\'m with her". React to what was just said. Do not repeat it, and do not explain the rules.',
-        '- Talk about the game and nothing else: this table, tonight, who is lying. Nothing about a town ("Town" is only the name of a side in this game), anybody\'s work, family, money or past, the weather, or any life outside this room: none of it exists here, and you have no history with anyone that matters. Be good company at a bad table all the same: needle, be funny or bitter or sly in this person\'s way of talking. Every line has to move the game.',
+        '- Short and to the point. This is talk across a table, not a speech: LENGTH THIS TURN, given with your turn, is the most you may say. If you go over, your words are cut off.',
+        '- Spoken words only. No narration, no stage directions, no asterisks, no name before your words.',
+        '- Talk like a normal person. The Voice beside each name is a light flavour: let it show in the rhythm and the choice of words, never as a pet word, a pet name for people or a catchphrase. No "heh", no filler laugh, nothing you have already said today said again.',
+        '- One thought a turn, with its reason in a clause when you have one ("you jumped on her before she had finished"). Do not list reasons, do not sum up the day, do not say back what someone has just said, and do not explain the rules.',
+        '- Talk about the game and nothing else: this table, tonight, who is lying. Nothing about a town ("Town" is only the name of a side in this game), anybody\'s work, family, money or past, the weather, or any life outside this room: none of it exists here, and you have no history with anyone that matters. Be dry, funny or sharp as this person would be, and make every line move the game.',
         '',
         'THE TABLE',
         seats
@@ -928,10 +937,10 @@ const Game = (() => {
       else if (p.role === 'hothead') lines.push('YOUR SECRET ROLE: Hothead (Town). If you are put out, by the vote or in the night, you take one person of your choosing with you.');
       else lines.push('YOUR SECRET ROLE: Town. You have no power but your judgement and your vote.');
       const style = STYLES.find(x => x.id === p.style);
-      if (style) lines.push(`YOUR WAY OF PLAYING: ${style.text}`);
-      // A feeling with nothing behind it, new each morning: it is what makes a table disagree.
+      if (style) lines.push(`YOUR TEMPERAMENT: ${style.text}`);
+      // A slight feeling, some mornings, for some of them: somewhere to start when there is nothing else to go on.
       const gut = p.mem.gut ? P(p.mem.gut) : null;
-      if (gut && gut.alive && !isKnife(p)) lines.push(`YOUR GUT TODAY: something about ${gut.first} bothers you. You could not say why.`);
+      if (gut && gut.alive && !isKnife(p)) lines.push(`A HUNCH: you have a slight feeling about ${gut.first}, nothing solid. It is somewhere to start; drop it the moment the table gives you something better.`);
       if (p.mem.note) lines.push(`YOUR OWN PRIVATE NOTES FROM EARLIER: ${p.mem.note}`);
       return lines.join('\n');
     },
@@ -949,7 +958,7 @@ const Game = (() => {
     },
     task: {
       say(p, why, len) { return `NOW: day ${state.day}, the table is talking (round ${state.beat + 1} of ${MAX_BEATS} before the vote).${why ? ` ${why}` : ''} It is your turn to speak.\nLENGTH THIS TURN: ${(len || LENGTHS[1]).text}`; },
-      vote(p) { return `NOW: day ${state.day}, the vote. Everyone votes at once, so you do not know how the others vote. Name the one person still in that you vote to put out (not yourself). Vote the way you play: on your gut, your grudge or the crowd, as you would. Say a few words as you do, six at most.`; },
+      vote(p) { return `NOW: day ${state.day}, the vote. Everyone votes at once, so you do not know how the others vote. Name the one person still in that you vote to put out (not yourself). Vote for the one you really think it is, from what was said and done today (as a Knife: whoever it suits your side to lose). Say a few words as you do, eight at most.`; },
       kill(p) { return `NOW: night ${state.day}. You decide for the Knives who is taken tonight. Choose the one person still in, not a Knife, whose going helps the Knives most.`; },
       whisper(p, mate) { return `NOW: night ${state.day}. ${mate.name} is your fellow Knife and decides tonight. Whisper to them who you would take, and why, in one or two sentences.`; },
       last(p, votes) { return `NOW: day ${state.day}. The table has voted you out (${votes}). Your role is about to be shown to everyone. Say your last words to the table, as you would: angry, smug, hurt, funny. One or two short sentences, twenty-five words at most.`; },
@@ -962,7 +971,7 @@ const Game = (() => {
     roomSystem() {
       const seats = alive().filter(p => !p.you).map(p => `- ${p.first}: ${TABLE_VOICE[p.id] || 'plain spoken'}`).join('\n');
       return ['You voice the quick, unguarded reactions round a table in "Last Call", a party game of hidden roles, in the second after something happens.',
-        'Give two or three reactions, each from a different person in the list, each five words at most: a laugh, a groan, a gasp, a mutter, a "called it", a "no way". Each in that person\'s own way of talking.',
+        'Give two or three reactions, each from a different person in the list, each five words at most: a laugh, a groan, a gasp, a mutter, a "called it", a "no way". Plain and natural, as anyone would blurt it: no pet names, no catchphrases, and never somebody\'s own words said back.',
         'They are noise, not moves: no accusation, no defence, no question, no reasoning, no information, nobody\'s role, and nothing about anything outside this table.',
         '',
         'WHO CAN REACT',
@@ -1034,8 +1043,8 @@ const Game = (() => {
   /* What each seat does, by Claude when it can and by the script when it
      cannot (the offline demo; a failed call; a skipped ending). */
   const Seat = {
-    async say(p, why) {
-      const len = pickLength(state);
+    async say(p, why, answering) {
+      const len = pickLength(state, !!answering);
       if (useClaude()) {
         try {
           const r = await callClaude(p, 'say', Prompts.task.say(p, why, len));
@@ -1051,7 +1060,7 @@ const Game = (() => {
           return { text, aim: aim && aim !== p ? aim : readLine(text, p.id).aim, stance: aim ? stance : readLine(text, p.id).stance };
         } catch (e) { failed(e); }
       }
-      return Bots.say(p);
+      return Bots.say(p, answering);
     },
     async vote(p) {
       if (useClaude()) {
@@ -1128,10 +1137,12 @@ const Game = (() => {
       return Bots.host(kind, x);
     },
     /* What bursts out of the room at a moment: [{ who, text }], up to
-       three, from seats still in other than the one it is about. what: the
-       moment in a line, as everyone saw it. */
+       three, from seats still in other than those it is about (notId: an
+       id or a list of them). what: the moment in a line, as everyone saw
+       it. */
     async room(what, notId) {
-      const can = alive().filter(p => !p.you && p.id !== notId);
+      const no = [].concat(notId || []);
+      const can = alive().filter(p => !p.you && !no.includes(p.id));
       if (can.length < 2) return [];
       if (useClaude()) {
         try {
@@ -1141,7 +1152,7 @@ const Game = (() => {
           for (const x of Array.isArray(r.reactions) ? r.reactions : []) {
             const p = isObj(x) ? named(x.name) : null;
             const text = isObj(x) ? clip(x.say, 5) : '';
-            if (!p || p.you || p.id === notId || seen.has(p.id) || !text) continue;
+            if (!p || p.you || no.includes(p.id) || seen.has(p.id) || !text) continue;
             seen.add(p.id);
             out.push({ who: p.id, text });
           }
@@ -1268,8 +1279,8 @@ const Game = (() => {
       sys(saved ? 'Someone came for one of you in the night and was turned away. Everyone is still here.' : 'Everyone is still here.', 'sys', false, saved ? 'Morning. Someone came for one of you in the night and was turned away. Everyone is still here.' : 'Morning. Everyone is still here.');
     }
     state.last = { victim: victim && !saved ? victim.id : null, saved };
-    // A feeling with nothing behind it, for most of those who are not Knives: it is why a table of people never agrees.
-    for (const p of alive()) { if (p.you) continue; const others = alive().filter(q => q !== p); p.mem.gut = !isKnife(p) && others.length && rnd(state) < 0.65 ? pick(state, others).id : null; }
+    // A slight hunch for a few of those who are not Knives (more on the first morning, when there is nothing else to go on).
+    for (const p of alive()) { if (p.you) continue; const others = alive().filter(q => q !== p); p.mem.gut = !isKnife(p) && others.length && rnd(state) < (state.day === 1 ? 0.4 : 0.15) ? pick(state, others).id : null; }
     if (victim && !saved && !winner(state.players)) await roomReacts(`${victim.name} was found dead in the morning. ${victim.first} was ${wasWord(victim.role)}.`, null);
     UI.stage(null);
     if (finish()) return;
@@ -1307,15 +1318,26 @@ const Game = (() => {
       UI.renderAsks();
       if (/\b(i am|i'm|im) (the )?witness\b/i.test(line)) me.mem.claimed = true;
     }
+    /* What the player said is answered. (A real game: "no one gave a fuck
+       to what i said": the seats were told only when they had been named
+       or accused, so a line to the whole table fell on the floor.) The
+       first to speak is told to answer it, the second to take it up too. */
+    const yours = line && me.alive ? { text: line, to: meta && P(meta.aim) ? P(meta.aim) : readLine(line, 'you').aim } : null;
     let reacted = false;
+    let turn = 0;
     for (const p of speakers()) {
       if (!p.alive || state.phase !== 'talk') continue;
+      turn += 1;
       UI.speaking(p.id);
       UI.setBusy(`${p.first} is thinking…`);
       await wait(350);
       const last = state.log[state.log.length - 1];
-      const why = p.mem.accusedBy && P(p.mem.accusedBy) ? `${P(p.mem.accusedBy).first} has just pointed at you.` : last && last.t === 'say' && last.who !== p.id && mentioned(last.text, last.who).includes(p) ? `${P(last.who).first} just spoke to you.` : '';
-      const r = await Seat.say(p, why);
+      const by = p.mem.accusedBy && P(p.mem.accusedBy) ? P(p.mem.accusedBy) : null;
+      const answering = !!yours && turn <= 2;
+      const heardYou = !yours ? '' : turn === 1 ? `${me.first} has just said, to ${yours.to === p ? 'you' : yours.to ? yours.to.first : 'the whole table'}: "${yours.text}" Answer ${me.first}: take up what they said (agree, argue with it, or answer the question), speaking to them.`
+        : turn === 2 ? `${me.first} said a moment ago: "${yours.text}" Take that up as well, or what has been said about it since. Do not start a new subject.` : '';
+      const why = [by && !(by.you && heardYou) ? `${by.first} has just pointed at you.` : !by && !heardYou && last && last.t === 'say' && last.who !== p.id && mentioned(last.text, last.who).includes(p) ? `${P(last.who).first} just spoke to you.` : '', heardYou].filter(Boolean).join(' ');
+      const r = await Seat.say(p, why, answering);
       p.mem.accusedBy = null;
       p.mem.spoke = (p.mem.spoke || 0) + 1;
       const said = say(p.id, r.text);
@@ -1339,7 +1361,7 @@ const Game = (() => {
       if (r.weight && r.aim) { state.heat[r.aim.id] = (state.heat[r.aim.id] || 0) + r.weight; for (const l of alive()) if (!l.you && !isKnife(l) && l !== p) l.mem.sus[r.aim.id] = (l.mem.sus[r.aim.id] || 0) + r.weight; }
       UI.speaking(null);
       await wait(250);
-      if (!reacted && r.stance === 'accuse' && r.aim && r.aim.alive && rnd(state) < 0.6) { reacted = true; await roomReacts(`${p.first} just said to the table: "${r.text}" (pointing at ${r.aim.first}).`, p.id); }
+      if (!reacted && r.stance === 'accuse' && r.aim && r.aim.alive && rnd(state) < 0.3) { reacted = true; await roomReacts(`${p.first} just said to the table: "${r.text}" (pointing at ${r.aim.first}).`, [p.id, r.aim.id]); }
     }
     UI.stage(null);
     state.beat += 1;

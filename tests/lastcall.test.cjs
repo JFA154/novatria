@@ -502,7 +502,7 @@ s.test('what is put to the player is kept until they answer it: marked in the st
   assert.deepEqual(await page.evaluate(() => [document.querySelector('#asks').hidden, Game.state.asks.length]), [true, 0]);
 });
 
-s.test('they play like people, not detectives: each seat has its own way of playing and a gut feeling, is told how little to say each turn, and is cut off if it goes on; the room reacts in a few words that are never evidence', async h => {
+s.test('they play like people who are trying to win: each seat has a temperament (a lean, never a script), a few have a slight hunch, each is told how much to say each turn and is cut off if it goes on; the room reacts in a few words that are never evidence', async h => {
   const bodies = [];
   const page = await open(h, { route: standIn(bodies) });
   await page.fill('#f-key', 'sk-ant-test-key');
@@ -520,24 +520,34 @@ s.test('they play like people, not detectives: each seat has its own way of play
   const talk = bodies.filter(b => b.body.output_config.format.schema.required.includes('stance'));
   assert.ok(talk.length >= 4);
   const sys = talk[0].body.system[0].text;
-  assert.match(sys, /Play it like a person at a party game, never like a detective or a machine\./);
-  assert.match(sys, /Never weigh the evidence out loud, never list reasons, never sum up what has happened\./);
-  assert.match(sys, /Short\. This is talk across a table, not a speech/);
+  assert.match(sys, /Play to win, the way a sharp, ordinary person plays a party game\./);
+  assert.match(sys, /You are not a detective giving a summing-up, and you are not a fool or a clown either\./);
+  assert.match(sys, /It is a lean, never a script: it never makes you play badly, ignore what was said, or act a part\./);
+  assert.match(sys, /Short and to the point\. This is talk across a table, not a speech/);
+  assert.match(sys, /never as a pet word, a pet name for people or a catchphrase\. No "heh"/);
   assert.doesNotMatch(sys, /Reason from the votes|one to three short sentences|Hold a view and say why/, 'the instructions that made them all careful and long are gone');
-  // Each turn: a way of playing, and how much to say.
+  assert.doesNotMatch(sys, /impulsive|often wrong|lean into it even when it is not the clever move|Never weigh the evidence|Lie plainly/, 'and so are the ones that made them play the fool');
+  // Nobody's voice is a pet word to hang on every line.
+  const voices = [...sys.matchAll(/^- [^\n]+ Voice: ([^\n]+) Manner: /gm)].map(m => m[1]);
+  assert.ok(voices.length >= 7 && voices.every(v => !/['"\u2018\u2019\u201C\u201D]\w[^'"]*['"\u2018\u2019\u201C\u201D]|\bsugar\b|\bhon\b|ma'am|\bheh\b|\bcuz\b|\bbro\b/i.test(v.replace(/\w's\b/g, ''))), 'a manner, never a quoted catchphrase: ' + voices.join(' | '));
+  const tempers = await page.evaluate(() => Game.STYLES.map(x => x.text).join(' '));
+  assert.doesNotMatch(tempers, /often wrong|get details wrong|do not care|without a reason|whatever happens|probably right/, 'no temperament is a way of playing badly');
+  // Each turn: a temperament, and how much to say.
   const ways = new Set();
   const lengths = new Set();
   for (const b of talk) {
     const u = userOf(b);
-    const way = /^YOUR WAY OF PLAYING: (.+)$/m.exec(u);
+    const way = /^YOUR TEMPERAMENT: (.+)$/m.exec(u);
     const len = /^LENGTH THIS TURN: (.+)$/m.exec(u);
     assert.ok(way && len, 'every turn is given both');
     ways.add(way[1]);
     lengths.add(len[1]);
   }
   assert.ok(ways.size >= 2, 'they do not all play the same way');
-  assert.ok([...lengths].every(l => /^(a few words: eight at most\. A fragment is fine\.|one short sentence: sixteen words at most\.|two short sentences: twenty-eight words at most\.)$/.test(l)));
-  assert.ok(talk.some(b => /^YOUR GUT TODAY: something about \w+ bothers you\. You could not say why\.$/m.test(userOf(b))), 'some of them have a hunch with nothing behind it');
+  assert.ok([...lengths].every(l => /^(a few words: ten at most\. A fragment is fine\.|one sentence: twenty words at most\.|two short sentences: thirty-four words at most\.)$/.test(l)));
+  const hunch = talk.filter(b => /^A HUNCH: you have a slight feeling about \w+, nothing solid\. It is somewhere to start; drop it the moment the table gives you something better\.$/m.test(userOf(b)));
+  assert.ok(hunch.length < talk.length, 'a hunch is for a few of them, not the way the whole table thinks');
+  assert.ok(talk.every(b => !/YOUR GUT TODAY|YOUR WAY OF PLAYING/.test(userOf(b))));
   const dealt = await page.evaluate(() => ({ styles: Game.state.players.filter(p => !p.you).map(p => p.style), known: Game.STYLES.map(x => x.id) }));
   assert.ok(dealt.styles.every(x => dealt.known.includes(x)));
   assert.equal(dealt.styles.filter(x => x === 'tracker').length, 1, 'one of them keeps track of the votes, and only one');
@@ -562,6 +572,63 @@ s.test('they play like people, not detectives: each seat has its own way of play
   assert.ok(react.lines.length >= 1);
   assert.match(react.lines[0], /^\w+: \u201CHa!\u201D {2}\w+: \u201COh, come on now, really, honestly\u2026\u201D$/, 'each a few words, the long one cut: ' + react.lines[0]);
   assert.ok(react.lines.every(l => !react.record.includes(l)), 'never in the record a seat is given');
+});
+
+s.test('what the player says is answered: the first seat to speak is given their words and told to answer them, the second to take them up, and a round the player passes has none of it; in the offline demo the scripted seats answer too', async h => {
+  const bodies = [];
+  const page = await open(h, { route: standIn(bodies) });
+  await page.fill('#f-key', 'sk-ant-test-key');
+  await page.fill('#f-name', 'Joe');
+  // (A Knife, so the night is the player's to decide and they are at the table in the morning.)
+  await page.click('#f-role [data-v="knife"]');
+  await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
+  await page.click('#btn-new');
+  await page.click('dialog .btn.primary');
+  await begin(page);
+  await page.click(`.seat[data-id="${await page.evaluate(() => Game.state.players.find(p => p.alive && p.role === 'town').id)}"]`);
+  await page.click('#mid-go');
+  await settle(page);
+  const userOf = b => b.body.messages[0].content.map(c => c.text).join('\n');
+  const talkOf = () => bodies.filter(b => b.body.output_config.format.schema.required.includes('stance'));
+  const sys = async () => { await pass(page); return talkOf()[0].body.system[0].text; };
+  const s0 = await sys();
+  assert.match(s0, /This is a conversation: listen to it\. What you say answers what was just said, or the person who spoke to you\./);
+  assert.match(s0, /Joe is a player like any other\. Take what Joe says as seriously as anyone's: answer it, argue with it, hold them to it\./);
+  assert.ok(talkOf().every(b => !/Joe has just said|Joe said a moment ago/.test(userOf(b))), 'a round the player passed has nothing of theirs to answer');
+  // A line to the whole table.
+  let from = talkOf().length;
+  const words = "Right, it's a pain we lost the Witness on day one.";
+  await page.fill('#say', words);
+  await page.click('#btn-say');
+  await settle(page);
+  let round = talkOf().slice(from).map(userOf);
+  assert.ok(round.length >= 2, 'two or three answer');
+  assert.ok(round[0].includes(`Joe has just said, to the whole table: "${words}" Answer Joe: take up what they said (agree, argue with it, or answer the question), speaking to them.`), round[0].slice(-400));
+  assert.ok(round[1].includes(`Joe said a moment ago: "${words}" Take that up as well, or what has been said about it since. Do not start a new subject.`), round[1].slice(-400));
+  if (round[2]) assert.doesNotMatch(round[2], /Joe has just said|Joe said a moment ago/, 'the third is free to move on');
+  // An answer has room to be one: never the few-words length.
+  for (const u of round.slice(0, 2)) assert.doesNotMatch(/^LENGTH THIS TURN: (.+)$/m.exec(u)[1], /^a few words/);
+  // A line to one of them: that one speaks first, and is told it was said to them.
+  const to = await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you).first);
+  from = talkOf().length;
+  await page.fill('#say', `${to}, why so quiet?`);
+  await page.click('#btn-say');
+  await settle(page);
+  round = talkOf().slice(from).map(userOf);
+  assert.match(round[0], new RegExp(`^YOUR SEAT: ${to} `, 'm'));
+  assert.ok(round[0].includes(`Joe has just said, to you: "${to}, why so quiet?" Answer Joe:`), round[0].slice(-400));
+  // The scripted seats (the offline demo, a failed call) take it up too.
+  const demo = await open(h);
+  await sit(demo, { seed: 91, role: 'town', wild: false });
+  await begin(demo);
+  await demo.click('#mid-go');
+  await settle(demo);
+  await demo.fill('#say', 'I have no idea who it is.');
+  await demo.click('#btn-say');
+  await settle(demo);
+  const after = await demo.evaluate(() => { const l = Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk'); const i = l.map(e => e.who).lastIndexOf('you'); return l.slice(i + 1, i + 3).map(e => e.text); });
+  assert.equal(after.length, 2);
+  for (const x of after) assert.match(x, /\bJoe\b|\byou\b/i, 'said to the player: ' + x);
 });
 
 s.test('typing on a phone with the keyboard up gives the room to the story and the box: the table and the quick replies step aside, and come back when the keyboard goes', async h => {
