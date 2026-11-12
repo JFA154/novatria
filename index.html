@@ -37169,7 +37169,7 @@ const Pipeline = (() => {
      play, i don't see the message until the game finishes. I.e. if I say:
      'I will kick your ass, let's play', instead of it being: 'We'll see,
      the [game]', it is [game] finishes, then we'll see"): words said with
-     a bet are answered before a card is dealt. tableWords finds them: in
+     a bet are answered before a card is dealt. talkWords finds them: in
      Say mode the line itself, in Do mode what it quotes; they are talk when
      two or more of their words are neither the bet's own (deal, hand,
      cards, the game, the stake, sitting in) nor small words nor the
@@ -37188,7 +37188,7 @@ const Pipeline = (() => {
     "let let's lets go going got get gets can could may might mind if do does want wanna would like will shall just one more next time tonight today again another " +
     "deal deals dealt dealing bet bets betting put puts play plays playing game games hand hands card cards poker hold'em holdem hold em texas draw five-card table tables seat seats sit sits sitting join joins ante antes stake stakes pot chips chip money cash bucks buck dollars dollar buy buy-in buyin all round rounds shuffle shuffles start begin ready sure fine good right " +
     "two three four five six seven eight nine ten twenty thirty forty fifty sixty seventy eighty ninety hundred thousand grand half").split(' '));
-  function tableWords(ctx, dealer) {
+  function talkWords(ctx, dealer) {
     const input = String((ctx && ctx.input) || '');
     const said = isSay(ctx.speech) ? input : (input.match(/["“][^"“”]+["”]/g) || []).join(' ');
     if (!said.trim()) return null;
@@ -37199,7 +37199,7 @@ const Pipeline = (() => {
   }
   async function tableTalk(ctx, dealer) {
     const s = State.current;
-    const said = tableWords(ctx, dealer);
+    const said = talkWords(ctx, dealer);
     if (!said) return null;
     const mock = Api.providerName() === 'mock';
     const lines = ctx.narratorLines;
@@ -40258,7 +40258,7 @@ const Pipeline = (() => {
     // Wave 38: time with someone at its own table.
     date, dateOk, dateTaste, dateMoves, dateEase, plainDateText, DATE, DATE_MOVES, flirt, sitIn, dealAgain,
     // Wave 39: words said with a bet, answered before the cards.
-    tableWords,
+    talkWords,
     get handOpen() { return !!hand; },
     /* The open hand's table (stake, dealer, cards as dealt), or null (wave 11: the box's nudge names the fold price). Wave 13: kind is 'choose', 'draw' or 'holdem'. */
     get openHand() { return hand ? hand.table : null; },

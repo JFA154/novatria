@@ -3,7 +3,7 @@
    play, i don't see the message until the game finishes. I.e. if I say:
    'I will kick your ass, let's play', instead of it being: 'We'll see, the
    [game]', it is [game] finishes, then we'll see"): words said with a bet
-   are answered before a card is dealt (Pipeline.tableWords, tableTalk).
+   are answered before a card is dealt (Pipeline.talkWords, tableTalk).
    Covered here: which lines are talk and which are only a bet; the order in
    the story (the line, the answer, the table, the hand); the two packets
    (TABLE TALK with a short LENGTH, then ALREADY TOLD); the log entry's lead
@@ -50,7 +50,7 @@ s.test('(a) which words are talk: two or more that are not the bet\'s own, small
   const { page, dealer } = await start(h);
   const out = await page.evaluate(id => {
     const d = Game.State.npc(id);
-    const tw = (input, mode) => Game.Pipeline.tableWords({ input, speech: mode === 'say' ? { mode: 'say', to: id } : { mode: 'do' } }, d);
+    const tw = (input, mode) => Game.Pipeline.talkWords({ input, speech: mode === 'say' ? { mode: 'say', to: id } : { mode: 'do' } }, d);
     return {
       talk: [["I will kick your ass, let's play", 'say'], ['Deal me in, old man', 'say'], ['You look nervous tonight. Deal me in.', 'say'], ['I sit down and say "You are going to lose your shirt" and put $20 in', 'do']].map(([w, m]) => tw(w, m)),
       bare: [['Deal me in for twenty', 'say'], ['Mind if I sit in?', 'say'], ['Mind if I join you for a hand?', 'say'], [`Another hand, ${d.name.split(' ')[0]}`, 'say'], ["I'm in for fifty", 'say'], ['I go all in', 'say'], ["Deal me in at hold'em", 'say'],
@@ -84,6 +84,7 @@ s.test('(b) words with a bet are answered before a card is dealt: the line, the 
   const second = await page.evaluate(() => Game.Api.Mock.calls.filter(c => c.method === 'narrate')[1].text);
   assert.match(second, /^ALREADY TOLD \(before the hand, on screen above the table\): "\\"We'll see about that,\\" Curtis says, and cuts the deck\." The player's words are answered there: do not repeat or rephrase that answer, and do not answer the words again; tell the hand and what follows it\.$/m);
   assert.match(second, /^OUTCOME: /m, "the hand is in it");
+  assert.doesNotMatch(second, /^OUTCOME: .*\bnull\b/m, "and told in full (the hand's own words are the engine's, as before)");
   const e = await lastEntry(page);
   assert.equal(e.lead, '"We\'ll see about that," Curtis says, and cuts the deck.');
   assert.ok(e.narration.startsWith(`${e.lead}\n\n`) && e.narration.length > e.lead.length + 20, 'the turn\'s narration is the answer and the hand together');

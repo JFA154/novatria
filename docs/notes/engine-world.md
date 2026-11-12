@@ -2281,7 +2281,7 @@ being: 'We'll see, the [game]', it is [game] finishes, then we'll see".
 The UI side: `docs/notes/ui.md`, Wave 39. Tests:
 `tests/wave39-table-talk.test.cjs`.
 
-- **`tableWords(ctx, dealer)`**: the words to answer, or null. In Say mode
+- **`talkWords(ctx, dealer)`**: the words to answer, or null. In Say mode
   the line; in Do mode what it quotes. They are talk when two or more of
   their words are not in `TABLE_WORDS` (the bet's own words, the games, the
   money and number words, small words) and not the dealer's name. "Deal me
