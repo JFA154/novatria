@@ -1930,16 +1930,35 @@ every Knife is out; the Knives win when they are as many as everyone else.
 - **The table is the screen**: everyone's face round it, yours at the foot.
   Tap a face to aim at them, to mark them (Suspect or Trust, a ring only you
   see), to pick them at night or to vote for them. **Call the vote** is in
-  the middle of the table (it is called for you after five rounds).
-- **One tap says it**: under the story is a row of quick replies aimed at
-  whoever you picked, whoever you chose to answer, or whoever spoke last:
-  **It's you. Liar. Why? I'm with you. Not me.** Each is said at once, by
-  name, and two or three of the table answer. Or type your own in the box.
-  The button beside it is **Say** with words in the box and **Pass** with
-  none: Pass lets the table talk a round without you.
-- **What you say is answered**: the first of the table to speak after you
-  is given your words and told to answer them, the second to take them up
-  as well, whether you spoke to one of them or to the whole table.
+  the middle of the table.
+- **A live table**: the day is not rounds. The table talks on by itself,
+  like a group chat, and you say something whenever you like; nothing waits
+  for you and there is nothing to pass. Whoever is typing is shown typing
+  (a ring on their seat, their face and three dots under the last message),
+  sometimes two at once. The talk ends when you call the vote, when more
+  than half of the seats have said they would vote, or when it gets late
+  (two messages a seat and two more, a few more when you talk). The table
+  holds a moment while you are typing, about four seconds after a question
+  is put to you, and while the page is not being looked at. On the first
+  screen **The talk** can be set to **In turns** instead: you speak or
+  pass, then two or three of them do.
+- **Who speaks follows the talk, not a rota**: whoever you spoke to
+  answers you (two of the table at once, neither seeing the other's, when
+  you spoke to everyone); the morning's first words are about the night;
+  whoever is accused or asked answers; otherwise anyone, by how much each
+  of them talks (each is dealt that: some never stop, some lurk). Nobody
+  speaks twice running, and two who have gone at each other three times
+  are cut in on.
+- **They write like people in a group chat**: each seat is dealt a way of
+  typing for the game (all lowercase, capitals and full stops like a text
+  to the boss, as few words as possible, CAPS on the one word, trailing
+  off, swearing, fast and unfixed) and told to write the way people really
+  type, never the way a book or an assistant does: fragments, no names in
+  every line, nothing that sounds written. Lower case and the dropped last
+  full stop are also done to what comes back, so the table reads as eight
+  hands. About one message in five, when nobody is owed an answer, is only
+  a reaction ("ugh", "can we just vote"); a seat may send a second short
+  message straight after its first.
 - **They play like people who want to win**: nobody at the table is a
   detective giving a summing-up, and nobody is a fool. Each seat is dealt a
   temperament for the game (trusts a read of people, takes an accusation
@@ -1948,21 +1967,26 @@ every Knife is out; the Knives win when they are as many as everyone else.
   waffle; one, and only one, keeps track of the votes). It is a lean on a
   sharp player, never a script. A few have a slight hunch in the morning,
   to be dropped when the table gives them something better. Each is told
-  every turn how much to say (a sentence as a rule, sometimes a few words,
-  sometimes two sentences) and a seat that goes on anyway is cut off. Each
-  has a manner of speaking and no pet word. Now and then, when something
-  lands, two or three of the room react in a few words.
-- **A phone first**: what is said is one compact line each (a small face,
-  a first name, the words). With the keyboard up the table steps aside so
-  the story and the box have the screen.
-- **It is told like a night at the table**: a host speaks at each turn of
-  it (the lights going down, who is found in the morning and where, the
-  vote). The night is played step by step (everyone shuts their eyes, the
-  Knives open theirs, the Witness looks, the Watch keeps a door). Whoever
-  speaks, their words come up in the middle of the table as they say them;
-  someone accused scowls and gets a mark over their seat. At the vote
-  everyone points at once and the lines are drawn across the table one by
-  one. Whoever is voted out has their **last words** before their role is
+  every turn how much to send, and a seat that goes on anyway is cut off.
+- **They carry things**: each seat is told what it is carrying into the
+  day (who voted to put it out yesterday, whether its own vote was right,
+  who came after it and who stood up for it) and is given back how it said
+  it felt, privately, the last time it spoke.
+- **One tap says it**: under the chat is a row of quick replies aimed at
+  whoever you picked (tap their face, or anything they said) or chose to
+  answer: **It's you. Liar. Why? I'm with you. Not me.** Each is said at
+  once, by name. Or type your own in the box and **Send**.
+- **A phone first**: the story is a chat. Everyone else's messages are on
+  the left under their name (a colour each), yours on the right. With the
+  keyboard up the table steps aside so the chat and the box have the
+  screen.
+- **It is told like a night at the table**: a host has one line in the
+  morning (who is found, and where) and one at the vote. The night is
+  played step by step (everyone shuts their eyes, the Knives open theirs,
+  the Witness looks, the Watch keeps a door). Someone accused scowls and
+  gets a mark over their seat until they answer. At the vote everyone
+  points at once and the lines are drawn across the table one by one.
+  Whoever is voted out has their **last words** before their role is
   shown (you too: the table waits for yours). When it is over, **The
   reveal** shows every role, how each went, how each voted and what each
   was privately thinking.
@@ -1975,10 +1999,10 @@ every Knife is out; the Knives win when they are as many as everyone else.
   is what happens at the table (what is said, who accuses and defends whom,
   the votes, who is taken and what they were, what is claimed). Nobody saw
   anything in the night, and where anyone was or was going means nothing,
-  so they do not ask. They are given no town either: a seat is a name, an
-  age, a way of talking and a manner, with no job, no ties to the others
-  and no life outside the room, and it is told to talk about the game and
-  nothing else.
+  and nobody can see anybody's face, so they do not ask and do not say who
+  is sweating. They are given no town either: to the others a seat is a
+  name, with no job, no ties and no life outside the room, and it is told
+  to talk about the game and nothing else.
 - **Who plays the others**: with an Anthropic API key, Claude does, one call
   for each seat each time it speaks, votes or chooses in the night, in that
   person's own way of talking. A
@@ -2044,10 +2068,15 @@ fails it with a message saying so; the CI checkout fetches it all).
 - `lastcall` for Last Call (`index.html`): the deal and the wild cards, the
   rules, a whole scripted game with the host and the reveal, last words, the
   Fool and the Hothead, what is waiting on the player and the quick replies,
-  what the player says being answered, the temperaments and the lengths (a
-  seat that goes on is cut off), the room's reactions, the Claude path against a stand-in API (the request,
-  what each seat, the host and the room are told, a failed call), the player
-  out, a reload, phone widths and the keyboard up;
+  what the player says being answered, the temperaments, the ways of
+  typing and the lengths (a seat that goes on is cut off), a live table
+  talking on by itself (who is typing, the player speaking meanwhile, two
+  answering at once, the vote dropping what was being typed, a reload in
+  the middle of it), what a seat carries from one day to the next, the talk
+  ending when most would vote, two at each other being cut in on, the
+  Claude path against a stand-in API (the request, what each seat and the
+  host are told, a failed call), the player out, phone widths and the
+  keyboard up;
 - `wave38-date` for the faces, the strip of who is here, the date table,
   Deal again and the one-tap flirt; `wave39-table-talk` for words said with
   a bet being answered before the cards;

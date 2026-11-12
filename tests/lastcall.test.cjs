@@ -17,7 +17,14 @@
    what each seat is and is not told, the host told only what is public,
    the cost line, a failed call falling back to the script); the player
    out (every role shown, Skip to the end with no calls); a reload; phone
-   widths; no innerHTML and one fetch. Run with: node tests/run.cjs lastcall */
+   widths; no innerHTML and one fetch.
+   The talk is live (the owner: "how can it feel like 8 humans are talking?
+   rather than ai and game"): the table talks on by itself and the player
+   speaks whenever they like. Most tests here sit down at a table that
+   takes turns (live: false), where each step ends and can be waited for;
+   the live table has tests of its own (who is typing, the player speaking
+   meanwhile, two answering at once, the vote dropping what was being
+   typed, a reload in the middle). Run with: node tests/run.cjs lastcall */
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert/strict');
@@ -43,13 +50,13 @@ const settle = async (page, opts) => {
   throw new Error('the step never settled');
 };
 const sit = async (page, opts) => {
-  await page.evaluate(o => { Game.App.speed = 0; Game.App.quiet = true; Game.App.newGame(Object.assign({ seed: 11, size: 8, mode: 'demo', name: 'Joe' }, o)); }, opts || {});
+  await page.evaluate(o => { Game.App.speed = 0; Game.App.quiet = true; Game.App.newGame(Object.assign({ seed: 11, size: 8, mode: 'demo', name: 'Joe', live: false }, o)); }, opts || {});
   await page.click('dialog .btn.primary');
 };
 const begin = async page => { await page.click('#mid-go'); await settle(page); };
 /* Let the table talk a round without the player: Pass beside the empty box (still in), or Watch them talk (out). */
 const pass = async page => { if (await page.$('#btn-pass')) await page.click('#btn-pass'); else { await page.fill('#say', ''); await page.click('#btn-say'); } await settle(page); };
-const st = page => page.evaluate(() => { const g = Game.state; return { phase: g.phase, day: g.day, beat: g.beat, winner: g.winner, me: g.players[0], players: g.players.map(p => ({ id: p.id, first: p.first, name: p.name, role: p.role, alive: p.alive, out: p.out })) }; });
+const st = page => page.evaluate(() => { const g = Game.state; return { phase: g.phase, day: g.day, said: g.said, winner: g.winner, me: g.players[0], players: g.players.map(p => ({ id: p.id, first: p.first, name: p.name, role: p.role, alive: p.alive, out: p.out })) }; });
 const sysLines = (page, kind) => page.evaluate(k => Game.state.log.filter(e => e.t === 'sys' && (!k || e.kind === k)).map(e => e.text), kind || null);
 /* A stand-in for the API: answers each call with JSON of the shape asked for, naming someone still in who is not the seat itself (nor its fellow Knife). */
 function standIn(bodies, opts) {
@@ -69,14 +76,13 @@ function standIn(bodies, opts) {
     const still = ((/STILL IN: (.*)\./.exec(user) || [])[1] || '').split(', ');
     const me = (/YOUR SEAT: (\S+)/.exec(user) || [])[1];
     const other = still.find(n => n !== me && !new RegExp(`fellow Kni(?:fe|ves): [^.]*${n}`).test(user));
-    const room = need.includes('reactions') ? [...body.system[0].text.matchAll(/^- (\w+):/gm)].map(m => m[1]) : null;
-    const out = room ? { reactions: [{ name: room[0], say: 'Ha!' }, { name: room[1], say: 'Oh, come on now, really, honestly, you cannot possibly mean that at all' }] }
-      : host ? { say: 'The generator coughs twice and the room goes dark.' }
+    if (opts && opts.delay) await new Promise(r => setTimeout(r, opts.delay));
+    const out = host ? { say: 'The generator coughs twice and the room goes dark.' }
       : need.includes('vote') ? { vote: other, say: `${other}. I have my reasons.`, note: `voted ${other}` }
         : need.includes('take') && need.includes('say') ? { take: other, say: `Take ${other}. Too sharp by half.` }
           : need.includes('take') ? { take: other, note: `took ${other}` }
             : need.length === 1 ? { say: 'You will all be sorry by morning.' }
-              : { say: `${other}, you were by the back door when the lights went. Explain that.`, about: other, stance: 'accuse', suspect: other, trust: null, note: `pressing ${other}` };
+              : { say: `${other}, You were too quiet.`, more: opts && opts.more ? 'Just saying, that is all I mean here' : null, about: other, stance: 'accuse', ready: !!(opts && opts.ready), suspect: other, trust: null, feel: `sore at ${other}`, note: `pressing ${other}` };
     return route.fulfill({ status: 200, headers: Object.assign({ 'content-type': 'application/json' }, cors), body: JSON.stringify({ id: 'msg_x', type: 'message', role: 'assistant', model: body.model, stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(out) }], usage: { input_tokens: 1000, output_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } }) });
   };
 }
@@ -148,8 +154,8 @@ s.test('a whole scripted game through the buttons: the role card, the host at ea
     if (g.phase === 'over') break;
     if (g.phase === 'night') { await page.click('#mid-go'); await settle(page); }
     else if (g.phase === 'talk') {
-      if (g.me.alive && g.beat === 0) { await page.fill('#say', 'Somebody here is lying to me.'); await page.click('#btn-say'); await settle(page); }
-      else if (g.beat < 2) await pass(page);
+      if (g.me.alive && g.said === 0) { await page.fill('#say', 'Somebody here is lying to me.'); await page.click('#btn-say'); await settle(page); }
+      else if (g.said < 5) await pass(page);
       else await page.click('#btn-vote');
     } else if (g.phase === 'vote') {
       const aliveBefore = g.players.filter(p => p.alive).length;
@@ -174,7 +180,7 @@ s.test('a whole scripted game through the buttons: the role card, the host at ea
   assert.match(shown.mid, /^(Town wins|The Knives win|The Fool wins)$/);
   assert.ok(shown.tags.every(t => ['Town', 'Knife', 'Witness', 'Watch', 'Fool', 'Hothead'].includes(t)), 'every role is on the table at the end: ' + shown.tags.join(','));
   assert.match(shown.last, /^(Town wins\. Every Knife is out: |The Knives win: |The Fool wins\. )/);
-  assert.ok(shown.host >= 3, 'the host speaks at each night, morning and vote');
+  assert.ok(shown.host >= 2, 'the host speaks at each morning and each vote');
   assert.ok(shown.hostText.every(t => !shown.record.includes(t)), 'and what the host says is colour: it is never in the record a seat is given');
   // The reveal: every role, how each went and how each voted.
   await page.click('#mid-reveal');
@@ -329,6 +335,7 @@ s.test('with Claude at the seats: the request is the API\'s own shape, each seat
   await page.fill('#f-name', 'Joe');
   await page.click('#f-role [data-v="knife"]');
   await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
+  await page.click('#f-pace [data-v="turns"]');
   await page.click('#btn-new');
   await page.click('dialog .btn.primary');
   await begin(page);
@@ -344,7 +351,7 @@ s.test('with Claude at the seats: the request is the API\'s own shape, each seat
   await settle(page);
   const said = await page.evaluate(() => Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk').map(e => [e.who, e.text]));
   assert.equal(said[0][0], 'you');
-  assert.ok(said.length >= 3 && said.slice(1).every(x => /you were by the back door when the lights went/.test(x[1])), 'what Claude sent back is what is said');
+  assert.ok(said.length >= 3 && said.slice(1).every(x => /you were too quiet/i.test(x[1])), 'what Claude sent back is what is said');
   // The request.
   const first = bodies[0];
   assert.deepEqual([first.headers['x-api-key'], first.headers['anthropic-version'], first.headers['anthropic-dangerous-direct-browser-access']], ['sk-ant-test-key', '2026-10-21', 'true']);
@@ -369,11 +376,12 @@ s.test('with Claude at the seats: the request is the API\'s own shape, each seat
   assert.match(userOf(town), /^Joe: "I was at the bar all night\. Who saw anything\?"$/m, 'the player is in the record by name, as anyone is');
   assert.doesNotMatch(userOf(town), /The generator coughs twice/, 'the host\'s colour is not in a seat\'s record');
   if (knife) assert.match(userOf(knife), /YOUR SECRET ROLE: Knife\. Your fellow Knife: Joe\./);
-  assert.match(bodies[0].body.system[0].text, new RegExp(`^- ${mate.name} \\(\\d+\\)\\. Voice: [^\\n]+ Manner: [^\\n]+\\.$`, 'm'), 'each seat has its own way of talking');
+  assert.match(userOf(town), /^HOW YOU TYPE: [^\n]+ Your manner: [^\n]+\.$/m, 'each seat has its own way of typing and its own manner');
+  assert.match(bodies[0].body.system[0].text, new RegExp(`^PLAYING: Joe, (?:\\w+, )*${mate.first}\\b`, 'm'), 'and the others are names, no more');
   assert.match(bodies[0].body.system[0].text, /One person is the Fool, on nobody's side/, 'the wild cards are in the rules every seat is given');
   // The host.
   const hosts = bodies.filter(isHost);
-  assert.ok(hosts.length >= 2, 'the host is asked for the night and the morning');
+  assert.ok(hosts.length >= 1, 'the host is asked for the morning');
   for (const b of hosts) assert.doesNotMatch(userOf(b) + b.body.system[0].text, /SECRET ROLE|fellow Kni|is a Knife\b/, 'and is told nothing that is not public');
   assert.ok(await page.evaluate(() => Game.state.log.some(e => e.kind === 'host' && e.text === 'The generator coughs twice and the room goes dark.')));
   // The vote: the stand-in has every seat vote for the first name still in that is not its own, so the table goes for the player.
@@ -396,6 +404,7 @@ s.test('a call that fails costs the game nothing: that seat plays from the scrip
   await page.fill('#f-key', 'sk-ant-secret-key');
   await page.click('#f-role [data-v="town"]');
   await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
+  await page.click('#f-pace [data-v="turns"]');
   await page.click('#btn-new');
   await page.click('dialog .btn.primary');
   await begin(page);
@@ -406,7 +415,7 @@ s.test('a call that fails costs the game nothing: that seat plays from the scrip
   assert.ok(bodies.length >= 2, 'the calls were made');
   assert.equal(out.notices.length, 1, 'said once');
   assert.match(out.notices[0], /^A call to Claude failed \(the stand-in is down\), so that seat played from its script\. The game goes on\.$/);
-  assert.ok(out.talk >= 2 && out.failed >= 2 && out.host >= 2, 'and the table still talks, the host too');
+  assert.ok(out.talk >= 2 && out.failed >= 2 && out.host >= 1, 'and the table still talks, the host too');
   assert.equal(out.save.includes('sk-ant-secret-key'), false, 'the key is not in the save');
   assert.equal(out.text.includes('sk-ant-secret-key'), false);
 });
@@ -448,7 +457,7 @@ s.test('what is put to the player is kept until they answer it: marked in the st
   const page = await open(h);
   await sit(page, { seed: 81, role: 'town', wild: false });
   await begin(page);
-  await page.evaluate(() => { Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop(); Game.Bots.room = () => []; });
+  await page.evaluate(() => { Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop(); for (const p of Game.state.players) p.type = 'proper'; });
   await page.click('#mid-go');
   await settle(page);
   // Everyone who speaks puts something to the player: the first a question, the rest an accusation.
@@ -466,6 +475,10 @@ s.test('what is put to the player is kept until they answer it: marked in the st
   assert.match(t.rows[0].text, /^Joe, who do you make it\?/);
   assert.deepEqual(t.seats.slice().sort(), t.rows.map(r => r.who).sort(), 'each of them has a mark on their seat');
   assert.deepEqual([t.marked, t.tags], [3, 3], 'and each line is marked "to you" in the story');
+  // Each is there whole, on as many lines as it takes (the owner, of one cut short with three dots: "this is not good"), and the chat still shows its newest message above the list.
+  const whole = await page.evaluate(() => { const x = document.querySelector('#asks .ask-text'); const w = document.querySelector('#log-wrap'); const c = getComputedStyle(x); return { overflow: c.textOverflow, space: c.whiteSpace, cut: x.scrollWidth > x.clientWidth + 1 && c.overflow !== 'visible', shown: getComputedStyle(document.querySelector('#asks .ask-who .visually-hidden')).position, gap: Math.round(w.scrollHeight - w.scrollTop - w.clientHeight) }; });
+  assert.deepEqual([whole.overflow, whole.space, whole.cut, whole.shown], ['clip', 'normal', false, 'absolute'], JSON.stringify(whole));
+  assert.ok(whole.gap <= 2, 'the chat is at its newest message: ' + whole.gap);
   assert.deepEqual(t.chips, ["It's you.", 'Liar.', 'Why?', "I'm with you.", 'Not me.'], 'the quick replies');
   // Tapping one aims the quick replies and the box at that person; a quick reply answers it in one tap.
   const firstWho = t.rows[0].who;
@@ -502,13 +515,14 @@ s.test('what is put to the player is kept until they answer it: marked in the st
   assert.deepEqual(await page.evaluate(() => [document.querySelector('#asks').hidden, Game.state.asks.length]), [true, 0]);
 });
 
-s.test('they play like people who are trying to win: each seat has a temperament (a lean, never a script), a few have a slight hunch, each is told how much to say each turn and is cut off if it goes on; the room reacts in a few words that are never evidence', async h => {
+s.test('they play like people who are trying to win, and write like people in a group chat: each seat has a temperament and a way of typing of its own, is told how much to send each turn (sometimes only a reaction) and is cut off if it goes on; nobody but the seats speaks', async h => {
   const bodies = [];
   const page = await open(h, { route: standIn(bodies) });
   await page.fill('#f-key', 'sk-ant-test-key');
   await page.fill('#f-name', 'Joe');
   await page.click('#f-role [data-v="town"]');
   await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
+  await page.click('#f-pace [data-v="turns"]');
   await page.click('#btn-new');
   await page.click('dialog .btn.primary');
   await begin(page);
@@ -516,41 +530,64 @@ s.test('they play like people who are trying to win: each seat has a temperament
   await settle(page);
   await pass(page);
   await pass(page);
+  await pass(page);
   const userOf = b => b.body.messages[0].content.map(c => c.text).join('\n');
   const talk = bodies.filter(b => b.body.output_config.format.schema.required.includes('stance'));
-  assert.ok(talk.length >= 4);
+  assert.ok(talk.length >= 6);
   const sys = talk[0].body.system[0].text;
+  assert.match(sys, /^You are one of 8 friends playing "Last Call", a hidden-role party game like Werewolf or Mafia, in the game's group chat\./);
   assert.match(sys, /Play to win, the way a sharp, ordinary person plays a party game\./);
   assert.match(sys, /You are not a detective giving a summing-up, and you are not a fool or a clown either\./);
   assert.match(sys, /It is a lean, never a script: it never makes you play badly, ignore what was said, or act a part\./);
-  assert.match(sys, /Short and to the point\. This is talk across a table, not a speech/);
-  assert.match(sys, /never as a pet word, a pet name for people or a catchphrase\. No "heh"/);
+  assert.match(sys, /You are a person and you carry things: sore at whoever came after you or voted for you/);
+  // Written the way people type, not the way a book is written.
+  assert.match(sys, /You are typing into a fast group chat with friends, in the middle of a game\. Write the way people really type there, never the way a book or an assistant writes\./);
+  assert.match(sys, /Mostly lowercase, light on punctuation, no full stop at the end of a message, no semicolons, no dashes, no quotation marks\./);
+  assert.match(sys, /Do not keep using people's names\./);
+  assert.match(sys, /Nothing that sounds written\./);
+  assert.match(sys, /Not every message is a move\./);
   assert.doesNotMatch(sys, /Reason from the votes|one to three short sentences|Hold a view and say why/, 'the instructions that made them all careful and long are gone');
   assert.doesNotMatch(sys, /impulsive|often wrong|lean into it even when it is not the clever move|Never weigh the evidence|Lie plainly/, 'and so are the ones that made them play the fool');
-  // Nobody's voice is a pet word to hang on every line.
-  const voices = [...sys.matchAll(/^- [^\n]+ Voice: ([^\n]+) Manner: /gm)].map(m => m[1]);
-  assert.ok(voices.length >= 7 && voices.every(v => !/['"\u2018\u2019\u201C\u201D]\w[^'"]*['"\u2018\u2019\u201C\u201D]|\bsugar\b|\bhon\b|ma'am|\bheh\b|\bcuz\b|\bbro\b/i.test(v.replace(/\w's\b/g, ''))), 'a manner, never a quoted catchphrase: ' + voices.join(' | '));
+  assert.doesNotMatch(sys, /Voice:|Manner:|\(\d\d\)/, 'nobody is a character sheet to the others: a name, no more');
   const tempers = await page.evaluate(() => Game.STYLES.map(x => x.text).join(' '));
   assert.doesNotMatch(tempers, /often wrong|get details wrong|do not care|without a reason|whatever happens|probably right/, 'no temperament is a way of playing badly');
-  // Each turn: a temperament, and how much to say.
+  // Each turn: a temperament, a way of typing, and how much to send.
   const ways = new Set();
+  const hands = new Set();
   const lengths = new Set();
   for (const b of talk) {
     const u = userOf(b);
     const way = /^YOUR TEMPERAMENT: (.+)$/m.exec(u);
+    const hand = /^HOW YOU TYPE: (.+?) Your manner: (.+)$/m.exec(u);
     const len = /^LENGTH THIS TURN: (.+)$/m.exec(u);
-    assert.ok(way && len, 'every turn is given both');
+    assert.ok(way && hand && len, 'every turn is given all three');
+    assert.doesNotMatch(hand[2], /['"‘’“”]\w[^'"]*['"‘’“”]|\bsugar\b|\bhon\b|ma'am|\bheh\b|\bcuz\b|\bbro\b/i, 'a manner, never a catchphrase: ' + hand[2]);
     ways.add(way[1]);
+    hands.add(hand[1]);
     lengths.add(len[1]);
+    assert.doesNotMatch(u, /round \d of \d/, 'and there are no rounds');
   }
   assert.ok(ways.size >= 2, 'they do not all play the same way');
-  assert.ok([...lengths].every(l => /^(a few words: ten at most\. A fragment is fine\.|one sentence: twenty words at most\.|two short sentences: thirty-four words at most\.)$/.test(l)));
+  assert.ok(hands.size >= 2, 'or type the same way');
+  assert.ok([...lengths].every(l => /^(just a reaction: six words at most\. Not a move and not an argument: a groan, a laugh, a dig, "ugh", "ok that was weird", "can we just vote"\.|a few words: ten at most\. A fragment is fine\.|one sentence: twenty words at most\.|two short sentences: thirty-four words at most\.)$/.test(l)), [...lengths].join(' | '));
   const hunch = talk.filter(b => /^A HUNCH: you have a slight feeling about \w+, nothing solid\. It is somewhere to start; drop it the moment the table gives you something better\.$/m.test(userOf(b)));
   assert.ok(hunch.length < talk.length, 'a hunch is for a few of them, not the way the whole table thinks');
-  assert.ok(talk.every(b => !/YOUR GUT TODAY|YOUR WAY OF PLAYING/.test(userOf(b))));
-  const dealt = await page.evaluate(() => ({ styles: Game.state.players.filter(p => !p.you).map(p => p.style), known: Game.STYLES.map(x => x.id) }));
+  const dealt = await page.evaluate(() => ({ styles: Game.state.players.filter(p => !p.you).map(p => p.style), known: Game.STYLES.map(x => x.id), types: Game.state.players.filter(p => !p.you).map(p => p.type), hands: Game.TYPES.map(x => x.id), chat: Game.state.players.filter(p => !p.you).map(p => p.chat) }));
   assert.ok(dealt.styles.every(x => dealt.known.includes(x)));
   assert.equal(dealt.styles.filter(x => x === 'tracker').length, 1, 'one of them keeps track of the votes, and only one');
+  assert.ok(dealt.types.every(x => dealt.hands.includes(x)) && new Set(dealt.types).size === 7, 'no two of the seven type alike: ' + dealt.types.join(','));
+  assert.ok(Math.max(...dealt.chat) >= 2 * Math.min(...dealt.chat), 'some talk a lot and some lurk: ' + dealt.chat.join(','));
+  // What comes back is put in that seat's hand: lower case for most, the last full stop dropped, no dashes.
+  const hand = await page.evaluate(() => [
+    Game.typed({ type: 'lower' }, 'It is You, Leon. I am Sure.'),
+    Game.typed({ type: 'proper' }, 'It is you, Leon. I am sure.'),
+    Game.typed({ type: 'loose' }, 'Nah — not buying it; sorry.'),
+    Game.typed({ type: 'caps' }, 'that is NOT what you said??'),
+    Game.typed({ type: 'dots' }, 'I dunno...')
+  ]);
+  assert.deepEqual(hand, ['it is you, leon. i am sure', 'It is you, Leon. I am sure.', 'nah, not buying it, sorry', 'that is NOT what you said??', 'i dunno...']);
+  const lower = await page.evaluate(() => { const ids = Game.TYPES.filter(x => x.lower === true).map(x => x.id); return Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk' && e.who !== 'you' && ids.includes(Game.state.players.find(p => p.id === e.who).type)).map(e => e.text); });
+  assert.ok(lower.length >= 1 && lower.every(x => x === x.toLowerCase() && !/[^.]\.$/.test(x)), lower.join(' | '));
   // Cut off: whole sentences up to the limit, else at a clause.
   const cut = await page.evaluate(() => [
     Game.clip('Nah.', 8),
@@ -560,18 +597,15 @@ s.test('they play like people who are trying to win: each seat has a temperament
   ]);
   assert.equal(cut[0], 'Nah.');
   assert.equal(cut[1], 'It is you, Leon.');
-  assert.ok(cut[2].endsWith('\u2026') && cut[2].split(' ').length <= 13, cut[2]);
+  assert.ok(cut[2].endsWith('…') && cut[2].split(' ').length <= 13, cut[2]);
   assert.equal(cut[3].split(' ').length, 12);
   const said = await page.evaluate(() => Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk' && e.who !== 'you').map(e => e.text.split(/\s+/).length));
   assert.ok(said.every(n => n <= 42), 'nothing said is a paragraph: ' + said.join(','));
-  // The room.
-  const rooms = bodies.filter(b => b.body.output_config.format.schema.required.includes('reactions'));
-  assert.ok(rooms.length >= 1, 'the room is asked to react');
-  assert.doesNotMatch(rooms[0].body.system[0].text + userOf(rooms[0]), /SECRET ROLE|fellow Kni|is a Knife\b/, 'and is told nobody\'s role');
-  const react = await page.evaluate(() => ({ lines: Game.state.log.filter(e => e.kind === 'react').map(e => e.text), record: Game.recordText() }));
-  assert.ok(react.lines.length >= 1);
-  assert.match(react.lines[0], /^\w+: \u201CHa!\u201D {2}\w+: \u201COh, come on now, really, honestly\u2026\u201D$/, 'each a few words, the long one cut: ' + react.lines[0]);
-  assert.ok(react.lines.every(l => !react.record.includes(l)), 'never in the record a seat is given');
+  // Nobody but the seats speaks: there is no chorus, and the host has one line, at the morning.
+  assert.ok(bodies.every(b => !b.body.output_config.format.schema.required.includes('reactions')), 'no call for the room\'s reactions');
+  const kinds = await page.evaluate(() => Game.state.log.filter(e => e.t === 'sys').map(e => e.kind));
+  assert.ok(!kinds.includes('react'));
+  assert.equal(kinds.filter(k => k === 'host').length, 1, 'the host has the morning, and not the night');
 });
 
 s.test('what the player says is answered: the first seat to speak is given their words and told to answer them, the second to take them up, and a round the player passes has none of it; in the offline demo the scripted seats answer too', async h => {
@@ -582,6 +616,7 @@ s.test('what the player says is answered: the first seat to speak is given their
   // (A Knife, so the night is the player's to decide and they are at the table in the morning.)
   await page.click('#f-role [data-v="knife"]');
   await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
+  await page.click('#f-pace [data-v="turns"]');
   await page.click('#btn-new');
   await page.click('dialog .btn.primary');
   await begin(page);
@@ -603,11 +638,13 @@ s.test('what the player says is answered: the first seat to speak is given their
   await settle(page);
   let round = talkOf().slice(from).map(userOf);
   assert.ok(round.length >= 2, 'two or three answer');
-  assert.ok(round[0].includes(`Joe has just said, to the whole table: "${words}" Answer Joe: take up what they said (agree, argue with it, or answer the question), speaking to them.`), round[0].slice(-400));
-  assert.ok(round[1].includes(`Joe said a moment ago: "${words}" Take that up as well, or what has been said about it since. Do not start a new subject.`), round[1].slice(-400));
+  // Said to everyone: two of them answer at once, neither having seen the other's.
+  for (const u of round.slice(0, 2)) assert.ok(u.includes(`Joe has just said, to everyone: "${words}" Answer Joe: take up what they said (agree, argue with it, or answer the question), speaking to them.`), u.slice(-400));
+  assert.notEqual(/^YOUR SEAT: (.+)\.$/m.exec(round[0])[1], /^YOUR SEAT: (.+)\.$/m.exec(round[1])[1], 'two different people');
+  assert.equal(round[0].includes('Joe: "' + words + '"'), true, 'and it is in the record they are given');
   if (round[2]) assert.doesNotMatch(round[2], /Joe has just said|Joe said a moment ago/, 'the third is free to move on');
-  // An answer has room to be one: never the few-words length.
-  for (const u of round.slice(0, 2)) assert.doesNotMatch(/^LENGTH THIS TURN: (.+)$/m.exec(u)[1], /^a few words/);
+  // An answer has room to be one: never a bare reaction.
+  for (const u of round.slice(0, 2)) assert.doesNotMatch(/^LENGTH THIS TURN: (.+)$/m.exec(u)[1], /^just a reaction/);
   // A line to one of them: that one speaks first, and is told it was said to them.
   const to = await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you).first);
   from = talkOf().length;
@@ -617,10 +654,13 @@ s.test('what the player says is answered: the first seat to speak is given their
   round = talkOf().slice(from).map(userOf);
   assert.match(round[0], new RegExp(`^YOUR SEAT: ${to} `, 'm'));
   assert.ok(round[0].includes(`Joe has just said, to you: "${to}, why so quiet?" Answer Joe:`), round[0].slice(-400));
+  assert.ok(round[1].includes(`Joe said a moment ago: "${to}, why so quiet?" Take that up as well, or what has been said about it since. Do not start a new subject.`), 'and one more takes it up: ' + round[1].slice(-300));
+  assert.doesNotMatch(round[1], new RegExp(`^YOUR SEAT: ${to} `, 'm'));
   // The scripted seats (the offline demo, a failed call) take it up too.
   const demo = await open(h);
   await sit(demo, { seed: 91, role: 'town', wild: false });
   await begin(demo);
+  await demo.evaluate(() => { Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop(); });
   await demo.click('#mid-go');
   await settle(demo);
   await demo.fill('#say', 'I have no idea who it is.');
@@ -629,6 +669,203 @@ s.test('what the player says is answered: the first seat to speak is given their
   const after = await demo.evaluate(() => { const l = Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk'); const i = l.map(e => e.who).lastIndexOf('you'); return l.slice(i + 1, i + 3).map(e => e.text); });
   assert.equal(after.length, 2);
   for (const x of after) assert.match(x, /\bJoe\b|\byou\b/i, 'said to the player: ' + x);
+});
+
+s.test('a live table talks on by itself until the vote: nobody waits for the player, who speaks whenever they like; nobody speaks twice running, some say a lot and some little, the morning opens on the night, and there are no rounds; what someone said can be tapped to aim at them', async h => {
+  const page = await open(h);
+  await sit(page, { seed: 21, role: 'town', wild: false, live: true });
+  await begin(page);
+  await page.evaluate(() => { Game.App.speed = 0.02; Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop(); });
+  await page.click('#mid-go');
+  await page.waitForFunction(() => Game.talking && Game.state.said >= 2);
+  // In the middle of it: nothing is locked, there is nothing to pass, and the middle of the table has the day and no round.
+  const mid = await page.evaluate(() => ({ busy: Game.busy, btn: document.querySelector('#btn-say').textContent, off: document.querySelector('#btn-say').disabled, pass: !!document.querySelector('#btn-pass'), box: document.querySelector('#say').disabled,
+    mid: document.querySelector('#mid').textContent, vote: !!document.querySelector('#btn-vote'), chips: [...document.querySelectorAll('#chips .chip')].map(c => c.textContent), to: !!document.querySelector('#chips .chips-to') }));
+  assert.deepEqual([mid.busy, mid.btn, mid.off, mid.pass, mid.box, mid.vote], [false, 'Send', true, false, false, true]);
+  assert.match(mid.mid, /^Day 1\d still in/);
+  assert.doesNotMatch(mid.mid, /round/i);
+  assert.deepEqual([mid.chips, mid.to], [['Who is it, then?', 'No idea.'], false], 'nobody is aimed at unless the player chose them: the last to speak changes under the finger');
+  assert.deepEqual(await overflowReport(page, 375), []);
+  // The player speaks: it is in the story at once, and the table goes on.
+  await page.fill('#say', 'I have no idea who it is.');
+  assert.equal(await page.evaluate(() => document.querySelector('#btn-say').disabled), false);
+  await page.click('#btn-say');
+  assert.deepEqual(await page.evaluate(() => [Game.state.log.some(e => e.who === 'you' && e.text === 'I have no idea who it is.'), document.querySelector('#say').value, Game.busy]), [true, '', false]);
+  // What someone said can be tapped: it picks them, as their face does.
+  const picked = await page.evaluate(() => { const n = [...document.querySelectorAll('#log .say[data-pick="1"]')].pop(); n.click(); return { who: n.dataset.who, sel: Game.UI.sel, to: (document.querySelector('#chips .chips-to') || {}).textContent, first: Game.state.players.find(p => p.id === n.dataset.who).first }; });
+  assert.deepEqual([picked.sel, picked.to], [picked.who, `To ${picked.first}:`]);
+  await page.evaluate(() => { Game.App.speed = 0; });
+  await page.waitForFunction(() => Game.state.phase === 'vote' && !Game.talking && !Game.busy, null, { timeout: 20000 });
+  const day = await page.evaluate(() => {
+    const l = Game.state.log.filter(e => e.day === 1);
+    const talk = l.filter(e => e.t === 'say' && e.kind === 'talk');
+    const by = {};
+    for (const p of Game.state.players) if (p.alive && !p.you) by[p.id] = 0;
+    for (const e of talk) if (e.who !== 'you') by[e.who] += 1;
+    return { who: talk.map(e => e.who), texts: talk.map(e => e.text), by: Object.values(by), sys: l.filter(e => e.t === 'sys').map(e => e.text), victim: Game.state.players.find(p => !p.alive).first.toLowerCase(), said: Game.state.said };
+  });
+  assert.ok(day.said >= 8, 'they talked, though the player passed nothing: ' + day.said);
+  assert.equal(day.who.filter(w => w === 'you').length, 1);
+  for (let i = 1; i < day.who.length; i++) assert.ok(day.who[i] !== day.who[i - 1], 'nobody speaks twice running: ' + day.who.join(' '));
+  assert.ok(Math.max(...day.by) >= Math.min(...day.by) + 2, 'some say a lot and some little: ' + day.by.join(','));
+  assert.notEqual(day.who[0], day.who[1]);
+  for (const x of day.texts.slice(0, 2)) assert.match(x.toLowerCase(), new RegExp(`^(not ${day.victim}|oh no|damn|${day.victim}\\?\\? really|well that is bad|great\\. just great)$`), 'the morning opens on the night: ' + x);
+  assert.match(day.sys[day.sys.length - 1], /^(That is enough talk\. The table votes\.|Most of the table wants to vote\. The table votes\.)$/);
+  assert.equal(await page.evaluate(() => document.querySelector('#typing').hidden), true);
+});
+
+s.test('at a live table with Claude: whoever is up is shown typing (two at once when the player spoke to everyone, neither seeing the other\'s), the player\'s words go in while they type, a second message sits under the first with no name, the player\'s are on the right, and what was being typed when the vote is called is dropped', async h => {
+  const bodies = [];
+  const page = await open(h, { route: standIn(bodies, { delay: 150, more: true }) });
+  await page.fill('#f-key', 'sk-ant-test-key');
+  await page.fill('#f-name', 'Joe');
+  // (A Knife, so the night is the player's to decide and they are at the table in the morning.)
+  await page.click('#f-role [data-v="knife"]');
+  await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
+  assert.equal(await page.evaluate(() => document.querySelector('#f-pace [aria-pressed="true"]').dataset.v), 'live', 'a live table is what is offered first');
+  await page.click('#btn-new');
+  await page.click('dialog .btn.primary');
+  await begin(page);
+  await page.click(`.seat[data-id="${await page.evaluate(() => Game.state.players.find(p => p.alive && p.role === 'town').id)}"]`);
+  await page.click('#mid-go');
+  await page.waitForFunction(() => Game.talking && !document.querySelector('#typing').hidden);
+  await page.evaluate(() => { Game.state.clock = 60; });
+  const typing = await page.evaluate(() => ({ faces: document.querySelectorAll('#typing .say-face').length, seats: document.querySelectorAll('.seat[data-typing="1"]').length, dots: document.querySelectorAll('#typing .typing-dots i').length, busy: Game.busy, live: Game.state.live }));
+  assert.ok(typing.faces >= 1 && typing.faces === typing.seats && typing.dots === 3 && !typing.busy && typing.live, JSON.stringify(typing));
+  // The player speaks while they type.
+  const words = "it's a pain in the ass we lost the witness day 1 ffs";
+  await page.fill('#say', words);
+  await page.click('#btn-say');
+  assert.ok(await page.evaluate(w => Game.state.log.some(e => e.who === 'you' && e.text === w), words), 'in at once');
+  await page.waitForFunction(() => document.querySelectorAll('#typing .say-face').length === 2, null, { timeout: 10000 });
+  const userOf = b => b.body.messages[0].content.map(c => c.text).join('\n');
+  const answers = () => bodies.filter(b => b.body.output_config.format.schema.required.includes('stance') && userOf(b).includes(`Joe has just said, to everyone: "${words}" Answer Joe:`));
+  for (let i = 0; i < 40 && answers().length < 2; i++) await page.waitForTimeout(50);
+  assert.equal(answers().length, 2, 'two of them answer');
+  assert.ok(answers().every(b => !userOf(b).includes('You were too quiet') || userOf(answers()[0]).split('TODAY SO FAR')[0] !== undefined));
+  assert.equal(userOf(answers()[0]).split('\n\nSTILL IN')[0], userOf(answers()[1]).split('\n\nSTILL IN')[0], 'each was given the same record: neither saw the other\'s answer');
+  // A second message from the same person sits under the first, with no name and no face.
+  await page.waitForFunction(() => !!document.querySelector('#log .say[data-run="1"]'), null, { timeout: 10000 });
+  const look = await page.evaluate(() => {
+    const log = document.querySelector('#log').getBoundingClientRect();
+    const run = document.querySelector('#log .say[data-run="1"]');
+    const first = run.previousElementSibling;
+    const mine = document.querySelector('#log .say[data-you="1"][data-kind="talk"] .say-text').getBoundingClientRect();
+    const theirs = first.querySelector('.say-text').getBoundingClientRect();
+    return { same: run.dataset.who === first.dataset.who, head: getComputedStyle(run.querySelector('.say-head')).display, firstHead: getComputedStyle(first.querySelector('.say-head')).display, name: first.querySelector('.say-who').textContent,
+      words: run.querySelector('.say-words').textContent, mineRight: Math.round(log.right - mine.right), theirsLeft: Math.round(theirs.left - log.left), mineLeft: Math.round(mine.left - log.left), myHead: getComputedStyle(document.querySelector('#log .say[data-you="1"][data-kind="talk"] .say-head')).display };
+  });
+  assert.deepEqual([look.same, look.head, look.firstHead, look.myHead], [true, 'none', 'block', 'none']);
+  assert.match(look.words, /^just saying, that is all i mean here$/i);
+  assert.ok(look.mineRight <= 2 && look.theirsLeft <= 40 && look.mineLeft > look.theirsLeft, 'theirs on the left, the player\'s on the right: ' + JSON.stringify(look));
+  assert.deepEqual(await overflowReport(page, 375), []);
+  // The vote, called while someone is typing: what they were typing is dropped.
+  await page.waitForFunction(() => Game.talking && !document.querySelector('#typing').hidden);
+  const before = await page.evaluate(() => Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk').length);
+  await page.click('#btn-vote');
+  assert.deepEqual(await page.evaluate(() => [Game.state.phase, Game.talking, document.querySelector('#typing').hidden]), ['vote', false, true]);
+  await page.waitForTimeout(500);
+  assert.equal(await page.evaluate(() => Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk').length), before);
+  assert.equal(await page.evaluate(() => Game.state.log[Game.state.log.length - 1].text), 'You call the vote.');
+});
+
+s.test('they carry things from one day to the next: who voted for them, whether their own vote was right, who came after them, and how they said they feel', async h => {
+  const bodies = [];
+  const page = await open(h, { route: standIn(bodies) });
+  await page.fill('#f-key', 'sk-ant-test-key');
+  await page.fill('#f-name', 'Joe');
+  await page.click('#f-role [data-v="knife"]');
+  await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
+  await page.click('#f-pace [data-v="turns"]');
+  await page.click('#btn-new');
+  await page.click('dialog .btn.primary');
+  await begin(page);
+  await page.click(`.seat[data-id="${await page.evaluate(() => Game.state.players.find(p => p.alive && p.role === 'town').id)}"]`);
+  await page.click('#mid-go');
+  await settle(page);
+  await pass(page);
+  const userOf = b => b.body.messages[0].content.map(c => c.text).join('\n');
+  const talkOf = () => bodies.filter(b => b.body.output_config.format.schema.required.includes('stance')).map(userOf);
+  // The player goes after one of them, who answers with that on their mind.
+  const sore = await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you && p.role !== 'knife').first);
+  let from1 = talkOf().length;
+  await page.fill('#say', `It's you, ${sore}.`);
+  await page.click('#btn-say');
+  await settle(page);
+  const day1 = talkOf();
+  assert.match(day1[from1], new RegExp(`^YOUR SEAT: ${sore} `, 'm'));
+  assert.match(day1[from1], /^WHAT YOU ARE CARRYING: Joe came after you today\.$/m, 'pointed at, and they know by whom');
+  assert.ok(day1.some(u => /^HOW YOU FEEL: sore at \w+$/m.test(u)), 'what a seat said it feels is given back to it');
+  assert.ok(day1.every(u => !/Yesterday/.test(u)));
+  // The stand-in has every seat vote for the first name still in that is not its own: the table goes for the player, a Knife.
+  await page.click('#btn-vote');
+  await page.click(`.seat[data-id="${await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you).id)}"]`);
+  await page.click('#mid-go');
+  await settle(page);
+  assert.equal((await st(page)).me.alive, false);
+  await page.click('#mid-go');
+  await settle(page);
+  const from = talkOf().length;
+  await pass(page);
+  const day2 = talkOf().slice(from);
+  assert.ok(day2.length >= 2);
+  const town = day2.find(u => /YOUR SECRET ROLE: (Town|Witness|Watch|Fool|Hothead)/.test(u));
+  assert.match(town, /^WHAT YOU ARE CARRYING: .*Yesterday you voted for Joe, who was a Knife\. You called it\./m);
+  const mate = day2.find(u => /YOUR SECRET ROLE: Knife/.test(u));
+  if (mate) assert.doesNotMatch(mate, /You called it|You got that one wrong/, 'a Knife is not told how to feel about a vote it knew the truth of');
+});
+
+s.test('the talk ends when most of the table says it would vote, and two who go at each other are cut in on', async h => {
+  const page = await open(h);
+  const townLast = () => { Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop(); for (const p of Game.state.players) p.type = 'proper'; };
+  await sit(page, { seed: 41, role: 'town', wild: false });
+  await begin(page);
+  await page.evaluate(townLast);
+  await page.click('#mid-go');
+  await settle(page);
+  await page.evaluate(() => { Game.Bots.say = p => ({ text: `Can we just vote. (${p.first})`, aim: null, stance: 'other', ready: true }); });
+  await pass(page);
+  assert.match(await page.textContent('#mid-ready'), /^7 still in · [23] want to vote$/);
+  for (let i = 0; i < 6 && (await st(page)).phase === 'talk'; i++) await pass(page);
+  const end = await page.evaluate(() => ({ phase: Game.state.phase, last: Game.state.log[Game.state.log.length - 1].text, clock: Game.state.clock, said: Game.state.said, ready: Game.state.ready.length }));
+  assert.deepEqual([end.phase, end.last], ['vote', 'Most of the table wants to vote. The table votes.']);
+  assert.ok(end.clock > 0 && end.said >= 6 && end.ready >= 4, 'before it got late, once more than half had said so: ' + JSON.stringify(end));
+  // Two who go at each other.
+  await sit(page, { seed: 42, role: 'town', wild: false });
+  await begin(page);
+  await page.evaluate(townLast);
+  await page.click('#mid-go');
+  await settle(page);
+  const pair = await page.evaluate(() => {
+    const live = Game.state.players.filter(p => p.alive && !p.you);
+    const a = live[0]; const b = live[1];
+    Game.Bots.say = p => (p === a ? { text: `It's ${b.first}.`, aim: b, stance: 'accuse' } : p === b ? { text: `It's ${a.first}.`, aim: a, stance: 'accuse' } : { text: `Hm. (${p.first})`, aim: null, stance: 'other' });
+    Game.state.pending = [a.id];
+    return [a.id, b.id];
+  });
+  for (let i = 0; i < 5 && (await st(page)).phase === 'talk'; i++) await pass(page);
+  const who = await page.evaluate(() => Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk' && e.day === 1).map(e => e.who));
+  let run = 0; let longest = 0;
+  for (const w of who) { run = pair.includes(w) ? run + 1 : 0; longest = Math.max(longest, run); }
+  assert.ok(longest >= 2 && longest <= 3, 'they go at it, and after three somebody else cuts in: ' + who.map(w => (pair.includes(w) ? w.slice(4, 7).toUpperCase() : '.')).join(' '));
+});
+
+s.test('a live table left in the middle of the talk picks it up again, and a table kept from before the talk was live is given what a live table has', async h => {
+  const page = await open(h);
+  await sit(page, { seed: 21, role: 'town', wild: false, live: true });
+  await begin(page);
+  await page.evaluate(() => { Game.App.speed = 0.02; Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop(); });
+  await page.click('#mid-go');
+  await page.waitForFunction(() => Game.talking && Game.state.said >= 2);
+  await page.reload();
+  await page.waitForFunction(() => window.Game && window.Game.App);
+  const said = await page.evaluate(() => { const s = JSON.parse(window.localStorage.getItem('novatria.lastcall')); const n = s.said; for (const k of ['live', 'clock', 'said', 'bonus', 'ready', 'yours', 'spat']) delete s[k]; for (const p of s.players) { delete p.chat; delete p.type; } window.localStorage.setItem('novatria.lastcall', JSON.stringify(s)); Game.App.speed = 0; return n; });
+  assert.ok(said >= 2);
+  await page.click('#btn-continue');
+  const kept = await page.evaluate(() => ({ live: Game.state.live, clock: Game.state.clock, ready: Game.state.ready, hands: Game.state.players.filter(p => !p.you).every(p => p.chat > 0 && Game.TYPES.some(x => x.id === p.type)), talking: Game.talking, phase: Game.state.phase }));
+  assert.deepEqual([kept.live, Array.isArray(kept.ready), kept.hands, typeof kept.clock, ['talk', 'vote'].includes(kept.phase)], [true, true, true, 'number', true]);
+  await page.waitForFunction(() => Game.state.phase === 'vote' && !Game.talking, null, { timeout: 20000 });
+  assert.ok(await page.evaluate(() => Game.state.said >= 1), 'and they talk on');
 });
 
 s.test('typing on a phone with the keyboard up gives the room to the story and the box: the table and the quick replies step aside, and come back when the keyboard goes', async h => {
@@ -662,6 +899,7 @@ s.test('the seats are told the table is all there is: nothing about where anyone
   await page.fill('#f-name', 'Joe');
   await page.click('#f-role [data-v="town"]');
   await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
+  await page.click('#f-pace [data-v="turns"]');
   await page.click('#btn-new');
   await page.click('dialog .btn.primary');
   await begin(page);
@@ -669,15 +907,16 @@ s.test('the seats are told the table is all there is: nothing about where anyone
   await settle(page);
   const seat = bodies.find(b => !/^You are the host/.test(b.body.system[0].text));
   const sys = seat.body.system[0].text;
-  assert.match(sys, /^- Joe: one of the people at the table, the same as anyone\. There is nothing more to know about them than how they play\.$/m);
+  assert.match(sys, /\(Joe is one of the people at the table, the same as anyone: there is nothing more to know about them than how they play\.\)$/m);
+  assert.match(sys, /Nobody can see anybody, either: no faces, no looks, no sweating, no body language\./);
   assert.doesNotMatch(sys, /\bstranger\b|came in off|nobody here knows/i, 'nothing that makes the player someone to question about themselves');
   assert.match(sys, /The table is all there is\. The only evidence in this game is what happens at it/);
   assert.match(sys, /Where anyone was, where they were going, what they do for a living, who they are to each other and how they came to be here tell you nothing: never ask about them, never bring them up, and never make up something seen, heard or found\./);
-  // No town: a seat is a name, an age, a way of talking and a manner. No job, no ties, no place.
+  // No town: to the others a seat is a name. No job, no ties, no place.
   assert.match(sys, /Talk about the game and nothing else: this table, tonight, who is lying\. Nothing about a town \("Town" is only the name of a side in this game\), anybody's work, family, money or past, the weather, or any life outside this room/);
   const cast = await page.evaluate(() => Game.state.players.filter(p => !p.you).map(p => { const c = Game.CAST.find(x => x.id === p.id); return { name: p.name, role: c.role, voice: c.voice }; }));
   for (const c of cast) {
-    assert.match(sys, new RegExp(`^- ${c.name} \\(\\d+\\)\\. Voice: `, 'm'));
+    assert.match(sys, new RegExp(`^PLAYING: [^\\n]*\\b${c.name.split(' ')[0]}\\b`, 'm'));
     assert.equal(sys.includes(c.role), false, `${c.name}'s job in town is not given`);
     // (Lyman Coker's note in the story has nothing of the town in it, so his is the same line.)
     if (c.name !== 'Lyman Coker') assert.equal(sys.includes(c.voice), false, `nor the story's own voice note for ${c.name}, which is full of the town`);
