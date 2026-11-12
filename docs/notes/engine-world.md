@@ -2213,3 +2213,63 @@ different.", then "Do it 7 then, the more detailed the better." Tests: `tests/wa
   witness at spark 30 takes romance -5 as well as spark -5.
 - **The morning** (`relDay`): everyday romance drifts 1 a day toward 0 for
   someone the player did not see, beside liking and trust's 2.
+
+## Wave 38 (12 Nov 2026): time with someone at its own table, turns from a button
+
+The owner: "I don't give a shit about the story and only try to romance
+people. Need to make it more visual not just text. Like that poker game is
+amazing, I don't like that it's chat by chat tho". The UI side:
+`docs/notes/ui.md`, Wave 38. Tests: `tests/wave38-date.test.cjs`.
+
+- **`Pipeline.date(npcId)`** runs a turn with no parser call (the action is
+  built in code: a talk aimed at them, a long). `runTurn`'s step 5 for it is
+  `dateTurn`: the table opens in the feed and the turn waits at each moment
+  on the same slot a hand of cards waits on (`waitForHand`, kind `date`), so
+  Stop, `/undo`, another tab and the title screen all meet an open date the
+  way they meet an open hand.
+- **Who** (`dateOk`): `Rel.eligible` (an adult, an adult player, romance on
+  in the story), here, alive and free, liking -10 or better, and not already
+  this phase (the log's last `entry.date` for them). Anyone not eligible is
+  `hide: true`: no button anywhere, and `date` refuses with a notice and no
+  turn.
+- **The moves** (`dateMoves`, `dateMove`), each written at once through
+  `State.apply({ socialEvents })` with the rows as they are: ask (Wits at
+  `dateTaste`'s difficulty: `complimented` with `d { w: 2, k: 3 }` "asked
+  about me and listened", `they_confided` on a critical, `pried` on a
+  failure), laugh (Charm: `complimented`, x1.5 on a critical; `insulted`
+  x0.5 on a critical failure), open (`confided`, once), treat (`goldDelta`,
+  `gift`, `giftGiven`, once and once a day), flirt (`Rel.welcomeOf` decides
+  whether it is offered; the roll is Charm at `Rel.flirtDifficulty`;
+  `Rel.flirtAnswer` and `Rel.flirtEventOf` land and record it with
+  `Rel.jealousyOf` for who is watching; a no shuts it; two at most).
+- **Taste** (`dateTaste`, from `Rel.axesOf`): ask is easy at guardedness 1
+  or more, hard at -1 or less until trust is 20; laugh is easy at grudge 1
+  or more, hard at grudge -1 or less or pride 1 or more; the mercenary flag
+  makes a treat worth two of ease.
+- **Ease** (`dateEase`, `easeMod`): starts 1 to 4 from liking (10, 40) and a
+  spark of 20; a tier moves it +2, +1, 0, -1, -2; 4 or more is +1 on a
+  roll ("at ease"), 1 or less -1 ("on edge"); 0 ends the date (`cut`).
+- **Rolls** use `nextDie`, so `/cheat success` and `forceNextRoll` reach
+  them; no complication is rolled, and they set no retry lock.
+- **The end**: `relTurn` for the two of them, `npcKnownToPlayer`, the
+  record (`ctx.dateRec`: beats, start, end, gains, stance before and after,
+  what was spent) kept as `entry.date` (State's `logDate` checks it field by
+  field), then one narration from a `TIME TOGETHER` line that lists the
+  moments in order and forbids adding to them, and a bookkeeper told
+  nothing of it is to be recorded again. `cleanDiff` drops any
+  `attitudeChanges`, `socialEvents`, `newMemories` and `goldDelta` the
+  bookkeeper sends for that person anyway. `turnTogether` leaves a date
+  turn alone.
+- **Told plainly** (`plainDateText`, through `plainNarration`): Stop at the
+  table (no call at all), or a narrator that failed, was stopped or
+  declined after the date; the demo's narration is the same account.
+- **Limits**: nothing new. `Rel.CAPS.turn` holds what the whole date can
+  move, the same-day repeat rules hold what a second date that day can, and
+  the gift is the day's one gift.
+- **`Pipeline.flirt(npcId)`**: a turn whose action is a talk with
+  `romantic: 'flirt'` aimed at them; `romanceStep` does the rest.
+  **`Pipeline.sitIn()`**: a gamble action aimed at the dealer here.
+  **`Pipeline.dealAgain()`**: the same with `quickHand`: once the hand is
+  played it is told by `plainNarration(ctx, 'quick')` (the engine's line,
+  no notice), so there is no narrator and no bookkeeper call; it needs the
+  newest log entry to be a hand at this dealer today.

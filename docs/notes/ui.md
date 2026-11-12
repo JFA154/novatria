@@ -1976,3 +1976,84 @@ different.", then "Do it 7 then, the more detailed the better." Tests:
   day dividers and the map's title use the pack's `setting.phaseLabels`.
 - **The mobile audit** covers the Library and every editor tab at 375 and
   390 with every fold open.
+
+## Wave 38 (12 Nov 2026): faces, hearts, who is here, the date table, Deal again
+
+The owner: "Great potential, but I noticed that all my playthrough, I don't
+give a shit about the story and only try to romance people. Need to make it
+more visual not just text. Like that poker game is amazing, I don't like
+that it's chat by chat tho". The engine side: `docs/notes/engine-world.md`,
+Wave 38. Tests: `tests/wave38-date.test.cjs`.
+
+### Faces (`faceTraits`, `faceMood`, `faceNode`)
+- Everyone has a face: an SVG bust (48 by 48, built with `sv`, no image and
+  no network) on the person's own colour (`personHue`, `.face-bg`). Hair
+  colour and style, skin, glasses, a beard or moustache and a hat are read
+  from the words of `look` where it says ("frosted hair", "a bald head",
+  "reading glasses", "a feed-store cap"); the rest comes from a hash of the
+  id, so a face never changes. Grey by age, lines from 55.
+- The expression is the stance's side (`Rel.stance(n).side`): good a smile
+  and closed eyes, bad a frown and slanted brows, else even; a blush once an
+  eligible adult has a spark of 20. Someone not met is even.
+- In the People card the face lies over the initials (`.mono.has-face`); the
+  initials stay in the DOM (a reader, the tests), and someone only heard of
+  keeps the initials alone.
+
+### Hearts and bars (`heartCount`, `heartsNode`, `meterNode`, `metersNode`)
+- Four hearts, one for each step `Rel.sparkStatus` names (has noticed you;
+  wants you or using you; sweet on you; falling for you), `role="img"`,
+  "3 of 4 hearts". `null` for anyone not eligible: nobody under 18, and
+  nobody with a player under 18, ever has hearts. On the card's meta line
+  and in the strip only when there is at least one.
+- The tracks as bars on the open card (`.pcard-meters`) and at the date
+  table: Knows you, Likes you, Trusts you (liking and trust fill from the
+  middle), and for an eligible adult Spark and Romance, with ticks where
+  something opens (their `opensAt`, the statuses' 20, 40, 30 and 60, the
+  night's gates from `Rel.gate('intimate')`), the value, and at the table
+  what it has moved by ("+6"). The More fold's words are as they were.
+- The open card of someone here has **Spend time**, **Flirt** and **Talk**
+  (`personActs`; 44px; on a phone the sheet closes first).
+
+### The scene strip (`#scene`, `renderScene`, `sceneActs`)
+- Above the story, inside `.story`: one button for each person here (face,
+  first name once met, else how the player knows them, hearts if any),
+  scrolling sideways in itself. A press opens a row under it: Talk, Spend
+  time (not for anyone `Pipeline.dateOk` hides; off with the reason as its
+  title when it is refused for now), Flirt (an eligible adult), Play cards
+  (the dealer, where the game runs) and Profile.
+- Hidden with nobody here, off the game screen, for a dead player, while a
+  table is open (a card table or the date table) and while a phone's
+  keyboard is up (`#app.typing`, as the tab row is). Drawn again by
+  `renderGame`, `rebuildFeed` and `setBusy`.
+
+### The date table (`dateNode`, `fillDate`, `UI.feed.date`, `dateShow`, `dateDone`)
+- `section.f-item.f-date` (role `group`, named by its head, which takes the
+  focus when it opens): the head "Time with Jodie Strayhorn · the Low
+  Water"; the face (its mood follows the ease and the last roll); the name
+  and hearts; the stance chip; "Your read: …"; the ease as five pips and a
+  word (Awkward, Stiff, Easy, Going well, Lit up); the bars; the moments
+  played (number, the move, the die and the roll's line, what came of it,
+  an arrow for the ease); "Moment 2 of 4 · What do you do?"; the moves, two
+  to a row with the flirt across, each with "Wits · 65%", "$8 · no roll" or
+  why it is off; **Leave it there** and "Stop leaves too; what has happened
+  stands."
+- Finished (`.done`): the same block with the result line ("A good while
+  together. Spark +10 · Likes you +7 · Knows you +5 · Friendly → Warm to
+  you · cash $132") and no button. The log entry keeps it (`entry.date`)
+  and `rebuildFeed` draws it again.
+- After a press the moves and Leave stay in view (`keepDate`); under 620px
+  of height the moves are 44px and the hint is Leave alone, so all six fit
+  at 320×568. The die turns and a moved bar's number pops unless reduced
+  motion is asked for.
+- The status line reads "Time together" (stage `date`); the box's nudge
+  says to use the table; Stop leaves; the title screen is refused with
+  "Finish here first: pick a move, or Leave it there (Stop leaves too)."
+  Another tab taking over voids it ("Another tab took over; this is void
+  here.").
+
+### Deal again (`syncAgain`)
+- Just after the story (`#feed-after`, before the tip; not in the feed and
+  not in the table, which keeps nothing to press), while the newest turn is
+  a hand of cards, its dealer still deals here, the player has money and no
+  turn runs: **Deal again ($20)** (`.cards-again`). One press runs
+  `Pipeline.dealAgain()`. It goes when any other turn is played.

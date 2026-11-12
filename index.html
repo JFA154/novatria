@@ -1070,6 +1070,144 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 #slot-list { margin-bottom: 24px; }
 .saves-export-note { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
 
+/* ===== Wave 38: faces, meters, hearts, the scene strip, the date table ===== */
+/* A face (UI.faceNode): an SVG bust on the person's own colour. */
+.face { display: block; width: 100%; height: 100%; }
+.face .face-bg { fill: var(--person-1); }
+.face[data-hue="2"] .face-bg { fill: var(--person-2); }
+.face[data-hue="3"] .face-bg { fill: var(--person-3); }
+.face[data-hue="4"] .face-bg { fill: var(--person-4); }
+.face[data-hue="5"] .face-bg { fill: var(--person-5); }
+.face[data-hue="6"] .face-bg { fill: var(--person-6); }
+/* In the People card's monogram the face lies over the initials (which stay in the DOM). */
+.mono.has-face { position: relative; overflow: hidden; }
+.mono.has-face .face { position: absolute; inset: 0; }
+/* Hearts: one for each step the statuses name. */
+.hearts { display: inline-flex; gap: 1px; font-size: 13px; line-height: 1; letter-spacing: 0; color: var(--faint); white-space: nowrap; }
+.heart.on { color: var(--danger); }
+/* A track as a bar. */
+.meters { display: grid; gap: 5px; margin: .7em 0 .2em; }
+.meter { display: grid; grid-template-columns: 6.2em minmax(0, 1fr) 4.2em; align-items: center; gap: 8px; font-family: var(--ui-font); font-size: 13px; line-height: 1.2; }
+.meter-k { color: var(--muted); }
+.meter-bar { position: relative; height: 8px; border-radius: 4px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border); overflow: hidden; }
+.meter-fill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 4px; background: var(--att-mild); transition: width .5s ease, left .5s ease; }
+.meter[data-track="s"] .meter-fill, .meter[data-track="m"] .meter-fill { background: var(--danger); }
+.meter[data-track="k"] .meter-fill { background: var(--att-cool); }
+.meter-mid { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--field); }
+.meter-tick { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--text); opacity: .55; }
+.meter-tick.met { opacity: .9; background: var(--bg); }
+.meter-v { color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.meter-d { margin-left: 5px; font-weight: 700; color: var(--accent); }
+.meter[data-moved="down"] .meter-d { color: var(--danger); }
+.pcard-meters { margin-top: .5em; }
+.pcard-acts { display: flex; flex-wrap: wrap; gap: 6px; margin: .6em 0 .2em; }
+.pcard-acts .btn { min-height: var(--tap); }
+
+/* The scene strip: who is here, above the story. */
+.scene { flex: none; border-bottom: 1px solid var(--border); background: var(--bg); font-family: var(--ui-font); }
+.scene[hidden] { display: none; }
+#app.typing .scene { display: none; }
+.scene-row { display: flex; gap: 2px; max-width: calc(var(--feed-w) + 32px); margin: 0 auto; padding: 6px 12px 4px; overflow-x: auto; scrollbar-width: none; }
+.scene-row::-webkit-scrollbar { display: none; }
+.scene-person {
+  flex: none; display: grid; justify-items: center; align-content: start; gap: 1px; width: 62px; min-height: 62px; padding: 3px 2px 2px;
+  border: 0; border-radius: 10px; background: transparent; color: var(--text); font: inherit; cursor: pointer;
+}
+.scene-person:hover, .scene-person[aria-expanded="true"] { background: var(--surface-2); }
+.scene-face { width: 38px; height: 38px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 1px var(--border); }
+.scene-person[aria-expanded="true"] .scene-face { box-shadow: 0 0 0 2px var(--accent); }
+.scene-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; line-height: 1.25; color: var(--muted); }
+.scene-person .hearts { font-size: 9px; }
+.scene-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; max-width: calc(var(--feed-w) + 32px); margin: 0 auto; padding: 2px 12px 8px; }
+.scene-acts-who { margin-right: 2px; font-size: 13px; font-weight: 600; }
+.scene-acts .btn { min-height: var(--tap); }
+
+/* The date table. */
+.f-date {
+  margin: .4em 0 1.1em; padding: .75em .85em .85em;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+  font-family: var(--ui-font); font-size: calc(var(--read-size) * .8); line-height: 1.4; color: var(--text); overflow-wrap: break-word;
+}
+.f-date p { margin: 0; }
+.f-date .date-head { margin-bottom: .65em; font-size: max(11px, .78em); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.f-date .date-head:focus { outline: none; }
+.date-top { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .9em; align-items: center; }
+.date-face { width: 5.4em; height: 5.4em; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 2px var(--border); }
+.f-date.open .date-face { box-shadow: 0 0 0 2px var(--accent); }
+.date-name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .5em; font-weight: 600; font-size: 1.1em; }
+.date-name .hearts { font-size: 1em; }
+.f-date .date-stance { margin-top: .1em; }
+.f-date .date-read { margin-top: .2em; font-style: italic; }
+.date-ease { display: flex; align-items: center; gap: .5em; margin-top: .4em; }
+.date-ease-pips { display: inline-flex; gap: 3px; }
+.date-pip { width: 1.3em; height: .5em; border-radius: 3px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--border); }
+.date-pip.on { background: var(--accent); box-shadow: none; }
+.date-ease[data-ease="1"] .date-pip.on, .date-ease[data-ease="0"] .date-pip.on { background: var(--danger); }
+.date-ease-word { color: var(--muted); }
+.f-date .meters { margin: .8em 0 0; padding-top: .7em; border-top: 1px solid var(--border); }
+.f-date .meter { font-size: max(11px, .86em); }
+.date-log { list-style: none; margin: .8em 0 0; padding: .7em 0 0; border-top: 1px solid var(--border); display: grid; gap: .55em; }
+.date-beat { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .6em; align-items: start; }
+.date-beat-n { display: inline-flex; align-items: center; justify-content: center; width: 1.5em; height: 1.5em; border-radius: 50%; background: var(--surface-2); color: var(--muted); font-size: .86em; font-weight: 600; }
+.date-beat-main { display: grid; gap: .1em; min-width: 0; }
+.date-beat-what { font-weight: 600; }
+.date-roll { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .4em; color: var(--muted); font-size: .92em; }
+.date-die {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 1.75em; height: 1.75em; padding: 0 .2em;
+  border-radius: 5px; border: 1px solid var(--field); background: var(--surface-2); color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.date-beat[data-tier="critical"] .date-die, .date-beat[data-tier="success"] .date-die { border-color: var(--accent); color: var(--accent); }
+.date-beat[data-tier="failure"] .date-die, .date-beat[data-tier="critical_failure"] .date-die { border-color: var(--danger); color: var(--danger); }
+.date-beat-ease { font-size: .8em; color: var(--accent); white-space: nowrap; }
+.date-beat[data-ease="down"] .date-beat-ease { color: var(--danger); }
+.f-date .date-moment { margin-top: .85em; font-weight: 600; }
+.date-moment-q { font-weight: 400; color: var(--muted); }
+.date-acts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: .55em; }
+.date-acts .date-move { display: grid; grid-template-columns: minmax(0, 1fr); justify-content: stretch; justify-items: start; align-content: center; gap: 1px; min-height: 52px; padding: 6px 12px; text-align: left; white-space: normal; }
+.date-move[data-move="flirt"] { grid-column: 1 / -1; border-color: var(--danger); }
+.date-move-label { font-weight: 600; }
+.date-move-sub { font-size: .86em; font-weight: 400; color: var(--muted); }
+.date-move[disabled] { opacity: .6; cursor: not-allowed; }
+.f-date .date-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: .6em; font-size: .92em; color: var(--muted); }
+.date-hint .date-leave { min-height: var(--tap); margin: 0; padding: 0 14px; font-size: 1em; }
+/* A short screen: the moves are 44px, and the hint is Leave alone, so every move and Leave fit under the story's top. */
+@media (max-height: 620px) {
+  .date-acts { gap: 6px; }
+  .date-acts .date-move { min-height: 44px; padding: 3px 10px; }
+  .date-hint-text { display: none; }
+  .f-date .date-moment { margin-top: .6em; }
+}
+.f-date .date-result { margin-top: .85em; padding-top: .6em; border-top: 1px solid var(--border); font-weight: 600; }
+.date-gains { color: var(--accent); }
+.date-moved { font-weight: 400; color: var(--muted); }
+.f-date.void .btn { cursor: not-allowed; opacity: .55; }
+@media (prefers-reduced-motion: no-preference) {
+  .date-beat:last-child .date-die { animation: date-die .45s ease-out; }
+  .f-date.open .meter[data-moved] .meter-d { animation: date-pop .5s ease-out; }
+  @keyframes date-die { from { transform: rotate(-200deg) scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes date-pop { from { transform: scale(1.8); } to { transform: none; } }
+}
+@media (prefers-reduced-motion: reduce) { .meter-fill { transition: none; } }
+@media (max-width: 420px) {
+  .f-date { padding: .65em .6em .7em; }
+  .date-face { width: 4.4em; height: 4.4em; }
+  .date-top { gap: .7em; }
+  .meter { grid-template-columns: 5.4em minmax(0, 1fr) 3.6em; gap: 6px; }
+}
+/* Deal again, just after the story when its newest turn is a hand of cards. */
+.cards-again { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 0 1.1em; font-family: var(--ui-font); font-size: calc(var(--read-size) * .8); line-height: 1.4; }
+.cards-again-note { flex: 1 1 12em; font-size: .92em; color: var(--muted); }
+/* A phone: the button alone, so the hand's telling keeps its room. */
+@media (max-width: 600px) { .cards-again { margin-bottom: .7em; } .cards-again-note { display: none; } }
+/* A short screen: the strip is faces alone (the row a press opens names the one picked), so the story keeps its room. */
+@media (max-height: 700px) {
+  .scene-row { padding: 3px 12px 2px; }
+  .scene-person { width: 48px; min-height: 44px; padding: 2px; }
+  .scene-face { width: 32px; height: 32px; }
+  .scene-name { display: none; }
+  .scene-acts { padding-bottom: 5px; }
+}
+
 /* ===== The core loop: status line, Stop, queue, the demo bar ===== */
 /* The line above the input while a turn runs ("Writing…"), with a dot that
    pulses (still under reduced motion). */
@@ -2068,6 +2206,8 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
     </div>
     <div class="game-body" id="game-body">
       <div class="story">
+        <!-- Wave 38: who is here, as faces; a press opens what can be done with them in one tap (UI.renderScene). -->
+        <div class="scene" id="scene" role="group" aria-label="Who is here" hidden></div>
         <div class="feed-area">
           <div class="feed-scroll" id="feed-scroll">
             <div class="feed" id="feed" role="log" aria-live="polite" aria-relevant="additions"></div>
@@ -15697,6 +15837,23 @@ const State = (() => {
   const CARD_ACTS = ['check', 'bet', 'raise', 'call', 'fold'];
   const CARD_MOVES_MAX = 40;
   const CARD_ACTIONS_MAX = 160;
+  /* Wave 38: the date table as it ended (Pipeline.dateTurn's record), kept on
+     its log entry so the feed draws it again after a reload or an /undo:
+     who, where, each moment (the move, its roll's tier and line, the ease
+     it moved, the table's words), how it ended and what it moved. Checked
+     field by field; null when it is no date. */
+  const DATE_LOG_MOVES = ['ask', 'laugh', 'open', 'treat', 'flirt'];
+  const DATE_LOG_ENDS = ['done', 'left', 'cut', 'stopped'];
+  const DATE_LOG_TIERS = ['critical', 'success', 'partial', 'failure', 'critical_failure'];
+  function logDate(x) {
+    if (!isObj(x) || typeof x.npcId !== 'string' || !ID_RE.npc.test(x.npcId) || !DATE_LOG_ENDS.includes(x.ended)) return null;
+    const tracks = v => { const o = {}; for (const k of ['w', 't', 'k', 's', 'm']) o[k] = clamp(toInt(isObj(v) ? v[k] : 0) || 0, -100, 100); return o; };
+    const beats = (Array.isArray(x.beats) ? x.beats : []).filter(b => isObj(b) && DATE_LOG_MOVES.includes(b.move)).slice(0, 8).map(b => Object.assign(
+      { move: b.move, label: cleanText(b.label, 60), tier: DATE_LOG_TIERS.includes(b.tier) ? b.tier : null, line: b.line ? cleanText(b.line, 120) : null, ease: clamp(toInt(b.ease) || 0, -2, 2), text: cleanText(b.text, 160) },
+      Number.isInteger(b.price) && b.price > 0 ? { price: clamp(b.price, 1, 1000000) } : {}, ['welcome', 'aside', 'no'].includes(b.answer) ? { answer: b.answer } : {}));
+    return { npcId: x.npcId, name: cleanText(x.name, 80) || 'Someone', label: cleanText(x.label, 80) || cleanText(x.name, 80) || 'Someone', place: cleanText(x.place, 80), ended: x.ended, ease: clamp(toInt(x.ease) || 0, 0, 5), beats,
+      start: tracks(x.start), end: tracks(x.end), gains: tracks(x.gains), stanceWas: cleanText(x.stanceWas, 60), stance: cleanText(x.stance, 60), spent: clamp(toInt(x.spent) || 0, 0, 1000000), cash: toInt(x.cash) || 0 };
+  }
   function logCards(x) {
     if (!isObj(x) || !CARD_RESULTS.includes(x.result)) return null;
     const holdem = x.game === 'holdem';
@@ -20673,6 +20830,8 @@ const State = (() => {
       if (notes.length) entry.notes = notes;
       const cards = logCards(e.cards);
       if (cards) entry.cards = cards;
+      const dated = logDate(e.date);
+      if (dated) entry.date = dated;
       /* How the input was meant (the composer's Do / Say): mode 'do' or
          'say'; a Say entry also names who it was said to (to: an npc id or
          'everyone', toName: their name then). input is then the exact
@@ -30753,7 +30912,10 @@ const Api = (() => {
     const target = s && (a.targets || []).map(id => State.npc(id)).find(n => n && (c.presentIds || []).includes(n.id));
     const tkey = `${key}|${target ? target.id : ''}`;
     const here = s ? State.loc(s.player.locationId) : null;
-    if (c.beat) {
+    // Wave 38: time with someone, as the engine played it (Pipeline.plainDateText).
+    if (c.date) {
+      out.push(Pipeline.plainDateText(c));
+    } else if (c.beat) {
       const names = (c.present || []).map(n => n.name);
       out.push(names.length ? `You wait. ${andList(names)} ${names.length > 1 ? 'carry' : 'carries'} on, and ${names[0]} speaks first: "Well?"` : 'You wait. Nothing happens for a while.');
     } else if (mode === 'arrival' || a.actionType === 'look') {
@@ -33113,6 +33275,11 @@ const Pipeline = (() => {
     handStopped: 'Stopped. The hand stands as it was played, told plainly above.',
     handRefused: 'The narrator declined to tell that hand. It stands as it was played, told plainly above.',
     // Wave 12, L5: no "try again" when there is nothing to try again.
+    // Wave 38: time with someone, told plainly.
+    dateStopped: 'Stopped: you leave it there. What happened stands, told plainly above.',
+    dateStoppedAfter: 'Stopped. The time together stands as it was played, told plainly above.',
+    dateRefused: 'The narrator declined to tell it. The time together stands as it was played, told plainly above.',
+    dateUntold: reached => `${reached ? 'The narrator could not be reached' : 'The story could not be written'}. The time together stands as it was played, told plainly above.`,
     handUntold: (reached, outcome) => `${reached ? 'The narrator could not be reached' : 'The story could not be written'}. The hand stands: ${outcome}.`,
     handLeftOpen: lost => `The game was closed with a hand on the table, so the hand is folded and ${lost}.`,
     handLeftPlayed: 'The game was closed after this hand was played. It stands as it was played, told plainly above.',
@@ -33133,7 +33300,7 @@ const Pipeline = (() => {
     endingLater: why => `The ending could not be told just now${why ? ` (${why})` : ''}. It will be told after your next turn.`
   };
   /* The status line above the input (ui), one per stage. */
-  const STATUS_TEXT = { parse: 'Reading your action…', cards: 'Your hand', choose: "Choose the game: Five-card draw or Texas hold'em. Stop leaves the table (nothing lost).", narrate: 'Writing…', rewrite: 'Rewriting…', bookkeep: 'Updating the town…', chronicle: 'Writing up the story so far…', idle: '' };
+  const STATUS_TEXT = { parse: 'Reading your action…', cards: 'Your hand', date: 'Time together', choose: "Choose the game: Five-card draw or Texas hold'em. Stop leaves the table (nothing lost).", narrate: 'Writing…', rewrite: 'Rewriting…', bookkeep: 'Updating the town…', chronicle: 'Writing up the story so far…', idle: '' };
   const CONSEQUENCES = {
     might: { name: 'Wrenched shoulder', effect: '-1 might' },
     wits: { name: 'Rattled', effect: '-1 wits' },
@@ -35870,6 +36037,8 @@ const Pipeline = (() => {
       h.resolve(c.win === true ? { win: true } : { game: CARD_GAMES.includes(c.game) ? c.game : 'holdem' });
       return true;
     }
+    // Wave 38: the date table: a move, or Leave (Stop leaves too).
+    if (h.kind === 'date') { h.resolve(c.fold === true || c.leave === true ? { leave: true, stopped: c.stopped === true } : { move: DATE_MOVES.includes(c.move) ? c.move : null }); return true; }
     if (c.win === true) h.resolve({ win: true });
     else if (c.fold === true) h.resolve({ fold: true, stopped: c.stopped === true });
     else if (h.kind === 'draw') h.resolve({ hold: Cards.holdsFrom(c.hold) });
@@ -36642,6 +36811,348 @@ const Pipeline = (() => {
     ctx.stakes = { outcome, dealerId: dealer.id, dealerName: name, line };
     return {};
   }
+  /* ===== Wave 38: time with someone, at a table of its own =====
+     The owner: "all my playthrough, I don't give a shit about the story and
+     only try to romance people. Need to make it more visual not just text.
+     Like that poker game is amazing, I don't like that it's chat by chat".
+     Time with one person is played the way a hand of cards is: one turn, a
+     table in the feed, buttons, the dice shown as they fall, and one
+     narration at the end for the whole of it (Pipeline.date(npcId): no
+     parser call, no line to type).
+
+     Who: an adult here, with an adult player and romance on in the story
+     (Rel.eligible: nobody under 18 ever sits at it, and a player under 18
+     never does), free, who likes the player -10 or better, once a phase
+     each (dateOk). The date is DATE.beats moments; at each the player
+     picks a move, and the engine settles it on the spot with the game's
+     own rules and rows (dateMove):
+       ask    Wits at their taste (easy for the open, hard for the guarded
+              until they trust the player 20): a success is "asked about me
+              and listened" (liking 2, knows 3), a critical they_confided,
+              a failure pried.
+       laugh  Charm at their taste (easy for the kind, hard for the proud
+              and the gloomy): complimented (x1.5 on a critical); a
+              critical failure is a joke that lands wrong (insulted, half).
+       open   No roll, once: confided.
+       treat  No roll, once, DATE.treat of the story's money: gift (the
+              day's one gift, as a gift typed is: giftGiven).
+       flirt  Charm at Rel.flirtDifficulty, landed by Rel.flirtAnswer and
+              recorded by Rel.flirtEventOf with the jealousy of whoever is
+              watching (Rel.jealousyOf), exactly as a flirt typed is; short
+              of their opensAt it is not offered (the table says how far
+              off it is). A no closes it for the date; DATE.flirts at most.
+     Ease (0 to DATE.easeMax, from how they stand when it starts) is how
+     the date is going: a success +1, a critical +2, a failure -1, a
+     critical failure -2; 4 or more is +1 on the next roll, 1 or less -1;
+     at 0 they cut it short. The turn's caps hold everything a date can
+     move (Rel.CAPS.turn), the day's repeat rules too, so a date is worth
+     one very good turn and no more. It takes a long. Stop, or Leave, ends
+     it there and keeps what happened; /undo takes the whole turn back.
+     The finished table is kept on the log entry (entry.date, State's
+     logDate) and drawn again after a reload. */
+  const DATE = Object.freeze({ beats: 4, easeMax: 5, treat: 8, minLiking: -10, flirts: 2 });
+  const DATE_MOVES = Object.freeze(['ask', 'laugh', 'open', 'treat', 'flirt']);
+  const DATE_TIERS = Object.freeze({ critical: 2, success: 1, partial: 0, failure: -1, critical_failure: -2 });
+  // What the table calls them: their first name once the player knows it, else "She" or "He", else how the player knows them ("The new waitress").
+  function dateFirst(n) {
+    if (isObj(n) && n.knownToPlayer) return String(n.name || '').split(/\s+/)[0] || 'They';
+    return isObj(n) && (n.pronouns === 'she' || n.pronouns === 'he') ? capFirst(n.pronouns) : capFirst(npcLabel(n));
+  }
+  function dateForms(n) { return PRONOUN_FORMS[n && n.pronouns] || PRONOUN_FORMS.they; }
+  /* Whether time can be spent with them now: { ok, why (a line for the
+     player), hide (true: not on offer at all, so no button) }. */
+  function dateOk(n) {
+    const s = State.current;
+    if (!s || State.muted || !isObj(n) || s.player.dead) return { ok: false, hide: true, why: 'Nobody to spend time with.' };
+    if (!Rel.eligible(n)) return { ok: false, hide: true, why: 'That is not on offer.' };
+    if (n.alive === false || presenceOf(n) !== 'here' || (n.status && n.status !== 'free')) return { ok: false, hide: true, why: `${npcLabel(n)} is not free.` };
+    if (!State.npcsAt(s.player.locationId).some(x => x.id === n.id)) return { ok: false, hide: true, why: `${capFirst(npcLabel(n))} is not here.` };
+    const c = Rel.tracksOf(n);
+    if (c.w < DATE.minLiking) return { ok: false, why: `${capFirst(npcLabel(n))} has no time for you, the way things stand.` };
+    const last = s.log.slice().reverse().find(e => isObj(e.date) && e.date.npcId === n.id);
+    if (last && last.day === s.time.day && last.phase === s.time.phase) return { ok: false, why: `You have just spent time with ${npcLabel(n)}. Give it a while.` };
+    return { ok: true, why: null };
+  }
+  /* What they are like to spend time with (their traits' axes, Rel.axesOf):
+     how hard each rolled move is, and the player's read of it in words. */
+  function dateTaste(n) {
+    const ax = Rel.axesOf(n);
+    const c = Rel.tracksOf(n);
+    const f = dateForms(n);
+    const ask = ax.g >= 1 ? 'easy' : ax.g <= -1 && c.t < 20 ? 'hard' : 'normal';
+    const laugh = ax.r <= -1 || ax.p >= 1 ? 'hard' : ax.r >= 1 ? 'easy' : 'normal';
+    const bits = [];
+    if (ask === 'easy') bits.push('likes to talk');
+    else if (ask === 'hard') bits.push(`keeps things to ${f.self}`);
+    if (laugh === 'easy') bits.push('laughs easily');
+    else if (laugh === 'hard') bits.push('is hard to get a laugh out of');
+    if (ax.mercenary) bits.push('likes being treated');
+    return { ask, laugh, mercenary: ax.mercenary === true, read: bits.length ? `${dateFirst(n)} ${bits.slice(0, 2).join(' and ')}.` : `${dateFirst(n)} gives little away.` };
+  }
+  // How a date starts out, from how they stand: liking 40 or more 3, 10 or more 2, else 1; one more once there is a spark of 20.
+  function dateEase(n) {
+    const c = Rel.tracksOf(n);
+    return clamp((c.w >= 40 ? 3 : c.w >= 10 ? 2 : 1) + (c.s >= 20 ? 1 : 0), 1, DATE.easeMax);
+  }
+  function easeMod(ease) { return ease >= 4 ? 1 : ease <= 1 ? -1 : 0; }
+  // The treat's price in the story's money, and the day's gift already given (State giftGiven: a second earns nothing).
+  function datePrice() { return DATE.treat; }
+  function giftedToday(n) { const s = State.current; const g = s && isObj(s.meta.gifts) ? s.meta.gifts : null; return !!g && g.day === s.time.day && Array.isArray(g.ids) && g.ids.includes(n.id); }
+  /* The chance a roll at least succeeds (a success or a critical), as the
+     dice read it: the stat, the liking modifier (a charm roll's) and the
+     ease, against the difficulty's target. */
+  function dateOdds(n, stat, difficulty, ease) {
+    const s = State.current;
+    const mods = Dice.modifiersFor(s, { stat, npcId: n.id, actionType: 'persuade', social: stat === 'charm' });
+    if (easeMod(ease)) mods.push({ label: easeMod(ease) > 0 ? 'at ease' : 'on edge', value: easeMod(ease) });
+    const need = Dice.target(difficulty) - clamp(s.player.stats[stat] | 0, -1, 3) - Dice.sumModifiers(mods);
+    const crits = Pack.get('rules.crits') !== false;
+    let hit = 0;
+    for (let d = 1; d <= 20; d++) if ((crits && d === 20) || (!(crits && d === 1) && d >= need)) hit++;
+    return { odds: hit / 20, mods };
+  }
+  /* The moves on offer at a moment: { id, label, stat, difficulty, odds,
+     price, off (why it cannot be picked now, or null), note }. */
+  function dateMoves(n, d) {
+    const s = State.current;
+    const f = dateForms(n);
+    const taste = dateTaste(n);
+    const c = Rel.tracksOf(n);
+    const used = d.used;
+    const out = [];
+    const rolled = (id, label, stat, difficulty, off, note) => { const o = dateOdds(n, stat, difficulty, d.ease); out.push({ id, label, stat, difficulty, odds: o.odds, price: null, off: off || null, note: note || null }); };
+    rolled('ask', `Ask about ${f.obj}`, 'wits', taste.ask);
+    rolled('laugh', `Make ${f.obj} laugh`, 'charm', taste.laugh);
+    out.push({ id: 'open', label: `Tell ${f.obj} something true`, stat: null, difficulty: null, odds: null, price: null, off: used.open ? 'Once is enough for one sitting.' : null, note: 'No roll' });
+    const price = datePrice();
+    out.push({ id: 'treat', label: `Treat ${f.obj}`, stat: null, difficulty: null, odds: null, price,
+      off: used.treat ? 'Once is enough for one sitting.' : giftedToday(n) ? `You have treated ${f.obj} once today already.` : (s.player.gold | 0) < price ? `You don't have ${money(price)}.` : null, note: 'No roll' });
+    const wel = Rel.welcomeOf(n);
+    const flirtLabel = c.s >= 40 ? `Kiss ${f.obj}` : c.s >= 20 ? `Hold ${f.pos} eye` : `Flirt with ${f.obj}`;
+    if (wel.ok) rolled('flirt', flirtLabel, 'charm', wel.difficulty, d.flirtShut ? `Not now: ${dateFirst(n)} said no.` : (used.flirt | 0) >= DATE.flirts ? 'Leave it there for now.' : null);
+    else out.push({ id: 'flirt', label: flirtLabel, stat: 'charm', difficulty: null, odds: null, price: null, soon: wel.soon === true, off: wel.soon ? `Too soon: ${dateFirst(n)} hardly knows you yet.` : 'Not on offer.', note: null });
+    return out;
+  }
+  /* One roll of a date: the stat at the difficulty with the liking and the
+     ease, the die a cheat or a test forced (nextDie). No complication. */
+  function dateRoll(n, stat, difficulty, ease) {
+    const o = dateOdds(n, stat, difficulty, ease);
+    const rollOpts = { stat, difficulty, modifiers: o.mods, npcId: n.id, actionType: 'persuade', complication: null };
+    return Dice.resolve(Object.assign({}, rollOpts, { d20: nextDie(rollOpts) }));
+  }
+  function dateApply(events, path) {
+    const s = State.current;
+    if (!events.length) return;
+    const r = State.apply({ socialEvents: events });
+    if (r.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path, reason: r.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
+  }
+  /* One move settled: the roll (if it rolls), what the engine records, the
+     ease it moves, and the words for the table and for the narrator.
+     Returns { move, label, tier, line, ease, text, told }. */
+  function dateMove(ctx, n, d, id) {
+    const s = State.current;
+    const who = s.player.name;
+    const place = placeName(here());
+    const f = dateForms(n);
+    const first = dateFirst(n);
+    const they = n.pronouns === 'they' || !PRONOUN_FORMS[n.pronouns];
+    const v = w => (w === 'go' ? 'goes' : w === 'kiss' ? 'kisses' : `${w}s`); // after their name
+    const mv = dateMoves(n, d).find(m => m.id === id);
+    if (!mv || mv.off) return null;
+    const out = { move: id, label: mv.label, tier: null, line: null, ease: 0, text: '', told: '' };
+    d.used[id] = (d.used[id] | 0) + 1;
+    if (id === 'open') {
+      dateApply([{ npcId: n.id, event: 'confided', text: `${who} told me something private and true at ${place}` }], 'date.open');
+      Object.assign(out, { ease: 1, text: `${first} ${v('listen')}, and ${v('keep')} it.`, told: `the player told ${n.name} something true about themself (their past, their goal or their flaw, from what PLAYER says of them; keep it brief), and ${f.subj} listened and took it as a confidence` });
+      return out;
+    }
+    if (id === 'treat') {
+      const price = mv.price;
+      const paid = State.apply({ goldDelta: -price });
+      if (paid.rejected.length) return null;
+      dateApply([{ npcId: n.id, event: 'gift', text: `${who} treated me at ${place}` }], 'date.treat');
+      State.apply({ giftGiven: n.id });
+      UI.showCash();
+      const merc = dateTaste(n).mercenary;
+      Object.assign(out, { ease: merc ? 2 : 1, price, text: `${money(price)} well spent: ${first} ${v('take')} it kindly.`, told: `the player treated ${n.name} (${money(price)}, already paid: something small this place has, a drink, a coffee, a plate), and ${f.subj} took it kindly` });
+      return out;
+    }
+    const roll = dateRoll(n, mv.stat, mv.difficulty, d.ease);
+    out.tier = roll.tier;
+    out.line = roll.line;
+    out.ease = DATE_TIERS[roll.tier] || 0;
+    State.debugLog.push({ turn: s.meta.turn, kind: 'rel', text: `time with ${n.id}: ${id}, ${mv.stat} ${mv.difficulty}: ${roll.line}` });
+    const good = roll.tier === 'critical' || roll.tier === 'success';
+    if (id === 'ask') {
+      if (roll.tier === 'critical') { dateApply([{ npcId: n.id, event: 'they_confided', text: `told ${who} something private at ${place}` }], 'date.ask'); out.text = `${first} ${v('tell')} you something ${f.subj} ${they ? "don't" : "doesn't"} tell people.`; out.told = `the player asked ${n.name} about ${f.self}, and ${f.subj} opened up: ${f.subj} told the player something private and true about ${f.pos} own life (nothing of ${f.pos} SECRET unless SECRET is given this turn)`; }
+      else if (good) { dateApply([{ npcId: n.id, event: 'complimented', d: { w: 2, k: 3 }, text: `${who} asked about me and listened` }], 'date.ask'); out.text = `${first} ${v('talk')}, and you listen.`; out.told = `the player asked ${n.name} about ${f.pos} day and ${f.pos} life, and ${f.subj} talked easily; the player listened`; }
+      else if (roll.tier === 'partial') { out.text = `${first} ${v('answer')}, and ${v('leave')} it at that.`; out.told = `the player asked ${n.name} about ${f.self}; ${f.subj} answered politely and gave little away`; }
+      else { dateApply([{ npcId: n.id, event: 'pried', text: `${who} asked more than was their business` }], 'date.ask'); out.text = roll.tier === 'critical_failure' ? `Wrong question. ${first} ${v('go')} quiet.` : `${first} would rather not say.`; out.told = `the player asked ${n.name} something ${f.subj} did not want to answer; it came over as prying, and ${f.subj} closed up${roll.tier === 'critical_failure' ? ' and went quiet' : ''}`; }
+      return out;
+    }
+    if (id === 'laugh') {
+      if (good) { dateApply([Object.assign({ npcId: n.id, event: 'complimented', text: `${who} made me laugh at ${place}` }, roll.tier === 'critical' ? { scale: 1.5 } : {})], 'date.laugh'); out.text = roll.tier === 'critical' ? `${first} can't stop laughing.` : `${first} ${v('laugh')}.`; out.told = `the player made ${n.name} laugh${roll.tier === 'critical' ? ', properly, more than once' : ''}`; }
+      else if (roll.tier === 'partial') { out.text = `A smile, at least.`; out.told = `the player tried a joke on ${n.name} and got a polite smile for it`; }
+      else if (roll.tier === 'critical_failure') { dateApply([{ npcId: n.id, event: 'insulted', scale: 0.5, text: `${who} made a joke at my expense` }], 'date.laugh'); out.text = `That one lands wrong.`; out.told = `the player's joke landed wrong with ${n.name}: ${f.subj} took it as a dig, and it stung a little`; }
+      else { out.text = `The joke dies quietly.`; out.told = `the player tried a joke on ${n.name} and it fell flat`; }
+      return out;
+    }
+    // The flirt, by the game's own rule (Rel.flirtAnswer, Rel.flirtEventOf, Rel.jealousyOf).
+    const ans = Rel.flirtAnswer(n, roll.tier);
+    const ev = Rel.flirtEventOf(n, ans, who, place);
+    if (ev) dateApply([ev].concat(Rel.jealousyOf(n, ctx.presentIds || [])), 'date.flirt');
+    if (ans.answer === 'no') d.flirtShut = true;
+    out.answer = ans.answer;
+    // A kiss is a flirt by the game's rule (the move's name at a spark of 40 or more); the table says how it landed in its own words.
+    const kiss = /^Kiss /.test(mv.label);
+    out.text = ans.answer === 'welcome' ? (kiss ? (roll.tier === 'critical' ? `${first} ${v('kiss')} you back, and ${v('take')} ${f.pos} time.` : `${first} ${v('kiss')} you back.`) : roll.tier === 'critical' ? `${first} ${v('lean')} in.` : `${first} ${v('flirt')} back, ${f.pos} own way.`)
+      : ans.answer === 'aside' ? (kiss ? `${first} ${v('turn')} ${f.pos} cheek, kindly.` : `${first} ${v('turn')} it aside, kindly.`) : ans.awkward ? `${first} isn't having it. Awkward.` : `${first} isn't interested tonight.`;
+    const act = kiss ? `went to kiss ${n.name}` : /^Hold /.test(mv.label) ? `held ${n.name}'s eye a moment too long, meaning it` : `flirted with ${n.name}`;
+    const said = a => `${n.name}${Rel.flirtWords(n, a).replace(/\.$/, '')}`;
+    const landed = ans.answer === 'welcome' ? (kiss ? `${n.name} kissed the player back${roll.tier === 'critical' ? ', gladly' : ''} (a kiss and no more)` : `${said('welcome')}${roll.tier === 'critical' ? ', and gladly' : ''}`)
+      : ans.answer === 'aside' ? `${said('aside')}${kiss ? ` (${f.subj} turned ${f.pos} cheek)` : ''}` : `${said('no')}${ans.awkward ? ', and it was awkward' : ''}`;
+    out.told = `the player ${act}: ${landed}`;
+    return out;
+  }
+  // The tracks a date can move, as the meters draw them (never for anyone not eligible: dateOk refused them).
+  function dateTracks(n) { const c = Rel.tracksOf(n); return { w: c.w, t: c.t, k: c.k, s: c.s, m: c.m }; }
+  /* The open table as the feed draws it (UI.feed.date, dateShow). */
+  function dateView(ctx, n, d) {
+    const wel = Rel.welcomeOf(n);
+    return { date: true, open: true, npcId: n.id, name: n.name, label: npcLabel(n), first: dateFirst(n), place: placeName(here()), beat: d.beats.length, beats: DATE.beats, ease: d.ease, easeMax: DATE.easeMax,
+      moves: dateMoves(n, d), log: d.beats.slice(), tracks: dateTracks(n), start: d.start, stance: Rel.stance(n).phrase, read: dateTaste(n).read,
+      opensAt: Rel.tuningOf(n).opensAt, flirtOpen: wel.ok, cash: State.current.player.gold | 0 };
+  }
+  const DATE_ENDED = Object.freeze({
+    done: n => `You and ${dateFirst(n)} call it there.`,
+    left: n => `You leave it there, and ${dateFirst(n)} lets you.`,
+    cut: n => `${dateFirst(n)} has somewhere to be.`,
+    stopped: n => `You leave it there, and ${dateFirst(n)} lets you.`
+  });
+  /* The date, played (runTurn's step 5 for a turn opened by Pipeline.date). */
+  async function dateTurn(ctx, npcId) {
+    const s = State.current;
+    const a = ctx.action;
+    const n = State.npc(npcId);
+    const nl = ctx.narratorLines = ctx.narratorLines || [];
+    const bl = ctx.bookLines = ctx.bookLines || [];
+    Object.assign(a, { needsRoll: false, stat: null, difficulty: null });
+    const ok = dateOk(n);
+    if (!ok.ok) {
+      nl.push(`TIME TOGETHER: none: ${ok.why} Say so plainly; nothing else happens.`);
+      bl.push('TIME TOGETHER: none took place; record nothing for it.');
+      ctx.date = { played: false, why: ok.why };
+      a.timeCost = 'instant';
+      return {};
+    }
+    a.timeCost = 'long';
+    status('date');
+    const d = { ease: dateEase(n), beats: [], used: {}, flirtShut: false, start: dateTracks(n) };
+    const stanceWas = Rel.stance(n).phrase;
+    const cashWas = s.player.gold | 0;
+    const node = UI.feed.date(dateView(ctx, n, d));
+    let ended = 'done';
+    while (d.beats.length < DATE.beats) {
+      const view = dateView(ctx, n, d);
+      const choice = await waitForHand(view, node, 'date');
+      if (State.current !== s) return {};
+      if (!isObj(choice) || choice.fold === true || choice.leave === true) { ended = choice && choice.stopped ? 'stopped' : 'left'; if (ended === 'stopped') ctx.handStopped = true; break; }
+      const b = dateMove(ctx, n, d, choice.move);
+      if (!b) { UI.feed.dateShow(node, dateView(ctx, n, d)); continue; }
+      d.ease = clamp(d.ease + b.ease, 0, DATE.easeMax);
+      b.easeNow = d.ease;
+      d.beats.push(b);
+      if (d.ease <= 0) { ended = 'cut'; break; }
+      if (d.beats.length < DATE.beats) UI.feed.dateShow(node, dateView(ctx, n, d));
+    }
+    // Time together (State's relTurn: they know the player a little better, and the phase counts as one spent with them).
+    const rt = State.apply({ relTurn: { aimed: [n.id], quiet: [] } });
+    if (rt.rejected.length) State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'engine', path: 'date.relTurn', reason: rt.rejected.map(x => `${x.path}: ${x.reason}`).join('; ') });
+    // The player knows who they spent the time with.
+    State.apply({ npcKnownToPlayer: [n.id] }, { present: (ctx.presentIds || []).slice() });
+    const end = dateTracks(n);
+    const gains = {};
+    for (const k of Object.keys(end)) gains[k] = end[k] - d.start[k];
+    const record = { npcId: n.id, name: n.name, label: npcLabel(n), place: placeName(here()), ended, ease: d.ease,
+      beats: d.beats.map(b => Object.assign({ move: b.move, label: b.label, tier: b.tier, line: b.line, ease: b.ease, text: b.text }, b.price ? { price: b.price } : {}, b.answer ? { answer: b.answer } : {})),
+      start: d.start, end, gains, stanceWas, stance: Rel.stance(n).phrase, spent: cashWas - (s.player.gold | 0), cash: s.player.gold | 0 };
+    UI.feed.dateDone(node, record);
+    ctx.dateRec = record;
+    ctx.date = { played: true, npcId: n.id, name: n.name, ended, ease: d.ease, told: d.beats.map(b => b.told), endText: DATE_ENDED[ended](n), record };
+    const how = ended === 'cut' ? `${n.name} cut it short and found a reason to be somewhere else in the room` : ended === 'done' ? (d.ease >= 4 ? `it went well, and they part easy with each other` : `it ends easily enough`) : `the player left it there`;
+    nl.push(`TIME TOGETHER (decided by the engine, and final): ${s.player.name} spent a while with ${n.name} at ${placeName(here())}, the two of them, in this order: ${d.beats.length ? d.beats.map((b, i) => `(${i + 1}) ${b.told}`).join('; ') : 'nothing much was said'}. Then ${how}. Tell it as one unbroken scene within LENGTH, a sentence or two for each moment, in order, with ${n.name}'s own words and manner; add no kiss, touch, promise or confession beyond what is listed, change no outcome, and nobody else takes part in it.`);
+    bl.push(`TIME TOGETHER (already applied by the engine; do not record again): everything that passed between the player and ${n.name} this turn is recorded${record.spent ? `, and the ${money(record.spent)} the player spent is paid` : ''}; send no socialEvents, memory or attitude change for ${n.name}, no goldDelta and no newSeeds for it.`);
+    return {};
+  }
+  // The engine's own plain account of a date (the demo's narration; a narrator that failed).
+  function plainDateText(ctx) {
+    const g = ctx && ctx.date;
+    if (!g) return '';
+    if (!g.played) return String(g.why || '');
+    const n = State.npc(g.npcId);
+    const rec = g.record || {};
+    const lines = (rec.beats || []).map(b => `${b.label}: ${b.text}`);
+    return [`You spend a while with ${n ? npcLabel(n) : g.name} at ${rec.place || 'this place'}.`].concat(lines, [g.endText || '']).filter(Boolean).join(' ');
+  }
+  /* Wave 38 (the owner: "I don't like that it's chat by chat"): turns a
+     button opens, with nothing typed and no parser call. flirt(npcId): a
+     flirt with an adult here, settled by the romance step exactly as a
+     flirt typed is (Rel.romanceTurn: the charm roll, their answer, the
+     engine's record). sitIn(): a seat at the card table here (the usual
+     stake, or today's last; the chooser when no game is remembered).
+     dealAgain(): the next hand at the newest table's stake, told plainly
+     by the engine (no narrator and no bookkeeper call), so hand follows
+     hand at the table. Each refuses, with a notice, what the turn it
+     stands for would refuse. */
+  function oneTap(opts) {
+    const ro = readOnlyRefusal();
+    if (ro) return Promise.resolve(ro);
+    if (busy) return Promise.resolve({ ok: false, reason: 'busy' });
+    if (!State.current) return Promise.resolve({ ok: false, reason: 'no game' });
+    if (State.current.player.dead) { UI.feed.notice(NOTICES.dead); return Promise.resolve({ ok: false, reason: 'dead' }); }
+    return runTurn(Object.assign({ mode: 'normal', speech: { mode: 'do' } }, opts));
+  }
+  function flirt(npcId) {
+    const s = State.current;
+    const n = s ? State.npc(npcId) : null;
+    if (!n || !Rel.eligible(n) || !State.npcsAt(s.player.locationId).some(x => x.id === n.id)) return Promise.resolve({ ok: false, reason: 'no-flirt' });
+    return oneTap({ input: `You flirt with ${npcLabel(n)}.`,
+      action: () => ({ actionType: 'talk', summary: `${s.player.name} flirts with ${n.name}`, targets: [n.id], needsRoll: false, timeCost: 'instant', declaresWorldFact: false, romantic: 'flirt' }) });
+  }
+  function tableAction(s, dealer, quick) {
+    return { actionType: 'gamble', summary: `${s.player.name} ${quick ? 'plays another hand' : 'sits in'} at ${dealer.name}'s card table`, targets: [dealer.id], needsRoll: false, timeCost: 'short', declaresWorldFact: false };
+  }
+  function sitIn() {
+    const s = State.current;
+    const dealer = s && gambleOn() && cardGameAt(here()) ? dealerOf(State.npcsAt(s.player.locationId).map(n => n.id)) : null;
+    if (!dealer) return Promise.resolve({ ok: false, reason: 'no-table' });
+    return oneTap({ input: `You sit in at ${npcLabel(dealer)}'s table.`, action: () => tableAction(s, dealer, false) });
+  }
+  function dealAgain() {
+    const s = State.current;
+    const e = s && s.log.length ? s.log[s.log.length - 1] : null;
+    const dealer = s && gambleOn() && cardGameAt(here()) ? dealerOf(State.npcsAt(s.player.locationId).map(n => n.id)) : null;
+    if (!dealer || !e || !isObj(e.cards) || e.cards.dealerId !== dealer.id || e.day !== s.time.day) { if (s) UI.feed.notice("No hand to follow on from here. 'Deal me in' starts one."); return Promise.resolve({ ok: false, reason: 'no-table' }); }
+    return oneTap({ input: 'Another hand.', quickHand: true, action: () => tableAction(s, dealer, true) });
+  }
+  /* Time with someone here (the People card's and the scene strip's button;
+     Game.Pipeline.date(npcId)): its own turn, no parser call. Refused with
+     a notice, nothing spent, when it is not on offer (dateOk). */
+  function date(npcId) {
+    const ro = readOnlyRefusal();
+    if (ro) return Promise.resolve(ro);
+    if (busy) return Promise.resolve({ ok: false, reason: 'busy' });
+    const s = State.current;
+    if (!s) return Promise.resolve({ ok: false, reason: 'no game' });
+    const n = State.npc(npcId);
+    const ok = dateOk(n);
+    if (!ok.ok) { UI.feed.notice(ok.why); return Promise.resolve({ ok: false, reason: 'no-date' }); }
+    const label = npcLabel(n);
+    return runTurn({
+      input: `You spend some time with ${label}.`, mode: 'normal', speech: { mode: 'do' }, date: n.id,
+      action: () => ({ actionType: 'talk', summary: `${s.player.name} spends a while with ${n.name}, the two of them`, targets: [n.id], needsRoll: false, timeCost: 'long', declaresWorldFact: false })
+    });
+  }
   async function gamble(ctx) {
     const s = State.current;
     const p = s.player;
@@ -36940,14 +37451,26 @@ const Pipeline = (() => {
     return g && Number.isInteger(g.ante) && n === g.ante ? `the ${money(n)} ante is gone` : `the ${money(n)} you put in is gone`;
   }
   function plainNarration(ctx, why, err) {
-    const text = plainHandText(ctx);
+    const text = ctx.date ? plainDateText(ctx) : plainHandText(ctx);
     ctx.plain = why;
     ctx.due = [];
     ctx.rumour = null;
     const node = UI.feed.narration(text, false);
+    // Wave 38: time with someone, told plainly (Stop at the table, or a narrator that failed, was stopped or declined).
+    if (ctx.date) {
+      if (why === 'folded') UI.feed.notice(NOTICES.dateStopped);
+      else if (why === 'stopped') UI.feed.notice(NOTICES.dateStoppedAfter);
+      else if (why === 'refused') UI.feed.notice(NOTICES.dateRefused);
+      else {
+        if (err) { console.warn('[Pipeline] the narrator failed after time together', err); State.debugLog.push({ turn: State.current.meta.turn, kind: 'narrator', reason: `the narrator failed after the time together (${(err && (err.type || err.message)) || err}); told plainly` }); }
+        UI.feed.notice(NOTICES.dateUntold(err instanceof Api.ApiError || !err), 'error');
+      }
+      return { narration: text, node, mock: false, plain: true };
+    }
     // A hand left open was folded; one already played stands. Left in this tab (a reload) or in another one (wave 12, L3).
     if (why === 'left') UI.feed.notice(ctx.resume === 'open' ? (ctx.resumeOther ? NOTICES.handOtherOpen : NOTICES.handLeftOpen)(handLost(ctx.gamble)) : (ctx.resumeOther ? NOTICES.handOtherPlayed : NOTICES.handLeftPlayed));
     else if (why === 'folded') UI.feed.notice(NOTICES.handFolded(handLost(ctx.gamble)));
+    else if (why === 'quick') { /* Deal again (wave 38): the plain line is the telling; no notice */ }
     else if (why === 'stopped') UI.feed.notice(NOTICES.handStopped);
     else if (why === 'refused') UI.feed.notice(NOTICES.handRefused);
     else {
@@ -37586,7 +38109,8 @@ const Pipeline = (() => {
      rewrite replaces it when it comes, and if it fails or is refused the
      draft stands. Soft problems go to the debug view only. */
   /* The longer length (ZOOM's): a zoom, an arrival, an ending, or a narration of time passing with more due events than a turn holds (World.MAX_DUE). */
-  function roomy(ctx) { return ctx.mode === 'zoom' || ctx.mode === 'arrival' || ctx.mode === 'epilogue' || (ctx.due || []).length > World.MAX_DUE; }
+  // Wave 38: time with someone is several moments told as one scene, so it has a zoom's room.
+  function roomy(ctx) { return ctx.mode === 'zoom' || ctx.mode === 'arrival' || ctx.mode === 'epilogue' || (ctx.due || []).length > World.MAX_DUE || !!(ctx.date && ctx.date.played); }
   /* Wave 36, third pass (the owner: "still very tame... I want that hard
      earned sex scene to be GOOD and HOT"): hungrier, with crude dirty talk
      in the characters' own voices, still short of anatomy or a blow-by-blow
@@ -38022,6 +38546,16 @@ const Pipeline = (() => {
     const reject = (path, reason) => State.debugLog.push({ turn: s.meta.turn, kind: 'rejected', source: 'model', path, reason });
     if (ctx.damage && toInt(clean.hpDelta) < 0) { reject('hpDelta', 'ignored: the engine already applied fight damage'); delete clean.hpDelta; }
     if (ctx.gamble && toInt(clean.goldDelta)) { reject('goldDelta', ctx.gamble.played ? 'ignored: the engine already moved the card game\'s money' : 'ignored: no card game was played, so no money moved at cards'); delete clean.goldDelta; }
+    // Wave 38: time with someone was settled at its table (dateTurn): what the bookkeeper sends for that person, and any money, is not counted on top.
+    if (ctx.date && ctx.date.played) {
+      const id = ctx.date.npcId;
+      if (toInt(clean.goldDelta)) { reject('goldDelta', 'ignored: the engine already moved the money of the time together'); delete clean.goldDelta; }
+      for (const k of ['attitudeChanges', 'socialEvents', 'newMemories']) {
+        if (!Array.isArray(clean[k])) continue;
+        const kept = clean[k].filter(x => !(isObj(x) && x.npcId === id));
+        if (kept.length !== clean[k].length) { reject(k, `ignored for ${id}: the engine settled the time together at its table`); clean[k] = kept; }
+      }
+    }
     if (isSay(ctx.speech) && clean.playerLocationId && clean.playerLocationId !== s.player.locationId) { reject('playerLocationId', 'ignored: in Say mode the player only spoke and stays where they are'); delete clean.playerLocationId; }
     if (ctx.moved && clean.playerLocationId === ctx.moved.fromId) { reject('playerLocationId', `ignored: the engine walked the player from ${ctx.moved.fromId} to ${ctx.moved.toId} this turn`); delete clean.playerLocationId; }
     // Wave 27: the seller would not sell (refuseSale): no money paid for it and nothing bought.
@@ -38220,7 +38754,8 @@ const Pipeline = (() => {
   function turnTogether(ctx) {
     const s = State.current;
     // A card game, or an ask for table stakes, is the table's business (it changes no feeling), not time together.
-    if (!s || !ctx.action || !isObj(ctx.attStart) || ctx.stakes || ctx.gamble) return;
+    // Wave 38: time at the date table is counted there (dateTurn's relTurn).
+    if (!s || !ctx.action || !isObj(ctx.attStart) || ctx.stakes || ctx.gamble || ctx.date) return;
     const a = ctx.action;
     const here = ctx.presentIds || [];
     const aimed = [];
@@ -38408,7 +38943,8 @@ const Pipeline = (() => {
       // How everyone stood before the turn did anything to them (wave 27: a turn that moved someone is not also time spent with them).
       ctx.attStart = World.attitudes();
       ctx.memStart = Object.fromEntries(s.npcs.map(n => [n.id, (n.memories || []).length]));
-      const resolved = asked ? stakesAsk(ctx, asked) : action.actionType === 'gamble' ? await gamble(ctx) : resolve(ctx);
+      // Wave 38: time with someone is played at its own table (dateTurn), as a hand of cards is.
+      const resolved = opts.date ? await dateTurn(ctx, opts.date) : asked ? stakesAsk(ctx, asked) : action.actionType === 'gamble' ? await gamble(ctx) : resolve(ctx);
       if (replaced()) return fail(snap, mark, null, {});
       if (resolved.locked) {
         const r = fail(snap, mark, null, { reason: 'retry-locked' });
@@ -38450,11 +38986,13 @@ const Pipeline = (() => {
       /* A hand at cards is final once it is played (wave 11, M1): Stop with
          it open folded it, and a narrator that fails, is stopped or
          declines leaves it told plainly by the engine; the turn is kept. */
-      const played = !!(ctx.gamble && ctx.gamble.played);
+      const played = !!(ctx.gamble && ctx.gamble.played) || !!(ctx.date && ctx.date.played);
       let told;
       // A hand the page was closed on (resumeHand): told plainly, as it was left.
       if (played && ctx.resume) told = plainNarration(ctx, 'left');
       else if (played && ctx.handStopped) told = plainNarration(ctx, 'folded');
+      // Wave 38: Deal again's hand is told in the engine's own line, at once (no narrator call), so hand follows hand.
+      else if (opts.quickHand && ctx.gamble && ctx.gamble.played) told = plainNarration(ctx, 'quick');
       else {
         try { told = await narrate(ctx); } catch (err) {
           if (!played || replaced()) throw err;
@@ -38548,6 +39086,8 @@ const Pipeline = (() => {
       if (notRecorded) entry.changes = 'not recorded';
       // The card table as it ended (wave 10): the feed draws it again after a reload or an /undo.
       if (ctx.cards) entry.cards = ctx.plain ? Object.assign({}, ctx.cards, { plain: true }) : ctx.cards;
+      // Wave 38: the date table as it ended, drawn again after a reload or an /undo.
+      if (ctx.dateRec) entry.date = ctx.dateRec;
       State.apply({ logEntry: entry });
       // The ending has been told: its news is seen now, not before (a failed or stopped ending is told after the next turn).
       // One /undo takes it back with the turn that brought it (wave 5, playtest Q5).
@@ -39634,6 +40174,8 @@ const Pipeline = (() => {
     sentenceOne,
     resumeHand,
     foldPrice,
+    // Wave 38: time with someone at its own table.
+    date, dateOk, dateTaste, dateMoves, dateEase, plainDateText, DATE, DATE_MOVES, flirt, sitIn, dealAgain,
     get handOpen() { return !!hand; },
     /* The open hand's table (stake, dealer, cards as dealt), or null (wave 11: the box's nudge names the fold price). Wave 13: kind is 'choose', 'draw' or 'holdem'. */
     get openHand() { return hand ? hand.table : null; },
@@ -40805,7 +41347,7 @@ const UI = (() => {
   let sheetOpener = null;
 
   function camel(id) { return id.replace(/-([a-z])/g, (m, c) => c.toUpperCase()); }
-  const IDS = ['app', 'banner', 'banner-text', 'banner-close', 'title-name', 'title-tagline', 'title-setting', 'title-setting-more', 'title-more', 'btn-new', 'btn-continue', 'btn-load',
+  const IDS = ['scene', 'app', 'banner', 'banner-text', 'banner-close', 'title-name', 'title-tagline', 'title-setting', 'title-setting-more', 'title-more', 'btn-new', 'btn-continue', 'btn-load',
     'btn-settings', 'btn-theme', 'title-mode', 'title-mode-text', 'title-mode-act', 'continue-sub', 'title-broken', 'title-broken-text', 'btn-broken-download',
     'create-scroll', 'create-form-view', 'create-summary-view', 'create-mode-view', 'create-steps', 'cr-count', 'cr-random', 'summary-title', 'create-title', 'mode-title',
     'choose-claude', 'choose-demo', 'mode-key', 'mode-key-input', 'mode-remember', 'mode-key-err', 'mode-key-go', 'mode-cancel',
@@ -41549,6 +42091,8 @@ const UI = (() => {
     renderComposer();
     renderDemoBar();
     renderTestBar();
+    renderScene();
+    syncAgain();
     markUndo();
   }
   /* The slim bar while the offline demo is on (closed for the page load with ×). */
@@ -42144,6 +42688,19 @@ const UI = (() => {
       el('dl', { class: 'pcard-words' }, rows.map(([k, key, v]) => el('div', { class: 'pcard-word', dataset: { word: key } }, el('dt', null, k), el('dd', null, v)))));
     return { node, fold, used };
   }
+  /* Wave 38: what can be done with someone here in one tap, on their open
+     card (the scene strip's row has the same): Spend time (the date table;
+     an adult only), Flirt (the same) and Talk (Say mode, to them). */
+  function personActs(s, n) {
+    const block = actBlock();
+    const acts = [];
+    const btn = (id, text, fn, off) => el('button', { type: 'button', class: 'btn small pcard-act', dataset: { act: id }, disabled: !!(block || off), title: block || off || null, onclick: () => { if (!canAct()) return; if (isMobile()) closeSheet(true); fn(); } }, text);
+    const ok = Pipeline.dateOk(n);
+    if (!ok.hide) acts.push(btn('date', 'Spend time', () => Pipeline.date(n.id), ok.ok ? null : ok.why));
+    if (Rel.eligible(n)) acts.push(btn('flirt', 'Flirt', () => Pipeline.flirt(n.id)));
+    acts.push(btn('talk', 'Talk', () => { setMode('say'); setAddressee(n.id); focusComposer(); }));
+    return el('div', { class: 'pcard-acts', role: 'group', 'aria-label': `With ${npcLabel(n)}` }, acts);
+  }
   function personCard(s, n, isHere) {
     const heard = heardOfOnly(s, n);
     const known = !!n.knownToPlayer || heard;
@@ -42169,18 +42726,22 @@ const UI = (() => {
     const search = [name, n.role || '', roleLine, seenLoc ? seenLoc.name : '', home && (home.discovered || home.away === true) ? home.name : ''].join(' ').toLowerCase();
     return el('article', { class: 'pcard' + (known ? '' : ' stranger') + (open ? ' open' : '') + (edit ? ' editing' : ''), dataset: { npc: n.id, status: status || 'free', search } },
       el('button', { type: 'button', class: 'pcard-head', id: 'phead-' + n.id, 'aria-expanded': String(open), 'aria-controls': moreId, onclick: () => togglePerson(n.id) },
-        el('span', { class: 'mono', dataset: { hue: String(personHue(n.id)) }, 'aria-hidden': 'true' }, initials(name)),
+        // Wave 38: a face over the initials for anyone the player has seen (someone only heard of keeps the initials).
+        el('span', { class: 'mono' + (heard ? '' : ' has-face'), dataset: { hue: String(personHue(n.id)) }, 'aria-hidden': 'true' }, initials(name), heard ? null : faceNode(n)),
         el('span', { class: 'pcard-main' },
           el('span', { class: 'pcard-nameline' }, el('span', { class: 'pcard-name' }, name),
             age ? el('span', { class: 'pcard-age', title: 'Age' }, `· ${age}`) : null,
             el('span', { class: 'pcard-pron', title: 'Pronouns' }, pronounLabel(n.pronouns))),
           roleLine ? el('span', { class: 'pcard-role' }, roleLine) : null,
-          el('span', { class: 'pcard-meta' }, absent ? el('span', { class: 'pcard-where away' }, absentLine(n)) : heard ? el('span', { class: 'pcard-where' }, 'Heard of, not met') : [stanceChip(n), whereLine(s, n, isHere)],
+          el('span', { class: 'pcard-meta' }, absent ? el('span', { class: 'pcard-where away' }, absentLine(n)) : heard ? el('span', { class: 'pcard-where' }, 'Heard of, not met') : [stanceChip(n), heartsNode(n, false), whereLine(s, n, isHere)],
             absent ? null : personFlags(s, n).map(f => el('span', { class: 'pcard-flag' + (f.hard ? '' : ' soft'), dataset: Object.assign({ flag: '1' }, f.appt ? { appt: f.appt } : {}, f.ask ? { ask: f.ask } : {}) }, f.text)))),
         el('span', { class: 'pcard-chev', 'aria-hidden': 'true' })),
       el('div', { class: 'pcard-more', id: moreId, hidden: !open }, edit ? editForm(s, n) : [
         n.look ? el('p', { class: 'pcard-look' }, n.look) : null,
         standing ? standing.node : null,
+        // Wave 38: the tracks as bars, and for someone here what can be done in one tap.
+        standing ? el('div', { class: 'pcard-meters' }, metersNode(n)) : null,
+        standing && isHere ? personActs(s, n) : null,
         facts,
         notes.length ? [el('h4', { class: 'pcard-notes-h' }, 'Notes'),
           el('ul', { class: 'pcard-notes' }, notes.map(([k, t]) => el('li', null, el('span', { class: 'note-k' }, k + ': '), t)))] : null,
@@ -43998,6 +44559,8 @@ const UI = (() => {
   function handNudge(t0, kind0) {
     const t = t0 || Pipeline.openHand;
     const kind = kind0 || Pipeline.handKind;
+    // Wave 38: the date table.
+    if (kind === 'date') return 'You are spending time with someone: pick a move at the table, or Leave it there. Stop leaves too.';
     if (kind === 'choose') return "The card table is open: pick Five-card draw or Texas hold'em. Stop leaves the table (nothing lost).";
     // Wave 14 (QA #10): the nudge names the Win (cheat) control too (typing /cheat win presses it). Wave 18: and what can be typed.
     const stop = `Stop folds the hand${t ? ` (−${money(t.playerIn)})` : ''}; Win (cheat) ends it yours.`;
@@ -44048,6 +44611,8 @@ const UI = (() => {
        hand open, /cheat win and /cheat cards go to Commands.run, which says
        "Not in this story." and runs nothing, as it does with no hand open;
        the hand stays as it was. */
+    // Wave 38: the date table takes no typed moves (the box's nudge says to use its buttons).
+    if (Pipeline.handKind === 'date') return false;
     if ((CHEAT_WIN_TYPED.test(t) || CHEAT_CARDS_TYPED.test(t)) && !Commands.allowed('/cheat')) {
       d.cmd.value = '';
       autosize();
@@ -44626,6 +45191,358 @@ const UI = (() => {
      with the log quiet; the finished text is then put in once, so it is
      read out once, not after every chunk. */
   let streaming = 0;
+  /* ===== Wave 38: faces, meters, the scene strip and the date table =====
+     The owner: "Need to make it more visual not just text." Everyone has a
+     face, drawn from who they are (faceNode): a small bust in the person's
+     own colour, its hair, skin, glasses, beard and hat read from their
+     look's words where it says (else from their id, so it never changes),
+     grey with age, and an expression from where they stand with the player
+     (a smile for a warm stance, a frown for a cold one, a blush once there
+     is a spark). Drawn from SVG nodes, no image and no network. It sits in
+     the People card's monogram (over the initials, which stay for a screen
+     reader and for someone only heard of), in the scene strip and at the
+     date table. */
+  const FACE_SKIN = Object.freeze(['#f0d2b6', '#e3b891', '#cf9c72', '#b47b52', '#8c5a3a', '#684029']);
+  const FACE_HAIR = Object.freeze({ black: '#1e1916', dark: '#3a2a20', brown: '#614229', red: '#8c4124', blonde: '#c8a45e', grey: '#9b9a97', white: '#d8d5cf' });
+  const FACE_SHIRT = Object.freeze(['#6f7f8c', '#8a6a52', '#59705c', '#8c7a4d', '#7a5d74', '#4f6b78', '#93644f', '#5f6a48']);
+  const FACE_HAIR_NOUN = '(?:hair|ponytail|braids?|plaits?|bun|curls|perm|bob|crew cut|buzz cut|beard|mustache|moustache|goatee|stubble|whiskers|sideburns|fringe|bangs|mane)';
+  const FACE_COLOURS = Object.freeze([
+    ['white', 'white|snow-white|snowy'], ['grey', 'gr[ae]y|gr[ae]ying|silver|silvering|frosted|salt-and-pepper|iron-gr[ae]y|steel-gr[ae]y'],
+    ['red', 'red|auburn|ginger|copper|rust-coloured|rust-colored|strawberry'], ['blonde', 'blond|blonde|bleached|sandy|yellow|straw-coloured|straw-colored|fair|dishwater'],
+    ['black', 'black|jet-black|jet|raven'], ['dark', 'dark|dark-brown'], ['brown', 'brown|chestnut|mousy|mouse-brown']
+  ]);
+  function faceHash(id, salt) {
+    let h = 2166136261 ^ (salt | 0);
+    const t = String(id || '');
+    for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619) >>> 0;
+    return h >>> 0;
+  }
+  /* What a face is made of, from the person's record: { skin, hair, style,
+     hat, glasses, beard, moustache, shirt, old, hue }. The look's words
+     decide where they speak; the id decides the rest. */
+  const faceCache = new Map(); // by id, age, pronouns and look: a face is read once, and again only when an edit changes one of them
+  function faceTraits(n) {
+    const key = `${(n && n.id) || ''}|${n && n.age}|${n && n.pronouns}|${(n && n.look) || ''}`;
+    let f = faceCache.get(key);
+    if (!f) { f = Object.freeze(readFace(n)); if (faceCache.size > 400) faceCache.clear(); faceCache.set(key, f); }
+    return f;
+  }
+  function readFace(n) {
+    const look = ` ${String((n && n.look) || '').toLowerCase().replace(/[’]/g, "'")} `;
+    const id = (n && n.id) || '';
+    const age = Number.isInteger(n && n.age) ? n.age : null;
+    const pick = (list, salt) => list[faceHash(id, salt) % list.length];
+    const has = re => re.test(look);
+    let hair = null;
+    for (const [name, words] of FACE_COLOURS) {
+      if (new RegExp(`\\b(?:${words})(?:[- ](?:\\w+[- ]){0,2})?${FACE_HAIR_NOUN}\\b`).test(look) || new RegExp(`\\b${FACE_HAIR_NOUN} (?:gone|going|turned|turning|dyed|the colour of|the color of) (?:${words})\\b`).test(look) || new RegExp(`\\b(?:${words})-(?:haired|stubbled|bearded|whiskered|headed)\\b`).test(look) || (name === 'red' && /\bredhead(?:ed)?\b/.test(look))) { hair = name; break; }
+    }
+    if (!hair) hair = age !== null && age >= 64 ? pick(['grey', 'grey', 'white'], 11) : age !== null && age >= 50 ? pick(['grey', 'dark', 'brown', 'grey'], 11) : pick(['dark', 'brown', 'black', 'dark', 'blonde', 'brown', 'red', 'black'], 11);
+    const she = n && n.pronouns === 'she';
+    const he = n && n.pronouns === 'he';
+    let style = has(/\b(bald|balding|shaved head|shaven head|hairless)\b/) ? 'bald'
+      : has(/\b(ponytail|pony tail|braids?|plaits?)\b/) ? 'pony'
+        : has(/\b(bun|pinned up|piled (?:up|high)|updo|beehive)\b/) ? 'bun'
+          : has(/\b(curls|curly|perm|permed|frizz\w*|afro)\b/) ? 'curly'
+            : has(/\b(crew cut|buzz cut|buzzed|cropped|close-cropped|flattop|flat-top|shorn)\b/) ? 'buzz'
+              : has(/\b(long hair|long \w+ hair|hair (?:down )?(?:to|past) (?:her|his|their) (?:shoulders|waist|back))\b/) ? 'long'
+                : has(/\b(bob|bobbed|shoulder-length)\b/) ? 'bob' : null;
+    if (!style) style = she ? pick(['long', 'bob', 'pony', 'bun', 'long', 'curly'], 23) : he ? (age !== null && age >= 58 ? pick(['short', 'bald', 'buzz', 'short'], 23) : pick(['short', 'short', 'buzz', 'short'], 23)) : pick(['short', 'bob'], 23);
+    const skin = has(/\b(black (?:man|woman|kid|boy|girl|lady|fellow)|dark-skinned|brown-skinned)\b/) ? pick([4, 5, 4], 31) : has(/\b(pale|pasty|freckled?|freckles|fair-skinned|pink-faced)\b/) ? 0
+      : has(/\b(tan|tanned|sunburn\w*|sun-browned|weathered|leathery|ruddy|red-faced|windburned)\b/) ? 2 : pick([0, 1, 1, 2, 2, 3, 4, 1], 31);
+    return {
+      skin: FACE_SKIN[skin], hair: FACE_HAIR[hair] || FACE_HAIR.dark, style,
+      hat: has(/\b(cap|ball cap|ballcap|hat|stetson|beanie|visor|bandana|kerchief)\b/),
+      glasses: has(/\b(glasses|spectacles|bifocals|readers)\b/),
+      beard: !she && has(/\b(beard|bearded|goatee|whiskers|stubble|stubbled|unshaven)\b/),
+      moustache: !she && has(/\b(mustache|moustache)\b/),
+      shirt: pick(FACE_SHIRT, 47), old: age !== null && age >= 55, hue: personHue(id)
+    };
+  }
+  /* How a face looks at the player now: 'warm' (a stance on the good side),
+     'cold' (the bad side), else 'even'; blush once an eligible adult has a
+     spark of 20. Someone the player has not met is 'even'. */
+  function faceMood(n) {
+    const s = State.current;
+    if (!s || !isObj(n) || !hasMet(s, n)) return { mood: 'even', blush: false };
+    let side = 'neutral';
+    try { side = Rel.stance(n).side; } catch (e) { side = 'neutral'; }
+    return { mood: side === 'good' ? 'warm' : side === 'bad' ? 'cold' : 'even', blush: Rel.eligible(n) && Rel.tracksOf(n).s >= 20 };
+  }
+  function faceNode(n, opts) {
+    const o = opts || {};
+    const f = faceTraits(n);
+    const m = o.mood ? { mood: o.mood, blush: !!o.blush } : faceMood(n);
+    const ink = '#2a201a';
+    const shade = 'rgba(40, 20, 10, .22)';
+    const kids = [];
+    const add = (tag, attrs) => kids.push(sv(tag, attrs));
+    add('rect', { class: 'face-bg', x: 0, y: 0, width: 48, height: 48 });
+    // Hair behind the head.
+    if (f.style === 'long') add('path', { d: 'M12.5 21 C11 7 37 7 35.5 21 L37 39 L11 39 Z', fill: f.hair });
+    else if (f.style === 'bob') add('path', { d: 'M13 21 C11.5 7.5 36.5 7.5 35 21 L35.5 30.5 L12.5 30.5 Z', fill: f.hair });
+    else if (f.style === 'pony') add('path', { d: 'M32 12 C40 14 40.5 27 36.5 33 C36.5 26 35.5 20 31.5 16.5 Z', fill: f.hair });
+    else if (f.style === 'bun') add('circle', { cx: 24, cy: 7.6, r: 4, fill: f.hair });
+    else if (f.style === 'curly') for (const [cx, cy] of [[13.5, 19], [34.5, 19], [13, 24.5], [35, 24.5]]) add('circle', { cx, cy, r: 3.6, fill: f.hair });
+    // Shoulders, neck, head, ears.
+    add('path', { d: 'M5 48 C5 38.5 13.5 34.5 24 34.5 C34.5 34.5 43 38.5 43 48 Z', fill: f.shirt });
+    add('path', { d: 'M20 30 H28 V35.5 C28 38 20 38 20 35.5 Z', fill: f.skin });
+    add('path', { d: 'M20 31.5 H28 V33.5 C26 35 22 35 20 33.5 Z', fill: shade });
+    add('circle', { cx: 14.6, cy: 22.5, r: 2, fill: f.skin });
+    add('circle', { cx: 33.4, cy: 22.5, r: 2, fill: f.skin });
+    add('ellipse', { cx: 24, cy: 21.5, rx: 9.4, ry: 11.2, fill: f.skin });
+    // Hair on top.
+    if (f.style === 'bald') { if (f.old) { add('path', { d: 'M14.6 20 C14 17.5 15 15.5 16 14.5 C15.6 17 15.6 19 15.8 21 Z', fill: f.hair }); add('path', { d: 'M33.4 20 C34 17.5 33 15.5 32 14.5 C32.4 17 32.4 19 32.2 21 Z', fill: f.hair }); } }
+    else if (f.style === 'buzz') add('path', { d: 'M14.8 19 C14.5 9.5 33.5 9.5 33.2 19 C31 13.5 17 13.5 14.8 19 Z', fill: f.hair, opacity: .8 });
+    else if (f.style === 'curly') for (const [cx, cy] of [[16, 14.5], [19.8, 11.6], [24, 10.6], [28.2, 11.6], [32, 14.5]]) add('circle', { cx, cy, r: 3.7, fill: f.hair });
+    else add('path', { d: f.style === 'short' ? 'M14.4 20.5 C13 8.5 35 8.5 33.6 20.5 C32 14.5 27 12.8 22 13.6 C18.5 14.2 15.8 16.5 14.4 20.5 Z' : 'M14.4 21 C12.6 8 35.4 8 33.6 21 C32.5 15.5 28 13 24 13.4 C20 13 15.5 15.5 14.4 21 Z', fill: f.hair });
+    if (f.hat) { add('path', { d: 'M13.6 16.5 C13.5 6.5 34.5 6.5 34.4 16.5 Z', fill: f.shirt }); add('path', { d: 'M12 16.2 H39.5 C40.5 16.2 40.5 18.6 39.5 18.6 H12 Z', fill: f.shirt }); add('path', { d: 'M13.6 16.5 H34.4', stroke: shade, 'stroke-width': 1.2, fill: 'none' }); }
+    // Beard and moustache.
+    if (f.beard) add('path', { d: 'M15.4 24 C16 33.5 20 35.6 24 35.6 C28 35.6 32 33.5 32.6 24 C30.5 28 27.5 28.6 24 28.6 C20.5 28.6 17.5 28 15.4 24 Z', fill: f.hair, opacity: .92 });
+    if (f.moustache || f.beard) add('path', { d: 'M20 27.2 C21.5 25.8 23 26 24 26.6 C25 26 26.5 25.8 28 27.2 C26.5 27.8 25 27.6 24 27.4 C23 27.6 21.5 27.8 20 27.2 Z', fill: f.hair });
+    // Age.
+    if (f.old) { add('path', { d: 'M18 24.2 Q19.6 25 21.2 24.4', stroke: shade, 'stroke-width': .7, fill: 'none', 'stroke-linecap': 'round' }); add('path', { d: 'M26.8 24.4 Q28.4 25 30 24.2', stroke: shade, 'stroke-width': .7, fill: 'none', 'stroke-linecap': 'round' }); }
+    // Blush, eyes, brows, mouth.
+    if (m.blush) { add('ellipse', { cx: 18.2, cy: 25.6, rx: 2.3, ry: 1.3, fill: '#e2625e', opacity: .5 }); add('ellipse', { cx: 29.8, cy: 25.6, rx: 2.3, ry: 1.3, fill: '#e2625e', opacity: .5 }); }
+    if (m.mood === 'warm') { add('path', { d: 'M18.6 21.9 Q20.2 20.3 21.8 21.9', stroke: ink, 'stroke-width': 1.1, fill: 'none', 'stroke-linecap': 'round' }); add('path', { d: 'M26.2 21.9 Q27.8 20.3 29.4 21.9', stroke: ink, 'stroke-width': 1.1, fill: 'none', 'stroke-linecap': 'round' }); }
+    else { add('circle', { cx: 20.2, cy: 21.6, r: 1.15, fill: ink }); add('circle', { cx: 27.8, cy: 21.6, r: 1.15, fill: ink }); }
+    const brow = m.mood === 'cold' ? ['M18 18.2 L22 19.4', 'M30 18.2 L26 19.4'] : m.mood === 'warm' ? ['M18 18.6 Q20 17.4 22 18.4', 'M26 18.4 Q28 17.4 30 18.6'] : ['M18.2 18.6 H22', 'M26 18.6 H29.8'];
+    for (const dd of brow) add('path', { d: dd, stroke: f.style === 'bald' && !f.old ? ink : f.hair, 'stroke-width': 1, fill: 'none', 'stroke-linecap': 'round', opacity: .9 });
+    if (f.glasses) { add('circle', { cx: 20.2, cy: 21.8, r: 3.1, stroke: ink, 'stroke-width': .8, fill: 'rgba(255,255,255,.12)' }); add('circle', { cx: 27.8, cy: 21.8, r: 3.1, stroke: ink, 'stroke-width': .8, fill: 'rgba(255,255,255,.12)' }); add('path', { d: 'M23.3 21.6 H24.7', stroke: ink, 'stroke-width': .8 }); }
+    if (!f.beard) add('path', { d: m.mood === 'warm' ? 'M20.4 27.4 Q24 31 27.6 27.4' : m.mood === 'cold' ? 'M21 29.2 Q24 27.4 27 29.2' : 'M21 28.4 Q24 29.2 27 28.4', stroke: ink, 'stroke-width': 1.05, fill: 'none', 'stroke-linecap': 'round' });
+    return sv('svg', { class: 'face', viewBox: '0 0 48 48', 'aria-hidden': 'true', focusable: 'false', dataset: { hue: String(f.hue), mood: m.mood, style: f.style } }, kids);
+  }
+  /* A track as a bar (wave 38): its name, a bar filled to the value (liking
+     and trust run -100 to 100, so their bar starts at the middle), ticks at
+     the values that open something (marks: [{ at, title }]), the value and,
+     with from given, what it moved by since ("+6"). Read by a screen reader
+     as "Spark 34 of 100". */
+  function meterNode(key, label, value, o) {
+    const opts = o || {};
+    const signed = key === 'w' || key === 't';
+    const pct = v => clamp(signed ? (v + 100) / 2 : v, 0, 100);
+    const fill = el('span', { class: 'meter-fill' });
+    if (signed) { const a = pct(Math.min(0, value)); const b = pct(Math.max(0, value)); fill.style.left = `${a}%`; fill.style.width = `${Math.max(0, b - a)}%`; }
+    else fill.style.width = `${pct(value)}%`;
+    const bar = el('span', { class: 'meter-bar' }, fill, signed ? el('span', { class: 'meter-mid' }) : null,
+      (opts.marks || []).map(mk => { const t = el('span', { class: 'meter-tick' + (value >= mk.at ? ' met' : ''), title: mk.title || null }); t.style.left = `${pct(mk.at)}%`; return t; }));
+    const delta = Number.isFinite(opts.from) ? value - opts.from : 0;
+    return el('div', { class: 'meter', role: 'img', 'aria-label': `${label} ${value}${signed ? '' : ' of 100'}${delta ? `, ${delta > 0 ? 'up' : 'down'} ${Math.abs(delta)}` : ''}`, dataset: Object.assign({ track: key }, delta ? { moved: delta > 0 ? 'up' : 'down' } : {}) },
+      el('span', { class: 'meter-k', 'aria-hidden': 'true' }, label), bar,
+      el('span', { class: 'meter-v', 'aria-hidden': 'true' }, String(value), delta ? el('span', { class: 'meter-d' }, `${delta > 0 ? '+' : '−'}${Math.abs(delta)}`) : null));
+  }
+  /* The tracks of someone as bars: knows, likes, trusts and, for an
+     eligible adult only (Rel.eligible), spark and romance, with the ticks
+     that open something (a flirt taken as one, each status, the night's
+     gates). tracks: the values (default: theirs now); from: where they
+     were (a date's start), for the deltas. */
+  function metersNode(n, tracks, from) {
+    const c = tracks || Rel.tracksOf(n);
+    const fr = isObj(from) ? from : {};
+    const ok = Rel.eligible(n);
+    const G = ok ? Rel.gate('intimate') : null;
+    const opens = ok ? Rel.tuningOf(n).opensAt : null;
+    const rows = [
+      meterNode('k', 'Knows you', c.k, { from: fr.k, marks: ok ? [{ at: opens, title: 'A flirt is taken as one' }].concat(G && G.knows !== opens ? [{ at: G.knows, title: 'The night' }] : []) : [] }),
+      meterNode('w', 'Likes you', c.w, { from: fr.w }),
+      meterNode('t', 'Trusts you', c.t, { from: fr.t, marks: G ? [{ at: G.trust, title: 'The night' }] : [] })
+    ];
+    if (ok) {
+      rows.push(meterNode('s', 'Spark', c.s, { from: fr.s, marks: [{ at: 20, title: 'Has noticed you' }, { at: 40, title: 'Wants you' }].concat(G.spark !== 40 && G.spark !== 20 ? [{ at: G.spark, title: 'The night' }] : []) }));
+      rows.push(meterNode('m', 'Romance', c.m, { from: fr.m, marks: [{ at: 30, title: 'Sweet on you' }, { at: 60, title: 'Falling for you' }].concat(G.romance !== 30 && G.romance !== 60 ? [{ at: G.romance, title: 'The night' }] : []) }));
+    }
+    return el('div', { class: 'meters' }, rows);
+  }
+  /* Where things stand between an eligible adult and the player, as four
+     hearts (wave 38): one for each step the game's own statuses name (has
+     noticed you; wants you or using you; sweet on you; falling for you).
+     null for anyone not eligible (nobody under 18 ever has hearts). */
+  const HEART_STEPS = Object.freeze({ 'has noticed you': 1, 'wants you': 2, 'using you': 2, 'sweet on you': 3, 'falling for you': 4 });
+  function heartCount(n) { if (!Rel.eligible(n)) return null; const st = Rel.sparkStatus(n); return st ? (HEART_STEPS[st] || 0) : 0; }
+  function heartsNode(n, always) {
+    const k = heartCount(n);
+    if (k === null || (!k && !always)) return null;
+    return el('span', { class: 'hearts', role: 'img', 'aria-label': `${k} of 4 hearts`, dataset: { hearts: String(k) } }, [0, 1, 2, 3].map(i => el('span', { class: 'heart' + (i < k ? ' on' : ''), 'aria-hidden': 'true' }, i < k ? '\u2665\uFE0E' : '\u2661\uFE0E')));
+  }
+  /* The date table (wave 38; the engine side: Pipeline.dateTurn). One block
+     in the feed, under the player's line and before the narration, as the
+     card table is: the head ("Time with Jodie Strayhorn · the Low Water",
+     the group's name, which takes the focus), their face (its expression
+     follows how it is going), their stance and four hearts, the player's
+     read of them, how it is going (five pips), their tracks as bars with
+     what each has moved by, the moments played so far (the move, the die,
+     the roll's line and what came of it), then the moves on offer as
+     buttons (each with its stat and its chance; one that cannot be picked
+     says why) and Leave. dateDone fills the same block with how it ended
+     and what it moved; nothing is left to press. A finished table is the
+     log entry's date (State's logDate), which rebuildFeed draws again. */
+  let dateSeq = 0;
+  const EASE_WORDS = Object.freeze(['Over', 'Awkward', 'Stiff', 'Easy', 'Going well', 'Lit up']);
+  const DATE_END_WORDS = Object.freeze({ done: 'A good while together.', left: 'You left it there.', cut: 'Cut short.', stopped: 'You left it there.' });
+  function easeNode(ease, max) {
+    const k = clamp(ease | 0, 0, max);
+    return el('div', { class: 'date-ease', role: 'img', 'aria-label': `How it is going: ${EASE_WORDS[k] || k}, ${k} of ${max}`, dataset: { ease: String(k) } },
+      el('span', { class: 'date-ease-pips', 'aria-hidden': 'true' }, Array.from({ length: max }, (x, i) => el('span', { class: 'date-pip' + (i < k ? ' on' : '') }))),
+      el('span', { class: 'date-ease-word', 'aria-hidden': 'true' }, EASE_WORDS[k] || ''));
+  }
+  function dateMood(ease, last) {
+    if (last && (last.tier === 'failure' || last.tier === 'critical_failure') && ease <= 2) return 'cold';
+    return ease >= 3 ? 'warm' : ease <= 1 ? 'cold' : 'even';
+  }
+  function beatNode(b, i) {
+    const d20 = /\b(\d{1,2})\b/.exec(String(b.line || ''));
+    return el('li', { class: 'date-beat', dataset: Object.assign({ move: b.move }, b.tier ? { tier: b.tier } : {}, b.ease ? { ease: b.ease > 0 ? 'up' : 'down' } : {}) },
+      el('span', { class: 'date-beat-n', 'aria-hidden': 'true' }, String(i + 1)),
+      el('span', { class: 'date-beat-main' },
+        el('span', { class: 'date-beat-what' }, b.label, b.price ? ` (${money(b.price)})` : ''),
+        b.tier ? el('span', { class: 'date-roll' }, d20 ? el('span', { class: 'date-die', 'aria-hidden': 'true' }, d20[1]) : null, el('span', { class: 'date-roll-line' }, b.line)) : null,
+        el('span', { class: 'date-beat-text' }, b.text)),
+      b.ease ? el('span', { class: 'date-beat-ease', role: 'img', title: b.ease > 0 ? 'It goes better' : 'It goes worse', 'aria-label': b.ease > 0 ? 'It goes better' : 'It goes worse' }, b.ease > 0 ? (b.ease > 1 ? '▲▲' : '▲') : (b.ease < -1 ? '▼▼' : '▼')) : null);
+  }
+  function moveButton(node, mv) {
+    const sub = mv.off ? mv.off : mv.odds !== null && mv.odds !== undefined ? `${capFirst(mv.stat)} · ${Math.round(mv.odds * 100)}%` : mv.price ? `${money(mv.price)} · no roll` : (mv.note || '');
+    return el('button', { type: 'button', class: 'btn date-move', disabled: !!mv.off, 'aria-disabled': mv.off ? 'true' : null, dataset: Object.assign({ move: mv.id }, mv.off ? { off: '1' } : {}, mv.soon ? { soon: '1' } : {}),
+      onclick: e => { const b = e.currentTarget; if (!node.classList.contains('open') || !Pipeline.handOpen || Pipeline.handKind !== 'date' || b.disabled) return; Pipeline.playHand({ move: mv.id }); } },
+      el('span', { class: 'date-move-label' }, mv.label), sub ? el('span', { class: 'date-move-sub' }, sub) : null);
+  }
+  function gainsText(g) {
+    const names = [['s', 'Spark'], ['m', 'Romance'], ['w', 'Likes you'], ['t', 'Trusts you'], ['k', 'Knows you']];
+    const parts = names.filter(([k]) => (g[k] | 0) !== 0).map(([k, label]) => `${label} ${g[k] > 0 ? '+' : '−'}${Math.abs(g[k])}`);
+    return parts.length ? parts.join(' · ') : 'Nothing moved';
+  }
+  /* Fill the block for a table: open (t.open: Pipeline.dateView's) or
+     finished (a record: Pipeline.dateTurn's, or the log entry's). */
+  function fillDate(node, t) {
+    const s = State.current;
+    const n = State.npc(t.npcId);
+    const open = t.open === true;
+    const id = node.dataset.head;
+    const beats = open ? (t.log || []) : (t.beats || []);
+    const last = beats.length ? beats[beats.length - 1] : null;
+    const ease = t.ease | 0;
+    const max = t.easeMax || 5;
+    const tracks = open ? t.tracks : t.end;
+    const name = n ? npcLabel(n) : (t.label || t.name);
+    node.className = 'f-item f-date' + (open ? ' open' : ' done');
+    node.dataset.npc = t.npcId;
+    const face = n ? faceNode(n, { mood: open ? dateMood(ease, last) : t.ended === 'cut' ? 'cold' : dateMood(ease, null), blush: !!(tracks && tracks.s >= 20) }) : null;
+    const kids = [
+      el('p', { class: 'date-head', id, tabindex: '-1' }, `Time with ${name}${t.place ? ` · ${t.place}` : ''}`),
+      el('div', { class: 'date-top' },
+        el('div', { class: 'date-face', dataset: { hue: String(n ? personHue(n.id) : 1) } }, face),
+        el('div', { class: 'date-who' },
+          el('p', { class: 'date-name' }, el('span', { class: 'date-name-text' }, capFirst(name)), n ? heartsNode(n, true) : null),
+          n && s ? el('p', { class: 'date-stance' }, stanceChip(n, 1)) : null,
+          open && t.read ? el('p', { class: 'date-read' }, el('span', { class: 'cards-k' }, 'Your read: '), t.read) : null,
+          easeNode(ease, max))),
+      n && tracks ? metersNode(n, tracks, t.start) : null,
+      beats.length ? el('ol', { class: 'date-log' }, beats.map(beatNode)) : null
+    ];
+    if (open) {
+      kids.push(el('p', { class: 'date-moment' }, `Moment ${Math.min(t.beat + 1, t.beats)} of ${t.beats}`, el('span', { class: 'date-moment-q' }, ' · What do you do?')));
+      kids.push(el('div', { class: 'date-acts' }, (t.moves || []).map(mv => moveButton(node, mv))));
+      kids.push(el('p', { class: 'date-hint' },
+        el('button', { type: 'button', class: 'btn small date-leave', onclick: () => { if (node.classList.contains('open') && Pipeline.handOpen && Pipeline.handKind === 'date') Pipeline.playHand({ leave: true }); } }, 'Leave it there'),
+        el('span', { class: 'date-hint-text' }, 'Stop leaves too; what has happened stands.')));
+    } else {
+      const g = t.gains || {};
+      kids.push(el('p', { class: 'date-result', dataset: { ended: t.ended } }, el('span', { class: 'date-result-k' }, DATE_END_WORDS[t.ended] || ''), ' ', el('span', { class: 'date-gains' }, gainsText(g)),
+        t.stance && t.stanceWas && t.stance !== t.stanceWas ? el('span', { class: 'date-moved' }, ` · ${capFirst(t.stanceWas)} → ${capFirst(t.stance)}`) : null,
+        t.spent ? el('span', { class: 'cards-cash' }, ` · cash ${cashText(t.cash)}`) : null));
+    }
+    node.replaceChildren(...kids.filter(Boolean));
+  }
+  function dateNode(t) {
+    const id = `date-head-${++dateSeq}`;
+    const node = el('section', { class: 'f-item f-date', role: 'group', 'aria-labelledby': id, dataset: { head: id } });
+    fillDate(node, t);
+    return node;
+  }
+  // The open date table's first move that can be pressed (where the focus goes after a press), else its head.
+  function dateFocus(node) { return $$('.date-acts button', node).find(b => !b.disabled) || $('.date-head', node); }
+  /* The open table kept in view after a press: the moves and Leave at the
+     foot of the story (with as much above them as fits), so a phone never
+     jumps back to the head and hides the buttons. */
+  function keepDate(node) {
+    const f = d.feedScroll;
+    if (!f || !node || !node.isConnected) return;
+    const gap = 8;
+    const box = f.getBoundingClientRect();
+    const r = node.getBoundingClientRect();
+    // The open table is the newest thing in the story: no "New" pill over its buttons.
+    d.newBtn.hidden = true;
+    if (r.height + 2 * gap <= f.clientHeight) { showTable(node); d.newBtn.hidden = true; return; }
+    f.scrollTop = Math.max(0, f.scrollTop + (r.bottom - (box.top + f.clientHeight - gap)));
+    stick = nearBottom();
+  }
+
+  /* The scene strip (wave 38): who is here, as faces, above the story. Each
+     is a button (their face, their name as the player knows it, hearts for
+     an eligible adult with any); pressing one opens a row of what can be
+     done with them in one tap, no typing: Talk (Say mode, to them), Spend
+     time (the date table, Pipeline.date; an adult only, Rel.eligible),
+     Flirt (a flirt turn, Pipeline.flirt; the same), Cards (the dealer:
+     Pipeline.sitIn) and Profile (their People card). Hidden with nobody
+     here, on the title screen, while a table is open and while a phone's
+     keyboard is up. Drawn from the state on every render, so it follows
+     the scene. */
+  let scenePick = null;
+  function sceneActs(s, n) {
+    const block = actBlock();
+    const label = npcLabel(n);
+    const acts = [];
+    const btn = (id, text, fn, off) => el('button', { type: 'button', class: 'btn small scene-act', dataset: { act: id }, disabled: !!(block || off), title: block || off || null, onclick: () => { if (!canAct()) return; fn(); } }, text);
+    acts.push(btn('talk', 'Talk', () => { setMode('say'); setAddressee(n.id); scenePick = null; renderScene(); focusComposer(); }));
+    const ok = Pipeline.dateOk(n);
+    if (!ok.hide) acts.push(btn('date', 'Spend time', () => { scenePick = null; renderScene(); Pipeline.date(n.id); }, ok.ok ? null : ok.why));
+    if (Rel.eligible(n)) acts.push(btn('flirt', 'Flirt', () => { scenePick = null; renderScene(); Pipeline.flirt(n.id); }));
+    const dealer = Pipeline.dealerOf(State.npcsAt(s.player.locationId).map(x => x.id));
+    if (dealer && dealer.id === n.id && Pipeline.cardGameAt(State.loc(s.player.locationId))) acts.push(btn('cards', 'Play cards', () => { scenePick = null; renderScene(); Pipeline.sitIn(); }));
+    acts.push(el('button', { type: 'button', class: 'btn small scene-act', dataset: { act: 'profile' }, onclick: () => { scenePick = null; renderScene(); showPerson(n.id); } }, 'Profile'));
+    return el('div', { class: 'scene-acts', role: 'group', 'aria-label': `With ${label}` }, el('span', { class: 'scene-acts-who' }, capFirst(label)), acts);
+  }
+  function renderScene() {
+    if (!d.scene) return;
+    const s = State.current;
+    const here = s && !State.muted && screen === 'game' && !s.player.dead ? State.npcsAt(s.player.locationId) : [];
+    const show = here.length > 0 && !Pipeline.handOpen && !$('#feed .f-cards.open, #feed .f-date.open');
+    d.scene.hidden = !show;
+    if (!show) { scenePick = null; d.scene.replaceChildren(); return; }
+    if (scenePick && !here.some(n => n.id === scenePick)) scenePick = null;
+    const had = d.scene.contains(document.activeElement) ? document.activeElement.dataset.npc || null : null;
+    const row = el('div', { class: 'scene-row' }, here.map(n => {
+      const label = npcLabel(n);
+      return el('button', { type: 'button', class: 'scene-person', 'aria-expanded': String(scenePick === n.id), 'aria-label': `${label}: what you can do`, title: label, dataset: { npc: n.id },
+        onclick: () => { scenePick = scenePick === n.id ? null : n.id; renderScene(); const b = $(`.scene-person[data-npc="${CSS.escape(n.id)}"]`, d.scene); if (b) b.focus({ preventScroll: true }); } },
+      el('span', { class: 'scene-face', dataset: { hue: String(personHue(n.id)) } }, faceNode(n)),
+      el('span', { class: 'scene-name' }, n.knownToPlayer ? String(n.name).split(/\s+/)[0] : capFirst(label)),
+      heartsNode(n, false));
+    }));
+    const pick = scenePick ? here.find(n => n.id === scenePick) : null;
+    d.scene.replaceChildren(row, pick ? sceneActs(s, pick) : '');
+    if (had) { const b = $(`.scene-person[data-npc="${CSS.escape(had)}"]`, d.scene); if (b) b.focus({ preventScroll: true }); }
+  }
+  /* "Deal again" after the story when its newest turn is a hand of cards
+     (wave 38; the owner: "I don't like that it's chat by chat"): while that
+     hand's dealer is still dealing here and the player has money, one press
+     deals the next hand at the same stake with nothing typed and nothing
+     waited for (Pipeline.dealAgain: the hand is told plainly by the engine,
+     no narrator call). It sits just after the feed (#feed-after), not in it
+     and not in the table, which keeps nothing to press; never while a turn
+     runs, and gone once any other turn is played. */
+  function syncAgain() {
+    for (const old of $$('.cards-again')) old.remove();
+    const s = State.current;
+    if (!d.feedAfter || !s || State.muted || screen !== 'game' || turnRunning() || s.player.dead) return;
+    const e = s.log.length ? s.log[s.log.length - 1] : null;
+    if (!e || !isObj(e.cards) || e.day !== s.time.day) return;
+    const dealer = Pipeline.dealerOf(State.npcsAt(s.player.locationId).map(n => n.id));
+    if (!dealer || dealer.id !== e.cards.dealerId || (s.player.gold | 0) < 1 || Pipeline.dealerRefusal(dealer, s) || actBlock()) return;
+    const stake = Math.min(e.cards.stake | 0 || 20, s.player.gold | 0);
+    d.feedAfter.prepend(el('div', { class: 'cards-again' }, el('button', { type: 'button', class: 'btn primary cards-deal-again', onclick: () => { if (canAct()) Pipeline.dealAgain(); } }, `Deal again (${money(stake)})`),
+      el('span', { class: 'cards-again-note' }, 'The next hand, straight away: nothing to type, and the hand is told in a line.')));
+    if (stick) scrollToBottom();
+  }
   function liveOff() { streaming += 1; d.feed.setAttribute('aria-live', 'off'); }
   function liveOn() { streaming = 0; d.feed.setAttribute('aria-live', 'polite'); }
   const feed = {
@@ -44700,6 +45617,8 @@ const UI = (() => {
        (the focus, if it was in it, back to the box). */
     cards(t, opts) {
       const node = feed.add(cardsNode(t));
+      // Wave 38: the scene strip steps aside for an open table, before the table is placed in view.
+      renderScene();
       if (opts && opts.replay) return node;
       const head = $('.cards-head', node);
       if (screen === 'game' && head && focusStillOnComposer()) moveFocus(head);
@@ -44744,6 +45663,38 @@ const UI = (() => {
       tableRedrawn(t);
       return node;
     },
+    /* Wave 38: the date table. date(t) adds the open table (Pipeline
+       .dateView's) under the player's line and gives its head the focus
+       when it was on the box, Send or nowhere; dateShow draws the same
+       table again for the next moment (a focus that was in it goes to the
+       first move that can be pressed; the moves stay in view); dateDone
+       fills it with how it ended (the focus, if it was in it, back to the
+       box) and the story is followed again. */
+    date(t) {
+      const node = feed.add(dateNode(t));
+      const head = $('.date-head', node);
+      // The scene strip steps aside first, so the table is placed in the room it has.
+      renderScene();
+      if (screen === 'game' && head && focusStillOnComposer()) moveFocus(head);
+      keepDate(node);
+      return node;
+    },
+    dateShow(node, t) {
+      if (!node || !node.isConnected) return node;
+      const had = node.contains(document.activeElement);
+      fillDate(node, t);
+      if (had && screen === 'game') moveFocus(dateFocus(node));
+      keepDate(node);
+      return node;
+    },
+    dateDone(node, t) {
+      if (!node || !node.isConnected) return null;
+      const had = node.contains(document.activeElement);
+      fillDate(node, t);
+      if (had) focusComposer();
+      scrollToBottom();
+      return node;
+    },
     /* The dealer holding the player to the limit (wave 18, amendment 2): his
        line under the open table's buttons, above the hint, until the table
        is drawn again; the table stays in view and the focus where it is. */
@@ -44767,6 +45718,14 @@ const UI = (() => {
       node.classList.remove('open');
       node.classList.add('void');
       for (const b of $$('button, input', node)) { b.disabled = true; b.setAttribute('aria-disabled', 'true'); }
+      // Wave 38: the date table, void here the same way (nothing of it is kept in this tab).
+      if (node.classList.contains('f-date')) {
+        const hintD = $('.date-hint', node);
+        const lineD = el('p', { class: 'cards-void' }, 'Another tab took over; this is void here.');
+        if (hintD) hintD.replaceWith(lineD); else node.append(lineD);
+        if (had) { const headD = $('.date-head', node); if (headD) moveFocus(headD); }
+        return node;
+      }
       // A chooser had no hand dealt (wave 14, QA #19; Pipeline takes that turn back and says so in a notice).
       const line = el('p', { class: 'cards-void' }, node.dataset.game === 'choose' ? 'Another tab took over; the table is closed here.' : 'Another tab took over; this hand is void here.');
       const hint = $('.cards-hint', node);
@@ -44781,12 +45740,12 @@ const UI = (() => {
        together on a short phone, with no "New" pill over the buttons; the
        focus goes to the table's head. Not at an open table: a notice. */
     handNotice(text) {
-      const node = $('#feed .f-cards.open');
+      const node = $('#feed .f-cards.open, #feed .f-date.open');
       if (!node) return feed.notice(text);
       const n = el('p', { class: 'f-item f-notice' }, el('span', { class: 'f-notice-text' }, String(text)));
       node.before(n);
       showTable(node, n);
-      const head = $('.cards-head', node);
+      const head = $('.cards-head, .date-head', node);
       if (screen === 'game' && head) moveFocus(head);
       return n;
     },
@@ -44908,6 +45867,8 @@ const UI = (() => {
       at(e.day, e.phase);
       // The card table as it ended (wave 10), before the marked deck's roll.
       if (isObj(e.cards)) d.feed.append(cardsNode(e.cards));
+      // The date table as it ended (wave 38).
+      if (isObj(e.date)) d.feed.append(dateNode(e.date));
       if (e.roll && e.roll.line && showRolls) d.feed.append(rollNode(e.roll));
       for (const n of where('before')) quietAt(e, n);
       if (e.narration) { at(e.day, e.phase); d.feed.append(narrationNode(e.narration, e.mock === true)); }
@@ -44918,6 +45879,8 @@ const UI = (() => {
     feedPlace = null;
     if (d.feedAfter) d.feedAfter.replaceChildren();
     markUndo();
+    renderScene();
+    syncAgain();
     scrollToBottom();
   }
   // ----- composer and autocomplete -----
@@ -44988,9 +45951,11 @@ const UI = (() => {
     }
     markUndo();
     syncSendLabel();
+    // Wave 38: the scene strip and Deal again follow the turn (neither shows while one runs a table).
+    if (was !== busy) { renderScene(); syncAgain(); }
   }
   // ----- the status line -----
-  const STAGE_TEXT = { parse: 'Reading your action…', cards: 'Your hand', choose: "Choose the game: Five-card draw or Texas hold'em. Stop leaves the table (nothing lost).", narrate: 'Writing…', rewrite: 'Rewriting…', bookkeep: 'Updating the town…', chronicle: 'Summarising…', busy: 'Working…' };
+  const STAGE_TEXT = { parse: 'Reading your action…', cards: 'Your hand', date: 'Time together', choose: "Choose the game: Five-card draw or Texas hold'em. Stop leaves the table (nothing lost).", narrate: 'Writing…', rewrite: 'Rewriting…', bookkeep: 'Updating the town…', chronicle: 'Summarising…', busy: 'Working…' };
   let tipTurns = 0;
   let nudgeTimer = null;
   let nudgeAgain = null; // a nudge read again from the hand when the table is drawn again (handNudge)
@@ -46187,7 +47152,7 @@ const UI = (() => {
   })();
 
   return {
-    init, showScreen, back, renderGame, renderPanel, rebuildFeed, openPanel, closeSheet, setCollapsed, toggleDebug,
+    init, showScreen, back, renderGame, renderScene, faceNode, faceTraits, heartCount, renderPanel, rebuildFeed, openPanel, closeSheet, setCollapsed, toggleDebug,
     toggleTheme, applyDisplay, warn, toast, ask, setBusy, feed, Create, scrollToBottom, showCash,
     setMode, setAddressee, renderComposer, togglePerson, togglePlace, renderMap, mapLayout, setMapExpanded, showPerson,
     editPerson: editPersonFromCommand, saveEdit, cancelEdit,
@@ -52062,13 +53027,15 @@ const App = (() => {
      and L6: on a phone it was below the fold, under the "New" pill, and
      the focus fell to the page). */
   const HAND_TITLE = 'Finish the hand first: Draw or Fold (Stop folds).';
+  // Wave 38: with the date table open.
+  const HAND_TITLE_DATE = 'Finish here first: pick a move, or Leave it there (Stop leaves too).';
   // Wave 13: hold'em's buttons, and the chooser (no card dealt yet).
   const HAND_TITLE_HOLDEM = 'Finish the hand first: play it out or Fold (Stop folds).';
   const HAND_TITLE_CHOOSE = 'Pick a game first, or Stop to leave the table (nothing lost).';
   function quitToTitle() {
     if (Pipeline.handOpen) {
       if (UI.screen !== 'game') UI.showScreen('game');
-      UI.feed.handNotice(Pipeline.handKind === 'choose' ? HAND_TITLE_CHOOSE : (Pipeline.handKind === 'holdem' || Pipeline.handKind === 'drawbet') ? HAND_TITLE_HOLDEM : HAND_TITLE);
+      UI.feed.handNotice(Pipeline.handKind === 'date' ? HAND_TITLE_DATE : Pipeline.handKind === 'choose' ? HAND_TITLE_CHOOSE : (Pipeline.handKind === 'holdem' || Pipeline.handKind === 'drawbet') ? HAND_TITLE_HOLDEM : HAND_TITLE);
       return false;
     }
     inGame = false;

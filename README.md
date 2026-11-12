@@ -500,6 +500,52 @@ is "not tonight", said kindly. A beating or worse halves a spark and a
 romance, and a spark fades in days unless it is fed. Nobody under 18 has
 either, ever, and with you under 18 nobody does.
 
+**Who is here, as faces.** Above the story is a strip of the people where you
+are, each with a face drawn from who they are: their hair, glasses, beard or
+cap where their description says, grey with age, a smile once they are warm
+to you, a frown when they are not, a blush once there is a spark. The same
+face is on their People card. An adult who has noticed you has hearts under
+their name, one for each step: has noticed you, wants you (or is using you),
+sweet on you, falling for you. Tap a face for what you can do with them in
+one tap, nothing typed: **Talk** (Say mode, to them), **Spend time**,
+**Flirt** (a flirt, settled exactly as one you type: the charm roll, their
+answer), **Play cards** (the dealer) and **Profile** (their card). The strip
+steps aside while a table is open and while a phone's keyboard is up.
+
+**Time with someone.** **Spend time** (the strip, or their open People card)
+is played at a table in the story, the way a hand of cards is: their face,
+how they stand and their hearts, your read of them ("Jodie keeps things to
+herself"), five pips for how it is going, and their tracks as bars (Knows
+you, Likes you, Trusts you, Spark, Romance, with ticks where something
+opens: a flirt being taken as one, each step of the hearts, the night). It
+is four moments; at each you pick a move and the game settles it on the
+spot, the die shown:
+
+- **Ask about them** (Wits; easy with someone open, hard with someone
+  guarded until they trust you): they talk and you listen; on a 20 they tell
+  you something private; a failure is prying.
+- **Make them laugh** (Charm; easy with the kind, hard with the proud and
+  the gloomy): a 1 is a joke that lands wrong.
+- **Tell them something true** (no roll, once): a confidence.
+- **Treat them** ($8, no roll, once, and once a day as any gift is).
+- **Flirt with them** (Charm, at how hard they are to win over, by the same
+  rule as a flirt you type): "Hold their eye" once there is a spark of 20,
+  "Kiss them" at 40. It is not offered until they know you well enough (the
+  button says "Too soon"), a no closes it for the sitting, and whoever is
+  sweet on you and watching minds.
+
+Each button says its stat and your chance. Things going well make the next
+roll easier; going badly, harder; at nothing they find somewhere else to
+be. **Leave it there** ends it early, and so does Stop; what happened
+stands. `/undo` takes the whole of it back. When it ends the table shows
+what moved ("Spark +10 · Likes you +7 · Knows you +5"), the story tells all
+of it in one go, and an hour or more has passed. It is worth one very good
+turn and no more: the game's own limits on what one turn and one day can
+move still hold. You can spend time with someone once in a morning,
+afternoon, evening or night, if they are an adult (and you are), are free,
+and do not dislike you. Nobody under 18 ever has hearts, Spark, Romance,
+Spend time or Flirt, and with you under 18 nobody does.
+
 **Leverage** is knowing something about someone. A secret the narrator was
 given (a social roll that worked, or trust) counts only when the story shows
 it, two of its own words in the narration, and then you hold it ("Hollis
@@ -1014,7 +1060,11 @@ still rolls stealth.
 **Cards.** When Curtis Pruett is at the Low Water (afternoons, evenings and
 nights), there is a card game at the back table, played at a table the story
 shows you: five-card draw or Texas hold'em, the one with two cards each and
-five on the board. Say you bet, in Do or in Say mode ("I put $50 in", "deal
+five on the board. Tap Curtis in the strip of faces and **Play cards** to
+sit in with nothing typed, and when a hand is over **Deal again ($20)** is
+under the story: the next hand at the same stake, at once, told in one plain
+line with no wait for the story, so you can play hand after hand; type
+anything and the story picks up again. Or say you bet, in Do or in Say mode ("I put $50 in", "deal
 me in", "I'm in for fifty", "another hand", "I go all in", "I bet $20", "I
 bet twenty on the next hand", "deal me in at hold'em", "a hand of draw", "I
 sit down with Curtis for a hand of cards, five dollars", "Mind if I sit
@@ -1883,6 +1933,8 @@ fails it with a message saying so; the CI checkout fetches it all).
 - `wave22-appointments`, `wave25-arrivals` and `wave26-objectives` for
   meetings kept, narrated arrivals and the Objectives tab (main's own wave
   26, built alongside the relationship branch's);
+- `wave38-date` for the faces, the strip of who is here, the date table,
+  Deal again and the one-tap flirt;
 - `wave26-rel-tracks`, `wave27-rel-engine`, `wave28-social-events`,
   `wave29-rel-hold` and `wave30-rel-people` for the relationship system by
   wave (wave 30: the People card, the editor, the feed, `/recap`, the
