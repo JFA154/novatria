@@ -365,7 +365,7 @@ s.test('with Claude at the seats: the request is the API\'s own shape, each seat
   assert.match(userOf(town), /^Joe: "I was at the bar all night\. Who saw anything\?"$/m, 'the player is in the record by name, as anyone is');
   assert.doesNotMatch(userOf(town), /The generator coughs twice/, 'the host\'s colour is not in a seat\'s record');
   if (knife) assert.match(userOf(knife), /YOUR SECRET ROLE: Knife\. Your fellow Knife: Joe\./);
-  assert.match(bodies[0].body.system[0].text, new RegExp(`- ${mate.name} \\(\\d+, [^)]+\\)\\. Voice: `), 'each seat\'s voice is the town\'s own');
+  assert.match(bodies[0].body.system[0].text, new RegExp(`^- ${mate.name} \\(\\d+\\)\\. Voice: [^\\n]+ Manner: [^\\n]+\\.$`, 'm'), 'each seat has its own way of talking');
   assert.match(bodies[0].body.system[0].text, /One person is the Fool, on nobody's side/, 'the wild cards are in the rules every seat is given');
   // The host.
   const hosts = bodies.filter(isHost);
@@ -512,7 +512,19 @@ s.test('the seats are told the table is all there is: nothing about where anyone
   assert.match(sys, /^- Joe: one of the people at the table, the same as anyone\. There is nothing more to know about them than how they play\.$/m);
   assert.doesNotMatch(sys, /\bstranger\b|came in off|nobody here knows/i, 'nothing that makes the player someone to question about themselves');
   assert.match(sys, /The table is all there is\. The only evidence in this game is what happens at it/);
-  assert.match(sys, /Where anyone was, where they were going, what they do for a living and how they came to be here tell you nothing: never ask about them, and never make up something seen, heard or found\./);
+  assert.match(sys, /Where anyone was, where they were going, what they do for a living, who they are to each other and how they came to be here tell you nothing: never ask about them, never bring them up, and never make up something seen, heard or found\./);
+  // No town: a seat is a name, an age, a way of talking and a manner. No job, no ties, no place.
+  assert.match(sys, /Talk about the game and nothing else: this table, tonight, who is lying\. Nothing about a town \("Town" is only the name of a side in this game\), anybody's work, family, money or past, the weather, or any life outside this room/);
+  const cast = await page.evaluate(() => Game.state.players.filter(p => !p.you).map(p => { const c = Game.CAST.find(x => x.id === p.id); return { name: p.name, role: c.role, voice: c.voice }; }));
+  for (const c of cast) {
+    assert.match(sys, new RegExp(`^- ${c.name} \\(\\d+\\)\\. Voice: `, 'm'));
+    assert.equal(sys.includes(c.role), false, `${c.name}'s job in town is not given`);
+    // (Lyman Coker's note in the story has nothing of the town in it, so his is the same line.)
+    if (c.name !== 'Lyman Coker') assert.equal(sys.includes(c.voice), false, `nor the story's own voice note for ${c.name}, which is full of the town`);
+  }
+  assert.doesNotMatch(sys, /At this table:|Lockett|river|bridge|\bbar\b|Low Water/i, 'and no ties, no town, no place beyond the room');
+  const host = bodies.find(b => /^You are the host/.test(b.body.system[0].text));
+  assert.match(host.body.system[0].text, /nothing about a town or anyone's life outside this room/);
   assert.match(sys, /One question at a time\./);
   // The scripted table keeps to the same rule.
   const html = fs.readFileSync(FILE, 'utf8');

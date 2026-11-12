@@ -1911,9 +1911,10 @@ A game already in progress keeps the town it started with.
 
 ## Last Call (`index.html`)
 
-The front page: a hidden-role game of lying and deduction at one table in
-the Low Water, with the town's own adults in the other seats. The river is
-up, the bridge is shut, and some of the people locked in are **Knives**.
+The front page: a hidden-role game of lying and deduction at one table, the
+doors shut for the night. The other seats have the names and faces of the
+town game's adults and nothing else of it. Some of the people shut in are
+**Knives**.
 Each night the Knives take one person out of the game; each day the table
 talks and then votes one person out, whose role is shown. Town wins when
 every Knife is out; the Knives win when they are as many as everyone else.
@@ -1952,10 +1953,13 @@ every Knife is out; the Knives win when they are as many as everyone else.
   is what happens at the table (what is said, who accuses and defends whom,
   the votes, who is taken and what they were, what is claimed). Nobody saw
   anything in the night, and where anyone was or was going means nothing,
-  so they do not ask.
+  so they do not ask. They are given no town either: a seat is a name, an
+  age, a way of talking and a manner, with no job, no ties to the others
+  and no life outside the room, and it is told to talk about the game and
+  nothing else.
 - **Who plays the others**: with an Anthropic API key, Claude does, one call
   for each seat each time it speaks, votes or chooses in the night, in that
-  person's own voice and knowing who they are to the others at the table. A
+  person's own way of talking. A
   seat is told the public record, its own role and its own private
   knowledge and nothing else, so a Town seat has to work it out as you do
   and a Knife has to lie. The host is a call of its own, told only what

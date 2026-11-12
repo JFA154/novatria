@@ -228,7 +228,7 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
   <section id="screen-home" class="screen active" aria-labelledby="home-title">
     <div class="home">
       <h1 id="home-title" tabindex="-1">Last Call</h1>
-      <p class="tag">The river is over the road and the bridge is shut. Nobody leaves the Low Water tonight, and somebody at this table is not who they say.</p>
+      <p class="tag">The doors are shut and nobody leaves tonight. Somebody at this table is not who they say.</p>
       <div class="row" id="home-continue-row" hidden>
         <button type="button" class="btn primary" id="btn-continue">Continue</button>
         <span class="note" id="home-continue-note"></span>
@@ -430,6 +430,50 @@ const Game = (() => {
   function shuffle(s, list) { const a = list.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd(s) * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
   function hash(text, salt) { let h = 2166136261 ^ (salt | 0); const t = String(text || ''); for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619) >>> 0; return h >>> 0; }
 
+  /* How each of them talks at the table, and nothing else (the owner, after
+     two real games: "the game is table only", "still doing it where they
+     talk about the town"). The story pack's own voice notes are full of
+     the town (engines, ordinances, late fees, the river), so a seat is
+     given these instead: manner of speech only, no subject. */
+  const TABLE_VOICE = {
+      "npc_loretta": "Flat and unhurried; calls everybody 'hon'; nods at a person rather than say their name when she can.",
+      "npc_royce": "Folksy and slippery; dodges a straight answer; hedges with 'now, I'm not saying'; laughs to fill a silence.",
+      "npc_vada": "Crisp and formal, a schoolteacher's diction; calls grown men 'son'; corrects your grammar mid-sentence.",
+      "npc_carter": "Fast and friendly, like a salesman closing; uses your first name too soon and too often.",
+      "npc_jolene": "Brisk and procedural; likes things done in order; drops to a whisper to say anything kind.",
+      "npc_hollis": "Slow and sideways, never a straight yes or no; weighs everything like a trade.",
+      "npc_wade": "Quiet and dry; lets you talk yourself out before he says a word.",
+      "npc_colt": "Fast and jumpy; talks over you, calls men 'bro' and women 'ma'am', laughs at things that aren't funny.",
+      "npc_marcus": "Courteous and relentless; says 'sir' and 'ma'am'; asks the same question three different ways.",
+      "npc_travis": "Loud and buddy-buddy, all 'my man' and 'hoss'; laughs before his own punchlines.",
+      "npc_ray": "Slow and warm, with a preacher's rhythm; gets the answer out of you instead of giving one.",
+      "npc_june": "Blunt and clinical; swears mildly; never tells anyone not to worry.",
+      "npc_dewayne": "Few words; 'mm-hm' for yes and 'well' for no.",
+      "npc_tammy": "Hoarse and short; says exactly what she thinks; goes very calm and polite when she is angriest.",
+      "npc_mavis": "Clipped and sour; calls people mister or miss like a complaint.",
+      "npc_darlene": "Polite and exact; answers with facts instead of feelings.",
+      "npc_nadine": "Chirpy and thorough; says more than you asked for; says 'bless you' when she means go away.",
+      "npc_odessa": "Soft and exact; hums under her breath when she disapproves.",
+      "npc_lyman": "Gloomy and courteous; expects the worst of everyone and thanks you, sincerely, when you prove him right.",
+      "npc_elbert": "Rambling and certain; corrects other people's account of what was just said.",
+      "npc_pearl": "Talks in headlines; says your words back to you as if she were writing them down.",
+      "npc_glenda": "Clipped shorthand, 'ten-four', 'copy that'; repeats the last thing you said back to you as a question.",
+      "npc_nikki": "Brisk and dry; answers a joke with the single word 'noted'; never fills a silence.",
+      "npc_virgil": "Plain and stubborn; ends an opinion with 'that is not my opinion, that is fact'.",
+      "npc_annette": "Patient and precise; lays things out in numbered steps; checks with 'make sense?'.",
+      "npc_gerald": "Slow and repetitive; says back what he just heard before he answers it.",
+      "npc_lamar": "Slow and careful; takes his time before he answers anything hard.",
+      "npc_trent": "Easy and friendly; calls everybody 'cuz'; laughs off a hard question.",
+      "npc_leon": "Polite and slow; calls you 'friend'; never raises his voice.",
+      "npc_curtis": "Puts odds on everything; offers to settle any argument with a bet.",
+      "npc_boyd": "Says very little, all of it polite; always uses a person's full name, first and last.",
+      "npc_jodie": "Quick and bright, then flat and careful the second she is pressed.",
+      "npc_lorna": "Cheerful chatter; a bright 'you would have to ask them' when she will not answer.",
+      "npc_brianna": "Soft and quick; apologises before she says anything, 'sorry, sorry'.",
+      "npc_shayla": "Sweet and sticky; calls you 'sugar'.",
+      "npc_dwight": "Few words; answers what he does not like with 'that is above my pay'.",
+      "npc_burl": "Talks too loud; says 'what's that?' and then answers what he thought you said."
+  };
   // ----- the cast (the town's adults, from the Low Water story pack) -----
   const CAST = (() => { try { return JSON.parse(document.getElementById('cast').textContent).filter(isObj); } catch (e) { return []; } })();
   const castOf = id => CAST.find(c => c.id === id) || null;
@@ -693,7 +737,7 @@ const Game = (() => {
     // The house's own lines for a moment (the offline demo; a host call that failed).
     host(kind, x) {
       const first = x && x.name ? x.name.split(' ')[0] : '';
-      if (kind === 'night') return pick(state, ['The lights go down. The river is loud against the pilings, and nobody says goodnight.', 'Loretta kills the lights. Everybody finds a booth, a bench, a corner. Nobody sleeps much.', 'Last call was hours ago. The generator coughs, the lights go, and the room listens to itself.']);
+      if (kind === 'night') return pick(state, ['The lights go down, and nobody says goodnight.', 'Somebody kills the lights. Everybody finds a booth, a bench, a corner. Nobody sleeps much.', 'The lights go, and the room listens to itself.']);
       if (kind === 'death') return pick(state, [`The coffee is on before anyone notices the empty stool. ${first} is in the back hall, and ${first} is not getting up.`, `Somebody counts heads and comes up one short. They find ${first} by the ice machine, long past helping.`, `The first one up finds ${first} in the storeroom with the door wedged shut from outside.`]);
       if (kind === 'saved') return pick(state, ['There are scratches round the lock of the back room this morning, and a chair jammed under the handle that held.', 'Somebody tried a door in the night and found it watched. Whoever it was went back to bed.']);
       if (kind === 'quiet') return 'Grey light through the shutters. Every stool is taken. Somehow that is worse.';
@@ -751,13 +795,11 @@ const Game = (() => {
         // The player is one more seat: nothing about them to ask after, nothing that sets them apart.
         if (p.you) return `- ${p.name}: one of the people at the table, the same as anyone. There is nothing more to know about them than how they play.`;
         const k = castOf(p.id) || {};
-        // Who they are to the others here (the town's own ties), for the talk: old business comes up.
-        const ties = (k.ties || []).map(x => { const q = P(x.id); return q ? `${q.name} (${k.pronouns === 'she' ? 'her' : k.pronouns === 'he' ? 'his' : 'their'} ${x.as})` : null; }).filter(Boolean);
-        return `- ${p.name} (${k.age}, ${k.role}). Voice: ${k.voice} Manner: ${(k.personality || []).join(', ')}.${ties.length ? ` At this table: ${ties.join(', ')}.` : ''}`;
+        return `- ${p.name} (${k.age}). Voice: ${TABLE_VOICE[p.id] || 'Plain spoken.'} Manner: ${(k.personality || []).join(', ')}.`;
       }).join('\n');
       const wild = state.wild ? WILD[state.size] : {};
       return [
-        'You are playing one seat at a table in "Last Call", a hidden-role game of deduction and lying. It is set in the Low Water, a bar in Lockett\'s Ferry, a small river town. The river is over the road, the bridge is shut, and nobody leaves until it drops.',
+        'You are playing one seat at a table in "Last Call", a hidden-role game of deduction and lying. Everyone is shut in one room for the night, at one table, and nobody leaves until it is over.',
         '',
         'THE GAME',
         `- ${n} people sat down. ${c.knife === 1 ? 'One of them is secretly a Knife' : `${capFirst(['', 'one', 'two', 'three'][c.knife])} of them are secretly Knives, who know each other`}. Everyone else is Town. One of the Town is the Witness${c.watch ? ', and one is the Watch' : ''}.`,
@@ -774,13 +816,13 @@ const Game = (() => {
         '- If you are the Witness: what you know wins games and gets you taken in the night. Decide when to say it.',
         wild.fool ? '- If you are the Fool: get yourself voted out without it showing that you want it. Be a little too evasive, a little too slow to deny. If they see what you are doing they will never vote for you.' : null,
         '- Anyone can lie about their role. Weigh every claim.',
-        '- The table is all there is. The only evidence in this game is what happens at it: what people say, who they accuse and who they defend, how they vote, who is taken in the night and what they turned out to be, and what people claim to be. Everyone\'s eyes are shut at night, so nobody saw or heard anything and nobody has an alibi. Where anyone was, where they were going, what they do for a living and how they came to be here tell you nothing: never ask about them, and never make up something seen, heard or found.',
+        '- The table is all there is. The only evidence in this game is what happens at it: what people say, who they accuse and who they defend, how they vote, who is taken in the night and what they turned out to be, and what people claim to be. Everyone\'s eyes are shut at night, so nobody saw or heard anything and nobody has an alibi. Where anyone was, where they were going, what they do for a living, who they are to each other and how they came to be here tell you nothing: never ask about them, never bring them up, and never make up something seen, heard or found.',
         '- One question at a time. If someone has just been asked something and has not yet had the chance to answer, do not put another question to them: say what you make of things instead.',
         '',
         'HOW TO SPEAK',
         '- Spoken words only, in this person\'s own voice: one to three short sentences. No narration, no stage directions, no asterisks, no name before your words.',
         '- Move the game: an accusation with its reason, a defence, a question put to one person by first name, a claim, a read on a vote. Do not repeat what was just said, and do not explain the rules.',
-        '- This is a bar full of people who have known each other for years, shut in and frightened. Be good company at a bad table: needle, bring up old business between you, be funny or bitter or sly as this person would. Every line still has to move the game.',
+        '- Talk about the game and nothing else: this table, tonight, who is lying. Nothing about a town ("Town" is only the name of a side in this game), anybody\'s work, family, money or past, the weather, or any life outside this room: none of it exists here, and you have no history with anyone that matters. Be good company at a bad table all the same: needle, be funny or bitter or sly in this person\'s way of talking. Every line has to move the game.',
         '',
         'THE TABLE',
         seats
@@ -830,9 +872,9 @@ const Game = (() => {
        only what the whole table can see, and its words are never given to a
        seat as record (colour, not evidence). */
     hostSystem() {
-      return ['You are the host of "Last Call", a hidden-role game set in the Low Water, a bar in a small river town, shut in overnight by a flood. Somebody among the people locked in is killing the others.',
+      return ['You are the host of "Last Call", a hidden-role game played round one table in a bar, the doors shut for the night. Somebody among the people shut in is killing the others.',
         'Write the narration for the one moment described. One or two sentences, present tense, dry and a little wicked, the way a good host tells it at a table: concrete, physical, never purple.',
-        'Say only what the facts give you. You may add physical colour (the room, the weather, what was left where), but nothing that points at who did it, no role that is not given, and nobody\'s thoughts. Do not address the players and do not explain the rules.'].join('\n');
+        'Say only what the facts give you. You may add physical colour from inside the room (the lights, the table, a chair, a door), but nothing that points at who did it, no role that is not given, nobody\'s thoughts, and nothing about a town or anyone\'s life outside this room. Do not address the players and do not explain the rules.'].join('\n');
     }
   };
   const settings = { key: '', model: MODELS[0], name: '' };
@@ -1427,7 +1469,7 @@ const Game = (() => {
       const mark = (m, label) => el('button', { type: 'button', class: 'btn', 'aria-pressed': String(p.mark === m), dataset: { mark: m }, onclick: () => { p.mark = p.mark === m ? null : m; save(); UI.render(); } }, label);
       sheet.hidden = false;
       sheet.replaceChildren(...[
-        el('div', { class: 'sheet-head' }, el('span', { class: 'sheet-name' }, p.you ? `${p.name} (you)` : p.name), el('span', { class: 'sheet-role' }, [c ? `${c.age}, ${c.role}` : '', !p.alive ? `out ${p.out.how === 'vote' ? 'by the vote' : 'in the night'}, day ${p.out.day}` : '', k ? roleWord(k) : ''].filter(Boolean).join(' · '))),
+        el('div', { class: 'sheet-head' }, el('span', { class: 'sheet-name' }, p.you ? `${p.name} (you)` : p.name), el('span', { class: 'sheet-role' }, [c ? String(c.age) : '', !p.alive ? `out ${p.out.how === 'vote' ? 'by the vote' : 'in the night'}, day ${p.out.day}` : '', k ? roleWord(k) : ''].filter(Boolean).join(' · '))),
         c ? el('p', { class: 'sheet-look' }, c.look) : null,
         p.alive && !p.you ? el('div', { class: 'sheet-acts', role: 'group', 'aria-label': `About ${p.first}` },
           mark('sus', 'Mark: suspect'), mark('trust', 'Mark: trust'),
@@ -1528,7 +1570,7 @@ const Game = (() => {
       UI.sel = null; UI.tally = null; UI.speakingId = null; UI.emotes = {}; UI.arrows = []; UI.over = null; UI.wait = null; UI.revealed = false;
       UI.show('game');
       UI.rebuildLog();
-      sys(`The Low Water, after the river came up. ${state.players.length} of you, the doors shut, and ${SIZES[state.size].knife === 1 ? 'one Knife' : `${['', 'one', 'two', 'three'][SIZES[state.size].knife]} Knives`} among you${state.wild && WILD[state.size].fool ? `, and a Fool${WILD[state.size].hothead ? ' and a Hothead' : ''} besides` : ''}.`, 'sys');
+      sys(`Last call was hours ago. ${state.players.length} of you round one table, the doors shut, and ${SIZES[state.size].knife === 1 ? 'one Knife' : `${['', 'one', 'two', 'three'][SIZES[state.size].knife]} Knives`} among you${state.wild && WILD[state.size].fool ? `, and a Fool${WILD[state.size].hothead ? ' and a Hothead' : ''} besides` : ''}.`, 'sys');
       save();
       UI.render();
       UI.roleCard();
