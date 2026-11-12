@@ -146,6 +146,20 @@ a { color: var(--accent); }
 .sys[data-kind="private"] { border-left-color: var(--good); }
 .sys[data-kind="day"] { border: 0; background: transparent; padding: 6px 0 0; text-align: center; color: var(--muted); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
 .sys[data-kind="notice"] { border-left-color: var(--field); color: var(--muted); }
+/* Said to the player, and what is waiting on them. */
+.say[data-toyou="1"] { margin-left: -6px; padding-left: 6px; border-left: 3px solid var(--accent); }
+.say-who .to-you { color: var(--accent); }
+.asks { flex: none; max-height: 34vh; overflow-y: auto; margin: 0 12px 4px; padding: 8px 10px; border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); }
+.asks-head { margin: 0 0 6px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.ask { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 4px 0; }
+.ask + .ask { border-top: 1px solid var(--border); }
+.ask-main { display: grid; min-width: 0; }
+.ask-who { font-size: 13px; font-weight: 700; }
+.ask[data-kind="accuses"] .ask-who { color: var(--danger); }
+.ask-text { font: 15px/1.3 var(--read-font); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.ask .btn { padding: 0 12px; }
+.ask .ask-x { min-width: var(--tap); padding: 0; font-size: 20px; }
+.seat[data-asking="1"]::after { content: "?"; position: absolute; top: 28px; right: 6px; min-width: 20px; height: 20px; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 800; line-height: 20px; text-align: center; }
 /* The host: the house's own voice. */
 .sys[data-kind="host"] { border: 0; background: transparent; padding: 2px 6px; text-align: center; color: var(--muted); font: italic 16px/1.45 var(--read-font); }
 .sys[data-kind="end"] { border-left-color: var(--accent); font-weight: 700; }
@@ -223,7 +237,7 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
         <h2>New table</h2>
         <div class="field">
           <label for="f-name">Your name at the table</label>
-          <input class="input" id="f-name" maxlength="20" autocomplete="off" placeholder="Stranger">
+          <input class="input" id="f-name" maxlength="20" autocomplete="off" placeholder="Riley">
         </div>
         <div class="field">
           <span class="label" id="l-size">Seats</span>
@@ -312,6 +326,7 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
       </div>
       <div class="sheet" id="sheet" hidden></div>
       <div class="log-wrap" id="log-wrap"><div class="log" id="log" role="log" aria-live="polite"></div></div>
+      <div class="asks" id="asks" role="region" aria-label="Waiting on you" hidden></div>
       <div class="busy" id="busy" role="status" hidden><span class="dot" aria-hidden="true"></span><span id="busy-text"></span></div>
       <div class="composer" id="composer">
         <div class="line" id="say-line">
@@ -511,8 +526,8 @@ const Game = (() => {
   function deal(opts) {
     const size = SIZES[opts.size] ? opts.size : 8;
     const s = { v: 1, seed: (opts.seed >>> 0) || 1, rng: (opts.seed >>> 0) || 1, size, mode: opts.mode === 'claude' ? 'claude' : 'demo', model: MODELS.includes(opts.model) ? opts.model : MODELS[0],
-      day: 1, phase: 'role', beat: 0, log: [], heat: {}, night: null, last: null, winner: null, usage: { calls: 0, cost: 0, failed: 0 }, pending: [], votesLog: [], wild: opts.wild !== false && size > 6 };
-    const name = cleanText(opts.name, 20) || 'Stranger';
+      day: 1, phase: 'role', beat: 0, log: [], heat: {}, night: null, last: null, winner: null, usage: { calls: 0, cost: 0, failed: 0 }, pending: [], votesLog: [], asks: [], askSeq: 0, wild: opts.wild !== false && size > 6 };
+    const name = cleanText(opts.name, 20) || 'Riley';
     const taken = name.toLowerCase().split(/\s+/)[0];
     const pool = shuffle(s, CAST.filter(c => c.name.split(/\s+/)[0].toLowerCase() !== taken)).slice(0, size - 1);
     const roles = [];
@@ -581,7 +596,8 @@ const Game = (() => {
      suspicions, who is owed an answer). */
   function heard(speaker, aim, stance) {
     if (!aim || !aim.alive || aim === speaker) return;
-    UI.emote(aim.id, stance === 'accuse' ? '!' : stance === 'question' ? '?' : stance === 'vouch' ? '+' : '');
+    // (Not on the player's own seat: what is put to them is listed above the box.)
+    if (!aim.you) UI.emote(aim.id, stance === 'accuse' ? '!' : stance === 'question' ? '?' : stance === 'vouch' ? '+' : '');
     if (stance === 'accuse') {
       state.heat[aim.id] = (state.heat[aim.id] || 0) + 1;
       for (const l of alive()) {
@@ -621,8 +637,8 @@ const Game = (() => {
       if (p.role === 'fool') {
         const by0 = p.mem.accusedBy ? P(p.mem.accusedBy) : null;
         p.mem.accusedBy = null;
-        if (by0 && by0.alive) return { text: pick(state, [`Maybe it is me, ${by0.first}. Maybe it isn't. You'd have to vote to find out.`, `${by0.first}, I couldn't tell you where I was last night. Honestly couldn't.`, `I don't have an answer for that, ${by0.first}. I'm not sure I'd give it if I did.`]), aim: by0, stance: 'other' };
-        return { text: pick(state, ['Funny how nobody has asked where I was.', "I'd stop looking at me, if I were you. Or don't.", 'I slept fine. Better than I should have, thinking about it.', "Somebody here knows more than they're saying. Could be me."]), aim: null, stance: 'other' };
+        if (by0 && by0.alive) return { text: pick(state, [`Maybe it is me, ${by0.first}. Maybe it isn't. You'd have to vote to find out.`, `I couldn't swear to anything, ${by0.first}. Honestly couldn't.`, `I don't have an answer for that, ${by0.first}. I'm not sure I'd give it if I did.`]), aim: by0, stance: 'other' };
+        return { text: pick(state, ['Funny how nobody has asked me a thing.', "I'd stop looking at me, if I were you. Or don't.", 'I slept fine. Better than I should have, thinking about it.', "Somebody here knows more than they're saying. Could be me."]), aim: null, stance: 'other' };
       }
       const found = p.role === 'witness' ? p.mem.checks.find(x => x.knife && P(x.id).alive) : null;
       if (found && !p.mem.claimed) {
@@ -633,7 +649,7 @@ const Game = (() => {
       if (by && by.alive) {
         p.mem.accusedBy = null;
         if (!t || t === by) return { text: pick(state, [`It isn't me, ${by.first}. You're very sure, for somebody guessing.`, `${by.first}, you're wrong about me, and I'd like to know why you want me gone.`, `Easy thing to say, ${by.first}. I've done nothing but sit here.`]), aim: by, stance: 'accuse' };
-        return { text: pick(state, [`It isn't me, ${by.first}. If you want a name, look at ${t.first}.`, `${by.first}, you're wrong about me. ${t.first} is the one I'd watch.`, `Easy thing to say, ${by.first}. I've done nothing but sit here. Ask ${t.first} where they were.`]), aim: t, stance: 'accuse' };
+        return { text: pick(state, [`It isn't me, ${by.first}. If you want a name, look at ${t.first}.`, `${by.first}, you're wrong about me. ${t.first} is the one I'd watch.`, `Easy thing to say, ${by.first}. I've done nothing but sit here. Ask ${t.first} why they've gone so quiet.`]), aim: t, stance: 'accuse' };
       }
       if (t && ((p.mem.sus[t.id] || 0) + (state.heat[t.id] || 0) >= 1.6 || rnd(state) < 0.5)) {
         const votedFor = state.lastVotes && state.lastVotes[t.id] ? P(state.lastVotes[t.id]) : null;
@@ -732,7 +748,8 @@ const Game = (() => {
       const n = state.players.length;
       const c = SIZES[state.size];
       const seats = state.players.map(p => {
-        if (p.you) return `- ${p.name}: a stranger who came in off the highway tonight. Nobody here knows them.`;
+        // The player is one more seat: nothing about them to ask after, nothing that sets them apart.
+        if (p.you) return `- ${p.name}: one of the people at the table, the same as anyone. There is nothing more to know about them than how they play.`;
         const k = castOf(p.id) || {};
         // Who they are to the others here (the town's own ties), for the talk: old business comes up.
         const ties = (k.ties || []).map(x => { const q = P(x.id); return q ? `${q.name} (${k.pronouns === 'she' ? 'her' : k.pronouns === 'he' ? 'his' : 'their'} ${x.as})` : null; }).filter(Boolean);
@@ -756,7 +773,9 @@ const Game = (() => {
         '- If you are a Knife: never admit it. Keep a story and stick to it. Put doubt on Town players with reasons that sound real. Do not defend a fellow Knife so hard that it marks you. You may claim a role you do not hold.',
         '- If you are the Witness: what you know wins games and gets you taken in the night. Decide when to say it.',
         wild.fool ? '- If you are the Fool: get yourself voted out without it showing that you want it. Be a little too evasive, a little too slow to deny. If they see what you are doing they will never vote for you.' : null,
-        '- Anyone can lie about their role, the stranger included. Weigh every claim.',
+        '- Anyone can lie about their role. Weigh every claim.',
+        '- The table is all there is. The only evidence in this game is what happens at it: what people say, who they accuse and who they defend, how they vote, who is taken in the night and what they turned out to be, and what people claim to be. Everyone\'s eyes are shut at night, so nobody saw or heard anything and nobody has an alibi. Where anyone was, where they were going, what they do for a living and how they came to be here tell you nothing: never ask about them, and never make up something seen, heard or found.',
+        '- One question at a time. If someone has just been asked something and has not yet had the chance to answer, do not put another question to them: say what you make of things instead.',
         '',
         'HOW TO SPEAK',
         '- Spoken words only, in this person\'s own voice: one to three short sentences. No narration, no stage directions, no asterisks, no name before your words.',
@@ -1017,6 +1036,7 @@ const Game = (() => {
     state.beat = 0;
     state.pending = [];
     state.night = { whisper: null };
+    state.asks = [];
     sys(`Night ${state.day}`, 'day');
     UI.sel = null;
   }
@@ -1097,6 +1117,14 @@ const Game = (() => {
       say('you', line);
       const r = readLine(line, 'you');
       heard(me, r.aim, r.stance);
+      /* What the player was asked is answered by this line: the one they
+         pressed Answer on, anyone they name, or the only one waiting. */
+      const namedNow = mentioned(line, 'you').map(q => q.id);
+      const open = state.asks.length;
+      state.asks = state.asks.filter(a => a.id !== UI.answering && !namedNow.includes(a.who));
+      if (state.asks.length === open && open === 1) state.asks = [];
+      UI.answering = null;
+      UI.renderAsks();
       if (/\b(i am|i'm|im) (the )?witness\b/i.test(line)) me.mem.claimed = true;
     }
     for (const p of speakers()) {
@@ -1109,8 +1137,21 @@ const Game = (() => {
       const r = await Seat.say(p, why);
       p.mem.accusedBy = null;
       p.mem.spoke = (p.mem.spoke || 0) + 1;
-      say(p.id, r.text);
+      const said = say(p.id, r.text);
       heard(p, r.aim, r.stance);
+      /* Said to the player: marked in the story, and kept in the list of
+         what is waiting on them when it asks or accuses (one for each
+         person: a newer line from the same one takes its place). */
+      const toYou = me.alive && ((r.aim && r.aim.you) || mentioned(r.text, p.id)[0] === me);
+      if (toYou) {
+        said.toYou = true;
+        UI.markToYou();
+        if (r.stance === 'question' || r.stance === 'accuse' || /\?/.test(r.text)) {
+          state.asks = state.asks.filter(a => a.who !== p.id);
+          state.asks.push({ id: ++state.askSeq, who: p.id, text: r.text, kind: r.stance === 'accuse' ? 'accuses' : 'asks', day: state.day });
+          UI.renderAsks();
+        }
+      }
       UI.setBusy('');
       UI.renderTable();
       await UI.bubble(p, r.text);
@@ -1128,6 +1169,8 @@ const Game = (() => {
     UI.setBusy('The table is voting…');
     UI.emotes = {};
     UI.sel = null;
+    // The talk is over: nothing is waiting on the player any more.
+    state.asks = [];
     UI.render();
     const voters = alive();
     const results = await Promise.all(voters.map(p => (p.you ? Promise.resolve({ vote: P(pickId), text: '' }) : Seat.vote(p))));
@@ -1204,7 +1247,33 @@ const Game = (() => {
 
   // ----- the page -----
   const UI = {
-    sel: null, tally: null, speakingId: null, logCount: 0, emotes: {}, arrows: [], over: null, wait: null, revealed: false,
+    sel: null, tally: null, speakingId: null, logCount: 0, emotes: {}, arrows: [], over: null, wait: null, revealed: false, answering: null,
+    // The newest line in the story is said to the player: marked as it lands.
+    markToYou() { const n = $('#log').lastElementChild; if (n && n.classList.contains('say')) { n.dataset.toyou = '1'; const w = $('.say-who', n); if (w && !$('.to-you', w)) w.append(el('span', { class: 'role to-you' }, 'to you')); } },
+    /* What is waiting on the player (the owner: "when someone asks me
+       something, mark it, cz when a lot of people ask me stuff i lose
+       it"): each question or accusation put to them, newest last, above
+       the box, until they answer it (Answer starts the reply with the
+       name; a line that names the asker answers theirs; the only one
+       waiting is answered by any line), set it aside, or the talk ends. */
+    renderAsks() {
+      const box = $('#asks');
+      if (!box || !state) return;
+      const asks = state.phase === 'talk' && you().alive ? state.asks.filter(a => P(a.who) && P(a.who).alive) : [];
+      box.hidden = !asks.length;
+      if (!asks.length) { box.replaceChildren(); UI.renderAskMarks(); return; }
+      box.replaceChildren(el('p', { class: 'asks-head' }, `Waiting on you (${asks.length})`), ...asks.map(a => {
+        const p = P(a.who);
+        return el('div', { class: 'ask', dataset: { ask: String(a.id), who: a.who, kind: a.kind } },
+          el('span', { class: 'say-face' }, faceNode(castOf(p.id), a.kind === 'accuses' ? 'cold' : 'even')),
+          el('div', { class: 'ask-main' }, el('span', { class: 'ask-who' }, `${p.first} ${a.kind} you`), el('span', { class: 'ask-text' }, a.text)),
+          el('button', { type: 'button', class: 'btn primary ask-go', 'aria-label': `Answer ${p.first}`, onclick: () => { UI.answering = a.id; const i = $('#say'); i.value = `${p.first}, `; if (!i.disabled) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } } }, 'Answer'),
+          el('button', { type: 'button', class: 'btn ghost ask-x', 'aria-label': `Set ${p.first}'s question aside`, onclick: () => { state.asks = state.asks.filter(x => x.id !== a.id); save(); UI.renderAsks(); } }, '\u00D7'));
+      }));
+      UI.renderAskMarks();
+    },
+    // A mark on the seat of anyone waiting on the player.
+    renderAskMarks() { const who = new Set(state && state.phase === 'talk' ? state.asks.map(a => a.who) : []); for (const s of $$('.seat')) s.dataset.asking = who.has(s.dataset.id) ? '1' : '0'; },
     /* The middle of the table taken over for a moment of the game (the
        night's steps, the count, a pause before a role is shown): a small
        caption, a line, a second line, held for ms. stage(null) gives the
@@ -1240,9 +1309,9 @@ const Game = (() => {
       if (e.t === 'sys') return el('p', { class: 'sys', dataset: { kind: e.kind } }, e.text);
       const p = P(e.who);
       const k = p && state.phase === 'over' ? p.role : null;
-      return el('div', { class: 'say', dataset: { you: p && p.you ? '1' : '0', kind: e.kind, who: e.who } },
+      return el('div', { class: 'say', dataset: { you: p && p.you ? '1' : '0', kind: e.kind, who: e.who, toyou: e.toYou ? '1' : '0' } },
         el('span', { class: 'say-face' }, faceNode(p && !p.you ? castOf(p.id) : YOU_FACE)),
-        el('div', null, el('span', { class: 'say-who' }, p ? p.name : e.who, e.kind === 'whisper' ? el('span', { class: 'role' }, 'whispers') : null, k ? el('span', { class: 'role' }, roleWord(k)) : null), el('p', { class: 'say-text' }, e.text)));
+        el('div', null, el('span', { class: 'say-who' }, p ? p.name : e.who, e.kind === 'whisper' ? el('span', { class: 'role' }, 'whispers') : null, k ? el('span', { class: 'role' }, roleWord(k)) : null, e.toYou ? el('span', { class: 'role to-you' }, 'to you') : null), el('p', { class: 'say-text' }, e.text)));
     },
     logEntry(e) { const log = $('#log'); if (!log) return; log.append(UI.logNode(e)); UI.logCount += 1; const w = $('#log-wrap'); w.scrollTop = w.scrollHeight; },
     rebuildLog() { const log = $('#log'); log.replaceChildren(...state.log.map(UI.logNode)); const w = $('#log-wrap'); w.scrollTop = w.scrollHeight; },
@@ -1274,6 +1343,7 @@ const Game = (() => {
         seat.dataset.y = String(y);
         table.append(seat);
       });
+      UI.renderAskMarks();
       // The votes as they are shown: a line from each voter to whoever they point at.
       const old = $('.arrows', table);
       if (old) old.remove();
@@ -1356,14 +1426,14 @@ const Game = (() => {
       const fill = text => { const i = $('#say'); i.value = text; i.focus(); };
       const mark = (m, label) => el('button', { type: 'button', class: 'btn', 'aria-pressed': String(p.mark === m), dataset: { mark: m }, onclick: () => { p.mark = p.mark === m ? null : m; save(); UI.render(); } }, label);
       sheet.hidden = false;
-      sheet.replaceChildren(
+      sheet.replaceChildren(...[
         el('div', { class: 'sheet-head' }, el('span', { class: 'sheet-name' }, p.you ? `${p.name} (you)` : p.name), el('span', { class: 'sheet-role' }, [c ? `${c.age}, ${c.role}` : '', !p.alive ? `out ${p.out.how === 'vote' ? 'by the vote' : 'in the night'}, day ${p.out.day}` : '', k ? roleWord(k) : ''].filter(Boolean).join(' · '))),
         c ? el('p', { class: 'sheet-look' }, c.look) : null,
         p.alive && !p.you ? el('div', { class: 'sheet-acts', role: 'group', 'aria-label': `About ${p.first}` },
           mark('sus', 'Mark: suspect'), mark('trust', 'Mark: trust'),
           talk ? [el('button', { type: 'button', class: 'btn', dataset: { act: 'accuse' }, onclick: () => fill(`I think it's ${p.first}. `) }, 'Accuse'),
             el('button', { type: 'button', class: 'btn', dataset: { act: 'vouch' }, onclick: () => fill(`I trust ${p.first}. `) }, 'Vouch'),
-            el('button', { type: 'button', class: 'btn', dataset: { act: 'ask' }, onclick: () => fill(`${p.first}, who do you think it is?`) }, 'Ask')] : null) : null);
+            el('button', { type: 'button', class: 'btn', dataset: { act: 'ask' }, onclick: () => fill(`${p.first}, who do you think it is?`) }, 'Ask')] : null) : null].filter(Boolean));
     },
     renderComposer() {
       const me = you();
@@ -1392,6 +1462,7 @@ const Game = (() => {
       UI.renderMid();
       UI.renderSheet();
       UI.renderComposer();
+      UI.renderAsks();
     },
     dialog(title, body, buttons) {
       const d = $('#dlg');
@@ -1463,7 +1534,7 @@ const Game = (() => {
       UI.roleCard();
       return state;
     },
-    resume() { const s = App.saved(); if (!s) return false; state = s; if (!Array.isArray(state.votesLog)) state.votesLog = []; failNoted = false; App.fast = false; UI.sel = null; UI.tally = null; UI.emotes = {}; UI.arrows = []; UI.over = null; UI.wait = null; UI.revealed = false; UI.show('game'); UI.rebuildLog(); UI.render(); return true; },
+    resume() { const s = App.saved(); if (!s) return false; state = s; if (!Array.isArray(state.votesLog)) state.votesLog = []; if (!Array.isArray(state.asks)) state.asks = []; failNoted = false; App.fast = false; UI.sel = null; UI.tally = null; UI.emotes = {}; UI.arrows = []; UI.over = null; UI.wait = null; UI.revealed = false; UI.show('game'); UI.rebuildLog(); UI.render(); return true; },
     begin() { return locked(async () => { startNight(); await App.nightOpen(); }); },
     // A Knife's night starts with what their fellow Knife would do.
     async nightOpen() {
@@ -1476,7 +1547,7 @@ const Game = (() => {
     },
     night(pickId) { return locked(async () => { if (state.phase !== 'night') return; UI.sel = null; await resolveNight(pickId); }); },
     talk(text) { return locked(async () => { if (state.phase !== 'talk') return; await runBeat(text); }); },
-    callVote() { if (busy || state.phase !== 'talk') return; state.phase = 'vote'; UI.sel = null; sys(you().alive ? 'You call the vote.' : 'The table calls the vote.', 'sys', false, you().alive ? `${you().first} calls the vote.` : null); save(); UI.render(); },
+    callVote() { if (busy || state.phase !== 'talk') return; state.phase = 'vote'; UI.sel = null; state.asks = []; sys(you().alive ? 'You call the vote.' : 'The table calls the vote.', 'sys', false, you().alive ? `${you().first} calls the vote.` : null); save(); UI.render(); },
     vote(pickId) {
       return locked(async () => {
         if (state.phase !== 'vote') return;
@@ -1543,7 +1614,7 @@ const Game = (() => {
     }
   };
 
-  const api = { App, UI, Bots, Prompts, Rules: { deal, winner, SIZES, WILD, ROLE, MAX_BEATS, readLine: (t, id) => { const r = readLine(t, id); return { aim: r.aim ? r.aim.id : null, stance: r.stance }; } }, CAST, faceTraits, faceNode, recordText, get state() { return state; }, get busy() { return busy; },
+  const api = { App, UI, Bots, Seat, Prompts, Rules: { deal, winner, SIZES, WILD, ROLE, MAX_BEATS, readLine: (t, id) => { const r = readLine(t, id); return { aim: r.aim ? r.aim.id : null, stance: r.stance }; } }, CAST, faceTraits, faceNode, recordText, get state() { return state; }, get busy() { return busy; },
     // What the table is waiting on the player for in the middle of a step ('line', 'seat'), or null.
     get waiting() { return UI.wait ? UI.wait.kind : null; } };
   return api;

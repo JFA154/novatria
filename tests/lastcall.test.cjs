@@ -440,6 +440,85 @@ s.test('out of the game the player sees every role, can watch or skip to the end
   assert.equal(await page.evaluate(() => !!document.querySelector('dialog[open] .reveal')), true, 'and the reveal opens by itself at the end');
 });
 
+s.test('what is put to the player is kept until they answer it: marked in the story, listed above the box with Answer, a mark on the asker\'s seat; a named reply, Answer or setting it aside takes it off, and the vote clears the rest', async h => {
+  const page = await open(h);
+  await sit(page, { seed: 81, role: 'town', wild: false });
+  await begin(page);
+  await page.evaluate(() => { Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop(); });
+  await page.click('#mid-go');
+  await settle(page);
+  // Everyone who speaks puts something to the player: the first a question, the rest an accusation.
+  await page.evaluate(() => { let n = 0; Game.Bots.say = p => { n += 1; const me = Game.state.players[0]; return n === 1 ? { text: `Joe, who do you make it? (${p.first})`, aim: me, stance: 'question' } : { text: `It's Joe. I'd put money on it. (${p.first})`, aim: me, stance: 'accuse' }; }; });
+  await page.click('#btn-pass');
+  await settle(page);
+  const tray = () => page.evaluate(() => ({ hidden: document.querySelector('#asks').hidden, head: (document.querySelector('#asks .asks-head') || {}).textContent || null,
+    rows: [...document.querySelectorAll('#asks .ask')].map(r => ({ who: r.dataset.who, kind: r.dataset.kind, label: r.querySelector('.ask-who').textContent, text: r.querySelector('.ask-text').textContent })),
+    seats: [...document.querySelectorAll('.seat[data-asking="1"]')].map(x => x.dataset.id), marked: [...document.querySelectorAll('#log .say[data-toyou="1"]')].length, tags: [...document.querySelectorAll('#log .say .to-you')].length }));
+  let t = await tray();
+  assert.equal(t.hidden, false);
+  assert.equal(t.head, 'Waiting on you (3)');
+  assert.deepEqual(t.rows.map(r => r.kind), ['asks', 'accuses', 'accuses']);
+  assert.match(t.rows[0].label, /^\w+ asks you$/);
+  assert.match(t.rows[0].text, /^Joe, who do you make it\?/);
+  assert.deepEqual(t.seats.slice().sort(), t.rows.map(r => r.who).sort(), 'each of them has a mark on their seat');
+  assert.deepEqual([t.marked, t.tags], [3, 3], 'and each line is marked "to you" in the story');
+  // Answer starts the reply with the name; sending it takes that one off.
+  const firstWho = t.rows[0].who;
+  const firstName = await page.evaluate(id => Game.state.players.find(p => p.id === id).first, firstWho);
+  await page.evaluate(() => { Game.Bots.say = p => ({ text: `Hm. (${p.first})`, aim: null, stance: 'other' }); });
+  await page.click(`#asks .ask[data-who="${firstWho}"] .ask-go`);
+  assert.equal(await page.inputValue('#say'), `${firstName}, `);
+  await page.fill('#say', `${firstName}, I don't know yet.`);
+  await page.click('#btn-say');
+  await settle(page);
+  t = await tray();
+  assert.equal(t.head, 'Waiting on you (2)');
+  assert.ok(!t.rows.some(r => r.who === firstWho));
+  // A line that names an asker answers theirs; setting one aside takes it off too.
+  const second = t.rows[0].who;
+  const third = t.rows[1].who;
+  const secondName = await page.evaluate(id => Game.state.players.find(p => p.id === id).first, second);
+  await page.fill('#say', `It isn't me, ${secondName}.`);
+  await page.click('#btn-say');
+  await settle(page);
+  t = await tray();
+  assert.deepEqual(t.rows.map(r => r.who), [third]);
+  await page.click(`#asks .ask[data-who="${third}"] .ask-x`);
+  t = await tray();
+  assert.deepEqual([t.hidden, t.rows.length, t.seats.length], [true, 0, 0]);
+  // Asked again, then the vote is called: nothing is left waiting.
+  await page.evaluate(() => { Game.Bots.say = p => ({ text: `Joe, well? (${p.first})`, aim: Game.state.players[0], stance: 'question' }); });
+  await page.click('#btn-pass');
+  await settle(page);
+  assert.equal((await tray()).hidden, false);
+  await page.click('#btn-vote');
+  assert.deepEqual(await page.evaluate(() => [document.querySelector('#asks').hidden, Game.state.asks.length]), [true, 0]);
+});
+
+s.test('the seats are told the table is all there is: nothing about where anyone was or was going, nothing to ask the player about but how they play', async h => {
+  const bodies = [];
+  const page = await open(h, { route: standIn(bodies) });
+  await page.fill('#f-key', 'sk-ant-test-key');
+  await page.fill('#f-name', 'Joe');
+  await page.click('#f-role [data-v="town"]');
+  await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
+  await page.click('#btn-new');
+  await page.click('dialog .btn.primary');
+  await begin(page);
+  await page.click('#mid-go');
+  await settle(page);
+  const seat = bodies.find(b => !/^You are the host/.test(b.body.system[0].text));
+  const sys = seat.body.system[0].text;
+  assert.match(sys, /^- Joe: one of the people at the table, the same as anyone\. There is nothing more to know about them than how they play\.$/m);
+  assert.doesNotMatch(sys, /\bstranger\b|came in off|nobody here knows/i, 'nothing that makes the player someone to question about themselves');
+  assert.match(sys, /The table is all there is\. The only evidence in this game is what happens at it/);
+  assert.match(sys, /Where anyone was, where they were going, what they do for a living and how they came to be here tell you nothing: never ask about them, and never make up something seen, heard or found\./);
+  assert.match(sys, /One question at a time\./);
+  // The scripted table keeps to the same rule.
+  const html = fs.readFileSync(FILE, 'utf8');
+  assert.doesNotMatch(html.slice(html.indexOf('const Bots = {'), html.indexOf('// ----- Claude at each seat -----')), /where (they|you|I|he|she) (was|were)|last night\b.*\bwhere/i);
+});
+
 for (const [name, vp] of [['375', PHONE], ['320', { width: 320, height: 568 }], ['a laptop', LAPTOP]]) {
   s.test(`at ${name}: nothing wider than the screen on the first screen, at night, in the talk with a seat picked, at the vote and in the reveal; every button is 44px`, async h => {
     const page = await open(h, { viewport: vp });

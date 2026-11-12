@@ -1943,6 +1943,16 @@ every Knife is out; the Knives win when they are as many as everyone else.
   shown (you too: the table waits for yours). When it is over, **The
   reveal** shows every role, how each went, how each voted and what each
   was privately thinking.
+- **Waiting on you**: anything put to you, a question or an accusation, is
+  marked "to you" in the story, puts a mark on that person's seat, and is
+  listed above the box until you deal with it. **Answer** starts your reply
+  with their name; a line that names them answers theirs; × sets one aside;
+  the vote clears the rest.
+- **The table is all there is**: the seats are told that the only evidence
+  is what happens at the table (what is said, who accuses and defends whom,
+  the votes, who is taken and what they were, what is claimed). Nobody saw
+  anything in the night, and where anyone was or was going means nothing,
+  so they do not ask.
 - **Who plays the others**: with an Anthropic API key, Claude does, one call
   for each seat each time it speaks, votes or chooses in the night, in that
   person's own voice and knowing who they are to the others at the table. A
