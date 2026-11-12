@@ -1932,23 +1932,34 @@ every Knife is out; the Knives win when they are as many as everyone else.
   see), to pick them at night or to vote for them. **Call the vote** is in
   the middle of the table.
 - **A live table**: the day is not rounds. The table talks on by itself,
-  like a group chat, and you say something whenever you like; nothing waits
-  for you and there is nothing to pass. Whoever is typing is shown typing
-  (a ring on their seat, their face and three dots under the last message),
-  sometimes two at once. The talk ends when you call the vote, when more
-  than half of the seats have said they would vote, or when it gets late
-  (two messages a seat and two more, a few more when you talk). The table
-  holds a moment while you are typing, about four seconds after a question
-  is put to you, and while the page is not being looked at. On the first
-  screen **The talk** can be set to **In turns** instead: you speak or
-  pass, then two or three of them do.
+  one person at a time, and you say something whenever you like; there is
+  nothing to pass. Whoever is typing is shown typing (a ring on their
+  seat, their face and three dots under the last message). The pace is
+  that of people reading and typing: a moment before anyone starts, and
+  no message lands before the last has had time to be read. The talk ends
+  when you call the vote, when more than half of the seats have said they
+  would vote, or when it gets late (two messages a seat and two more, a
+  few more when you talk). The table also holds while you are typing and
+  while the page is not being looked at. On the first screen **The talk**
+  can be set to **In turns** instead: you speak or pass, then two or
+  three of them do.
+- **The floor is yours when something is put to you**: when a seat asks
+  you something or points at you, nobody else speaks until you answer,
+  however long you take (now and then one of the table adds a few words
+  to it first, once, and is told to add and not to ask). Under the chat
+  it says who is waiting for you, their seat is marked, the quick replies
+  are aimed at them, and the button beside the empty box is **Pass**,
+  which lets it go by (the seats are told you said nothing). Your answer
+  goes to the one who asked, who speaks next. The seats are told that
+  people need time to read and type, and never to hold it against anyone
+  that they have not answered yet.
 - **Who speaks follows the talk, not a rota**: whoever you spoke to
-  answers you (two of the table at once, neither seeing the other's, when
-  you spoke to everyone); the morning's first words are about the night;
-  whoever is accused or asked answers; otherwise anyone, by how much each
-  of them talks (each is dealt that: some never stop, some lurk). Nobody
-  speaks twice running, and two who have gone at each other three times
-  are cut in on.
+  answers you (anyone, when you spoke to everyone), then one more takes
+  it up; the morning's first words are about the night; whoever is
+  accused or asked answers; otherwise anyone, by how much each of them
+  talks (each is dealt that: some never stop, some lurk). Nobody speaks
+  twice running, and two who have gone at each other three times are cut
+  in on.
 - **They write like people in a group chat**: each seat is dealt a way of
   typing for the game (all lowercase, capitals and full stops like a text
   to the boss, as few words as possible, CAPS on the one word, trailing
@@ -1990,11 +2001,6 @@ every Knife is out; the Knives win when they are as many as everyone else.
   shown (you too: the table waits for yours). When it is over, **The
   reveal** shows every role, how each went, how each voted and what each
   was privately thinking.
-- **Waiting on you**: anything put to you, a question or an accusation, is
-  marked "to you" in the story, puts a mark on that person's seat, and is
-  listed above the box until you deal with it. Tap one to aim the quick
-  replies and the box at that person; a reply to them, or a line that names
-  them, answers theirs; × sets one aside; the vote clears the rest.
 - **The table is all there is**: the seats are told that the only evidence
   is what happens at the table (what is said, who accuses and defends whom,
   the votes, who is taken and what they were, what is claimed). Nobody saw
@@ -2067,12 +2073,13 @@ fails it with a message saying so; the CI checkout fetches it all).
   26, built alongside the relationship branch's);
 - `lastcall` for Last Call (`index.html`): the deal and the wild cards, the
   rules, a whole scripted game with the host and the reveal, last words, the
-  Fool and the Hothead, what is waiting on the player and the quick replies,
+  Fool and the Hothead, the quick replies,
   what the player says being answered, the temperaments, the ways of
   typing and the lengths (a seat that goes on is cut off), a live table
-  talking on by itself (who is typing, the player speaking meanwhile, two
-  answering at once, the vote dropping what was being typed, a reload in
-  the middle of it), what a seat carries from one day to the next, the talk
+  talking on by itself (who is typing, one at a time, the player speaking
+  meanwhile, the vote dropping what was being typed, a reload in the
+  middle of it), the floor being the player's when something is put to
+  them (nobody speaks until they answer or pass, one adding to it), what a seat carries from one day to the next, the talk
   ending when most would vote, two at each other being cut in on, the
   Claude path against a stand-in API (the request, what each seat and the
   host are told, a failed call), the player out, phone widths and the

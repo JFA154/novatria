@@ -168,27 +168,16 @@ a { color: var(--accent); }
 .typing .say-face { width: 22px; height: 22px; }
 .typing-dots { display: inline-flex; gap: 3px; margin-left: 2px; padding: 9px 10px; border-radius: 14px; background: var(--surface-2); }
 .typing-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+.waiting-on { margin-left: 2px; padding: 6px 10px; border-radius: 14px; background: var(--surface-2); color: var(--accent); font-size: 14px; font-weight: 600; }
 .seat[data-typing="1"] .seat-face { box-shadow: 0 0 0 3px var(--focus); }
 .sys { margin: 2px 0; padding: 5px 9px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 0 var(--radius) var(--radius) 0; font-size: 14px; line-height: 1.35; }
 .sys[data-kind="death"], .sys[data-kind="banish"] { border-left-color: var(--danger); }
 .sys[data-kind="private"] { border-left-color: var(--good); }
 .sys[data-kind="day"] { border: 0; background: transparent; padding: 4px 0 0; text-align: center; color: var(--muted); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
 .sys[data-kind="notice"] { border-left-color: var(--field); color: var(--muted); }
-/* Said to the player, and what is waiting on them. */
+/* Said to the player, and who is waiting on them. */
 .say[data-toyou="1"] .say-text { box-shadow: inset 0 0 0 2px var(--accent); }
 .say-text .to-you { color: var(--accent); }
-.asks { flex: none; max-height: min(34vh, 168px); overflow-y: auto; margin: 0 12px 4px; padding: 5px 8px; border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); }
-.asks-head { margin: 0 0 2px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
-.ask { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; align-items: center; }
-.ask + .ask { border-top: 1px solid var(--border); }
-.ask-go { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 8px; align-items: center; min-height: var(--tap); padding: 3px 4px; border: 0; border-radius: 8px; background: transparent; color: inherit; text-align: left; cursor: pointer; }
-.ask-go[aria-pressed="true"] { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--accent); }
-/* (The whole of what was said, on as many lines as it takes: the owner, of a row cut short with three dots, "this is not good".) */
-.ask-main { display: block; min-width: 0; font: 14px/1.3 var(--ui-font); overflow-wrap: anywhere; }
-.ask-who { margin-right: 6px; font-weight: 700; color: var(--accent); }
-.ask[data-kind="accuses"] .ask-who { color: var(--danger); }
-.ask-text { color: var(--text); }
-.ask .ask-x { min-width: var(--tap); padding: 0; font-size: 20px; }
 .seat[data-asking="1"]::after { content: "?"; position: absolute; top: 28px; right: 6px; min-width: 20px; height: 20px; border-radius: 10px; background: var(--accent); color: var(--accent-ink); font-size: 13px; font-weight: 800; line-height: 20px; text-align: center; }
 /* Quick replies: a row of one-tap lines, scrolling sideways in itself. */
 .chips { display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -12px; padding: 0 12px; }
@@ -264,9 +253,6 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
   .mid-bubble { font-size: 14px; }
 }
 @media (max-height: 640px) {
-  /* A short phone: what is waiting on the player is one row at a time, so the chat keeps its room. */
-  .asks { max-height: 84px; padding: 2px 8px; }
-  .asks-head { display: none; }
   .cost { display: none; }
   .table { height: 212px; }
   .seat { min-height: 56px; margin-top: -28px; }
@@ -275,7 +261,6 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
 /* Typing on a phone with the keyboard up (the box has the focus and the page is short): the table steps aside so the story and the box have the room. */
 @media (max-height: 460px) and (max-width: 700px) {
   .wrap:has(#say:focus) .table-area, .wrap:has(#say:focus) .sheet, .wrap:has(#say:focus) .chips, .wrap:has(#say:focus) .cost { display: none; }
-  .wrap:has(#say:focus) .asks { max-height: 64px; }
   .topbar { padding-top: 4px; padding-bottom: 4px; }
 }
 </style>
@@ -367,7 +352,8 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
           <li>Town wins when every Knife is out. The Knives win when they are at least as many as everyone else.</li>
           <li>Wild cards: the <b>Fool</b> is on nobody's side and wins alone if the table votes them out. The <b>Hothead</b> is Town, and takes one person with them when they go.</li>
           <li>Whoever is voted out gets their last words before their role is shown. Listen to them.</li>
-          <li>The table talks on by itself: say something whenever you like. Tap a face, or what someone said, to aim at them; the quick replies say it in one tap (It's you. Liar. Why? I'm with you. Not me.), or type your own.</li>
+          <li>The table talks on by itself, one person at a time: say something whenever you like. When someone asks you something or points at you, everyone waits for you: answer, or Pass.</li>
+          <li>Tap a face, or what someone said, to aim at them; the quick replies say it in one tap (It's you. Liar. Why? I'm with you. Not me.), or type your own.</li>
           <li>The talk ends when you call the vote, when most of the table says it is ready to, or when it gets late.</li>
         </ul>
         <p class="note">The code deals the roles, counts the votes and decides who is out. The people only talk, lie and vote.</p>
@@ -392,7 +378,6 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
       </div>
       <div class="sheet" id="sheet" hidden></div>
       <div class="log-wrap" id="log-wrap"><div class="log" id="log" role="log" aria-live="polite"></div><div class="typing" id="typing" hidden></div></div>
-      <div class="asks" id="asks" role="region" aria-label="Waiting on you" hidden></div>
       <div class="busy" id="busy" role="status" hidden><span class="dot" aria-hidden="true"></span><span id="busy-text"></span></div>
       <div class="composer" id="composer">
         <div class="chips" id="chips" role="group" aria-label="Quick replies" hidden></div>
@@ -714,7 +699,7 @@ const Game = (() => {
   function deal(opts) {
     const size = SIZES[opts.size] ? opts.size : 8;
     const s = { v: 1, seed: (opts.seed >>> 0) || 1, rng: (opts.seed >>> 0) || 1, size, mode: opts.mode === 'claude' ? 'claude' : 'demo', model: MODELS.includes(opts.model) ? opts.model : MODELS[0],
-      day: 1, phase: 'role', live: opts.live !== false, clock: 0, said: 0, bonus: 0, ready: [], yours: null, spat: null, log: [], heat: {}, night: null, last: null, winner: null, usage: { calls: 0, cost: 0, failed: 0 }, pending: [], votesLog: [], asks: [], askSeq: 0, wild: opts.wild !== false && size > 6 };
+      day: 1, phase: 'role', live: opts.live !== false, clock: 0, said: 0, bonus: 0, ready: [], yours: null, spat: null, floor: null, log: [], heat: {}, night: null, last: null, winner: null, usage: { calls: 0, cost: 0, failed: 0 }, pending: [], votesLog: [], wild: opts.wild !== false && size > 6 };
     const name = cleanText(opts.name, 20) || 'Riley';
     const taken = name.toLowerCase().split(/\s+/)[0];
     const pool = shuffle(s, CAST.filter(c => c.name.split(/\s+/)[0].toLowerCase() !== taken)).slice(0, size - 1);
@@ -985,6 +970,7 @@ const Game = (() => {
         '- Anyone can lie about their role. Weigh every claim.',
         '- The table is all there is. The only evidence in this game is what happens at it: what people say, who they accuse and who they defend, how they vote, who is taken in the night and what they turned out to be, and what people claim to be. Everyone\'s eyes are shut at night, so nobody saw or heard anything and nobody has an alibi. Nobody can see anybody, either: no faces, no looks, no sweating, no body language. Where anyone was, where they were going, what they do for a living, who they are to each other and how they came to be here tell you nothing: never ask about them, never bring them up, and never make up something seen, heard or found.',
         '- One question at a time. If someone has just been asked something and has not yet had the chance to answer, do not put another question to them: say what you make of things instead.',
+        '- People need time to read and type. Never hold it against anyone that they have not answered yet, or that they have said nothing for a few messages. Only someone who has said nothing all day is being quiet.',
         '- When you have heard enough to vote, say so in the chat ("can we just vote") and mark yourself ready. When most are ready the vote is called.',
         '',
         'HOW TO WRITE',
@@ -1250,13 +1236,10 @@ const Game = (() => {
   // The table talking on its own (a live table): whether it is, and which run of it this is.
   let talking = false;
   let tableRun = 0;
-  /* The pace of a chat: the next person starts typing as soon as a message
-     is in, but theirs does not land before the last has had time to be
-     read (readUntil); and when a question has just been put to the player
-     (askedYou) the table gives them a moment to answer before anyone
-     starts. */
+  /* The pace of a chat: the next person starts typing a moment after a message
+     is in, and theirs does not land before the last has had time to be
+     read (readUntil). */
   let readUntil = 0;
-  let askedYou = false;
   const nap = ms => new Promise(r => setTimeout(r, ms));
   const wait = ms => (App.speed > 0 && !App.fast ? new Promise(r => setTimeout(r, ms * App.speed)) : Promise.resolve());
   function save() { if (state) store.set(SAVE_KEY, JSON.stringify(state)); }
@@ -1305,7 +1288,7 @@ const Game = (() => {
     state.phase = 'night';
     state.pending = [];
     state.night = { whisper: null };
-    state.asks = [];
+    state.floor = null;
     sys(`Night ${state.day}`, 'day');
     UI.sel = null;
   }
@@ -1375,7 +1358,7 @@ const Game = (() => {
   function openDay() {
     const seats = alive().filter(p => !p.you);
     state.clock = clamp(seats.length * 2 + 2, 6, 16);
-    state.said = 0; state.bonus = 0; state.ready = []; state.yours = null; state.spat = null;
+    state.said = 0; state.bonus = 0; state.ready = []; state.yours = null; state.spat = null; state.floor = null;
     for (const p of state.players) p.mem.today = 0;
   }
   // Why the talk is over, if it is: it is late, or most of them have said they would vote.
@@ -1386,7 +1369,7 @@ const Game = (() => {
     if (state.said >= Math.min(6, seats.length * 2) && want > seats.length / 2) return 'Most of the table wants to vote. The table votes.';
     return '';
   }
-  function tableVotes(why) { state.phase = 'vote'; UI.sel = null; state.asks = []; state.yours = null; sys(why, 'sys'); }
+  function tableVotes(why) { state.phase = 'vote'; UI.sel = null; state.yours = null; state.floor = null; sys(why, 'sys'); }
   /* The player says something. meta: what a quick reply is ({ aim,
      stance }), so its words are not read. It is owed an answer: from the
      one it was said to, or from two of the table at once. */
@@ -1395,33 +1378,51 @@ const Game = (() => {
     const line = cleanText(text, 400);
     if (!line || !me.alive) return false;
     say('you', line);
+    me.mem.spoke = (me.mem.spoke || 0) + 1;
     const r = meta && P(meta.aim) ? { aim: P(meta.aim), stance: meta.stance } : readLine(line, 'you');
     heard(me, r.aim, r.stance);
-    /* What the player was asked is answered by this line: the one they
-       chose to answer, anyone they name, or the only one waiting. */
-    const namedNow = mentioned(line, 'you').map(q => q.id);
-    const open = state.asks.length;
-    state.asks = state.asks.filter(a => a.id !== UI.answering && !namedNow.includes(a.who) && !(r.aim && a.who === r.aim.id));
-    if (state.asks.length === open && open === 1) state.asks = [];
-    UI.answering = null;
-    UI.renderAsks();
+    // Whoever was waiting on the player has their answer (it is said to them, unless it names someone else).
+    const waiting = state.floor && P(state.floor.who) && P(state.floor.who).alive ? P(state.floor.who) : null;
+    state.floor = null;
+    UI.renderAskMarks();
     if (/\b(i am|i'm|im) (the )?witness\b/i.test(line)) me.mem.claimed = true;
-    state.yours = { text: line, to: r.aim && r.aim.alive && !r.aim.you ? r.aim.id : null, left: 2, first: null };
+    state.yours = { text: line, to: r.aim && r.aim.alive && !r.aim.you ? r.aim.id : waiting ? waiting.id : null, left: 2, first: null };
+    UI.typing(UI.typingIds);
     // A table that is being talked to stays a little longer.
     if (state.bonus < 6) { state.bonus += 1; state.clock += 1; }
     return true;
   }
-  /* Who speaks next, and to what: [{ p, why, answering, len }], one of
-     them or two at once. Whoever the player has just spoken to (or two of
-     the table together, neither seeing the other's, when it was said to
-     everyone); the morning's first words, about the night; whoever has
-     been accused or asked; else anyone, by how much each of them talks
-     (some never stop and some lurk). Two who have gone at each other
-     three times running are cut in on. */
+  /* The player lets what was put to them go by without an answer: the
+     table stops waiting, and the seats are told as much. */
+  function letGo() {
+    const f = state.floor;
+    if (!f) return false;
+    state.floor = null;
+    sys('You say nothing.', 'sys', false, `${you().first} says nothing to that.`);
+    UI.renderAskMarks();
+    UI.typing(UI.typingIds);
+    return true;
+  }
+  /* Who speaks next, and to what: { p, why, answering, len }, or null
+     when nobody does (the table is waiting on the player). One person at
+     a time, as at a real table (the owner, after a live game: "some
+     people speak together. Irl it is one at a time, if someone speaks to
+     me, no one should reply unless they are adding to it").
+     - Something has been put to the player and they have not answered:
+       nobody speaks, except that now and then one of the table adds to
+       it, once.
+     - The player has said something: whoever it was said to answers
+       (anyone, when it was to everyone), then one more takes it up.
+     - The morning's first two messages are about the night.
+     - Whoever has been accused or asked answers.
+     - Else anyone, by how much each of them talks (some never stop and
+       some lurk).
+     Nobody speaks twice running, and two who have gone at each other
+     three times are cut in on. */
   function nextUp() {
     const me = you();
     const seats = alive().filter(p => !p.you);
-    if (!seats.length) return [];
+    if (!seats.length) return null;
     const today = state.log.filter(e => e.t === 'say' && e.kind === 'talk' && e.day === state.day);
     const last = today[today.length - 1] || null;
     const recent = today.filter(e => e.who !== 'you').slice(-2).map(e => e.who);
@@ -1429,29 +1430,38 @@ const Game = (() => {
     const draw = pool => { let r = rnd(state) * pool.reduce((n, p) => n + weight(p), 0); for (const p of pool) { const w = weight(p); if (!w) continue; r -= w; if (r <= 0) return p; } return pool.filter(p => weight(p)).pop() || pool[pool.length - 1]; };
     const turn = (p, why, answering) => ({ p, why, answering: !!answering, len: pickLength(state, !!answering || !!why) });
     const pointed = p => { const by = p.mem.accusedBy ? P(p.mem.accusedBy) : null; return by && by.alive ? by : null; };
+    // Something is waiting on the player: the floor is theirs.
+    const f = state.floor;
+    if (f && me.alive) {
+      const asker = P(f.who);
+      const others = seats.filter(p => p.id !== f.who);
+      if (!f.added && asker && others.length && rnd(state) < App.addOn) {
+        f.added = true;
+        return { p: draw(others), why: `${asker.first} has just put this to ${me.first}, who has not had time to answer yet: "${f.text}" Add to it in a few words: back it up, or say you do not buy it. Do not ask ${me.first} anything else and do not change the subject.`, answering: false, addOn: true, len: pick(state, LENGTHS.slice(0, 2)) };
+      }
+      f.added = true;
+      return null;
+    }
     // What the player said is answered.
     const y = state.yours;
     if (y && y.left > 0 && me.alive) {
       const to = y.to ? P(y.to) : null;
-      const first = p => `${me.first} has just said, to ${to === p ? 'you' : to && to.alive ? to.first : 'everyone'}: "${y.text}" Answer ${me.first}: take up what they said (agree, argue with it, or answer the question), speaking to them.`;
+      const first = p => `${me.first} has just said, to ${to === p ? 'you' : 'everyone'}: "${y.text}" Answer ${me.first}: take up what they said (agree, argue with it, or answer the question), speaking to them.`;
       const second = `${me.first} said a moment ago: "${y.text}" Take that up as well, or what has been said about it since. Do not start a new subject.`;
-      if (y.left === 2 && to && to.alive) { y.left = 1; y.first = to.id; state.pending = state.pending.filter(id => id !== to.id); return [turn(to, first(to), true)]; }
       if (y.left === 2) {
-        const a = draw(seats); const rest = seats.filter(p => p !== a);
-        y.left = 0; y.first = a.id;
-        const b = rest.length ? draw(rest) : null;
-        return b ? [turn(a, first(a), true), turn(b, first(b), true)] : [turn(a, first(a), true)];
+        const a = to && to.alive && !to.you ? to : draw(seats);
+        y.left = 1; y.first = a.id;
+        state.pending = state.pending.filter(id => id !== a.id);
+        return turn(a, first(a), true);
       }
       y.left = 0;
       const rest = seats.filter(p => p.id !== y.first);
-      if (rest.length) { const b = draw(rest); const by = pointed(b); state.pending = state.pending.filter(id => id !== b.id); return [turn(b, `${by && !by.you ? `${by.first} has just pointed at you. ` : ''}${second}`, true)]; }
+      if (rest.length) { const b = draw(rest); const by = pointed(b); state.pending = state.pending.filter(id => id !== b.id); return turn(b, `${by && !by.you ? `${by.first} has just pointed at you. ` : ''}${second}`, true); }
     }
     // The morning's first words are about the night.
-    if (!today.length && state.last && state.last.victim && P(state.last.victim)) {
+    if (today.length < 2 && !today.some(e => e.who === 'you') && state.last && state.last.victim && P(state.last.victim)) {
       const v = P(state.last.victim);
-      const why = `The table has just learned that ${v.first} was taken in the night, and was ${wasWord(v.role)}. Nobody has said anything yet today: say what comes out of you.`;
-      const a = draw(seats); const rest = seats.filter(p => p !== a);
-      return [a].concat(rest.length ? [draw(rest)] : []).map((p, i) => ({ p, why, answering: false, morning: v.first, nth: i, len: pick(state, LENGTHS.slice(0, 3)) }));
+      return { p: draw(seats), why: `The table has just learned that ${v.first} was taken in the night, and was ${wasWord(v.role)}. ${today.length ? 'Say' : 'Nobody has said anything yet today: say'} what comes out of you.`, answering: false, morning: v.first, nth: today.length, len: pick(state, LENGTHS.slice(0, 3)) };
     }
     // Whoever has been accused or asked answers, unless two of them have been at it long enough.
     const spat = state.spat && state.spat.n >= 3 ? state.spat.pair : [];
@@ -1462,13 +1472,13 @@ const Game = (() => {
       state.pending = state.pending.filter(id => id !== owed.id);
       const by = pointed(owed);
       const asked = owed.mem.askedBy && P(owed.mem.askedBy) ? P(owed.mem.askedBy) : null;
-      return [turn(owed, by ? `${by.first} has just pointed at you.` : asked ? `${asked.first} has just asked you something.` : 'Someone has just spoken to you.', false)];
+      return turn(owed, by ? `${by.first} has just pointed at you.` : asked ? `${asked.first} has just asked you something.` : 'Someone has just spoken to you.', false);
     }
     // Anyone, by how much they talk.
     const others = seats.filter(p => !spat.includes(p.id));
     const p = draw(others.length ? others : seats);
     const by = pointed(p);
-    return [turn(p, by ? `${by.first} has just pointed at you.` : '', false)];
+    return turn(p, by ? `${by.first} has just pointed at you.` : '', false);
   }
   // A seat's message lands: in the story, in what the table makes of it, and in what is waiting on the player.
   function land(x, r) {
@@ -1485,56 +1495,50 @@ const Game = (() => {
     // Two of them going at each other are counted, so that somebody cuts in.
     const pair = r.aim && !r.aim.you && r.aim.alive && (r.stance === 'accuse' || r.stance === 'question') ? [p.id, r.aim.id].sort() : null;
     state.spat = pair ? { pair, n: state.spat && state.spat.pair.join() === pair.join() ? state.spat.n + 1 : 1 } : null;
-    /* Said to the player: marked in the story, and kept in the list of
-       what is waiting on them when it asks or accuses (one for each
-       person: a newer line from the same one takes its place). */
+    /* Said to the player: marked in the story. When it asks or accuses,
+       the floor is theirs: the table waits for their answer, the one
+       waiting is named under the chat and marked on their seat, and the
+       quick replies are aimed at them. (The owner had asked for what was
+       put to them to be kept, "cz when a lot of people ask me stuff i
+       lose it"; with one person speaking at a time and the table
+       waiting, only one thing is ever put to them, so there is no list.)
+       A line that only adds to what was put to them does not take it. */
     const toYou = me.alive && ((r.aim && r.aim.you) || mentioned(r.text, p.id)[0] === me);
     if (toYou) {
       said.toYou = true;
       UI.markToYou();
-      if (r.stance === 'question' || r.stance === 'accuse' || /\?/.test(r.text)) {
-        state.asks = state.asks.filter(a => a.who !== p.id);
-        state.asks.push({ id: ++state.askSeq, who: p.id, text: r.text, kind: r.stance === 'accuse' ? 'accuses' : 'asks', day: state.day });
-        UI.renderAsks();
-      }
+      if (!x.addOn && (r.stance === 'question' || r.stance === 'accuse' || /\?/.test(r.text))) { state.floor = { who: p.id, text: r.text, added: false }; UI.renderAskMarks(); UI.renderComposer(); }
     }
     if (r.weight && r.aim) { state.heat[r.aim.id] = (state.heat[r.aim.id] || 0) + r.weight; for (const l of alive()) if (!l.you && !isKnife(l) && l !== p) l.mem.sus[r.aim.id] = (l.mem.sus[r.aim.id] || 0) + r.weight; }
     if (r.ready && !state.ready.includes(p.id)) state.ready.push(p.id);
     state.clock -= 1;
     state.said += 1;
-    return toYou && /\?/.test(r.text);
   }
-  /* One turn of the table: whoever is up types (two at once, sometimes),
-     and what they send lands. on(): whether this is still the talk it was
-     (the player may have called the vote, or left, while they typed: what
-     comes back then is dropped). Returns how many messages landed. */
+  /* One turn of the table: whoever is up types, and what they send
+     lands. on(): whether this is still the talk it was (the player may
+     have called the vote, or left, while they typed: what comes back
+     then is dropped). Returns 1 when a message landed, 0 when nobody
+     spoke (the table is waiting on the player) or it was dropped. */
   async function tableTurn(on) {
-    const picks = nextUp();
-    if (!picks.length) return 0;
-    const ids = picks.map(x => x.p.id);
-    for (const x of picks) x.was = { accusedBy: x.p.mem.accusedBy, askedBy: x.p.mem.askedBy };
-    UI.typing(ids);
-    await wait(useClaude() ? 200 : 800 + Math.random() * 900);
-    const got = await Promise.all(picks.map(x => Seat.say(x.p, x)));
-    let n = 0;
-    for (let i = 0; i < picks.length && on(); i++) {
-      // Not before the last message has had time to be read.
-      const lag = readUntil - Date.now();
-      if (lag > 0 && App.speed > 0 && !App.fast) await nap(lag);
-      if (!on()) break;
-      UI.typing(ids.slice(i + 1));
-      const r = got[i];
-      if (land(picks[i], r)) askedYou = true;
-      n += 1;
-      UI.syncMid(); UI.renderCost();
-      save();
-      if (r.more) { await wait(500 + Math.random() * 400); if (on()) say(picks[i].p.id, r.more); }
-      readUntil = Date.now() + Math.min(2600, 800 + (r.text.length + (r.more || '').length) * 28) * App.speed;
-    }
+    const x = nextUp();
+    if (!x) { UI.typing([]); return 0; }
+    x.was = { accusedBy: x.p.mem.accusedBy, askedBy: x.p.mem.askedBy };
+    UI.typing([x.p.id]);
+    if (!useClaude()) await wait(1200 + Math.random() * 1200);
+    const r = await Seat.say(x.p, x);
+    // Not before the last message has had time to be read.
+    const lag = readUntil - Date.now();
+    if (lag > 0 && App.speed > 0 && !App.fast) await nap(lag);
+    if (!on()) { UI.typing([]); return 0; }
+    land(x, r);
     UI.typing([]);
-    return n;
+    UI.syncMid(); UI.renderCost();
+    save();
+    if (r.more) { await wait(700 + Math.random() * 500); if (on()) say(x.p.id, r.more); }
+    readUntil = Date.now() + Math.min(6000, 1400 + (r.text.length + (r.more || '').length) * 55) * App.speed;
+    return 1;
   }
-  // The table talks for a few messages and stops (a table that takes turns: the player speaks or passes, then they do).
+  // The table talks for a few messages and stops (a table that takes turns: the player speaks or passes, then they do). It stops at once when something is put to the player.
   async function burst(max) {
     const st = state;
     const on = () => state === st && st.phase === 'talk';
@@ -1548,33 +1552,34 @@ const Game = (() => {
     }
     if (on()) { const why = talkedOut(); if (why) tableVotes(why); }
   }
-  /* The table waits a little for the player: while the page is not being
-     looked at, a moment after a question is put to them (until they
-     answer it, or about four seconds), and while they are typing. */
+  /* The table waits for the player: while the page is not being looked
+     at; for as long as something put to them is unanswered (they answer,
+     pass, or set it aside); and while they are typing (until they send
+     it, or have not touched the box for eight seconds). */
   async function held(on) {
-    const asked = askedYou;
-    askedYou = false;
-    if (App.speed <= 0 || App.fast) return;
+    if (App.fast) return;
+    while (on() && state.floor && state.floor.added && you().alive) await nap(120);
+    if (App.speed <= 0) return;
     while (on() && document.hidden) await nap(500);
-    const lines = state.log.length;
-    if (asked && you().alive) for (let i = 0; i < 16 && on() && state.log.length === lines && !$('#say').value.trim(); i++) await nap(250 * App.speed);
-    for (let i = 0; i < 28 && on() && $('#say').value.trim(); i++) await nap(250);
+    for (let i = 0; i < 160 && on() && $('#say').value.trim() && Date.now() - UI.typedAt < 8000; i++) await nap(250);
   }
-  /* A live table: it talks on by itself until the vote. The player's
-     messages go in whenever they are sent (App.talk); nothing here waits
-     on them. */
+  /* A live table: it talks on by itself until the vote, one person at a
+     time, at the pace of people reading and typing. The player's
+     messages go in whenever they are sent (App.talk). */
   async function runTable() {
     if (talking || !state || state.phase !== 'talk') return;
     const run = ++tableRun;
     const st = state;
     const on = () => state === st && run === tableRun && st.phase === 'talk';
     talking = true;
-    readUntil = 0; askedYou = false;
+    readUntil = 0;
     try {
       await wait(900);
       while (on()) {
         const why = talkedOut();
         if (why) { tableVotes(why); break; }
+        // A moment before anyone starts typing: they are reading too.
+        await wait(1000 + Math.random() * 1200);
         await held(on);
         if (!on()) break;
         await tableTurn(on);
@@ -1595,7 +1600,7 @@ const Game = (() => {
     UI.emotes = {};
     UI.sel = null;
     // The talk is over: nothing is waiting on the player any more.
-    state.asks = [];
+    state.floor = null;
     UI.render();
     const voters = alive();
     const results = await Promise.all(voters.map(p => (p.you ? Promise.resolve({ vote: P(pickId), text: '' }) : Seat.vote(p))));
@@ -1672,37 +1677,13 @@ const Game = (() => {
 
   // ----- the page -----
   const UI = {
-    sel: null, tally: null, speakingId: null, logCount: 0, emotes: {}, arrows: [], over: null, wait: null, revealed: false, answering: null, typingIds: [], stuck: true,
+    sel: null, tally: null, speakingId: null, logCount: 0, emotes: {}, arrows: [], over: null, wait: null, revealed: false, typingIds: [], stuck: true, typedAt: 0,
     /* The chat follows its newest message while the player is at the bottom of it (stuck), and stays put when they have scrolled up to read. It also follows when its own room changes: what is waiting on the player opening above the box must not hide the newest message. */
     stick() { const w = $('#log-wrap'); if (w) { w.scrollTop = w.scrollHeight; UI.stuckAt = w.scrollTop; } },
     // The newest line in the story is said to the player: marked as it lands.
     markToYou() { const n = $('#log').lastElementChild; if (n && n.classList.contains('say')) { n.dataset.toyou = '1'; const w = $('.say-who', n); if (w && !$('.to-you', n)) w.after(el('span', { class: 'role to-you' }, 'to you')); } },
-    /* What is waiting on the player (the owner: "when someone asks me
-       something, mark it, cz when a lot of people ask me stuff i lose
-       it"): each question or accusation put to them, newest last, above
-       the box, until they answer it (Answer starts the reply with the
-       name; a line that names the asker answers theirs; the only one
-       waiting is answered by any line), set it aside, or the talk ends. */
-    renderAsks() {
-      const box = $('#asks');
-      if (!box || !state) return;
-      const asks = state.phase === 'talk' && you().alive ? state.asks.filter(a => P(a.who) && P(a.who).alive) : [];
-      if (UI.answering && !asks.some(a => a.id === UI.answering)) UI.answering = null;
-      box.hidden = !asks.length;
-      if (!asks.length) { box.replaceChildren(); UI.renderAskMarks(); return; }
-      box.replaceChildren(el('p', { class: 'asks-head' }, `Waiting on you (${asks.length})`), ...asks.map(a => {
-        const p = P(a.who);
-        // The whole row answers: it aims the quick replies and the box at that person.
-        return el('div', { class: 'ask', dataset: { ask: String(a.id), who: a.who, kind: a.kind } },
-          el('button', { type: 'button', class: 'ask-go', 'aria-pressed': String(UI.answering === a.id), 'aria-label': `Answer ${p.first}: ${a.text}`, onclick: () => { UI.answering = UI.answering === a.id ? null : a.id; UI.renderAsks(); UI.renderComposer(); } },
-            el('span', { class: 'say-face' }, faceNode(castOf(p.id), a.kind === 'accuses' ? 'cold' : 'even')),
-            el('span', { class: 'ask-main' }, el('span', { class: 'ask-who' }, p.first, el('span', { class: 'visually-hidden' }, ` ${a.kind} you`)), el('span', { class: 'ask-text' }, a.text))),
-          el('button', { type: 'button', class: 'btn ghost ask-x', 'aria-label': `Set ${p.first}'s question aside`, onclick: () => { state.asks = state.asks.filter(x => x.id !== a.id); save(); UI.renderAsks(); UI.renderComposer(); } }, '\u00D7'));
-      }));
-      UI.renderAskMarks();
-    },
-    // A mark on the seat of anyone waiting on the player.
-    renderAskMarks() { const who = new Set(state && state.phase === 'talk' ? state.asks.map(a => a.who) : []); for (const s of $$('.seat')) s.dataset.asking = who.has(s.dataset.id) ? '1' : '0'; },
+    // A mark on the seat of whoever is waiting on the player.
+    renderAskMarks() { const who = state && state.phase === 'talk' && state.floor && you().alive ? state.floor.who : null; for (const s of $$('.seat')) s.dataset.asking = s.dataset.id === who ? '1' : '0'; },
     /* The middle of the table taken over for a moment of the game (the
        night's steps, the count, a pause before a role is shown): a small
        caption, a line, a second line, held for ms. stage(null) gives the
@@ -1732,17 +1713,24 @@ const Game = (() => {
       if (old) old.remove();
       if (ch) s.append(el('span', { class: 'seat-emote', 'aria-hidden': 'true', dataset: { e: ch } }, ch));
     },
-    /* Who is typing: a ring on their seats, and their faces with three
-       dots under the last message (two at once, sometimes). */
+    /* Who is typing: a ring on their seat, and their face with three dots
+       under the last message. When nobody is, because something has been
+       put to the player and the table is waiting on them, that is said
+       there instead. */
     typing(ids) {
       UI.typingIds = (ids || []).filter(id => P(id));
       for (const s of $$('.seat')) s.dataset.typing = UI.typingIds.includes(s.dataset.id) ? '1' : '0';
       const box = $('#typing');
       if (!box) return;
-      box.hidden = !UI.typingIds.length;
-      box.replaceChildren(...UI.typingIds.map(id => el('span', { class: 'say-face' }, faceNode(castOf(id)))),
-        ...(UI.typingIds.length ? [el('span', { class: 'typing-dots', 'aria-hidden': 'true' }, el('i'), el('i'), el('i')), el('span', { class: 'visually-hidden' }, `${andList(UI.typingIds.map(id => P(id).first))} ${UI.typingIds.length === 1 ? 'is' : 'are'} typing`)] : []));
+      const f = state && state.phase === 'talk' && state.floor && you().alive ? P(state.floor.who) : null;
+      const kids = UI.typingIds.length
+        ? [...UI.typingIds.map(id => el('span', { class: 'say-face' }, faceNode(castOf(id)))), el('span', { class: 'typing-dots', 'aria-hidden': 'true' }, el('i'), el('i'), el('i')), el('span', { class: 'visually-hidden' }, `${andList(UI.typingIds.map(id => P(id).first))} ${UI.typingIds.length === 1 ? 'is' : 'are'} typing`)]
+        : f ? [el('span', { class: 'say-face' }, faceNode(castOf(f.id))), el('span', { class: 'waiting-on' }, `${f.first} is waiting for you. Take your time.`)] : [];
+      box.hidden = !kids.length;
+      box.dataset.waiting = !UI.typingIds.length && f ? '1' : '0';
+      box.replaceChildren(...kids);
       if (UI.stuck) UI.stick();
+      UI.syncSay();
     },
     // A seat going out of the game: a beat of attention on it.
     gone(id) { UI.renderTable(); const s = $(`.seat[data-id="${CSS.escape(id)}"]`); if (s) s.classList.add('going'); },
@@ -1876,7 +1864,7 @@ const Game = (() => {
       mid.replaceChildren(...kids);
     },
     // Under the day in the middle of the table: how many are in, how many have said they would vote, and when it is late.
-    readyText() { const want = state.ready.filter(id => P(id) && P(id).alive).length; return `${alive().length} still in${want ? ` · ${want} want to vote` : ''}${state.clock <= 3 ? ' · getting late' : ''}`; },
+    readyText() { const want = state.ready.filter(id => P(id) && P(id).alive).length; return state.floor && you().alive ? 'waiting on you' : `${alive().length} still in${want ? ` · ${want} want to vote` : ''}${state.clock <= 3 ? ' · getting late' : ''}`; },
     syncMid() { const r = $('#mid-ready'); if (r && state && state.phase === 'talk') r.textContent = UI.readyText(); },
     /* The seat picked: one row (who, what the player knows of them, and the
        two marks). What to say to them is the quick replies' business. */
@@ -1892,15 +1880,15 @@ const Game = (() => {
         el('div', { class: 'sheet-head' }, el('span', { class: 'sheet-name' }, p.you ? `${p.name} (you)` : p.name), el('span', { class: 'sheet-role' }, [c ? String(c.age) : '', !p.alive ? `out ${p.out.how === 'vote' ? 'by the vote' : p.out.how === 'shot' ? 'with the Hothead' : 'in the night'}, day ${p.out.day}` : '', k ? roleWord(k) : ''].filter(Boolean).join(' · '))),
         p.alive && !p.you ? el('div', { class: 'sheet-acts', role: 'group', 'aria-label': `Your mark on ${p.first}` }, mark('sus', 'Suspect'), mark('trust', 'Trust')) : null].filter(Boolean));
     },
-    /* Who a quick reply goes to: whoever the player chose to answer, else
-       the seat picked, else (at a table that takes turns) whoever spoke
+    /* Who a quick reply goes to: the seat picked, else whoever is waiting
+       on the player, else (at a table that takes turns) whoever spoke
        last today. At a live table nobody is aimed at unless the player
        chose them: the last to speak changes under the finger. */
     target() {
-      const a = UI.answering ? state.asks.find(x => x.id === UI.answering) : null;
-      if (a && P(a.who) && P(a.who).alive) return P(a.who);
       const s = UI.sel ? P(UI.sel) : null;
       if (s && s.alive && !s.you) return s;
+      const f = state.floor ? P(state.floor.who) : null;
+      if (f && f.alive) return f;
       if (!state.live) for (let i = state.log.length - 1; i >= 0; i--) { const e = state.log[i]; if (e.day !== state.day) break; if (e.t === 'say' && e.kind === 'talk' && e.who !== 'you' && P(e.who) && P(e.who).alive) return P(e.who); }
       return null;
     },
@@ -1916,14 +1904,16 @@ const Game = (() => {
         chip("It's you.", `It's you, ${T}.`, { aim: tgt.id, stance: 'accuse' }), chip('Liar.', `${T}, you're lying.`, { aim: tgt.id, stance: 'accuse' }), chip('Why?', `Why, ${T}?`, { aim: tgt.id, stance: 'question' }),
         chip("I'm with you.", `I'm with ${T}.`, { aim: tgt.id, stance: 'vouch' }), chip('Not me.', `Not me, ${T}.`, { aim: tgt.id, stance: 'other' })];
     },
-    // The one button beside the box. A live table: Send. A table that takes turns: Say with words in it, Pass with none.
+    // The one button beside the box. A live table: Send (Pass, with nothing typed, when the table is waiting on the player). A table that takes turns: Say with words in it, Pass with none.
     syncSay() {
       const b = $('#btn-say');
       const asking = !!UI.wait && UI.wait.kind === 'line';
       const empty = !$('#say').value.trim();
       const live = !!state && state.live && state.phase === 'talk';
-      b.textContent = asking ? 'Say it' : live ? 'Send' : empty ? 'Pass' : 'Say';
-      b.disabled = (busy && !asking) || (live && empty && !asking);
+      // (At a live table there is nothing to pass, except what has been put to the player.)
+      const floor = live && !!state.floor;
+      b.textContent = asking ? 'Say it' : live ? (empty && floor ? 'Pass' : 'Send') : empty ? 'Pass' : 'Say';
+      b.disabled = (busy && !asking) || (live && empty && !floor && !asking);
       b.classList.toggle('primary', asking || !empty);
     },
     renderCost() {
@@ -1938,7 +1928,7 @@ const Game = (() => {
       const tgt = can ? UI.target() : null;
       $('#say-line').hidden = !(can || asking);
       $('#say').disabled = busy && !asking;
-      $('#say').placeholder = asking ? UI.wait.title : tgt && UI.answering ? `Answer ${tgt.first}` : 'Say something';
+      $('#say').placeholder = asking ? UI.wait.title : tgt && state.floor && tgt.id === state.floor.who ? `Answer ${tgt.first}` : 'Say something';
       UI.syncSay();
       const chips = $('#chips');
       chips.hidden = !can;
@@ -1961,7 +1951,7 @@ const Game = (() => {
       UI.renderMid();
       UI.renderSheet();
       UI.renderComposer();
-      UI.renderAsks();
+      UI.typing(UI.typingIds);
     },
     dialog(title, body, buttons) {
       const d = $('#dlg');
@@ -2009,7 +1999,7 @@ const Game = (() => {
       const mode = $('#f-mode [aria-pressed="true"]').dataset.v;
       $('#claude-fields').hidden = mode !== 'claude';
       const townKey = !!(session.get(TOWN_KEY) || store.get(TOWN_KEY));
-      $('#pace-help').textContent = $('#f-pace [aria-pressed="true"]').dataset.v === 'live' ? 'They talk on by themselves, like a group chat. Say something whenever you like.' : 'They wait for you: you speak or pass, then two or three of them do.';
+      $('#pace-help').textContent = $('#f-pace [aria-pressed="true"]').dataset.v === 'live' ? 'They talk on by themselves, one at a time, and wait for you when something is put to you. Say something whenever you like.' : 'They wait for you: you speak or pass, then two or three of them do.';
       $('#mode-help').textContent = mode === 'claude' ? 'Every other seat is Claude, in that person\'s voice, knowing only what they would know.' : 'No key and no calls: the others follow a simple script. Good for learning the game; they are not clever.';
       $('#f-key').placeholder = townKey ? 'Using the town game\'s key (type here to use another)' : 'sk-ant-…';
     }
@@ -2017,7 +2007,8 @@ const Game = (() => {
 
   // ----- what the buttons do -----
   const App = {
-    speed: 1, fast: false, quiet: false,
+    // addOn: how often, when something is put to the player, one more of the table adds to it before they all wait.
+    speed: 1, fast: false, quiet: false, addOn: 0.3,
     saved() { try { const s = JSON.parse(store.get(SAVE_KEY) || 'null'); return isObj(s) && s.v === 1 && Array.isArray(s.players) && s.phase !== 'over' && s.players.every(p => p.you || castOf(p.id)) ? s : null; } catch (e) { return null; } },
     /* Sit down: { seed, size (6, 8 or 10), role ('any', 'town', 'knife', 'witness', 'watch'), mode ('claude' or 'demo'), name, model, live (false: a table that takes turns) }. */
     newGame(opts) {
@@ -2035,7 +2026,7 @@ const Game = (() => {
       UI.roleCard();
       return state;
     },
-    resume() { const s = App.saved(); if (!s) return false; stopTable(); state = s; if (!Array.isArray(state.votesLog)) state.votesLog = []; if (!Array.isArray(state.asks)) state.asks = [];
+    resume() { const s = App.saved(); if (!s) return false; stopTable(); state = s; if (!Array.isArray(state.votesLog)) state.votesLog = [];
       // (A table kept from before the talk was live: it is given what a live table has.)
       if (typeof state.clock !== 'number') { state.live = true; state.clock = 8; state.said = 0; state.bonus = 0; state.yours = null; state.spat = null; }
       if (!Array.isArray(state.ready)) state.ready = [];
@@ -2064,9 +2055,11 @@ const Game = (() => {
         if (!talking) runTable();
         return Promise.resolve();
       }
-      return locked(async () => { if (state.phase !== 'talk') return; youSay(text, meta); await burst(alive().filter(p => !p.you).length <= 3 ? 2 : 3); });
+      return locked(async () => { if (state.phase !== 'talk') return; if (!youSay(text, meta)) letGo(); await burst(alive().filter(p => !p.you).length <= 3 ? 2 : 3); });
     },
-    callVote() { if (busy || state.phase !== 'talk') return; stopTable(); state.yours = null; state.phase = 'vote'; UI.sel = null; state.asks = []; sys(you().alive ? 'You call the vote.' : 'The table calls the vote.', 'sys', false, you().alive ? `${you().first} calls the vote.` : null); save(); UI.render(); },
+    // The player lets what was put to them go by (a live table: Pass beside the empty box).
+    pass() { if (!state || state.phase !== 'talk' || busy) return; if (letGo()) { save(); UI.syncMid(); UI.renderComposer(); } if (state.live && !talking) runTable(); },
+    callVote() { if (busy || state.phase !== 'talk') return; stopTable(); state.yours = null; state.floor = null; state.phase = 'vote'; UI.sel = null; sys(you().alive ? 'You call the vote.' : 'The table calls the vote.', 'sys', false, you().alive ? `${you().first} calls the vote.` : null); save(); UI.render(); },
     vote(pickId) {
       return locked(async () => {
         if (state.phase !== 'vote') return;
@@ -2126,14 +2119,14 @@ const Game = (() => {
         if (UI.wait && UI.wait.kind === 'line') { i.value = ''; UI.wait.resolve(t); return; }
         if (busy) return;
         // Nothing typed: at a table that takes turns the button passes; Enter on an empty box does nothing.
-        if (!t) { if (fromButton && state && !state.live) App.talk(''); return; }
+        if (!t) { if (fromButton && state) { if (!state.live) App.talk(''); else App.pass(); } return; }
         i.value = '';
         UI.syncSay();
         App.talk(t);
       };
       $('#btn-say').addEventListener('click', () => send(true));
       $('#say').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); send(false); } });
-      $('#say').addEventListener('input', () => UI.syncSay());
+      $('#say').addEventListener('input', () => { UI.typedAt = Date.now(); UI.syncSay(); });
       const lw = $('#log-wrap');
       // (Only the player's own scrolling unpins it: a scroll to where the page itself last put it is not theirs.)
       lw.addEventListener('scroll', () => { if (Math.abs(lw.scrollTop - (UI.stuckAt || 0)) < 2) return; UI.stuck = lw.scrollHeight - lw.scrollTop - lw.clientHeight < 60; });

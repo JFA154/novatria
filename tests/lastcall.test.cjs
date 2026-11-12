@@ -23,7 +23,8 @@
    speaks whenever they like. Most tests here sit down at a table that
    takes turns (live: false), where each step ends and can be waited for;
    the live table has tests of its own (who is typing, the player speaking
-   meanwhile, two answering at once, the vote dropping what was being
+   meanwhile, one at a time, the floor theirs when something is put to
+   them, the vote dropping what was being
    typed, a reload in the middle). Run with: node tests/run.cjs lastcall */
 const fs = require('fs');
 const path = require('path');
@@ -50,7 +51,7 @@ const settle = async (page, opts) => {
   throw new Error('the step never settled');
 };
 const sit = async (page, opts) => {
-  await page.evaluate(o => { Game.App.speed = 0; Game.App.quiet = true; Game.App.newGame(Object.assign({ seed: 11, size: 8, mode: 'demo', name: 'Joe', live: false }, o)); }, opts || {});
+  await page.evaluate(o => { Game.App.speed = 0; Game.App.quiet = true; Game.App.addOn = 0; Game.App.newGame(Object.assign({ seed: 11, size: 8, mode: 'demo', name: 'Joe', live: false }, o)); }, opts || {});
   await page.click('dialog .btn.primary');
 };
 const begin = async page => { await page.click('#mid-go'); await settle(page); };
@@ -82,6 +83,7 @@ function standIn(bodies, opts) {
         : need.includes('take') && need.includes('say') ? { take: other, say: `Take ${other}. Too sharp by half.` }
           : need.includes('take') ? { take: other, note: `took ${other}` }
             : need.length === 1 ? { say: 'You will all be sorry by morning.' }
+              : opts && opts.plain ? { say: 'Too quiet in here, All of you.', more: opts.more ? 'Just saying, that is all I mean here' : null, about: null, stance: 'other', ready: !!opts.ready, suspect: other, trust: null, feel: `sore at ${other}`, note: `watching ${other}` }
               : { say: `${other}, You were too quiet.`, more: opts && opts.more ? 'Just saying, that is all I mean here' : null, about: other, stance: 'accuse', ready: !!(opts && opts.ready), suspect: other, trust: null, feel: `sore at ${other}`, note: `pressing ${other}` };
     return route.fulfill({ status: 200, headers: Object.assign({ 'content-type': 'application/json' }, cors), body: JSON.stringify({ id: 'msg_x', type: 'message', role: 'assistant', model: body.model, stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(out) }], usage: { input_tokens: 1000, output_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } }) });
   };
@@ -349,6 +351,9 @@ s.test('with Claude at the seats: the request is the API\'s own shape, each seat
   await page.fill('#say', 'I was at the bar all night. Who saw anything?');
   await page.click('#btn-say');
   await settle(page);
+  await pass(page);
+  await pass(page);
+  await pass(page);
   const said = await page.evaluate(() => Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk').map(e => [e.who, e.text]));
   assert.equal(said[0][0], 'you');
   assert.ok(said.length >= 3 && said.slice(1).every(x => /you were too quiet/i.test(x[1])), 'what Claude sent back is what is said');
@@ -411,6 +416,8 @@ s.test('a call that fails costs the game nothing: that seat plays from the scrip
   await page.click('#mid-go');
   await settle(page);
   if ((await st(page)).me.alive) { await page.fill('#say', 'Well?'); await page.click('#btn-say'); await settle(page); } else await pass(page);
+  await pass(page);
+  await pass(page);
   const out = await page.evaluate(() => ({ notices: Game.state.log.filter(e => e.kind === 'notice' && /failed/.test(e.text)).map(e => e.text), talk: Game.state.log.filter(e => e.t === 'say' && e.who !== 'you').length, host: Game.state.log.filter(e => e.kind === 'host').length, failed: Game.state.usage.failed, save: window.localStorage.getItem('novatria.lastcall'), text: document.body.textContent }));
   assert.ok(bodies.length >= 2, 'the calls were made');
   assert.equal(out.notices.length, 1, 'said once');
@@ -453,71 +460,137 @@ s.test('out of the game the player sees every role, can watch or skip to the end
   assert.equal(await page.evaluate(() => !!document.querySelector('dialog[open] .reveal')), true, 'and the reveal opens by itself at the end');
 });
 
-s.test('what is put to the player is kept until they answer it: marked in the story, listed above the box, a mark on the asker\'s seat; tapping one aims the quick replies at them, a reply or a line naming them or setting it aside takes it off, and the vote clears the rest', async h => {
+s.test('one at a time, and the floor is the player\'s when something is put to them: nobody else speaks until they answer, pass or call the vote (now and then one of the table adds to it first, once); who is waiting is said under the chat and marked on their seat, the quick replies are aimed at them, and the answer goes to them', async h => {
   const page = await open(h);
   await sit(page, { seed: 81, role: 'town', wild: false });
   await begin(page);
   await page.evaluate(() => { Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop(); for (const p of Game.state.players) p.type = 'proper'; });
   await page.click('#mid-go');
   await settle(page);
-  // Everyone who speaks puts something to the player: the first a question, the rest an accusation.
-  await page.evaluate(() => { let n = 0; Game.Bots.say = p => { n += 1; const me = Game.state.players[0]; return n === 1 ? { text: `Joe, who do you make it? (${p.first})`, aim: me, stance: 'question' } : { text: `It's Joe. I'd put money on it. (${p.first})`, aim: me, stance: 'accuse' }; }; });
+  // The next to speak puts a question to the player; anyone after that would only say Hm.
+  const asksOnce = () => { let n = 0; Game.Bots.say = p => { n += 1; return n === 1 ? { text: `Joe, who do you make it? (${p.first})`, aim: Game.state.players[0], stance: 'question' } : { text: `Hm. (${p.first})`, aim: null, stance: 'other' }; }; };
+  const view = () => page.evaluate(() => {
+    const f = Game.state.floor;
+    const talk = Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk' && e.day === Game.state.day);
+    const box = document.querySelector('#typing');
+    return { floor: f ? f.who : null, first: f ? Game.state.players.find(p => p.id === f.who).first : null, who: talk.map(e => e.who), texts: talk.map(e => e.text), waiting: box.hidden ? null : box.textContent, attr: box.dataset.waiting,
+      seats: [...document.querySelectorAll('.seat[data-asking="1"]')].map(x => x.dataset.id), marked: [...document.querySelectorAll('#log .say[data-toyou="1"]')].length, to: (document.querySelector('#chips .chips-to') || {}).textContent || null,
+      chips: [...document.querySelectorAll('#chips .chip')].map(c => c.textContent), placeholder: document.querySelector('#say').placeholder, btn: document.querySelector('#btn-say').textContent, mid: (document.querySelector('#mid-ready') || {}).textContent, tray: !!document.querySelector('#asks') };
+  });
+  await page.evaluate(asksOnce);
   await pass(page);
-  const tray = () => page.evaluate(() => ({ hidden: document.querySelector('#asks').hidden, head: (document.querySelector('#asks .asks-head') || {}).textContent || null,
-    rows: [...document.querySelectorAll('#asks .ask')].map(r => ({ who: r.dataset.who, kind: r.dataset.kind, label: r.querySelector('.ask-who').textContent, text: r.querySelector('.ask-text').textContent, on: r.querySelector('.ask-go').getAttribute('aria-pressed') })),
-    seats: [...document.querySelectorAll('.seat[data-asking="1"]')].map(x => x.dataset.id), marked: [...document.querySelectorAll('#log .say[data-toyou="1"]')].length, tags: [...document.querySelectorAll('#log .say .to-you')].length,
-    to: (document.querySelector('#chips .chips-to') || {}).textContent || null, chips: [...document.querySelectorAll('#chips .chip')].map(c => c.textContent), placeholder: document.querySelector('#say').placeholder }));
-  let t = await tray();
-  assert.equal(t.hidden, false);
-  assert.equal(t.head, 'Waiting on you (3)');
-  assert.deepEqual(t.rows.map(r => r.kind), ['asks', 'accuses', 'accuses']);
-  assert.match(t.rows[0].label, /^\w+ asks you$/);
-  assert.match(t.rows[0].text, /^Joe, who do you make it\?/);
-  assert.deepEqual(t.seats.slice().sort(), t.rows.map(r => r.who).sort(), 'each of them has a mark on their seat');
-  assert.deepEqual([t.marked, t.tags], [3, 3], 'and each line is marked "to you" in the story');
-  // Each is there whole, on as many lines as it takes (the owner, of one cut short with three dots: "this is not good"), and the chat still shows its newest message above the list.
-  const whole = await page.evaluate(() => { const x = document.querySelector('#asks .ask-text'); const w = document.querySelector('#log-wrap'); const c = getComputedStyle(x); return { overflow: c.textOverflow, space: c.whiteSpace, cut: x.scrollWidth > x.clientWidth + 1 && c.overflow !== 'visible', shown: getComputedStyle(document.querySelector('#asks .ask-who .visually-hidden')).position, gap: Math.round(w.scrollHeight - w.scrollTop - w.clientHeight) }; });
-  assert.deepEqual([whole.overflow, whole.space, whole.cut, whole.shown], ['clip', 'normal', false, 'absolute'], JSON.stringify(whole));
-  assert.ok(whole.gap <= 2, 'the chat is at its newest message: ' + whole.gap);
-  assert.deepEqual(t.chips, ["It's you.", 'Liar.', 'Why?', "I'm with you.", 'Not me.'], 'the quick replies');
-  // Tapping one aims the quick replies and the box at that person; a quick reply answers it in one tap.
-  const firstWho = t.rows[0].who;
-  const nameOf = id => page.evaluate(x => Game.state.players.find(p => p.id === x).first, id);
-  const firstName = await nameOf(firstWho);
-  await page.evaluate(() => { Game.Bots.say = p => ({ text: `Hm. (${p.first})`, aim: null, stance: 'other' }); });
-  await page.click(`#asks .ask[data-who="${firstWho}"] .ask-go`);
-  t = await tray();
-  assert.deepEqual([t.to, t.placeholder, t.rows.find(r => r.who === firstWho).on], [`To ${firstName}:`, `Answer ${firstName}`, 'true']);
+  let v = await view();
+  assert.equal(v.who.length, 1, 'one of them spoke, and nobody after: ' + v.texts.join(' | '));
+  assert.equal(v.floor, v.who[0]);
+  assert.match(v.texts[0], /^Joe, who do you make it\?/);
+  assert.deepEqual([v.waiting, v.attr, v.mid], [`${v.first} is waiting for you. Take your time.`, '1', 'waiting on you']);
+  assert.deepEqual([v.seats, v.marked], [[v.floor], 1], 'a mark on their seat, and the line marked "to you" in the chat');
+  assert.deepEqual([v.to, v.placeholder, v.chips], [`To ${v.first}:`, `Answer ${v.first}`, ["It's you.", 'Liar.', 'Why?', "I'm with you.", 'Not me.']], 'the quick replies are aimed at whoever is waiting');
+  assert.equal(v.tray, false, 'and there is no list: only one thing is ever put to the player at a time');
+  // A quick reply answers it in one tap: it goes to them, and they are the next to speak.
+  const asker = v.floor;
   await page.click('#chips .chip[data-chip="Not me."]');
   await settle(page);
-  assert.equal(await page.evaluate(() => Game.state.log.filter(e => e.who === 'you').pop().text), `Not me, ${firstName}.`);
-  t = await tray();
-  assert.equal(t.head, 'Waiting on you (2)');
-  assert.ok(!t.rows.some(r => r.who === firstWho));
-  // A typed line that names an asker answers theirs; setting one aside takes it off too.
-  const second = t.rows[0].who;
-  const third = t.rows[1].who;
-  await page.fill('#say', `It isn't me, ${await nameOf(second)}.`);
-  assert.equal(await page.textContent('#btn-say'), 'Say', 'the button says Say once there are words');
+  v = await view();
+  assert.deepEqual([v.who[1], v.texts[1], v.who[2], v.floor, v.waiting, v.seats], ['you', `Not me, ${await page.evaluate(id => Game.state.players.find(p => p.id === id).first, asker)}.`, asker, null, null, []]);
+  assert.ok(v.who.length >= 4, 'and the table talks on: ' + v.who.length);
+  // An answer that names nobody still goes to whoever was waiting.
+  await page.evaluate(asksOnce);
+  await pass(page);
+  v = await view();
+  const second = v.floor;
+  assert.ok(second);
+  let n = v.who.length;
+  await page.fill('#say', 'no idea yet, give me a minute');
   await page.click('#btn-say');
   await settle(page);
-  t = await tray();
-  assert.deepEqual(t.rows.map(r => r.who), [third]);
-  await page.click(`#asks .ask[data-who="${third}"] .ask-x`);
-  t = await tray();
-  assert.deepEqual([t.hidden, t.rows.length, t.seats.length], [true, 0, 0]);
-  assert.equal(await page.textContent('#btn-say'), 'Pass', 'and Pass with none');
-  // Asked again, then the vote is called: nothing is left waiting.
-  await page.evaluate(() => { Game.Bots.say = p => ({ text: `Joe, well? (${p.first})`, aim: Game.state.players[0], stance: 'question' }); });
+  v = await view();
+  assert.deepEqual([v.who[n], v.who[n + 1], v.floor], ['you', second, null]);
+  // Passing lets it go by: said so, the seats are told, and the table goes on.
+  await page.evaluate(asksOnce);
   await pass(page);
-  assert.equal((await tray()).hidden, false);
+  v = await view();
+  assert.ok(v.floor);
+  n = v.who.length;
+  assert.equal(v.btn, 'Pass');
+  await pass(page);
+  v = await view();
+  assert.equal(v.floor, null);
+  assert.ok(v.who.length > n, 'they talk on');
+  assert.ok((await sysLines(page)).includes('You say nothing.'));
+  assert.match(await page.evaluate(() => Game.recordText()), /^Joe says nothing to that\.$/m);
+  // Now and then one of them adds to it, once, and then they wait.
+  await page.evaluate(() => { Game.App.addOn = 1; let k = 0; Game.Bots.say = p => { k += 1; return k === 1 ? { text: `Joe, why so sure? (${p.first})`, aim: Game.state.players[0], stance: 'question' } : { text: `Yeah Joe, answer that. (${p.first})`, aim: Game.state.players[0], stance: 'question' }; }; });
+  n = v.who.length;
+  await pass(page);
+  v = await view();
+  assert.equal(v.who.length, n + 2, 'the question, one adding to it, and no more');
+  assert.notEqual(v.who[n], v.who[n + 1]);
+  assert.equal(v.floor, v.who[n], 'the floor is still for the one who asked: what was added is not a second question to answer');
+  // The vote clears it.
   await page.click('#btn-vote');
-  assert.deepEqual(await page.evaluate(() => [document.querySelector('#asks').hidden, Game.state.asks.length]), [true, 0]);
+  assert.deepEqual(await page.evaluate(() => [Game.state.floor, document.querySelector('#typing').hidden, document.querySelectorAll('.seat[data-asking="1"]').length]), [null, true, 0]);
+});
+
+s.test('at a live table the talk stops for the player when something is put to them: nobody types until they answer or pass, however long they take, and the one who adds to it is told to add and not to ask', async h => {
+  const page = await open(h);
+  await sit(page, { seed: 81, role: 'town', wild: false, live: true });
+  await begin(page);
+  await page.evaluate(() => {
+    Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop();
+    let n = 0;
+    Game.Bots.say = p => { n += 1; return n === 3 || n === 6 ? { text: `Joe, who do you make it? (${p.first})`, aim: Game.state.players[0], stance: 'question' } : { text: `Hm. (${p.first})`, aim: null, stance: 'other' }; };
+  });
+  await page.click('#mid-go');
+  await page.waitForFunction(() => !!Game.state.floor);
+  const held = () => page.evaluate(() => ({ said: Game.state.said, talking: Game.talking, busy: Game.busy, typing: document.querySelectorAll('.seat[data-typing="1"]').length, waiting: document.querySelector('#typing').dataset.waiting, text: document.querySelector('#typing').textContent,
+    btn: document.querySelector('#btn-say').textContent, off: document.querySelector('#btn-say').disabled, mid: document.querySelector('#mid-ready').textContent, last: Game.state.log[Game.state.log.length - 1].who, floor: Game.state.floor.who }));
+  const a = await held();
+  assert.deepEqual([a.said, a.talking, a.busy, a.typing, a.waiting, a.btn, a.off, a.mid], [3, true, false, 0, '1', 'Pass', false, 'waiting on you']);
+  assert.match(a.text, /^\w+ is waiting for you\. Take your time\.$/);
+  await page.waitForTimeout(700);
+  const b = await held();
+  assert.deepEqual([b.said, b.typing, b.last], [3, 0, a.floor], 'nobody has spoken since, and nobody is typing');
+  // The player answers, naming nobody: it goes to the one who asked, who speaks next, and the table is off again.
+  await page.fill('#say', 'thinking. not sure yet');
+  assert.equal(await page.textContent('#btn-say'), 'Send');
+  await page.click('#btn-say');
+  await page.waitForFunction(() => Game.state.said >= 4);
+  const after = await page.evaluate(() => { const l = Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk'); const i = l.map(e => e.who).lastIndexOf('you'); return [l[i].text, l[i + 1].who]; });
+  assert.deepEqual(after, ['thinking. not sure yet', a.floor]);
+  // Asked again: this time they pass.
+  await page.waitForFunction(() => !!Game.state.floor);
+  assert.equal(await page.evaluate(() => Game.state.said), 6);
+  await page.click('#btn-say');
+  assert.deepEqual(await page.evaluate(() => [Game.state.floor, Game.state.log.some(e => e.text === 'You say nothing.')]), [null, true]);
+  await page.waitForFunction(() => Game.state.phase === 'vote' && !Game.talking, null, { timeout: 20000 });
+  assert.ok(await page.evaluate(() => Game.state.said > 6), 'and they talk on to the vote');
+  // With Claude: whoever adds to what was put to the player is told to add to it, and nothing more.
+  const bodies = [];
+  const claude = await open(h, { route: standIn(bodies) });
+  await claude.fill('#f-key', 'sk-ant-test-key');
+  await claude.fill('#f-name', 'Joe');
+  await claude.click('#f-role [data-v="knife"]');
+  await claude.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; Game.App.addOn = 1; });
+  await claude.click('#f-pace [data-v="turns"]');
+  await claude.click('#btn-new');
+  await claude.click('dialog .btn.primary');
+  await begin(claude);
+  await claude.click(`.seat[data-id="${await claude.evaluate(() => Game.state.players.find(p => p.alive && p.role === 'town').id)}"]`);
+  await claude.click('#mid-go');
+  await settle(claude);
+  for (let i = 0; i < 6 && !(await claude.evaluate(() => !!Game.state.floor)); i++) await pass(claude);
+  const userOf = x => x.body.messages[0].content.map(c => c.text).join('\n');
+  const talk = bodies.filter(x => x.body.output_config.format.schema.required.includes('stance')).map(userOf);
+  const add = talk[talk.length - 1];
+  assert.match(add, /\w+ has just put this to Joe, who has not had time to answer yet: "[^"]+" Add to it in a few words: back it up, or say you do not buy it\. Do not ask Joe anything else and do not change the subject\./);
+  assert.match(/^LENGTH THIS TURN: (.+)$/m.exec(add)[1], /^(just a reaction|a few words)/);
+  assert.match(bodies[0].body.system[0].text, /People need time to read and type\. Never hold it against anyone that they have not answered yet, or that they have said nothing for a few messages\./);
 });
 
 s.test('they play like people who are trying to win, and write like people in a group chat: each seat has a temperament and a way of typing of its own, is told how much to send each turn (sometimes only a reaction) and is cut off if it goes on; nobody but the seats speaks', async h => {
   const bodies = [];
-  const page = await open(h, { route: standIn(bodies) });
+  const page = await open(h, { route: standIn(bodies, { plain: true }) });
   await page.fill('#f-key', 'sk-ant-test-key');
   await page.fill('#f-name', 'Joe');
   await page.click('#f-role [data-v="town"]');
@@ -610,7 +683,7 @@ s.test('they play like people who are trying to win, and write like people in a 
 
 s.test('what the player says is answered: the first seat to speak is given their words and told to answer them, the second to take them up, and a round the player passes has none of it; in the offline demo the scripted seats answer too', async h => {
   const bodies = [];
-  const page = await open(h, { route: standIn(bodies) });
+  const page = await open(h, { route: standIn(bodies, { plain: true }) });
   await page.fill('#f-key', 'sk-ant-test-key');
   await page.fill('#f-name', 'Joe');
   // (A Knife, so the night is the player's to decide and they are at the table in the morning.)
@@ -638,10 +711,12 @@ s.test('what the player says is answered: the first seat to speak is given their
   await settle(page);
   let round = talkOf().slice(from).map(userOf);
   assert.ok(round.length >= 2, 'two or three answer');
-  // Said to everyone: two of them answer at once, neither having seen the other's.
-  for (const u of round.slice(0, 2)) assert.ok(u.includes(`Joe has just said, to everyone: "${words}" Answer Joe: take up what they said (agree, argue with it, or answer the question), speaking to them.`), u.slice(-400));
+  // Said to everyone: one of them answers, then another takes it up, having read the first.
+  assert.ok(round[0].includes(`Joe has just said, to everyone: "${words}" Answer Joe: take up what they said (agree, argue with it, or answer the question), speaking to them.`), round[0].slice(-400));
+  assert.ok(round[1].includes(`Joe said a moment ago: "${words}" Take that up as well, or what has been said about it since. Do not start a new subject.`), round[1].slice(-400));
   assert.notEqual(/^YOUR SEAT: (.+)\.$/m.exec(round[0])[1], /^YOUR SEAT: (.+)\.$/m.exec(round[1])[1], 'two different people');
   assert.equal(round[0].includes('Joe: "' + words + '"'), true, 'and it is in the record they are given');
+  assert.match(round[1], /: "too quiet in here, all of you\.?"\s/i, 'the second has read what the first said: one at a time');
   if (round[2]) assert.doesNotMatch(round[2], /Joe has just said|Joe said a moment ago/, 'the third is free to move on');
   // An answer has room to be one: never a bare reaction.
   for (const u of round.slice(0, 2)) assert.doesNotMatch(/^LENGTH THIS TURN: (.+)$/m.exec(u)[1], /^just a reaction/);
@@ -667,15 +742,17 @@ s.test('what the player says is answered: the first seat to speak is given their
   await demo.click('#btn-say');
   await settle(demo);
   const after = await demo.evaluate(() => { const l = Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk'); const i = l.map(e => e.who).lastIndexOf('you'); return l.slice(i + 1, i + 3).map(e => e.text); });
-  assert.equal(after.length, 2);
+  assert.ok(after.length >= 1, 'one answers (and the table waits there, if it was a question back)');
   for (const x of after) assert.match(x, /\bJoe\b|\byou\b/i, 'said to the player: ' + x);
 });
 
-s.test('a live table talks on by itself until the vote: nobody waits for the player, who speaks whenever they like; nobody speaks twice running, some say a lot and some little, the morning opens on the night, and there are no rounds; what someone said can be tapped to aim at them', async h => {
+s.test('a live table talks on by itself until the vote, and the player speaks whenever they like: one at a time, nobody twice running, some say a lot and some little, the morning opens on the night, and there are no rounds; what someone said can be tapped to aim at them', async h => {
   const page = await open(h);
   await sit(page, { seed: 21, role: 'town', wild: false, live: true });
   await begin(page);
-  await page.evaluate(() => { Game.App.speed = 0.02; Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop(); });
+  await page.evaluate(() => { Game.App.speed = 0.02; Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop();
+    // (Nothing is put to the player here: what happens when it is has a test of its own.)
+    const line = Game.Bots.say; Game.Bots.say = (p, x) => { const r = line(p, x); if (r.aim && r.aim.you) { r.aim = null; r.stance = 'other'; } r.text = r.text.replace(/\bjoe\b/ig, 'someone').replace(/\?/g, '.'); return r; }; });
   await page.click('#mid-go');
   await page.waitForFunction(() => Game.talking && Game.state.said >= 2);
   // In the middle of it: nothing is locked, there is nothing to pass, and the middle of the table has the day and no round.
@@ -709,14 +786,14 @@ s.test('a live table talks on by itself until the vote: nobody waits for the pla
   for (let i = 1; i < day.who.length; i++) assert.ok(day.who[i] !== day.who[i - 1], 'nobody speaks twice running: ' + day.who.join(' '));
   assert.ok(Math.max(...day.by) >= Math.min(...day.by) + 2, 'some say a lot and some little: ' + day.by.join(','));
   assert.notEqual(day.who[0], day.who[1]);
-  for (const x of day.texts.slice(0, 2)) assert.match(x.toLowerCase(), new RegExp(`^(not ${day.victim}|oh no|damn|${day.victim}\\?\\? really|well that is bad|great\\. just great)$`), 'the morning opens on the night: ' + x);
+  for (const x of day.texts.slice(0, 2)) assert.match(x.toLowerCase(), new RegExp(`^(not ${day.victim}|oh no|damn|${day.victim}[?.]{2} really|well that is bad|great\\. just great)$`), 'the morning opens on the night: ' + x);
   assert.match(day.sys[day.sys.length - 1], /^(That is enough talk\. The table votes\.|Most of the table wants to vote\. The table votes\.)$/);
   assert.equal(await page.evaluate(() => document.querySelector('#typing').hidden), true);
 });
 
-s.test('at a live table with Claude: whoever is up is shown typing (two at once when the player spoke to everyone, neither seeing the other\'s), the player\'s words go in while they type, a second message sits under the first with no name, the player\'s are on the right, and what was being typed when the vote is called is dropped', async h => {
+s.test('at a live table with Claude: whoever is up is shown typing, one at a time; the player\'s words go in while they type and are answered by one and then another, a second message sits under the first with no name, the player\'s are on the right, and what was being typed when the vote is called is dropped', async h => {
   const bodies = [];
-  const page = await open(h, { route: standIn(bodies, { delay: 150, more: true }) });
+  const page = await open(h, { route: standIn(bodies, { delay: 150, more: true, plain: true }) });
   await page.fill('#f-key', 'sk-ant-test-key');
   await page.fill('#f-name', 'Joe');
   // (A Knife, so the night is the player's to decide and they are at the table in the morning.)
@@ -729,21 +806,20 @@ s.test('at a live table with Claude: whoever is up is shown typing (two at once 
   await page.click(`.seat[data-id="${await page.evaluate(() => Game.state.players.find(p => p.alive && p.role === 'town').id)}"]`);
   await page.click('#mid-go');
   await page.waitForFunction(() => Game.talking && !document.querySelector('#typing').hidden);
-  await page.evaluate(() => { Game.state.clock = 60; });
+  await page.evaluate(() => { Game.state.clock = 60; window.most = 0; const seen = () => { window.most = Math.max(window.most, document.querySelectorAll('#typing .say-face').length, document.querySelectorAll('.seat[data-typing="1"]').length); }; new MutationObserver(seen).observe(document.querySelector('#typing'), { childList: true }); seen(); });
   const typing = await page.evaluate(() => ({ faces: document.querySelectorAll('#typing .say-face').length, seats: document.querySelectorAll('.seat[data-typing="1"]').length, dots: document.querySelectorAll('#typing .typing-dots i').length, busy: Game.busy, live: Game.state.live }));
-  assert.ok(typing.faces >= 1 && typing.faces === typing.seats && typing.dots === 3 && !typing.busy && typing.live, JSON.stringify(typing));
+  assert.deepEqual([typing.faces, typing.seats, typing.dots, typing.busy, typing.live], [1, 1, 3, false, true], JSON.stringify(typing));
   // The player speaks while they type.
   const words = "it's a pain in the ass we lost the witness day 1 ffs";
   await page.fill('#say', words);
   await page.click('#btn-say');
   assert.ok(await page.evaluate(w => Game.state.log.some(e => e.who === 'you' && e.text === w), words), 'in at once');
-  await page.waitForFunction(() => document.querySelectorAll('#typing .say-face').length === 2, null, { timeout: 10000 });
   const userOf = b => b.body.messages[0].content.map(c => c.text).join('\n');
-  const answers = () => bodies.filter(b => b.body.output_config.format.schema.required.includes('stance') && userOf(b).includes(`Joe has just said, to everyone: "${words}" Answer Joe:`));
-  for (let i = 0; i < 40 && answers().length < 2; i++) await page.waitForTimeout(50);
-  assert.equal(answers().length, 2, 'two of them answer');
-  assert.ok(answers().every(b => !userOf(b).includes('You were too quiet') || userOf(answers()[0]).split('TODAY SO FAR')[0] !== undefined));
-  assert.equal(userOf(answers()[0]).split('\n\nSTILL IN')[0], userOf(answers()[1]).split('\n\nSTILL IN')[0], 'each was given the same record: neither saw the other\'s answer');
+  const talkOf = () => bodies.filter(b => b.body.output_config.format.schema.required.includes('stance')).map(userOf);
+  const first = () => talkOf().findIndex(u => u.includes(`Joe has just said, to everyone: "${words}" Answer Joe:`));
+  for (let i = 0; i < 60 && (first() < 0 || talkOf().length < first() + 2); i++) await page.waitForTimeout(50);
+  assert.ok(first() >= 0, 'one of them answers');
+  assert.ok(talkOf()[first() + 1].includes(`Joe said a moment ago: "${words}" Take that up as well`), 'then another takes it up');
   // A second message from the same person sits under the first, with no name and no face.
   await page.waitForFunction(() => !!document.querySelector('#log .say[data-run="1"]'), null, { timeout: 10000 });
   const look = await page.evaluate(() => {
@@ -759,6 +835,7 @@ s.test('at a live table with Claude: whoever is up is shown typing (two at once 
   assert.match(look.words, /^just saying, that is all i mean here$/i);
   assert.ok(look.mineRight <= 2 && look.theirsLeft <= 40 && look.mineLeft > look.theirsLeft, 'theirs on the left, the player\'s on the right: ' + JSON.stringify(look));
   assert.deepEqual(await overflowReport(page, 375), []);
+  assert.equal(await page.evaluate(() => window.most), 1, 'never two typing at once');
   // The vote, called while someone is typing: what they were typing is dropped.
   await page.waitForFunction(() => Game.talking && !document.querySelector('#typing').hidden);
   const before = await page.evaluate(() => Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk').length);
@@ -795,8 +872,9 @@ s.test('they carry things from one day to the next: who voted for them, whether 
   const day1 = talkOf();
   assert.match(day1[from1], new RegExp(`^YOUR SEAT: ${sore} `, 'm'));
   assert.match(day1[from1], /^WHAT YOU ARE CARRYING: Joe came after you today\.$/m, 'pointed at, and they know by whom');
-  assert.ok(day1.some(u => /^HOW YOU FEEL: sore at \w+$/m.test(u)), 'what a seat said it feels is given back to it');
-  assert.ok(day1.every(u => !/Yesterday/.test(u)));
+  for (let i = 0; i < 10 && !talkOf().some(u => /^HOW YOU FEEL: sore at \w+$/m.test(u)); i++) await pass(page);
+  assert.ok(talkOf().some(u => /^HOW YOU FEEL: sore at \w+$/m.test(u)), 'what a seat said it feels is given back to it');
+  assert.ok(talkOf().every(u => !/Yesterday/.test(u)));
   // The stand-in has every seat vote for the first name still in that is not its own: the table goes for the player, a Knife.
   await page.click('#btn-vote');
   await page.click(`.seat[data-id="${await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you).id)}"]`);
@@ -861,6 +939,7 @@ s.test('a live table left in the middle of the talk picks it up again, and a tab
   await page.waitForFunction(() => window.Game && window.Game.App);
   const said = await page.evaluate(() => { const s = JSON.parse(window.localStorage.getItem('novatria.lastcall')); const n = s.said; for (const k of ['live', 'clock', 'said', 'bonus', 'ready', 'yours', 'spat']) delete s[k]; for (const p of s.players) { delete p.chat; delete p.type; } window.localStorage.setItem('novatria.lastcall', JSON.stringify(s)); Game.App.speed = 0; return n; });
   assert.ok(said >= 2);
+  await page.evaluate(() => { window.setInterval(() => { if (Game.state && Game.state.floor) Game.App.pass(); }, 20); });
   await page.click('#btn-continue');
   const kept = await page.evaluate(() => ({ live: Game.state.live, clock: Game.state.clock, ready: Game.state.ready, hands: Game.state.players.filter(p => !p.you).every(p => p.chat > 0 && Game.TYPES.some(x => x.id === p.type)), talking: Game.talking, phase: Game.state.phase }));
   assert.deepEqual([kept.live, Array.isArray(kept.ready), kept.hands, typeof kept.clock, ['talk', 'vote'].includes(kept.phase)], [true, true, true, 'number', true]);
