@@ -1,3 +1,15 @@
+# Novatria
+
+Two games live here, each one self-contained HTML file with no build step.
+
+- **`index.html`: Last Call** (the front page). A hidden-role table game of
+  lying and deduction at the Low Water, with Claude at every other seat. See
+  [Last Call](#last-call-indexhtml) below.
+- **`town.html`: the one-town text RPG** (Lockett's Ferry). It is kept here,
+  whole and tested, but hidden for now: nothing on the front page links to
+  it. Open the file directly to play it. Everything from the next heading
+  down to "Last Call" is about it.
+
 # One-Town Text RPG: Lockett's Ferry
 
 A single-player text RPG set in one town: Lockett's Ferry, a present-day river
@@ -13,7 +25,7 @@ and the town's story reaches an ending by the third week.
 
 ## How to play
 
-1. Open `index.html` in a browser. It is one self-contained file, so it works
+1. Open `town.html` in a browser. It is one self-contained file, so it works
    straight from disk (`file://`) or from any static host. No build step, no
    server.
 2. **New game** first asks how you want to play, until you have chosen:
@@ -1897,45 +1909,62 @@ node tests/guide-doc.cjs --check  # exits 1 when it is out of date or an example
 
 A game already in progress keeps the town it started with.
 
-## Last Call (`lastcall.html`)
+## Last Call (`index.html`)
 
-A second game beside this one, on a page of its own: a hidden-role game of
-lying and deduction at the Low Water, with the town's own adults at the
-table (the title screen links to it; it is one self-contained file too).
-The river is up, the bridge is shut, and some of the people locked in are
-**Knives**. Each night the Knives take one person out of the game; each day
-the table talks and then votes one person out, whose role is shown. Town
-wins when every Knife is out; the Knives win when they are as many as
-everyone else. One of the Town is the **Witness**, who learns each night
-whether one person is a Knife; at eight seats or more one is the **Watch**,
-who guards one person a night.
+The front page: a hidden-role game of lying and deduction at one table in
+the Low Water, with the town's own adults in the other seats. The river is
+up, the bridge is shut, and some of the people locked in are **Knives**.
+Each night the Knives take one person out of the game; each day the table
+talks and then votes one person out, whose role is shown. Town wins when
+every Knife is out; the Knives win when they are as many as everyone else.
 
-- **Seats**: 6 (one Knife), 8 (two, and a Watch) or 10 (three). You can ask
-  for a role or be dealt one. If you are a Knife your fellow Knife whispers
-  who they would take, and you choose.
-- **The table**: everyone's face round it, yours at the foot. Tap a face to
-  mark them (suspect or trust, a ring only you see), to accuse, vouch or
-  ask (it fills the box; you can change the words), to pick them at night
-  or to vote for them. Say anything in the box and two or three of them
-  answer; **Let them talk** hears a round without you; **Call the vote**
-  ends the talk (it is called for you after five rounds).
+- **Seats and roles**: 6 (one Knife), 8 (two) or 10 (three). One of the Town
+  is the **Witness**, who learns each night whether one person is a Knife.
+  At eight seats or more one is the **Watch**, who guards one person a
+  night. **Wild cards** (on unless you turn them off): at eight a **Fool**,
+  on nobody's side, who wins alone the moment the table votes them out; at
+  ten a **Hothead** too, who is Town and takes one person with them when
+  they go. You can ask for a role or be dealt one. If you are a Knife your
+  fellow Knife whispers who they would take, and you choose.
+- **The table is the screen**: everyone's face round it, yours at the foot.
+  Tap a face to mark them (suspect or trust, a ring only you see), to
+  accuse, vouch or ask (it fills the box; you can change the words), to
+  pick them at night or to vote for them. Say anything in the box and two
+  or three of them answer; **Let them talk** hears a round without you;
+  **Call the vote** ends the talk (it is called for you after five rounds).
+- **It is told like a night at the table**: a host speaks at each turn of
+  it (the lights going down, who is found in the morning and where, the
+  vote). The night is played step by step (everyone shuts their eyes, the
+  Knives open theirs, the Witness looks, the Watch keeps a door). Whoever
+  speaks, their words come up in the middle of the table as they say them;
+  someone accused scowls and gets a mark over their seat. At the vote
+  everyone points at once and the lines are drawn across the table one by
+  one. Whoever is voted out has their **last words** before their role is
+  shown (you too: the table waits for yours). When it is over, **The
+  reveal** shows every role, how each went, how each voted and what each
+  was privately thinking.
 - **Who plays the others**: with an Anthropic API key, Claude does, one call
-  for each seat each time it speaks, votes or chooses in the night. A seat
-  is told the public record, its own role and its own private knowledge and
-  nothing else, so a Town seat has to work it out as you do and a Knife has
-  to lie. The code deals the roles, counts the votes and decides who is out
-  and who has won; nothing a model says can change that. The key the town
-  game remembers is used if there is one; a key typed here is kept for the
-  tab only and is never saved with the game. The line under the box shows
-  the model, the calls so far and what they have cost; a game is roughly 60
-  to 120 short calls. The model is Claude Opus 5.5 unless you pick another.
+  for each seat each time it speaks, votes or chooses in the night, in that
+  person's own voice and knowing who they are to the others at the table. A
+  seat is told the public record, its own role and its own private
+  knowledge and nothing else, so a Town seat has to work it out as you do
+  and a Knife has to lie. The host is a call of its own, told only what
+  everyone can see, and what it says is colour: it is never given to a seat
+  as evidence. The code deals the roles, counts the votes and decides who
+  is out and who has won; nothing a model says can change that. The key the
+  town game remembers is used if there is one; a key typed here is kept for
+  the tab only and is never saved with the game. The line under the box
+  shows the model, the calls so far and what they have cost; a game is
+  roughly 80 to 150 short calls. The model is Claude Opus 5.5 unless you
+  pick another.
 - **Offline demo**: no key and no calls; the others follow a simple script
   (they point at whoever has been pointed at, defend themselves, read the
-  last vote). It teaches the game; it does not play it well. A seat whose
-  call fails plays from the same script for that turn, and one line says so.
+  last vote) and the host reads from a short list. It teaches the game; it
+  does not play it well. A seat whose call fails plays from the same script
+  for that turn, and one line says so.
 - **Out of the game** you see every role and can watch the rest, or **Skip
   to the end** (played by the script at once, with no calls). A table you
-  leave is kept: **Continue** on its first screen picks it up.
+  leave is kept: **Continue** on the first screen picks it up.
 
 ## Running the tests
 
@@ -1976,9 +2005,11 @@ fails it with a message saying so; the CI checkout fetches it all).
 - `wave22-appointments`, `wave25-arrivals` and `wave26-objectives` for
   meetings kept, narrated arrivals and the Objectives tab (main's own wave
   26, built alongside the relationship branch's);
-- `lastcall` for Last Call (`lastcall.html`): the deal, the rules, a whole
-  scripted game, the Claude path against a stand-in API (the request, what
-  each seat is told, a failed call), the player out, a reload, phone widths;
+- `lastcall` for Last Call (`index.html`): the deal and the wild cards, the
+  rules, a whole scripted game with the host and the reveal, last words, the
+  Fool and the Hothead, the Claude path against a stand-in API (the request,
+  what each seat and the host are told, a failed call), the player out, a
+  reload, phone widths;
 - `wave38-date` for the faces, the strip of who is here, the date table,
   Deal again and the one-tap flirt; `wave39-table-talk` for words said with
   a bet being answered before the cards;

@@ -22,7 +22,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..');
-const PAGE = process.env.VALIDATE_FILE ? path.resolve(process.env.VALIDATE_FILE) : path.join(ROOT, 'index.html');
+const PAGE = process.env.VALIDATE_FILE ? path.resolve(process.env.VALIDATE_FILE) : path.join(ROOT, 'town.html');
 const args = process.argv.slice(2);
 const packFile = args.find(a => !a.startsWith('--') && a.endsWith('.json')) || null;
 const profileArg = (args.find(a => a.startsWith('--profile=')) || '').slice('--profile='.length);

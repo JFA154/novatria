@@ -1049,7 +1049,7 @@ s.test('effect ops, reserved flags and social actions each live in one list: Tow
   assert.equal(pk.missing.length, 1, 'setFlag without its value: ' + pk.missing.join(' | '));
   pk.reserved.forEach((hits, i) => assert.equal(hits.length, 1, 'reserved: ' + r.flags[i]));
   // The page source lists the social actions once (Dice), and the flags once (State).
-  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const html = fs.readFileSync(path.join(ROOT, 'town.html'), 'utf8');
   const count = needle => html.split(needle).length - 1;
   assert.equal(count(`['${r.social.join("', '")}']`), 1, 'social actions');
   assert.equal(count(`['${r.flags.join("', '")}']`), 1, 'reserved flags');

@@ -6,7 +6,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..');
-const GAME_PATH = path.resolve(ROOT, 'index.html');
+const GAME_PATH = path.resolve(ROOT, 'town.html');
 const GAME_URL = 'file://' + GAME_PATH;
 const LAPTOP = { width: 1280, height: 800 };
 const PHONE = { width: 375, height: 740 };

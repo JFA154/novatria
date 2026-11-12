@@ -26,7 +26,7 @@ const path = require('path');
 const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..');
-const PAGE = path.join(ROOT, 'index.html');
+const PAGE = path.join(ROOT, 'town.html');
 const GUIDE = path.join(ROOT, 'docs', 'CREATOR_GUIDE.md');
 const BEGIN = '<!-- generated: fields -->';
 const END = '<!-- /generated -->';

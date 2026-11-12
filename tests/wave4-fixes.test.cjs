@@ -337,7 +337,7 @@ s.test('risk (the "Grown" line): every progression entry stores its own gain; a 
 });
 
 s.test('dead code: the engine no longer guards State functions that always exist (typeof State.isClosed and the like)', async () => {
-  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const html = fs.readFileSync(path.join(ROOT, 'town.html'), 'utf8');
   const engine = html.slice(html.indexOf('// ===== Module: Rng ====='), html.indexOf('// ===== Module: Storage ====='));
   for (const fn of ['isBanned', 'isClosed', 'absentNote', 'obligations', 'tickObligations', 'awayNow', 'laidUp', 'season', 'mapPointOf', 'weekday']) {
     assert.ok(!engine.includes(`typeof State.${fn} === 'function'`) && !engine.includes(`typeof State.${fn} !== 'function'`), fn);
@@ -371,7 +371,7 @@ s.test('copy: the no-key notice offers the offline demo; a barred skip says "unt
   assert.match(r.help[2], /^\/look/);
   assert.match(r.skip, /You are not welcome at .* until Day \d+\./);
   assert.equal(r.clock, 'Clock set to Day 2 · Night.');
-  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const html = fs.readFileSync(path.join(ROOT, 'town.html'), 'utf8');
   assert.ok(html.includes("no_key: 'There is no API key yet. Add yours in Settings, or try the offline demo (Settings → Advanced).'"));
   assert.ok(html.includes('Set the clock back to Day ${day} · ${capFirst(phase)}:'));
 });

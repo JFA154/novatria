@@ -26,7 +26,7 @@
 const path = require('path');
 const { chromium } = require('playwright');
 
-const GAME_URL = 'file://' + path.resolve(__dirname, '..', 'index.html');
+const GAME_URL = 'file://' + path.resolve(__dirname, '..', 'town.html');
 const STYLES = ['beer', 'confidant', 'brawler'];
 /* The regulars' recovery, pinned at the code's arithmetic (the plan's rule
    for the worked examples: the code's number is pinned and the design

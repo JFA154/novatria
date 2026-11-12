@@ -656,7 +656,7 @@ s.test('player text is rendered as text, never as markup', async h => {
   assert.equal(r.imgs, 0);
   assert.equal(r.b, 0);
   assert.equal(r.input, '<b>bold</b><script>window.__pwned=2</script>');
-  const src = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const src = fs.readFileSync(path.join(ROOT, 'town.html'), 'utf8');
   assert.ok(!/\.innerHTML\s*=/.test(src) && !/insertAdjacentHTML/.test(src), 'no innerHTML writes in index.html');
   assert.ok(/'use strict'/.test(src));
 });

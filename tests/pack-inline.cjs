@@ -16,7 +16,7 @@ const path = require('path');
 const { format, parse } = require('./pack-format.cjs');
 
 const ROOT = path.resolve(__dirname, '..');
-const FILE = process.env.VALIDATE_FILE ? path.resolve(process.env.VALIDATE_FILE) : path.join(ROOT, 'index.html');
+const FILE = process.env.VALIDATE_FILE ? path.resolve(process.env.VALIDATE_FILE) : path.join(ROOT, 'town.html');
 const PACK = path.join(ROOT, 'packs', 'low-water.json');
 const BEGIN = '<!-- ===== BEGIN PACK low-water ===== -->';
 const END = '<!-- ===== END PACK ===== -->';

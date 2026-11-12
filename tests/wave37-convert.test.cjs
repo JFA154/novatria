@@ -426,7 +426,7 @@ s.test('a refused call shows the notice and changes nothing; a failed one says s
 });
 
 s.test('the Creator module calls a model in one place only: Api.convert (no other AI control in the editor)', async () => {
-  const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+  const html = fs.readFileSync(path.join(__dirname, '..', 'town.html'), 'utf8');
   const a = html.indexOf('// ===== Module: Creator =====');
   const b = html.indexOf('// ===== Module: Commands =====');
   assert.ok(a > 0 && b > a);

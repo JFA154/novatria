@@ -634,7 +634,7 @@ s.test('D7: a failed theft reads in the recap as "you tried to steal from him"',
 s.test('Q13 and prose: the card player caught cheating ends up "outside on Front Street" (nobody is accused any more); the beating grudge is not "alone after dark"; "Missed: … (due Day N)"; a complication names the place inside a sentence', async h => {
   const page = await h.open();
   await quickStart(page, { kinds: [] });
-  const src = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const src = fs.readFileSync(path.join(ROOT, 'town.html'), 'utf8');
   assert.doesNotMatch(src, /accuses them of cheating|clear out of \$\{place\} for the night/);
   assert.match(src, /End the narration with the player outside on \$\{placeName\(street\)\}: the engine moves them there\./);
   assert.doesNotMatch(src, /end up outside\$\{onto\}/);
@@ -803,7 +803,7 @@ s.test('design: re-reading an older game gives unfired seeds the words the town 
 });
 
 s.test('dead code: one andList, no joinNames; qualifiedHere and harmlessHead share wordBefore; the unreachable maker alternative is gone', async () => {
-  const src = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const src = fs.readFileSync(path.join(ROOT, 'town.html'), 'utf8');
   assert.doesNotMatch(src, /function joinNames/);
   assert.match(src, /function wordBefore\(thing, hit\)/);
   assert.doesNotMatch(src, /smith \(\?:&\|and\) wesson/);

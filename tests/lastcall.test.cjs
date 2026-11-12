@@ -1,34 +1,54 @@
 'use strict';
-/* Last Call (lastcall.html): the hidden-role game at the Low Water (the
-   owner: "i always wanted a game like traitors or werewolf, but people are
-   so ding dongs sometimes if playing online. A game powered by claude? I'm
-   in"). The code owns the roles, the nights, the votes and who wins; each
-   other seat is one Claude call told only what that person knows, or the
-   scripted table (the offline demo, and any seat whose call failed).
+/* Last Call (index.html, the front page): the hidden-role game at the Low
+   Water (the owner: "i always wanted a game like traitors or werewolf, but
+   people are so ding dongs sometimes if playing online. A game powered by
+   claude? I'm in"; then "let's start with table only for now, but make it
+   entertaining like how the werewolf game is"). The code owns the roles,
+   the nights, the votes and who wins; each other seat is one Claude call
+   told only what that person knows, or the scripted table (the offline
+   demo, and any seat whose call failed).
    Covered here: the page alone from file:// with the network shut; the
-   deal by size and the role asked for; who has won; a whole scripted game
-   through the buttons; the Witness, the Watch turning the Knives away and
-   a tied vote; the Claude path against a stand-in API (the request's
-   shape, what each seat is and is not told, the cost line, a failed call
-   falling back to the script); the player out (every role shown, Skip to
-   the end with no calls); a reload; phone widths; no innerHTML and one
-   fetch. Run with: node tests/run.cjs lastcall */
+   deal by size, the wild cards and the role asked for; who has won; a
+   whole scripted game through the buttons, with the host's lines and the
+   reveal at the end; the Witness, the Watch turning the Knives away and a
+   tied vote; last words (a seat's and the player's), the Fool winning by
+   the vote, the Hothead taking someone along (a seat's choice and the
+   player's); the Claude path against a stand-in API (the request's shape,
+   what each seat is and is not told, the host told only what is public,
+   the cost line, a failed call falling back to the script); the player
+   out (every role shown, Skip to the end with no calls); a reload; phone
+   widths; no innerHTML and one fetch. Run with: node tests/run.cjs lastcall */
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert/strict');
 const { suite, overflowReport, LAPTOP, PHONE } = require('./helpers.cjs');
 
-const FILE = path.resolve(__dirname, '..', 'lastcall.html');
+const FILE = path.resolve(__dirname, '..', 'index.html');
 const URL = 'file://' + FILE;
 const s = suite('lastcall');
 const open = (h, opts) => h.open(Object.assign({ url: URL, consent: false, viewport: PHONE, contextOptions: { reducedMotion: 'reduce' } }, opts || {}));
-const idle = page => page.waitForFunction(() => !Game.busy);
+/* Wait for the step to end, answering what the table asks the player on the way: no last words, and the first seat that can be picked (opts.words, opts.seat give other answers). */
+const settle = async (page, opts) => {
+  for (let i = 0; i < 12; i++) {
+    await page.waitForFunction(() => !Game.busy || !!Game.waiting);
+    const w = await page.evaluate(() => (Game.busy ? Game.waiting : null));
+    if (!w) return;
+    if (w === 'line') { if (opts && opts.words) { await page.fill('#say', opts.words); await page.click('#btn-say'); } else await page.click('#btn-nothing'); }
+    else {
+      const id = (opts && opts.seat) || await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you).id);
+      await page.click(`.seat[data-id="${id}"]`);
+      await page.click('#mid-go');
+    }
+  }
+  throw new Error('the step never settled');
+};
 const sit = async (page, opts) => {
-  await page.evaluate(o => { Game.App.speed = 0; Game.App.newGame(Object.assign({ seed: 11, size: 8, mode: 'demo', name: 'Joe' }, o)); }, opts || {});
+  await page.evaluate(o => { Game.App.speed = 0; Game.App.quiet = true; Game.App.newGame(Object.assign({ seed: 11, size: 8, mode: 'demo', name: 'Joe' }, o)); }, opts || {});
   await page.click('dialog .btn.primary');
 };
-const st = page => page.evaluate(() => { const g = Game.state; return { phase: g.phase, day: g.day, beat: g.beat, winner: g.winner, me: g.players[0], players: g.players.map(p => ({ id: p.id, first: p.first, role: p.role, alive: p.alive, out: p.out })) }; });
-const sysLines = page => page.evaluate(() => Game.state.log.filter(e => e.t === 'sys').map(e => e.text));
+const begin = async page => { await page.click('#mid-go'); await settle(page); };
+const st = page => page.evaluate(() => { const g = Game.state; return { phase: g.phase, day: g.day, beat: g.beat, winner: g.winner, me: g.players[0], players: g.players.map(p => ({ id: p.id, first: p.first, name: p.name, role: p.role, alive: p.alive, out: p.out })) }; });
+const sysLines = (page, kind) => page.evaluate(k => Game.state.log.filter(e => e.t === 'sys' && (!k || e.kind === k)).map(e => e.text), kind || null);
 /* A stand-in for the API: answers each call with JSON of the shape asked for, naming someone still in who is not the seat itself (nor its fellow Knife). */
 function standIn(bodies, opts) {
   const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'POST, OPTIONS' };
@@ -43,13 +63,16 @@ function standIn(bodies, opts) {
     if (opts && opts.fail) return route.fulfill({ status: 500, headers: Object.assign({ 'content-type': 'application/json' }, cors), body: JSON.stringify({ type: 'error', error: { type: 'api_error', message: 'the stand-in is down' } }) });
     const need = body.output_config.format.schema.required;
     const user = body.messages[0].content.map(c => c.text).join('\n');
-    const still = (/STILL IN: (.*)\./.exec(user) || [])[1].split(', ');
+    const host = /^You are the host/.test(body.system[0].text);
+    const still = ((/STILL IN: (.*)\./.exec(user) || [])[1] || '').split(', ');
     const me = (/YOUR SEAT: (\S+)/.exec(user) || [])[1];
     const other = still.find(n => n !== me && !new RegExp(`fellow Kni(?:fe|ves): [^.]*${n}`).test(user));
-    const out = need.includes('vote') ? { vote: other, say: `${other}. I have my reasons.`, note: `voted ${other}` }
-      : need.includes('take') && need.includes('say') ? { take: other, say: `Take ${other}. Too sharp by half.` }
-        : need.includes('take') ? { take: other, note: `took ${other}` }
-          : { say: `${other}, you were by the back door when the lights went. Explain that.`, about: other, stance: 'accuse', suspect: other, trust: null, note: `pressing ${other}` };
+    const out = host ? { say: 'The generator coughs twice and the room goes dark.' }
+      : need.includes('vote') ? { vote: other, say: `${other}. I have my reasons.`, note: `voted ${other}` }
+        : need.includes('take') && need.includes('say') ? { take: other, say: `Take ${other}. Too sharp by half.` }
+          : need.includes('take') ? { take: other, note: `took ${other}` }
+            : need.length === 1 ? { say: 'You will all be sorry by morning.' }
+              : { say: `${other}, you were by the back door when the lights went. Explain that.`, about: other, stance: 'accuse', suspect: other, trust: null, note: `pressing ${other}` };
     return route.fulfill({ status: 200, headers: Object.assign({ 'content-type': 'application/json' }, cors), body: JSON.stringify({ id: 'msg_x', type: 'message', role: 'assistant', model: body.model, stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(out) }], usage: { input_tokens: 1000, output_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } }) });
   };
 }
@@ -59,11 +82,13 @@ s.test('the page stands alone: it opens from file:// with the network shut, the 
   const home = await page.evaluate(() => {
     for (const c of Game.CAST) Game.faceNode(c);
     return { title: document.title, active: document.querySelector('.screen.active').id, cast: Game.CAST.length, young: Game.CAST.filter(c => !(c.age >= 21)).length, firsts: new Set(Game.CAST.map(c => c.name.split(' ')[0])).size,
-      mode: document.querySelector('#f-mode [aria-pressed="true"]').dataset.v, keyShown: !document.querySelector('#claude-fields').hidden, cont: document.querySelector('#home-continue-row').hidden };
+      mode: document.querySelector('#f-mode [aria-pressed="true"]').dataset.v, wild: document.querySelector('#f-wild [aria-pressed="true"]').dataset.v, keyShown: !document.querySelector('#claude-fields').hidden, cont: document.querySelector('#home-continue-row').hidden,
+      links: [...document.querySelectorAll('a[href]')].map(a => a.getAttribute('href')) };
   });
-  assert.deepEqual([home.title, home.active, home.mode, home.keyShown, home.cont], ['Last Call', 'screen-home', 'claude', true, true]);
+  assert.deepEqual([home.title, home.active, home.mode, home.wild, home.keyShown, home.cont], ['Last Call', 'screen-home', 'claude', 'on', true, true]);
   assert.ok(home.cast >= 30 && home.young === 0, 'the town\'s adults only: ' + JSON.stringify(home));
   assert.equal(home.firsts, home.cast, 'no two share a first name');
+  assert.deepEqual(home.links, [], 'the town game is not linked from here (it is kept beside it, hidden for now)');
   // Claude with no key is refused with a line; the offline demo sits down.
   await page.click('#btn-new');
   assert.match(await page.textContent('#home-err'), /^Paste an Anthropic API key/);
@@ -71,18 +96,20 @@ s.test('the page stands alone: it opens from file:// with the network shut, the 
   assert.equal(await page.evaluate(() => document.querySelector('#claude-fields').hidden), true);
   await page.click('#btn-new');
   await page.waitForSelector('#screen-game.active');
-  assert.equal(await page.evaluate(() => Game.state.mode), 'demo');
+  assert.deepEqual(await page.evaluate(() => [Game.state.mode, Game.state.wild, Game.state.players.length]), ['demo', true, 8]);
 });
 
-s.test('the deal: the roles by size (one Knife at 6, two and a Watch at 8, three at 10), a Witness always, the role asked for given, the same seed the same table, and nobody with the player\'s name', async h => {
+s.test('the deal: the roles by size, the wild cards at eight and ten unless the table is set without them, the role asked for given, the same seed the same table, and nobody with the player\'s name', async h => {
   const page = await open(h);
   const out = await page.evaluate(() => {
-    const count = (st, r) => st.players.filter(p => p.role === r).length;
     const R = Game.Rules;
-    const res = {};
-    for (const size of [6, 8, 10]) { const g = R.deal({ seed: 5, size, mode: 'demo' }); res[size] = [g.players.length, count(g, 'knife'), count(g, 'witness'), count(g, 'watch'), count(g, 'town'), g.players[0].you, new Set(g.players.map(p => p.first)).size]; }
-    res.asked = ['town', 'knife', 'witness', 'watch'].map(role => R.deal({ seed: 9, size: 8, role }).players[0].role);
-    res.noWatch = R.deal({ seed: 9, size: 6, role: 'watch' }).players[0].role;
+    const count = g => ['knife', 'witness', 'watch', 'fool', 'hothead', 'town'].map(r => g.players.filter(p => p.role === r).length);
+    const res = { wild: {}, plain: {} };
+    for (const size of [6, 8, 10]) { res.wild[size] = count(R.deal({ seed: 5, size, mode: 'demo' })); res.plain[size] = count(R.deal({ seed: 5, size, mode: 'demo', wild: false })); }
+    res.shape = (() => { const g = R.deal({ seed: 5, size: 8 }); return [g.players.length, g.players[0].you, new Set(g.players.map(p => p.first)).size, g.wild]; })();
+    res.asked = ['town', 'knife', 'witness', 'watch', 'fool'].map(role => R.deal({ seed: 9, size: 8, role }).players[0].role);
+    res.hothead = R.deal({ seed: 9, size: 10, role: 'hothead' }).players[0].role;
+    res.notDealt = [R.deal({ seed: 9, size: 6, role: 'watch' }).players[0].role, R.deal({ seed: 9, size: 8, role: 'fool', wild: false }).players[0].role];
     res.same = JSON.stringify(R.deal({ seed: 42, size: 8 }).players.map(p => [p.id, p.role])) === JSON.stringify(R.deal({ seed: 42, size: 8 }).players.map(p => [p.id, p.role]));
     res.other = JSON.stringify(R.deal({ seed: 42, size: 8 }).players.map(p => p.id)) !== JSON.stringify(R.deal({ seed: 43, size: 8 }).players.map(p => p.id));
     res.named = R.deal({ seed: 3, size: 10, name: 'Curtis' }).players.filter(p => p.first === 'Curtis').length;
@@ -90,40 +117,41 @@ s.test('the deal: the roles by size (one Knife at 6, two and a Watch at 8, three
       R.winner([{ alive: true, role: 'town' }, { alive: true, role: 'town' }, { alive: false, role: 'knife' }]),
       R.winner([{ alive: true, role: 'town' }, { alive: true, role: 'knife' }]),
       R.winner([{ alive: true, role: 'town' }, { alive: true, role: 'witness' }, { alive: true, role: 'knife' }]),
-      R.winner([{ alive: true, role: 'town' }, { alive: true, role: 'watch' }, { alive: true, role: 'knife' }, { alive: true, role: 'knife' }])
+      R.winner([{ alive: true, role: 'fool' }, { alive: true, role: 'hothead' }, { alive: true, role: 'knife' }, { alive: true, role: 'knife' }])
     ];
     return res;
   });
-  assert.deepEqual(out[6], [6, 1, 1, 0, 4, true, 6]);
-  assert.deepEqual(out[8], [8, 2, 1, 1, 4, true, 8]);
-  assert.deepEqual(out[10], [10, 3, 1, 1, 5, true, 10]);
-  assert.deepEqual(out.asked, ['town', 'knife', 'witness', 'watch']);
-  assert.notEqual(out.noWatch, 'watch', 'no Watch at six seats, so it is not dealt');
+  //                     knife witness watch fool hothead town
+  assert.deepEqual(out.wild, { 6: [1, 1, 0, 0, 0, 4], 8: [2, 1, 1, 1, 0, 3], 10: [3, 1, 1, 1, 1, 3] });
+  assert.deepEqual(out.plain, { 6: [1, 1, 0, 0, 0, 4], 8: [2, 1, 1, 0, 0, 4], 10: [3, 1, 1, 0, 0, 5] });
+  assert.deepEqual(out.shape, [8, true, 8, true]);
+  assert.deepEqual(out.asked, ['town', 'knife', 'witness', 'watch', 'fool']);
+  assert.equal(out.hothead, 'hothead');
+  assert.ok(out.notDealt[0] !== 'watch' && out.notDealt[1] !== 'fool', 'a role the table does not have is not dealt');
   assert.ok(out.same && out.other, 'seeded');
   assert.equal(out.named, 1, 'only the player is called that');
-  assert.deepEqual(out.win, ['town', 'knives', null, 'knives']);
+  assert.deepEqual(out.win, ['town', 'knives', null, 'knives'], 'the Fool and the Hothead count with everyone else against the Knives');
 });
 
-s.test('a whole scripted game through the buttons: the role card, each night, the talk, each vote one per seat still in, and an ending the rules agree with', async h => {
+s.test('a whole scripted game through the buttons: the role card, the host at each turn of it, each vote one per seat still in, an ending the rules agree with, and the reveal', async h => {
   const page = await open(h);
   await sit(page, { seed: 21, role: 'town' });
   assert.equal(await page.evaluate(() => document.querySelector('#mid .mid-t').textContent), 'Town');
-  await page.click('#mid-go');
-  await idle(page);
+  await begin(page);
   let votesSeen = 0;
   for (let i = 0; i < 80; i++) {
     const g = await st(page);
     if (g.phase === 'over') break;
-    if (g.phase === 'night') { await page.click('#mid-go'); await idle(page); }
+    if (g.phase === 'night') { await page.click('#mid-go'); await settle(page); }
     else if (g.phase === 'talk') {
-      if (g.me.alive && g.beat === 0) { await page.fill('#say', 'Somebody here is lying to me.'); await page.click('#btn-say'); await idle(page); }
-      else if (g.beat < 2) { await page.click('#btn-pass'); await idle(page); }
+      if (g.me.alive && g.beat === 0) { await page.fill('#say', 'Somebody here is lying to me.'); await page.click('#btn-say'); await settle(page); }
+      else if (g.beat < 2) { await page.click('#btn-pass'); await settle(page); }
       else await page.click('#btn-vote');
     } else if (g.phase === 'vote') {
       const aliveBefore = g.players.filter(p => p.alive).length;
       if (g.me.alive) await page.click(`.seat[data-id="${g.players.find(p => p.alive && p.id !== 'you').id}"]`);
       await page.click('#mid-go');
-      await idle(page);
+      await settle(page);
       const votes = await page.evaluate(d => Game.state.log.filter(e => e.kind === 'vote' && e.day === d).length, g.day);
       assert.equal(votes, aliveBefore, `day ${g.day}: one vote for each seat still in`);
       votesSeen += 1;
@@ -134,79 +162,182 @@ s.test('a whole scripted game through the buttons: the role card, each night, th
   assert.ok(votesSeen >= 1);
   const knivesIn = end.players.filter(p => p.alive && p.role === 'knife').length;
   const othersIn = end.players.filter(p => p.alive && p.role !== 'knife').length;
-  assert.equal(end.winner, knivesIn === 0 ? 'town' : 'knives');
-  if (end.winner === 'knives') assert.ok(knivesIn >= othersIn);
-  const page2 = await page.evaluate(() => ({ mid: document.querySelector('#mid .mid-t').textContent, tags: [...document.querySelectorAll('.seat .seat-tag')].map(t => t.textContent), last: Game.state.log[Game.state.log.length - 1].text }));
-  assert.match(page2.mid, /^(Town wins|The Knives win)$/);
-  assert.ok(page2.tags.every(t => ['Town', 'Knife', 'Witness', 'Watch'].includes(t)), 'every role is on the table at the end: ' + page2.tags.join(','));
-  assert.match(page2.last, /^(Town wins\. Every Knife is out: |The Knives win: )/);
+  const fool = end.players.find(p => p.role === 'fool');
+  if (end.winner === 'fool') assert.deepEqual([fool.alive, fool.out.how], [false, 'vote']);
+  else { assert.equal(end.winner, knivesIn === 0 ? 'town' : 'knives'); if (end.winner === 'knives') assert.ok(knivesIn >= othersIn); }
+  const shown = await page.evaluate(() => ({ mid: document.querySelector('#mid .mid-t').textContent, tags: [...document.querySelectorAll('.seat .seat-tag')].map(t => t.textContent), last: Game.state.log[Game.state.log.length - 1].text,
+    host: Game.state.log.filter(e => e.kind === 'host').length, record: Game.recordText(), hostText: Game.state.log.filter(e => e.kind === 'host').map(e => e.text) }));
+  assert.match(shown.mid, /^(Town wins|The Knives win|The Fool wins)$/);
+  assert.ok(shown.tags.every(t => ['Town', 'Knife', 'Witness', 'Watch', 'Fool', 'Hothead'].includes(t)), 'every role is on the table at the end: ' + shown.tags.join(','));
+  assert.match(shown.last, /^(Town wins\. Every Knife is out: |The Knives win: |The Fool wins\. )/);
+  assert.ok(shown.host >= 3, 'the host speaks at each night, morning and vote');
+  assert.ok(shown.hostText.every(t => !shown.record.includes(t)), 'and what the host says is colour: it is never in the record a seat is given');
+  // The reveal: every role, how each went and how each voted.
+  await page.click('#mid-reveal');
+  const rows = await page.evaluate(() => [...document.querySelectorAll('dialog .reveal-row')].map(r => ({ role: r.dataset.role, name: r.querySelector('.reveal-name').textContent, fate: r.querySelector('.reveal-fate').textContent })));
+  assert.equal(rows.length, 8);
+  assert.equal(rows[0].role, 'knife', 'the Knives first');
+  assert.ok(rows.every(r => /^(In at the end|Voted out, day \d|Taken in the night, day \d|Taken by the Hothead, day \d)/.test(r.fate)), JSON.stringify(rows.map(r => r.fate)));
+  assert.ok(rows.some(r => / · voted \w+/.test(r.fate)), 'who each voted for');
 });
 
 s.test('the Witness learns what is true, the Watch turns the Knives away, and a tied vote puts nobody out', async h => {
   const page = await open(h);
   // The Witness.
   await sit(page, { seed: 31, role: 'witness' });
-  await page.click('#mid-go');
-  await idle(page);
+  await begin(page);
   const knife = await page.evaluate(() => { const k = Game.state.players.find(p => p.role === 'knife'); Game.Bots.kill = () => Game.state.players.find(p => p.alive && !p.you && p.role === 'town'); return { id: k.id, name: k.name, first: k.first }; });
   assert.equal(await page.evaluate(() => document.querySelector('#mid .mid-t').textContent), 'Tap who you watch tonight.');
   await page.click(`.seat[data-id="${knife.id}"]`);
   assert.equal(await page.textContent('#mid-go'), `Watch ${knife.first}`);
   await page.click('#mid-go');
-  await idle(page);
+  await settle(page);
   assert.ok((await sysLines(page)).includes(`You watched ${knife.name} in the night. ${knife.first} is a Knife.`));
   assert.equal(await page.evaluate(id => document.querySelector(`.seat[data-id="${id}"] .seat-tag`).textContent, knife.id), 'Knife', 'and it stays on their seat');
   assert.equal(await page.evaluate(() => Game.recordText().includes('You watched')), false, 'what the Witness saw is not in the record the others are given');
   // The Watch.
   await sit(page, { seed: 32, role: 'watch' });
-  await page.click('#mid-go');
-  await idle(page);
+  await begin(page);
   const ward = await page.evaluate(() => { const t = Game.state.players.find(p => !p.you && p.role === 'town'); Game.Bots.kill = () => t; return t.id; });
   await page.click(`.seat[data-id="${ward}"]`);
   await page.click('#mid-go');
-  await idle(page);
+  await settle(page);
   const lines = await sysLines(page);
-  assert.ok(lines.includes('Morning. Someone came for one of you in the night and was turned away. Everyone is still here.'), lines.join(' | '));
+  assert.ok(lines.includes('Someone came for one of you in the night and was turned away. Everyone is still here.'), lines.join(' | '));
+  assert.match(await page.evaluate(() => Game.recordText()), /^Morning\. Someone came for one of you in the night and was turned away\. Everyone is still here\.$/m);
   assert.equal((await st(page)).players.filter(p => !p.alive).length, 0);
   // A tie.
   const pair = await page.evaluate(() => {
     const live = Game.state.players.filter(p => p.alive && !p.you);
     const a = live[0]; const b = live[1];
     Game.Bots.vote = p => ({ vote: p === a ? b : (live.indexOf(p) % 2 ? a : b), text: 'There.' });
-    return { a: a.id, b: b.id, n: live.length + 1 };
+    return { a: a.id, b: b.id };
   });
   await page.click('#btn-vote');
   // Seven others: a votes b; of the other six, three for a and three for b gives b four and a three, so the player's vote for a ties it.
   await page.click(`.seat[data-id="${pair.a}"]`);
   await page.click('#mid-go');
-  await idle(page);
+  await settle(page);
   const after = await sysLines(page);
   assert.ok(after.some(l => /A tie between .* \(4 each\), so nobody is put out\.$/.test(l)), after.slice(-3).join(' | '));
   assert.equal((await st(page)).players.filter(p => !p.alive).length, 0);
   assert.equal((await st(page)).phase, 'night');
+  assert.equal(await page.evaluate(() => document.querySelectorAll('#table .arrows').length), 0, 'the pointing is cleared once the vote is done');
 });
 
-s.test('with Claude at the seats: the request is the API\'s own shape, each seat is told only what it would know, the cost is shown, and what comes back is said, voted and done', async h => {
+s.test('last words come before the role is shown: a seat\'s own, then the player\'s, typed or not', async h => {
+  const page = await open(h);
+  await sit(page, { seed: 61, role: 'town', wild: false });
+  await begin(page);
+  await page.evaluate(() => { Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop(); });
+  await page.click('#mid-go');
+  await settle(page);
+  // Everyone votes one Town seat out.
+  const mark = await page.evaluate(() => { const t = Game.state.players.find(p => p.alive && !p.you && p.role === 'town'); const o = Game.state.players.find(p => p.alive && !p.you && p !== t); Game.Bots.vote = p => ({ vote: p === t ? o : t, text: 'There.' }); return { id: t.id, first: t.first, name: t.name }; });
+  await page.click('#btn-vote');
+  await page.click(`.seat[data-id="${mark.id}"]`);
+  await page.click('#mid-go');
+  await settle(page);
+  const log = await page.evaluate(() => Game.state.log.map(e => [e.kind, e.who || '', e.text]));
+  const last = log.findIndex(e => e[0] === 'last');
+  const ban = log.findIndex(e => e[0] === 'banish');
+  assert.ok(last > 0 && last < ban, 'said before the role is shown');
+  assert.equal(log[last][1], mark.id);
+  assert.match(log[ban][2], new RegExp(`${mark.name} is put out with \\d votes\\. ${mark.first} was Town\\.$`));
+  assert.match(await page.evaluate(() => Game.recordText()), new RegExp(`^${mark.first} \\(last words\\): "`, 'm'), 'and it is in the record, for the seats to weigh');
+  // The next day the table turns on the player, who is asked.
+  await page.evaluate(() => { Game.Bots.vote = () => ({ vote: Game.state.players[0], text: 'The stranger.' }); });
+  await page.click('#mid-go');
+  await settle(page);
+  await page.click('#btn-vote');
+  const other = await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you).id);
+  await page.click(`.seat[data-id="${other}"]`);
+  await page.click('#mid-go');
+  await page.waitForFunction(() => Game.waiting === 'line');
+  assert.deepEqual(await page.evaluate(() => [document.querySelector('#mid .mid-t').textContent, document.querySelector('#say').placeholder, !!document.querySelector('#btn-nothing')]), ['Any last words?', 'Any last words?', true]);
+  await page.fill('#say', 'It is not me, and you will see it in the morning.');
+  await page.click('#btn-say');
+  await settle(page);
+  const mine = await page.evaluate(() => Game.state.log.filter(e => e.kind === 'last' && e.who === 'you').map(e => e.text));
+  assert.deepEqual(mine, ['It is not me, and you will see it in the morning.']);
+  assert.equal((await st(page)).me.alive, false);
+});
+
+s.test('the Fool wins alone by the vote, and the Hothead takes someone along: a seat by its own choice, the player by theirs', async h => {
+  const page = await open(h);
+  const townLast = () => { Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop(); };
+  // The Fool, voted out.
+  await sit(page, { seed: 71, role: 'town' });
+  await begin(page);
+  await page.evaluate(townLast);
+  await page.click('#mid-go');
+  await settle(page);
+  const fool = await page.evaluate(() => { const f = Game.state.players.find(p => p.role === 'fool'); const o = Game.state.players.find(p => p.alive && !p.you && p !== f); Game.Bots.vote = p => ({ vote: p === f ? o : f, text: 'Him.' }); return { id: f.id, name: f.name }; });
+  await page.click('#btn-vote');
+  await page.click(`.seat[data-id="${fool.id}"]`);
+  await page.click('#mid-go');
+  await settle(page);
+  let g = await st(page);
+  assert.deepEqual([g.phase, g.winner], ['over', 'fool']);
+  assert.equal((await sysLines(page, 'end'))[0], `The Fool wins. ${fool.name} wanted the vote, and the table gave it. Everyone else loses.`);
+  assert.deepEqual(await page.evaluate(() => [document.querySelector('#mid .mid-k').textContent, document.querySelector('#mid .mid-t').textContent]), ['You lost', 'The Fool wins']);
+  // A seat that is the Hothead, voted out, takes whoever it chooses.
+  await sit(page, { seed: 72, size: 10, role: 'town' });
+  await begin(page);
+  await page.evaluate(townLast);
+  await page.click('#mid-go');
+  await settle(page);
+  const hot = await page.evaluate(() => {
+    const hh = Game.state.players.find(p => p.role === 'hothead');
+    const knife = Game.state.players.find(p => p.role === 'knife' && p.alive);
+    const o = Game.state.players.find(p => p.alive && !p.you && p !== hh);
+    Game.Bots.vote = p => ({ vote: p === hh ? o : hh, text: 'Her.' });
+    Game.Bots.shot = () => knife;
+    return { id: hh.id, name: hh.name, first: hh.first, knife: knife.id, knifeName: knife.name };
+  });
+  await page.click('#btn-vote');
+  await page.click(`.seat[data-id="${hot.id}"]`);
+  await page.click('#mid-go');
+  await settle(page);
+  g = await st(page);
+  assert.deepEqual(g.players.find(p => p.id === hot.knife).out, { how: 'shot', day: 1 });
+  assert.ok((await sysLines(page, 'death')).some(l => l.startsWith(`${hot.first} takes ${hot.knifeName} along. `) && l.endsWith('was a Knife.')));
+  assert.match(await page.evaluate(() => Game.recordText()), new RegExp(`^${hot.name} was the Hothead and takes ${hot.knifeName} out too\\.`, 'm'));
+  // The player, the Hothead, taken in the night, picks at the table.
+  await sit(page, { seed: 73, size: 10, role: 'hothead' });
+  await begin(page);
+  await page.evaluate(() => { Game.Bots.kill = () => Game.state.players[0]; });
+  const target = await page.evaluate(() => Game.state.players.find(p => p.role === 'knife').id);
+  await page.click('#mid-go');
+  await page.waitForFunction(() => Game.waiting === 'seat');
+  assert.equal(await page.evaluate(() => document.querySelector('#mid .mid-t').textContent), 'You are the Hothead. Who goes with you?');
+  await page.click(`.seat[data-id="${target}"]`);
+  await page.click('#mid-go');
+  await settle(page);
+  g = await st(page);
+  assert.deepEqual([g.me.alive, g.players.find(p => p.id === target).out.how], [false, 'shot']);
+});
+
+s.test('with Claude at the seats: the request is the API\'s own shape, each seat is told only what it would know, the host only what is public, the cost is shown, and what comes back is said, voted and done', async h => {
   const bodies = [];
   const page = await open(h, { route: standIn(bodies) });
   await page.fill('#f-key', 'sk-ant-test-key');
   await page.fill('#f-name', 'Joe');
   await page.click('#f-role [data-v="knife"]');
-  await page.evaluate(() => { Game.App.speed = 0; });
+  await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
   await page.click('#btn-new');
   await page.click('dialog .btn.primary');
-  await page.click('#mid-go');
-  await idle(page);
+  await begin(page);
   const mate = await page.evaluate(() => Game.state.players.find(p => p.role === 'knife' && !p.you));
   assert.equal(bodies.length, 1, 'the night opens with the fellow Knife\'s whisper');
   assert.ok(await page.evaluate(() => Game.state.log.some(e => e.kind === 'whisper' && e.priv)), 'which is private');
-  const prey = await page.evaluate(() => Game.state.players.find(p => p.alive && p.role !== 'knife').id);
+  const prey = await page.evaluate(() => Game.state.players.find(p => p.alive && p.role === 'town').id);
   await page.click(`.seat[data-id="${prey}"]`);
   await page.click('#mid-go');
-  await idle(page);
+  await settle(page);
   await page.fill('#say', 'I was at the bar all night. Who saw anything?');
   await page.click('#btn-say');
-  await idle(page);
+  await settle(page);
   const said = await page.evaluate(() => Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk').map(e => [e.who, e.text]));
   assert.equal(said[0][0], 'you');
   assert.ok(said.length >= 3 && said.slice(1).every(x => /you were by the back door when the lights went/.test(x[1])), 'what Claude sent back is what is said');
@@ -224,21 +355,29 @@ s.test('with Claude at the seats: the request is the API\'s own shape, each seat
   }
   // What each seat is told.
   const userOf = b => b.body.messages[0].content.map(c => c.text).join('\n');
+  const isHost = b => /^You are the host/.test(b.body.system[0].text);
   const talk = bodies.filter(b => b.body.output_config.format.schema.required.includes('stance'));
-  const town = talk.find(b => /YOUR SECRET ROLE: (Town|Witness|Watch)/.test(userOf(b)));
+  const town = talk.find(b => /YOUR SECRET ROLE: (Town|Witness|Watch|Fool|Hothead)/.test(userOf(b)));
   const knife = talk.find(b => /YOUR SECRET ROLE: Knife/.test(userOf(b)));
-  assert.ok(town, 'someone of the Town spoke');
-  assert.doesNotMatch(userOf(town), /fellow Kni|The Knives took|whisper|Too sharp by half/i, 'a Town seat is told nothing of the Knives');
+  assert.ok(town, 'someone who is not a Knife spoke');
+  assert.doesNotMatch(userOf(town), /fellow Kni|The Knives took|whisper|Too sharp by half/i, 'a seat that is not a Knife is told nothing of the Knives');
   assert.doesNotMatch(town.body.system[0].text, /YOUR SECRET ROLE|Your fellow Kni|The Knives took/, 'and the shared rules name nobody\'s role');
   assert.match(userOf(town), /^Joe: "I was at the bar all night\. Who saw anything\?"$/m, 'the player is in the record by name, as anyone is');
+  assert.doesNotMatch(userOf(town), /The generator coughs twice/, 'the host\'s colour is not in a seat\'s record');
   if (knife) assert.match(userOf(knife), /YOUR SECRET ROLE: Knife\. Your fellow Knife: Joe\./);
   assert.match(bodies[0].body.system[0].text, new RegExp(`- ${mate.name} \\(\\d+, [^)]+\\)\\. Voice: `), 'each seat\'s voice is the town\'s own');
-  // The vote.
+  assert.match(bodies[0].body.system[0].text, /One person is the Fool, on nobody's side/, 'the wild cards are in the rules every seat is given');
+  // The host.
+  const hosts = bodies.filter(isHost);
+  assert.ok(hosts.length >= 2, 'the host is asked for the night and the morning');
+  for (const b of hosts) assert.doesNotMatch(userOf(b) + b.body.system[0].text, /SECRET ROLE|fellow Kni|is a Knife\b/, 'and is told nothing that is not public');
+  assert.ok(await page.evaluate(() => Game.state.log.some(e => e.kind === 'host' && e.text === 'The generator coughs twice and the room goes dark.')));
+  // The vote: the stand-in has every seat vote for the first name still in that is not its own, so the table goes for the player.
   await page.click('#btn-vote');
-  const target = await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you && p.role !== 'knife').id);
+  const target = await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you && p.role === 'town').id);
   await page.click(`.seat[data-id="${target}"]`);
   await page.click('#mid-go');
-  await idle(page);
+  await settle(page, { words: 'You have the wrong one.' });
   const votes = bodies.filter(b => b.body.output_config.format.schema.required.includes('vote'));
   assert.equal(votes.length, 6, 'each other seat still in votes in a call of its own');
   const cost = await page.textContent('#cost');
@@ -251,20 +390,19 @@ s.test('a call that fails costs the game nothing: that seat plays from the scrip
   const page = await open(h, { route: standIn(bodies, { fail: true }) });
   await page.fill('#f-key', 'sk-ant-secret-key');
   await page.click('#f-role [data-v="town"]');
-  await page.evaluate(() => { Game.App.speed = 0; });
+  await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
   await page.click('#btn-new');
   await page.click('dialog .btn.primary');
+  await begin(page);
   await page.click('#mid-go');
-  await idle(page);
-  await page.click('#mid-go');
-  await idle(page);
+  await settle(page);
   if ((await st(page)).me.alive) { await page.fill('#say', 'Well?'); await page.click('#btn-say'); } else await page.click('#btn-pass');
-  await idle(page);
-  const out = await page.evaluate(() => ({ notices: Game.state.log.filter(e => e.kind === 'notice' && /failed/.test(e.text)).map(e => e.text), talk: Game.state.log.filter(e => e.t === 'say' && e.who !== 'you').length, failed: Game.state.usage.failed, save: window.localStorage.getItem('novatria.lastcall'), text: document.body.textContent }));
+  await settle(page);
+  const out = await page.evaluate(() => ({ notices: Game.state.log.filter(e => e.kind === 'notice' && /failed/.test(e.text)).map(e => e.text), talk: Game.state.log.filter(e => e.t === 'say' && e.who !== 'you').length, host: Game.state.log.filter(e => e.kind === 'host').length, failed: Game.state.usage.failed, save: window.localStorage.getItem('novatria.lastcall'), text: document.body.textContent }));
   assert.ok(bodies.length >= 2, 'the calls were made');
   assert.equal(out.notices.length, 1, 'said once');
   assert.match(out.notices[0], /^A call to Claude failed \(the stand-in is down\), so that seat played from its script\. The game goes on\.$/);
-  assert.ok(out.talk >= 2 && out.failed >= 2, 'and the table still talks');
+  assert.ok(out.talk >= 2 && out.failed >= 2 && out.host >= 2, 'and the table still talks, the host too');
   assert.equal(out.save.includes('sk-ant-secret-key'), false, 'the key is not in the save');
   assert.equal(out.text.includes('sk-ant-secret-key'), false);
 });
@@ -272,14 +410,13 @@ s.test('a call that fails costs the game nothing: that seat plays from the scrip
 s.test('out of the game the player sees every role, can watch or skip to the end with no call, and a table left is picked up again', async h => {
   const page = await open(h);
   await sit(page, { seed: 41, role: 'town' });
-  await page.click('#mid-go');
-  await idle(page);
+  await begin(page);
   await page.evaluate(() => { Game.Bots.kill = () => Game.state.players.find(p => p.you && p.alive) || Game.state.players.find(p => p.alive && p.role !== 'knife'); });
   await page.click('#mid-go');
-  await idle(page);
+  await settle(page);
   let g = await st(page);
   assert.equal(g.me.alive, false);
-  assert.ok((await sysLines(page)).includes('Morning. You were taken in the night. You were Town.'));
+  assert.ok((await sysLines(page)).includes('You were taken in the night. You were Town.'));
   assert.equal(await page.evaluate(() => Game.recordText().includes('Morning. Joe was taken in the night. Joe was Town.')), true, 'the record names the player');
   assert.ok(await page.evaluate(() => [...document.querySelectorAll('.seat .seat-tag')].every(t => t.textContent)), 'every role is shown to the one who is out');
   assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#acts .btn')].map(b => b.textContent)), ['Watch them talk', 'Go to the vote', 'Skip to the end']);
@@ -296,34 +433,45 @@ s.test('out of the game the player sees every role, can watch or skip to the end
   assert.equal(await page.evaluate(() => document.querySelectorAll('#log > *').length), await page.evaluate(() => Game.state.log.length), 'the story so far is drawn again');
   await page.evaluate(() => { Game.App.speed = 0; });
   await page.click('#btn-skip');
-  await idle(page);
+  await settle(page);
   g = await st(page);
   assert.equal(g.phase, 'over');
-  assert.ok(['town', 'knives'].includes(g.winner));
+  assert.ok(['town', 'knives', 'fool'].includes(g.winner));
+  assert.equal(await page.evaluate(() => !!document.querySelector('dialog[open] .reveal')), true, 'and the reveal opens by itself at the end');
 });
 
 for (const [name, vp] of [['375', PHONE], ['320', { width: 320, height: 568 }], ['a laptop', LAPTOP]]) {
-  s.test(`at ${name}: nothing wider than the screen on the first screen, at night, in the talk with a seat picked and at the vote; every button is 44px`, async h => {
+  s.test(`at ${name}: nothing wider than the screen on the first screen, at night, in the talk with a seat picked, at the vote and in the reveal; every button is 44px`, async h => {
     const page = await open(h, { viewport: vp });
     const w = vp.width;
     const small = () => page.evaluate(() => [...document.querySelectorAll('#app button, #app .input, #app a.btn')].filter(b => b.offsetParent && b.getBoundingClientRect().height < 43.5).map(b => `${b.id || b.className} ${Math.round(b.getBoundingClientRect().height)}`));
     assert.deepEqual(await overflowReport(page, w), [], 'the first screen');
     assert.deepEqual(await small(), [], 'the first screen\'s buttons');
     await sit(page, { seed: 51, size: 10, role: 'town' });
-    await page.click('#mid-go');
-    await idle(page);
+    await begin(page);
     assert.deepEqual(await overflowReport(page, w), [], 'night');
+    await page.evaluate(() => { Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop(); });
     await page.click('#mid-go');
-    await idle(page);
+    await settle(page);
     const other = await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you).id);
     await page.click(`.seat[data-id="${other}"]`);
     assert.deepEqual(await overflowReport(page, w), [], 'the talk, a seat picked');
     assert.deepEqual(await small(), [], 'the game\'s buttons');
-    const seats = await page.evaluate(() => { const t = document.querySelector('#table').getBoundingClientRect(); return [...document.querySelectorAll('.seat')].map(s => { const r = s.getBoundingClientRect(); return r.left >= -1 && r.right <= window.innerWidth + 1 && r.width >= 44 && r.height >= 44 && r.top >= t.top - 60; }); });
+    const seats = await page.evaluate(() => { const t = document.querySelector('#table').getBoundingClientRect(); return [...document.querySelectorAll('.seat')].map(x => { const r = x.getBoundingClientRect(); return r.left >= -1 && r.right <= window.innerWidth + 1 && r.width >= 44 && r.height >= 44 && r.top >= t.top - 60; }); });
     assert.ok(seats.length === 10 && seats.every(Boolean), 'ten seats, each on screen and big enough to tap');
-    if ((await st(page)).me.alive) { await page.fill('#say', 'Hm.'); await page.click('#btn-say'); await idle(page); }
+    await page.fill('#say', 'Hm.');
+    await page.click('#btn-say');
+    await settle(page);
     await page.click('#btn-vote');
     assert.deepEqual(await overflowReport(page, w), [], 'the vote');
+    // Straight to the end, for the reveal.
+    await page.evaluate(() => { Game.App.quiet = false; Game.state.players[0].alive = false; Game.state.players[0].out = { how: 'night', day: 1 }; Game.UI.render(); });
+    await page.click('#btn-skip');
+    await settle(page);
+    await page.waitForSelector('dialog[open] .reveal');
+    assert.deepEqual(await overflowReport(page, w), [], 'the reveal');
+    const d = await page.evaluate(() => { const r = document.querySelector('dialog[open]').getBoundingClientRect(); return r.left >= 0 && r.right <= window.innerWidth && r.bottom <= window.innerHeight + 1; });
+    assert.ok(d, 'the reveal fits the screen');
   });
 }
 

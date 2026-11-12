@@ -377,7 +377,7 @@ s.test('risk: a theft from a place or a thing while its owner is away still roll
   assert.equal(r.away, true);
   assert.equal(r.register, true, 'a theft from his register rolls');
   assert.equal(r.pocket, false, 'his pocket is not here');
-  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8'), /\bnoRoll\b/);
+  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'town.html'), 'utf8'), /\bnoRoll\b/);
 });
 
 s.test('risk: when the chief was not about on the second rough night, the third morning says so ("third morning running"), and his memory counts the nights', async h => {
@@ -656,7 +656,7 @@ s.test('D10 to D14: the demo bets on "I put $50 in" and "I ante up $20" at the b
   assert.equal(r.shove, 'attack');
   assert.equal(r.bus.actionType, 'move');
   assert.equal(r.bus.destinationId, r.calder);
-  const src = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const src = fs.readFileSync(path.join(ROOT, 'town.html'), 'utf8');
   assert.doesNotMatch(src, /due = due\.map\(\(t, i\) => \{ const c = t\.split/, 'no clause cutting');
 });
 

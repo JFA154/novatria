@@ -287,7 +287,7 @@ const KEPT = [
   ['the editor\'s placeholders (the Creator module)', (mod, code) => mod === 'Creator' && /placeholder: '/.test(code)]
 ];
 s.test('index.html outside the JSON element and comments names Low Water\'s people and places only where it keeps them on purpose: the page head\'s name, the first-name lists, PackRules\' house set, Api\'s example sentences and Mock region, Upgrade\'s legacy block and the editor\'s placeholders; none in Dice, Rel, Town, World, Pipeline, State, UI or Pack', async () => {
-  const lines = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8').split('\n');
+  const lines = fs.readFileSync(path.join(ROOT, 'town.html'), 'utf8').split('\n');
   let inJson = false, inBlock = false, inHtml = false, mod = null, mock = false;
   const hits = [];
   lines.forEach((l, i) => {
