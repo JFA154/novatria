@@ -1921,12 +1921,64 @@ every Knife is out; the Knives win when they are as many as everyone else.
 
 - **Seats and roles**: 6 (one Knife), 8 (two) or 10 (three). One of the Town
   is the **Witness**, who learns each night whether one person is a Knife.
-  At eight seats or more one is the **Watch**, who guards one person a
-  night. **Wild cards** (on unless you turn them off): at eight a **Fool**,
-  on nobody's side, who wins alone the moment the table votes them out; at
-  ten a **Hothead** too, who is Town and takes one person with them when
-  they go. You can ask for a role or be dealt one. If you are a Knife your
-  fellow Knife whispers who they would take, and you choose.
+  You can ask for a role (Town, Knife, Witness, or a wild card) or be dealt
+  one. If you are a Knife your fellow Knife whispers who they would take,
+  and you choose.
+- **No two nights the same: the house deal** (the default; the owner, after
+  a few nights of the one fixed deck: "1 or 2 games and it gets boring").
+  The house shuffles a few **wild cards** in from a deck of its own,
+  different every night, and tells the table which are in play (the role
+  card when you sit down, and **Roles** at any time, with a line on each):
+  - the **Watch** guards one person a night, never the same one twice
+    running;
+  - the **Bouncer** may, once in the game, throw one person out in the
+    night, and what they were is shown in the morning (you can keep it for
+    another night; a door the Watch is keeping holds against it);
+  - the **Listener** learns each morning how many of the two people sat
+    either side of them, the nearest still in, are Knives, but not which;
+  - two **Old Friends** know each other, and that the other is no Knife;
+  - the **Hothead** takes one person with them when they go;
+  - the **Drunk** has been told they are the Witness and is not: what they
+    see is as likely wrong as right, their card says Witness until they are
+    out or the game is over, and a real Witness at the same table is told
+    there is a Drunk about;
+  - the **Turncoat** is Town until the Knives come for them: then nobody is
+    taken, the morning looks like any quiet one, and the Turncoat is a
+    Knife from then on, knows the Knives and wins with them;
+  - the **Fool** is on nobody's side and wins alone the moment the table
+    votes them out.
+
+  The wild cards take two seats at a table of six, three at eight and four
+  at ten (the Old Friends take two), with at most one of the Drunk, the
+  Turncoat and the Fool; a table of six has no Fool, no Turncoat and no
+  Old Friends. **Classic** is the deck as it was, the same
+  every night (a Watch at eight seats or more, a Fool at eight, a Hothead
+  too at ten); **Plain** has no wild cards. Neither has a house rule.
+- **One house rule a night** (with the house deal): **A note is found**
+  (whoever the Knives take leaves one last line, found in the morning;
+  yours too), **No ties** (a tie between two puts out both), **The house
+  vouches** (before anything is said, one person is named who is not a
+  Knife), **Lights out** (what someone taken in the night was is not shown
+  until the game is over; the vote still shows it) or **Secret ballot**
+  (the count is shown and never whose vote was whose).
+- **A side bet**: something of your own to play for, dealt with your card,
+  whatever the card is (a plain Town card most of all): still be in your
+  seat at the end, never vote for anyone who is not a Knife, have your
+  Suspect mark on every Knife and nobody else, as a Knife win without one
+  of you voted out, as the Bouncer throw out a Knife, and so on, thirteen
+  in all. The reveal says whether it came off.
+- **Your tab**: the house keeps, in this browser, the nights you have
+  played and won, your run of wins, each card you have held and each kind
+  of side bet you have won; the first screen shows it once there has been a
+  night. Nothing of it leaves the browser.
+- **The regulars remember**: the people you have sat with are kept too,
+  with what happened between the two of you the last time (which sides you
+  were on, how it ended, the vote that stung). Two or three of them are
+  back at the next table, and on its first day each is told it, as
+  something friends bring up and never as evidence: the cards are dealt
+  fresh every night.
+- **Deal again**, when it is over, sits you straight down at another table
+  set the same way.
 - **The table is the screen**: everyone's face round it, yours at the foot.
   Tap a face to aim at them, to mark them (Suspect or Trust, a ring only you
   see), to pick them at night or to vote for them. **Call the vote** is in
@@ -2046,7 +2098,7 @@ from `file://`, with the network blocked. Playwright is preinstalled in the
 build environment. Elsewhere, install it outside this folder (as the CI
 workflow does) and point `NODE_PATH` at it, because
 `tests/constraints.test.cjs` checks there is no `package.json` here. There is
-nothing else to install. The whole run is about 836 tests and takes fifteen to
+nothing else to install. The whole run is about 845 tests and takes fifteen to
 twenty minutes. `tests/wave30-rel-people.test.cjs` builds its older save from
 commit `56e69f5`'s `index.html`, so it needs the git history (a shallow clone
 fails it with a message saying so; the CI checkout fetches it all).
@@ -2071,7 +2123,11 @@ fails it with a message saying so; the CI checkout fetches it all).
   26, built alongside the relationship branch's);
 - `lastcall` for Last Call (`index.html`): the deal and the wild cards, the
   rules, a whole scripted game with the host and the reveal, last words, the
-  Fool and the Hothead, what is waiting on the player and the quick replies,
+  Fool and the Hothead, the house deal (every deal legal over 240 seeds a
+  size, many different decks, a card asked for dealt in), the Drunk, the
+  Bouncer, the Turncoat, the Listener and the Old Friends, each house rule,
+  the side bets, the tab and the regulars, Deal again, a house table with
+  Claude, what is waiting on the player and the quick replies,
   what the player says being answered, the temperaments, the ways of
   typing and the lengths (a seat that goes on is cut off), a live table
   talking on by itself (who is typing, the player speaking meanwhile, two

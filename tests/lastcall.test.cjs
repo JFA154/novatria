@@ -20,6 +20,11 @@
    widths; the table folded to a strip of faces while a phone's table
    talks (the owner: "taking too much of the screen on mobile so i can
    barely see the text"); no innerHTML and one fetch.
+   The house deal (the owner: "1 or 2 games and it gets boring") has its
+   own tests at the end: a different deck every night, the Drunk, the
+   Bouncer, the Turncoat, the Listener and the Old Friends, each house
+   rule, the side bets, the tab the house keeps, the regulars who remember
+   the last time, Deal again, and a house table with Claude.
    The talk is live (the owner: "how can it feel like 8 humans are talking?
    rather than ai and game"): the table talks on by itself and the player
    speaks whenever they like. Most tests here sit down at a table that
@@ -94,10 +99,10 @@ s.test('the page stands alone: it opens from file:// with the network shut, the 
   const home = await page.evaluate(() => {
     for (const c of Game.CAST) Game.faceNode(c);
     return { title: document.title, active: document.querySelector('.screen.active').id, cast: Game.CAST.length, young: Game.CAST.filter(c => !(c.age >= 21)).length, firsts: new Set(Game.CAST.map(c => c.name.split(' ')[0])).size,
-      mode: document.querySelector('#f-mode [aria-pressed="true"]').dataset.v, wild: document.querySelector('#f-wild [aria-pressed="true"]').dataset.v, keyShown: !document.querySelector('#claude-fields').hidden, cont: document.querySelector('#home-continue-row').hidden,
+      mode: document.querySelector('#f-mode [aria-pressed="true"]').dataset.v, wild: document.querySelector('#f-deck [aria-pressed="true"]').dataset.v, tab: document.querySelector('#home-tab').hidden, keyShown: !document.querySelector('#claude-fields').hidden, cont: document.querySelector('#home-continue-row').hidden,
       links: [...document.querySelectorAll('a[href]')].map(a => a.getAttribute('href')) };
   });
-  assert.deepEqual([home.title, home.active, home.mode, home.wild, home.keyShown, home.cont], ['Last Call', 'screen-home', 'claude', 'on', true, true]);
+  assert.deepEqual([home.title, home.active, home.mode, home.wild, home.keyShown, home.cont, home.tab], ['Last Call', 'screen-home', 'claude', 'house', true, true, true], 'the house deals unless told otherwise, and there is no tab before a night has been played');
   assert.ok(home.cast >= 30 && home.young === 0, 'the town\'s adults only: ' + JSON.stringify(home));
   assert.equal(home.firsts, home.cast, 'no two share a first name');
   assert.deepEqual(home.links, [], 'the town game is not linked from here (it is kept beside it, hidden for now)');
@@ -108,7 +113,7 @@ s.test('the page stands alone: it opens from file:// with the network shut, the 
   assert.equal(await page.evaluate(() => document.querySelector('#claude-fields').hidden), true);
   await page.click('#btn-new');
   await page.waitForSelector('#screen-game.active');
-  assert.deepEqual(await page.evaluate(() => [Game.state.mode, Game.state.wild, Game.state.players.length]), ['demo', true, 8]);
+  assert.deepEqual(await page.evaluate(() => [Game.state.mode, Game.state.wild, Game.state.deck, Game.state.players.length]), ['demo', true, 'house', 8]);
 });
 
 s.test('the deal: the roles by size, the wild cards at eight and ten unless the table is set without them, the role asked for given, the same seed the same table, and nobody with the player\'s name', async h => {
@@ -312,7 +317,7 @@ s.test('the Fool wins alone by the vote, and the Hothead takes someone along: a 
   await page.click('#mid-go');
   await settle(page);
   g = await st(page);
-  assert.deepEqual(g.players.find(p => p.id === hot.knife).out, { how: 'shot', day: 1 });
+  assert.deepEqual(g.players.find(p => p.id === hot.knife).out, { how: 'shot', day: 1, by: hot.id });
   assert.ok((await sysLines(page, 'death')).some(l => l.startsWith(`${hot.first} takes ${hot.knifeName} along. `) && l.endsWith('was a Knife.')));
   assert.match(await page.evaluate(() => Game.recordText()), new RegExp(`^${hot.name} was the Hothead and takes ${hot.knifeName} out too\\.`, 'm'));
   // The player, the Hothead, taken in the night, picks at the table.
@@ -335,6 +340,7 @@ s.test('with Claude at the seats: the request is the API\'s own shape, each seat
   const page = await open(h, { route: standIn(bodies) });
   await page.fill('#f-key', 'sk-ant-test-key');
   await page.fill('#f-name', 'Joe');
+  await page.click('#f-deck [data-v="classic"]');
   await page.click('#f-role [data-v="knife"]');
   await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
   await page.click('#f-pace [data-v="turns"]');
@@ -404,6 +410,7 @@ s.test('a call that fails costs the game nothing: that seat plays from the scrip
   const bodies = [];
   const page = await open(h, { route: standIn(bodies, { fail: true }) });
   await page.fill('#f-key', 'sk-ant-secret-key');
+  await page.click('#f-deck [data-v="classic"]');
   await page.click('#f-role [data-v="town"]');
   await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
   await page.click('#f-pace [data-v="turns"]');
@@ -522,6 +529,7 @@ s.test('they play like people who are trying to win, and write like people in a 
   const page = await open(h, { route: standIn(bodies) });
   await page.fill('#f-key', 'sk-ant-test-key');
   await page.fill('#f-name', 'Joe');
+  await page.click('#f-deck [data-v="classic"]');
   await page.click('#f-role [data-v="town"]');
   await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
   await page.click('#f-pace [data-v="turns"]');
@@ -616,6 +624,7 @@ s.test('what the player says is answered: the first seat to speak is given their
   await page.fill('#f-key', 'sk-ant-test-key');
   await page.fill('#f-name', 'Joe');
   // (A Knife, so the night is the player's to decide and they are at the table in the morning.)
+  await page.click('#f-deck [data-v="classic"]');
   await page.click('#f-role [data-v="knife"]');
   await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
   await page.click('#f-pace [data-v="turns"]');
@@ -722,6 +731,7 @@ s.test('at a live table with Claude: whoever is up is shown typing (two at once 
   await page.fill('#f-key', 'sk-ant-test-key');
   await page.fill('#f-name', 'Joe');
   // (A Knife, so the night is the player's to decide and they are at the table in the morning.)
+  await page.click('#f-deck [data-v="classic"]');
   await page.click('#f-role [data-v="knife"]');
   await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
   assert.equal(await page.evaluate(() => document.querySelector('#f-pace [aria-pressed="true"]').dataset.v), 'live', 'a live table is what is offered first');
@@ -776,6 +786,7 @@ s.test('they carry things from one day to the next: who voted for them, whether 
   const page = await open(h, { route: standIn(bodies) });
   await page.fill('#f-key', 'sk-ant-test-key');
   await page.fill('#f-name', 'Joe');
+  await page.click('#f-deck [data-v="classic"]');
   await page.click('#f-role [data-v="knife"]');
   await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
   await page.click('#f-pace [data-v="turns"]');
@@ -976,6 +987,7 @@ s.test('the seats are told the table is all there is: nothing about where anyone
   const page = await open(h, { route: standIn(bodies) });
   await page.fill('#f-key', 'sk-ant-test-key');
   await page.fill('#f-name', 'Joe');
+  await page.click('#f-deck [data-v="classic"]');
   await page.click('#f-role [data-v="town"]');
   await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
   await page.click('#f-pace [data-v="turns"]');
@@ -1046,6 +1058,524 @@ for (const [name, vp] of [['375', PHONE], ['320', { width: 320, height: 568 }], 
     assert.ok(d, 'the reveal fits the screen');
   });
 }
+
+/* ----- The house deal (the owner, after a few nights: "1 or 2 games and it
+   gets boring"). The same deck every night was the same game every night,
+   and nothing was kept from one to the next. So: a deck the house shuffles
+   afresh (the Bouncer, the Listener, the Old Friends, the Drunk and the
+   Turncoat beside the Watch, the Fool and the Hothead), one house rule a
+   night, a side bet of the player's own, a tab the house keeps, and the
+   people sat with before remembering the last time. ----- */
+/* The first seed whose deal is the one wanted (the deal is seeded, so the search finds the same seed every run). want: { me: the player's role, has: cards in the deck, not: cards not in it }. */
+const seedFor = (page, opts, want) => page.evaluate(([o, w]) => {
+  for (let seed = 1; seed < 6000; seed++) {
+    const g = Game.Rules.deal(Object.assign({ seed, mode: 'demo', name: 'Joe', deck: 'house', rule: 'none', bet: 'none' }, o));
+    if (w.me && g.players[0].role !== w.me) continue;
+    if ((w.has || []).some(c => !g.cards[c]) || (w.not || []).some(c => g.cards[c])) continue;
+    return seed;
+  }
+  throw new Error('no seed deals ' + JSON.stringify(w));
+}, [opts || {}, want]);
+/* Play the table out to its end through the buttons: sleep (or the night's first choice), let them talk, vote for the first seat still in. */
+const playOut = async (page, opts) => {
+  for (let i = 0; i < 90; i++) {
+    const g = await st(page);
+    if (g.phase === 'over') return g;
+    if (g.phase === 'role') await begin(page);
+    else if (g.phase === 'night') {
+      if (!(await page.$('#mid-go'))) await page.click(`.seat[data-id="${await page.evaluate(() => { const j = Game.UI.nightJob(); return Game.state.players.find(p => j.ok(p)).id; })}"]`);
+      await page.click('#mid-go');
+      await settle(page, opts);
+    } else if (g.phase === 'talk') { if (g.said < 3) await pass(page); else await page.click('#btn-vote'); }
+    else if (g.phase === 'vote') { if (g.me.alive) await page.click(`.seat[data-id="${g.players.find(p => p.alive && p.id !== 'you').id}"]`); await page.click('#mid-go'); await settle(page, opts); }
+  }
+  throw new Error('the table never finished');
+};
+
+s.test('the house deals a different table every night: the Knives and a Witness, wild cards from its own deck to fill their seats, no more trouble than the size allows, a house rule and a side bet; the same seed the same night; a card asked for is dealt in', async h => {
+  const page = await open(h);
+  const out = await page.evaluate(() => {
+    const R = Game.Rules;
+    const res = { bad: [], decks: {}, cards: {}, rules: {}, bets: {} };
+    for (const size of [6, 8, 10]) {
+      res.decks[size] = new Set(); res.cards[size] = new Set();
+      for (let seed = 1; seed <= 240; seed++) {
+        const g = R.deal({ seed, size, mode: 'demo', deck: 'house' });
+        const n = r => g.players.filter(p => p.role === r).length;
+        const H = R.HOUSE[size];
+        const seats = Object.values(g.cards).reduce((a, b) => a + b, 0);
+        const trouble = ['drunk', 'turncoat', 'fool'].filter(c => g.cards[c]).length;
+        const ok = n('knife') === R.SIZES[size].knife && n('witness') === 1 && seats === H.seats && trouble <= H.trouble && Object.keys(g.cards).every(c => H.pool.includes(c) && n(c) === g.cards[c]) && (g.cards.friend || 0) % 2 === 0
+          && n('town') === size - R.SIZES[size].knife - 1 - seats && g.deck === 'house' && g.wild === true && !!R.RULES[g.rule] && Game.BETS.some(b => b.id === g.bet && b.for(g.players[0].role === 'drunk' ? 'witness' : g.players[0].role))
+          && (g.rule !== 'vouch' || g.players.find(p => p.id === g.vouched).role !== 'knife') && (g.rule === 'vouch') === !!g.vouched;
+        if (!ok) res.bad.push([size, seed, g.cards, g.rule, g.bet]);
+        res.decks[size].add(Object.keys(g.cards).sort().join('+')); Object.keys(g.cards).forEach(c => res.cards[size].add(c)); res.rules[g.rule] = 1; res.bets[g.bet] = 1;
+      }
+      res.decks[size] = res.decks[size].size; res.cards[size] = [...res.cards[size]].sort();
+    }
+    const sig = g => JSON.stringify([g.players.map(p => [p.id, p.role]), g.cards, g.rule, g.bet, g.vouched]);
+    res.same = sig(R.deal({ seed: 77, size: 8, deck: 'house' })) === sig(R.deal({ seed: 77, size: 8, deck: 'house' }));
+    res.other = sig(R.deal({ seed: 77, size: 8, deck: 'house' })) !== sig(R.deal({ seed: 78, size: 8, deck: 'house' }));
+    // A card asked for is dealt in and given; 'wild' gives one of tonight's but never the Drunk; what the size has no room for is not dealt.
+    res.asked = ['bouncer', 'listener', 'friend', 'turncoat', 'watch', 'fool', 'hothead'].map(role => { const g = R.deal({ seed: 9, size: 8, deck: 'house', role }); return [g.players[0].role, !!g.cards[role]]; });
+    res.wild = []; for (let seed = 1; seed <= 60; seed++) { const g = R.deal({ seed, size: 8, deck: 'house', role: 'wild' }); res.wild.push(g.players[0].role !== 'drunk' && !!g.cards[g.players[0].role]); }
+    res.drunkAsked = R.deal({ seed: 9, size: 8, deck: 'house', role: 'drunk' }).players[0].role === 'drunk' && false;
+    res.small = [R.deal({ seed: 9, size: 6, deck: 'house', role: 'turncoat' }).cards.turncoat || 0, R.deal({ seed: 9, size: 6, deck: 'house', role: 'friend' }).cards.friend || 0];
+    // The other decks are what they were, with no house rule; a rule can be asked for at any table.
+    const c = R.deal({ seed: 5, size: 10 }); const p = R.deal({ seed: 5, size: 10, wild: false }); const p2 = R.deal({ seed: 5, size: 10, deck: 'plain' });
+    res.old = [c.deck, c.cards, c.rule, p.deck, p.cards, p.rule, p2.deck, R.deal({ seed: 5, size: 8, rule: 'dark' }).rule, R.deal({ seed: 5, size: 8, deck: 'house', rule: 'none' }).rule];
+    // The regulars: three of the people sat with before are given a seat (two at six), and with none the table is the seed's own.
+    const base = R.deal({ seed: 5, size: 8, deck: 'house' }).players.map(q => q.id);
+    const strangers = Game.CAST.map(x => x.id).filter(id => !base.includes(id)).slice(0, 6);
+    const withRegs = R.deal({ seed: 5, size: 8, deck: 'house', regulars: strangers }).players.map(q => q.id);
+    res.regs = [withRegs.filter(id => strangers.includes(id)).length, R.deal({ seed: 5, size: 6, deck: 'house', regulars: strangers }).players.filter(q => strangers.includes(q.id)).length, new Set(withRegs).size,
+      JSON.stringify(R.deal({ seed: 5, size: 8, deck: 'house', regulars: [] }).players.map(q => [q.id, q.role])) === JSON.stringify(R.deal({ seed: 5, size: 8, deck: 'house' }).players.map(q => [q.id, q.role]))];
+    return res;
+  });
+  assert.deepEqual(out.bad, [], 'every house deal is a legal one');
+  assert.deepEqual(out.cards[6], ['bouncer', 'drunk', 'hothead', 'listener', 'watch'], 'six seats: no Fool, no Turncoat, no Old Friends');
+  assert.deepEqual(out.cards[8], ['bouncer', 'drunk', 'fool', 'friend', 'hothead', 'listener', 'turncoat', 'watch']);
+  assert.ok(out.decks[6] >= 8 && out.decks[8] >= 20 && out.decks[10] >= 20, 'many different decks: ' + JSON.stringify(out.decks));
+  assert.deepEqual(Object.keys(out.rules).sort(), ['ballot', 'both', 'dark', 'note', 'vouch'], 'every house rule comes up');
+  assert.ok(Object.keys(out.bets).length >= 8, 'and many different side bets: ' + Object.keys(out.bets));
+  assert.ok(out.same && out.other, 'seeded');
+  assert.deepEqual(out.asked, ['bouncer', 'listener', 'friend', 'turncoat', 'watch', 'fool', 'hothead'].map(r => [r, true]));
+  assert.ok(out.wild.every(Boolean), 'a wild card asked for is one of tonight\'s, and never the Drunk');
+  assert.deepEqual(out.small, [0, 0]);
+  assert.deepEqual(out.old, ['classic', { watch: 1, fool: 1, hothead: 1 }, null, 'plain', { watch: 1 }, null, 'plain', 'dark', null]);
+  assert.deepEqual(out.regs, [3, 2, 8, true]);
+});
+
+s.test('the Drunk is told Witness and sees as often wrong as right, until the game is over; the Witness is told there is a Drunk about', async h => {
+  const page = await open(h);
+  const seed = await seedFor(page, { size: 8 }, { me: 'drunk' });
+  await page.evaluate(o => { Game.App.speed = 0; Game.App.quiet = true; Game.App.newGame(Object.assign({ size: 8, mode: 'demo', name: 'Joe', live: false, deck: 'house', rule: 'none', bet: 'found' }, o)); }, { seed });
+  const card = await page.evaluate(() => ({ name: document.querySelector('dialog .role-name').textContent, text: document.querySelector('dialog').textContent, role: Game.state.players[0].role }));
+  assert.deepEqual([card.role, card.name], ['drunk', 'Witness'], 'the Drunk\'s card says Witness');
+  assert.match(card.text, /There is a Drunk in tonight's deck who was told exactly this\. You cannot tell which of the two you are\./);
+  assert.match(card.text, /8 at the table: 2 Knives, a Witness, .*a Drunk.*, the rest Town\./);
+  assert.match(card.text, /Your side bet: See a Knife in the night, and see them voted out\./);
+  await page.click('dialog .btn.primary');
+  assert.match(await page.textContent('#tb-phase'), /^Witness · /);
+  assert.equal(await page.evaluate(() => document.querySelector('#mid .mid-t').textContent), 'Witness');
+  await page.click('#mid-go');
+  await settle(page);
+  assert.equal(await page.evaluate(() => document.querySelector('#mid .mid-t').textContent), 'Tap who you watch tonight.');
+  const knife = await page.evaluate(() => Game.state.players.find(p => p.role === 'knife'));
+  await page.click(`.seat[data-id="${knife.id}"]`);
+  await page.click('#mid-go');
+  await settle(page);
+  const seen = await page.evaluate(id => ({ check: Game.state.players[0].mem.checks[0], line: Game.state.log.find(e => e.kind === 'private' && /^You watched/.test(e.text)).text, tag: document.querySelector(`.seat[data-id="${id}"] .seat-tag`).textContent }), knife.id);
+  assert.equal(seen.line, `You watched ${knife.name} in the night. ${knife.first} is ${seen.check.knife ? 'a Knife' : 'not a Knife'}.`);
+  assert.equal(seen.tag, seen.check.knife ? 'Knife' : 'Not a Knife', 'and what they were told is what the table shows them');
+  // Over many nights: wrong about as often as right (a Witness is never wrong).
+  const coin = await page.evaluate(async () => {
+    const run = async role => {
+      let wrong = 0;
+      for (let seed = 1; seed <= 40; seed++) {
+        Game.App.newGame({ seed, size: 8, mode: 'demo', name: 'Joe', live: false, wild: false, role: 'witness', bet: 'none' });
+        document.querySelector('#dlg').close();
+        Game.state.players[0].role = role;
+        await Game.App.begin();
+        const k = Game.state.players.find(p => p.role === 'knife');
+        await Game.App.night(k.id);
+        if (!Game.state.players[0].mem.checks[0].knife) wrong += 1;
+      }
+      return wrong;
+    };
+    return [await run('drunk'), await run('witness')];
+  });
+  assert.ok(coin[0] >= 10 && coin[0] <= 30, 'of forty Knives watched, the Drunk was told wrong about ' + coin[0]);
+  assert.equal(coin[1], 0);
+  // Once it is over the card is turned: the Drunk.
+  await page.evaluate(() => { const g = Game.state; g.players[0].role = 'drunk'; g.players[0].alive = false; g.players[0].out = { how: 'night', day: 1 }; Game.UI.render(); });
+  assert.match(await page.textContent('#tb-phase'), /^Drunk \(out\) · /);
+  // A real Witness at a table with a Drunk is told the same.
+  const seed2 = await seedFor(page, { size: 8, role: 'witness' }, { me: 'witness', has: ['drunk'] });
+  await page.evaluate(o => { Game.App.newGame(Object.assign({ size: 8, mode: 'demo', name: 'Joe', live: false, deck: 'house', rule: 'none', role: 'witness' }, o)); }, { seed: seed2 });
+  assert.match(await page.textContent('dialog'), /There is a Drunk in tonight's deck who was told exactly this/);
+  const told = await page.evaluate(() => { const d = Game.state.players.find(p => p.role === 'drunk'); return { secret: Game.Prompts.secret(d), sys: Game.Prompts.system() }; });
+  assert.match(told.secret, /YOUR SECRET ROLE: Witness \(Town\)\./);
+  assert.doesNotMatch(told.secret, /Drunk/, 'a seat that is the Drunk is told it is the Witness, and nothing else');
+  assert.match(told.sys, /One of the Town is the Drunk, who has been told they are the Witness and is not/);
+});
+
+s.test('the Bouncer has one throw: kept for another night or used, what the one thrown out was is shown in the morning, a door the Watch keeps holds against it, and a seat that is the Bouncer waits for a day\'s talk', async h => {
+  const page = await open(h);
+  const seed = await seedFor(page, { size: 8 }, { me: 'bouncer', not: ['turncoat', 'hothead'] });
+  await sit(page, { seed, deck: 'house', rule: 'none', bet: 'thrown' });
+  await begin(page);
+  // Not tonight.
+  assert.deepEqual(await page.evaluate(() => [document.querySelector('#mid .mid-t').textContent, document.querySelector('#mid-go').textContent]), ['Tap who you throw out tonight, or keep it. You only get the one.', 'Not tonight']);
+  await page.evaluate(() => { Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town')[0] || Game.state.players.filter(p => p.alive && !p.you && p.role !== 'knife')[0]; });
+  await page.click('#mid-go');
+  await settle(page);
+  let g = await st(page);
+  assert.deepEqual([g.phase, g.me.used === true, g.players.filter(p => p.out && p.out.how === 'thrown').length], ['talk', false, 0]);
+  // Day one passes with a tie; on night two the throw is used on a Knife.
+  await page.evaluate(() => { const live = Game.state.players.filter(p => p.alive); Game.Bots.vote = p => { const i = live.indexOf(p); const t = live[(i + 1) % live.length]; return { vote: t, text: 'Them.' }; }; });
+  await page.click('#btn-vote');
+  await page.click(`.seat[data-id="${g.players.find(p => p.alive && p.id !== 'you').id}"]`);
+  await page.click('#mid-go');
+  await settle(page);
+  g = await st(page);
+  assert.deepEqual([g.phase, g.day], ['night', 2]);
+  const knife = g.players.find(p => p.role === 'knife' && p.alive);
+  await page.click(`.seat[data-id="${knife.id}"]`);
+  assert.equal(await page.textContent('#mid-go'), `Throw out ${knife.first}`);
+  await page.click('#mid-go');
+  await settle(page);
+  g = await st(page);
+  assert.deepEqual(g.players.find(p => p.id === knife.id).out, { how: 'thrown', day: 2 });
+  assert.ok((await sysLines(page, 'death')).includes(`${knife.name} was thrown out in the night by the Bouncer. ${knife.first} was a Knife.`));
+  assert.match(await page.evaluate(() => Game.recordText()), new RegExp(`^Morning\\. ${knife.name} was thrown out in the night by the Bouncer\\. ${knife.first} was a Knife\\.$`, 'm'));
+  assert.deepEqual(await page.evaluate(() => [Game.state.players[0].used, Game.state.thrown.map(t => [t.id, t.by]), Game.UI.nightJob()]), [true, [[knife.id, 'you']], null]);
+  // The side bet is settled when it is over: a Knife was thrown out.
+  if (g.phase !== 'over') { await page.evaluate(() => { Game.Bots.vote = p => { const k = Game.state.players.find(q => q.alive && q.role === 'knife' && q !== p) || Game.state.players.find(q => q.alive && q !== p); return { vote: k, text: 'Them.' }; }; }); await playOut(page); }
+  assert.equal(await page.evaluate(() => Game.state.betWon), true);
+  // A seat that is the Bouncer: not on the first night; then whoever it has settled on, unless the Watch is keeping that door.
+  const seed2 = await seedFor(page, { size: 8, role: 'watch' }, { me: 'watch', has: ['bouncer'], not: ['turncoat', 'hothead'] });
+  await sit(page, { seed: seed2, deck: 'house', rule: 'none', role: 'watch', bet: 'none' });
+  await begin(page);
+  const b = await page.evaluate(() => { const x = Game.state.players.find(p => p.role === 'bouncer'); const t = Game.state.players.find(p => p.alive && !p.you && p.role === 'knife'); x.mem.suspect = t.id; return { id: x.id, first: Game.Bots.bounce(x), t: t.id, tName: t.name }; });
+  assert.equal(b.first, null, 'nothing to go on yet on the first night');
+  await page.evaluate(([bid, tid]) => { Game.Bots.bounce = () => Game.state.players.find(p => p.id === tid); Game.Bots.kill = () => Game.state.players.find(p => p.alive && !p.you && p.role === 'town'); }, [b.id, b.t]);
+  await page.click(`.seat[data-id="${b.t}"]`);
+  await page.click('#mid-go');
+  await settle(page);
+  g = await st(page);
+  assert.equal(g.players.find(p => p.id === b.t).alive, true, 'the door the Watch kept held against the Bouncer too');
+  assert.equal(await page.evaluate(id => Game.state.players.find(p => p.id === id).used, b.id), true, 'and that was the Bouncer\'s one');
+  assert.ok((await sysLines(page)).includes('Someone else was come for in the night, and was turned away.'));
+});
+
+s.test('the Turncoat goes over when the Knives come: nobody is taken, the morning looks like any quiet one, and from then on they are a Knife, know the Knives and win with them', async h => {
+  const page = await open(h);
+  const seed = await seedFor(page, { size: 8 }, { me: 'turncoat', not: ['watch', 'bouncer'] });
+  await sit(page, { seed, deck: 'house', rule: 'none', bet: 'none' });
+  assert.equal(await page.evaluate(() => document.querySelector('#mid .mid-t').textContent), 'Turncoat');
+  await begin(page);
+  await page.evaluate(() => { Game.Bots.kill = () => Game.state.players[0]; });
+  await page.click('#mid-go');
+  await settle(page);
+  const g = await st(page);
+  const knives = g.players.filter(p => p.role === 'knife');
+  assert.deepEqual([g.phase, g.players.every(p => p.alive), g.me.role, g.me.was, g.me.turned, knives.length], ['talk', true, 'knife', 'turncoat', 1, 3]);
+  const lines = await page.evaluate(() => ({ pub: Game.state.log.filter(e => e.t === 'sys' && e.day === 1 && !e.priv && e.kind === 'sys').map(e => e.text), priv: Game.state.log.filter(e => e.priv).map(e => e.text), record: Game.recordText(),
+    tags: Object.fromEntries([...document.querySelectorAll('.seat')].map(x => [x.dataset.id, x.querySelector('.seat-tag').textContent])), bar: document.querySelector('#tb-phase').textContent }));
+  assert.ok(lines.pub.includes('Everyone is still here.'), 'the morning is any quiet morning');
+  assert.ok(lines.priv.some(t => /^The Knives came for you in the night, and you are the Turncoat: you did not go\. You are a Knife now, with .+, and you win with them\.$/.test(t)));
+  assert.doesNotMatch(lines.record, /Turncoat: you did not go|came for you/, 'and nothing of it is in the record');
+  assert.ok(knives.every(k => lines.tags[k.id] === 'Knife'), 'the Knives are shown to them now');
+  assert.match(lines.bar, /^Knife · /);
+  // The Knives are told who came over; and a seat that went over is told what it was and what it is.
+  const told = await page.evaluate(() => { const k = Game.state.players.find(p => p.role === 'knife' && !p.you); const mine = Game.Prompts.secret(k); const me = Game.state.players[0]; me.you = false; let own = ''; try { own = Game.Prompts.secret(me); } finally { me.you = true; } return { mine, own }; });
+  assert.match(told.mine, /Joe was the Turncoat: the Knives went for Joe on night 1, and Joe is one of you now\./);
+  assert.match(told.own, /YOUR SECRET ROLE: Knife\. Your fellow Knives: .+\.\nYou were the Turncoat, and Town, until the Knives came for you on night 1\. You are a Knife now and you win with them\./);
+  // They win with the Knives now.
+  const end = await page.evaluate(() => { Game.state.winner = 'knives'; Game.state.phase = 'over'; Game.UI.render(); return { mid: document.querySelector('#mid .mid-k').textContent }; });
+  assert.equal(end.mid, 'You won');
+  await page.click('#mid-reveal');
+  assert.match(await page.evaluate(() => [...document.querySelectorAll('dialog .reveal-row')].find(r => /\(you\)/.test(r.textContent)).querySelector('.reveal-name').textContent), /Joe \(you\)Knifewas the Turncoat/);
+});
+
+s.test('the Listener hears how many Knives sit either side of them, the nearest still in; Old Friends know each other; and both are in the rules every seat is given', async h => {
+  const page = await open(h);
+  const seed = await seedFor(page, { size: 8 }, { me: 'listener', has: ['friend'] });
+  await sit(page, { seed, deck: 'house', rule: 'none', bet: 'none' });
+  await begin(page);
+  // Nobody beside the player goes tonight, so what is heard is about the two sat there.
+  await page.evaluate(() => { const n = Game.state.players.length; const far = Game.state.players.filter((p, i) => i > 1 && i < n - 1 && p.role !== 'knife' && p.role !== 'friend'); Game.Bots.kill = () => far[0]; });
+  await page.click('#mid-go');
+  await settle(page);
+  const heard = await page.evaluate(() => { const g = Game.state; const n = g.players.length; return { h: g.players[0].mem.heard[0], left: g.players[1], right: g.players[n - 1], line: g.log.find(e => e.kind === 'private' && /^You listen/.test(e.text)).text, beside: Game.Rules.beside('you') }; });
+  const k = [heard.left, heard.right].filter(p => p.role === 'knife').length;
+  assert.deepEqual([heard.h.ids, heard.h.n, heard.h.day], [[heard.left.id, heard.right.id], k, 1]);
+  assert.equal(heard.line, `You listen to either side of you: ${k === 0 ? `neither ${heard.left.first} nor ${heard.right.first} is a Knife` : k === 1 ? `one of ${heard.left.first} and ${heard.right.first} is a Knife` : `${heard.left.first} and ${heard.right.first} are both Knives`}.`);
+  // With the one on the left out, it is the next one round.
+  const next = await page.evaluate(() => { const g = Game.state; g.players[1].alive = false; const b = Game.Rules.beside('you'); g.players[1].alive = true; return [b, g.players.slice(2).find(p => p.alive).id, g.players[g.players.length - 1].id]; });
+  assert.deepEqual(next[0], [next[1], next[2]]);
+  // A seat that is the Listener is told what it heard, and the rules give the order round the table.
+  const told = await page.evaluate(() => { const g = Game.state; const me = g.players[0]; me.you = false; g.players[1].you = true; let own = ''; let sys = ''; try { own = Game.Prompts.secret(me); sys = Game.Prompts.system(); } finally { me.you = true; g.players[1].you = false; } const f = g.players.filter(p => p.role === 'friend'); return { own, sys, f: f.map(p => [p.name, p.first, Game.Prompts.secret(p), p.mem.sus[f.find(q => q !== p).id]]) }; });
+  assert.match(told.own, /YOUR SECRET ROLE: Listener \(Town\)\.\nWhat you have heard: morning 1, (neither \w+ nor \w+ is a Knife|one of \w+ and \w+ is a Knife|\w+ and \w+ are both Knives)\./);
+  assert.match(told.sys, /One of the Town is the Listener, .* Round the table, in order: Joe, (\w+, ){6}\w+ \(and \w+ sits beside Joe\)\./);
+  assert.match(told.sys, /Two of the Town are Old Friends: they know each other/);
+  assert.equal(told.f.length, 2);
+  assert.match(told.f[0][2], new RegExp(`YOUR SECRET ROLE: Old Friend \\(Town\\)\\. Your old friend is ${told.f[1][0]}: you know for certain that ${told.f[1][1]} is not a Knife`));
+  assert.deepEqual([told.f[0][3], told.f[1][3]], [-99, -99], 'and at a scripted table neither ever points at the other');
+  // The player as an Old Friend is shown who.
+  const seed2 = await seedFor(page, { size: 8, role: 'friend' }, { me: 'friend' });
+  await page.evaluate(o => { Game.App.newGame(Object.assign({ size: 8, mode: 'demo', name: 'Joe', live: false, deck: 'house', rule: 'none', role: 'friend', bet: 'none' }, o)); }, { seed: seed2 });
+  const mate = await page.evaluate(() => Game.state.players.find(p => p.role === 'friend' && !p.you));
+  assert.match(await page.textContent('dialog'), new RegExp(`Your old friend: ${mate.name}\\.`));
+  await page.click('dialog .btn.primary');
+  assert.equal(await page.evaluate(id => document.querySelector(`.seat[data-id="${id}"] .seat-tag`).textContent, mate.id), 'Old Friend');
+});
+
+s.test('the house rules: a note left by whoever the Knives take, a tie between two that puts out both, someone the house vouches for, the lights out on what the night\'s dead were, and a secret ballot', async h => {
+  const page = await open(h);
+  const firstTown = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town')[0];
+  // A note is found.
+  await sit(page, { seed: 61, role: 'town', wild: false, rule: 'note', bet: 'none' });
+  assert.ok((await sysLines(page)).includes('House rule tonight: A note is found. Whoever the Knives take in the night leaves a note: one last line, found in the morning.'));
+  await begin(page);
+  await page.evaluate(`Game.Bots.kill = ${firstTown.toString()}`);
+  await page.click('#mid-go');
+  await settle(page);
+  let x = await page.evaluate(() => { const g = Game.state; const dead = g.players.find(p => !p.alive); const n = g.log.filter(e => e.kind === 'note'); return { dead: dead.id, first: dead.first, notes: n.map(e => [e.who, e.text]), record: Game.recordText(), shown: document.querySelector('.say[data-kind="note"] .say-words').textContent }; });
+  assert.deepEqual([x.notes.length, x.notes[0][0], x.notes[0][1].length > 3], [1, x.dead, true]);
+  assert.match(x.record, new RegExp(`^${x.first} \\(a note left behind\\): "`, 'm'), 'the note is in the record every seat is given');
+  assert.equal(x.shown, x.notes[0][1]);
+  // The player, taken, leaves theirs.
+  await sit(page, { seed: 61, role: 'town', wild: false, rule: 'note', bet: 'none' });
+  await begin(page);
+  await page.evaluate(() => { Game.Bots.kill = () => Game.state.players[0]; });
+  await page.click('#mid-go');
+  await page.waitForFunction(() => Game.waiting === 'line');
+  assert.equal(await page.getAttribute('#say', 'placeholder'), 'The Knives came for you. Leave a note?');
+  await settle(page, { words: 'It is the one who never asks anything.' });
+  assert.deepEqual(await page.evaluate(() => Game.state.log.filter(e => e.kind === 'note').map(e => [e.who, e.text])), [['you', 'It is the one who never asks anything.']]);
+
+  // No ties: two tied go, both; three tied, nobody.
+  await sit(page, { seed: 61, role: 'town', wild: false, rule: 'both', bet: 'none' });
+  await begin(page);
+  await page.evaluate(`Game.Bots.kill = ${firstTown.toString()}`);
+  await page.click('#mid-go');
+  await settle(page);
+  // Seven in: the player and three seats on one, the other three on another.
+  let pair = await page.evaluate(() => { const live = Game.state.players.filter(p => p.alive && !p.you); const a = live.find(p => p.role === 'town'); const b = live.find(p => p.role === 'knife'); const rest = live.filter(p => p !== a && p !== b);
+    Game.Bots.vote = p => ({ vote: p === a ? b : p === b ? a : rest.indexOf(p) < 2 ? a : b, text: 'Them.' }); return { a: a.id, b: b.id, an: a.first, bn: b.first }; });
+  await page.click('#btn-vote');
+  await page.click(`.seat[data-id="${pair.b}"]`);
+  await page.click('#mid-go');
+  await settle(page);
+  // (a: the Knife's vote and two more = 3; b: the Town's vote, two more and the player's = 4. Not a tie: one goes.)
+  let g = await st(page);
+  assert.deepEqual([g.players.find(p => p.id === pair.a).alive, g.players.find(p => p.id === pair.b).alive], [true, false], 'most votes still goes alone');
+  // Now a real tie of two: the player votes with the smaller side.
+  if (g.phase === 'night') { await page.evaluate(`Game.Bots.kill = ${firstTown.toString()}`); await page.click('#mid-go'); await settle(page); }
+  pair = await page.evaluate(() => { const live = Game.state.players.filter(p => p.alive && !p.you); const a = live[0]; const b = live[1]; const rest = live.slice(2);
+    // a and b vote for each other; with an odd number voting, one vote goes elsewhere (on the player); the others go to a and b by turns, and the player evens it.
+    const spare = live.length % 2 === 0 ? rest.pop() : null;
+    const forA = rest.filter((p, i) => i % 2 === 0);
+    Game.Bots.vote = p => ({ vote: p === b ? a : p === a ? b : p === spare ? Game.state.players[0] : forA.includes(p) ? a : b, text: 'Them.' });
+    const na = 1 + forA.length; const nb = 1 + rest.length - forA.length; return { a: a.id, b: b.id, an: a.first, bn: b.first, na, nb, vote: na < nb ? a.id : b.id, tie: Math.abs(na - nb) === 1 }; });
+  assert.ok(pair.tie, 'the table is set for a tie: ' + JSON.stringify(pair));
+  await page.click('#btn-vote');
+  await page.click(`.seat[data-id="${pair.vote}"]`);
+  await page.click('#mid-go');
+  await settle(page);
+  g = await st(page);
+  assert.deepEqual([g.players.find(p => p.id === pair.a).alive, g.players.find(p => p.id === pair.b).alive], [false, false], 'a tie between two puts out both');
+  const ban = await sysLines(page, 'banish');
+  assert.match(ban[ban.length - 2], new RegExp(`^The vote: .+\\. A tie between (${pair.an} and ${pair.bn}|${pair.bn} and ${pair.an}) \\(\\d each\\), and tonight a tie puts out both\\. \\w+ \\w+ is put out with \\d votes\\. \\w+ was `));
+  assert.match(ban[ban.length - 1], /^\w+ \w+ is put out with \d votes\. \w+ was /);
+  assert.equal(await page.evaluate(() => Game.state.log.filter(e => e.kind === 'last' && e.day === Game.state.log.filter(z => z.kind === 'banish').pop().day).length), 2, 'each has their last words');
+
+  // The house vouches.
+  await sit(page, { seed: 61, role: 'town', wild: false, rule: 'vouch', bet: 'none' });
+  x = await page.evaluate(() => { const g = Game.state; const v = g.players.find(p => p.id === g.vouched); return { role: v.role, you: !!v.you, id: v.id, name: v.name, first: v.first, lines: g.log.filter(e => e.t === 'sys').map(e => e.text), record: Game.recordText(), sus: g.players.filter(p => !p.you && p.role !== 'knife' && p.id !== v.id).map(p => p.mem.sus[v.id]),
+    tag: v.you ? 'Not a Knife' : document.querySelector(`.seat[data-id="${v.id}"] .seat-tag`).textContent }; });
+  assert.notEqual(x.role, 'knife');
+  assert.ok(x.lines.includes(x.you ? 'The house vouches for you: you are not a Knife.' : `The house vouches for ${x.name}: ${x.first} is not a Knife.`));
+  assert.match(x.record, new RegExp(`^The house vouches for ${x.you ? 'Joe' : x.name}: ${x.you ? 'Joe' : x.first} is not a Knife\\.$`, 'm'));
+  assert.ok(x.sus.every(v => v === -99), 'the scripted Town never points at them');
+  assert.equal(x.tag, 'Not a Knife');
+
+  // Lights out.
+  await sit(page, { seed: 61, role: 'town', wild: false, rule: 'dark', bet: 'none' });
+  await begin(page);
+  await page.evaluate(`Game.Bots.kill = ${firstTown.toString()}`);
+  await page.click('#mid-go');
+  await settle(page);
+  x = await page.evaluate(() => { const g = Game.state; const d = g.players.find(p => !p.alive); return { name: d.name, first: d.first, out: d.out, death: g.log.filter(e => e.kind === 'death').map(e => e.text), record: Game.recordText(), tag: document.querySelector(`.seat[data-id="${d.id}"] .seat-tag`).textContent, sys: Game.Prompts.system(),
+    why: (() => { const live = g.players.filter(p => p.alive && !p.you); return ''; })() }; });
+  assert.deepEqual(x.death, [`${x.name} was taken in the night.`], 'what they were is not said');
+  assert.deepEqual([x.out.hidden, x.tag], [true, 'Out']);
+  assert.match(x.record, new RegExp(`^Morning\\. ${x.name} was taken in the night\\.$`, 'm'));
+  assert.doesNotMatch(x.record, new RegExp(`${x.first} was (Town|the|a) `));
+  assert.match(x.sys, /The role of anyone voted out is shown to all; the role of anyone taken in the night is not shown until the game is over\./);
+  // The vote still shows it, and the end shows everything.
+  await page.click('#btn-vote');
+  g = await st(page);
+  const pickOut = g.players.find(p => p.alive && p.id !== 'you');
+  await page.evaluate(id => { Game.Bots.vote = () => ({ vote: Game.state.players.find(p => p.id === id), text: 'Them.' }); const real = Game.Bots.vote; Game.Bots.vote = p => (p.id === id ? { vote: Game.state.players.find(q => q.alive && q !== p), text: 'No.' } : real(p)); }, pickOut.id);
+  await page.click(`.seat[data-id="${pickOut.id}"]`);
+  await page.click('#mid-go');
+  await settle(page);
+  assert.match((await sysLines(page, 'banish'))[0], new RegExp(`${pickOut.name} is put out with \\d votes\\. ${pickOut.first} was `));
+  assert.equal(await page.evaluate(() => { Game.state.phase = 'over'; Game.UI.render(); return [...document.querySelectorAll('.seat[data-out="1"] .seat-tag')].every(t => t.textContent !== 'Out'); }), true, 'when it is over every card is turned');
+
+  // A secret ballot.
+  await sit(page, { seed: 61, role: 'town', wild: false, rule: 'ballot', bet: 'none' });
+  await begin(page);
+  await page.evaluate(`Game.Bots.kill = ${firstTown.toString()}`);
+  await page.click('#mid-go');
+  await settle(page);
+  g = await st(page);
+  const target = g.players.find(p => p.alive && p.id !== 'you');
+  await page.evaluate(id => { const t = Game.state.players.find(p => p.id === id); Game.Bots.vote = p => ({ vote: p === t ? Game.state.players.find(q => q.alive && q !== p && !q.you) : t, text: 'I am voting for them out loud.' }); }, target.id);
+  await page.click('#btn-vote');
+  await page.click(`.seat[data-id="${target.id}"]`);
+  await page.click('#mid-go');
+  await settle(page);
+  x = await page.evaluate(() => { const g = Game.state; return { votes: g.log.filter(e => e.kind === 'vote').length, ban: g.log.filter(e => e.kind === 'banish').map(e => e.text), priv: g.log.filter(e => e.priv).map(e => e.text), log: g.votesLog[0], last: g.lastVotes, record: Game.recordText(),
+    carry: g.players.filter(p => p.alive && !p.you).map(p => Game.Prompts.carrying(p).join(' ')).join(' | ') }; });
+  assert.equal(x.votes, 0, 'nobody says who they voted for');
+  assert.match(x.ban[0], new RegExp(`^The vote: ${target.first} 6, \\w+ 1 \\(a secret ballot\\)\\. ${target.name} is put out with 6 votes\\.`));
+  assert.ok(x.priv.includes(`You voted for ${target.first}. Nobody saw.`));
+  assert.deepEqual([x.log.secret, Object.keys(x.log.votes).length, x.last], [true, 7, {}]);
+  assert.doesNotMatch(x.record, /voted \w+;|out loud/, 'and the record has the count only');
+  assert.doesNotMatch(x.carry, /voted to put you out|so did/, 'no seat is told who voted for whom');
+  assert.match(x.carry, /Yesterday you voted for /, 'only how its own vote turned out');
+});
+
+s.test('a side bet to play for, a tab the house keeps from night to night, the people sat with remembering the last time, and Deal again', async h => {
+  const page = await open(h);
+  // The bets read the game as it went.
+  const bets = await page.evaluate(() => {
+    const by = id => Game.BETS.find(b => b.id === id);
+    const K = { role: 'knife' }; const T = { role: 'town' };
+    return [by('sharp').won({ mine: [{ p: K, went: true, day: 1 }, { p: K, went: false, day: 2 }] }), by('sharp').won({ mine: [{ p: K }, { p: T }] }), by('sharp').won({ mine: [] }),
+      by('early').won({ mine: [{ p: K, went: true, day: 1 }] }), by('early').won({ mine: [{ p: K, went: true, day: 2 }] }),
+      by('herd').won({ mine: [{ p: T, went: true }, { p: K, went: true }] }), by('frame').won({ mine: [{ p: T, went: true }, { p: K, went: true }] }),
+      by('unmarked').won({ votes: [{ votes: { you: 'a', a: 'b' } }] }), by('unmarked').won({ votes: [{ votes: { you: 'a', a: 'you' } }] }),
+      by('marks').won({ players: [{ role: 'knife', mark: 'sus' }, { role: 'town', alive: true, mark: 'trust' }, { role: 'town', alive: false, mark: 'sus' }] }), by('marks').won({ players: [{ role: 'knife', mark: 'sus' }, { role: 'town', alive: true, mark: 'sus' }] }),
+      Game.BETS.filter(b => b.for('town')).map(b => b.id), Game.BETS.filter(b => b.for('knife')).map(b => b.id), Game.BETS.filter(b => b.for('fool')).map(b => b.id)];
+  });
+  assert.deepEqual(bets, [true, false, false, true, false, true, false, true, false, true, false, ['standing', 'unmarked', 'herd', 'sharp', 'early', 'marks'], ['standing', 'unmarked', 'herd', 'hands', 'frame'], ['quick']]);
+  // A night, played out.
+  await sit(page, { seed: 21, role: 'town', bet: 'standing' });
+  assert.equal(await page.evaluate(() => Game.state.bet), 'standing');
+  const end = await playOut(page);
+  const after = await page.evaluate(() => ({ l: Game.Ledger.read(), bet: Game.state.betWon, tab: Game.state.tab, won: document.querySelector('#mid .mid-k').textContent === 'You won', again: document.querySelector('#mid-go').textContent }));
+  assert.equal(after.bet, end.me.alive, 'still in their seat or not');
+  assert.deepEqual([after.l.nights, after.l.won, after.l.streak, after.l.roles.town, after.l.bets.standing || 0], [1, after.won ? 1 : 0, after.won ? 1 : 0, { n: 1, won: after.won ? 1 : 0 }, end.me.alive ? 1 : 0]);
+  assert.deepEqual(Object.keys(after.l.seats).sort(), end.players.filter(p => p.id !== 'you').map(p => p.id).sort(), 'everyone sat with is in the ledger');
+  assert.ok(Object.values(after.l.seats).every(x => x.n === 1 && x.night === 1 && /\{P\}/.test(x.last) && /(Town won|The Knives won|The Fool won it|won, alone)\./.test(x.last)), JSON.stringify(after.l.seats));
+  assert.deepEqual(after.tab, { nights: 1, won: after.l.won, streak: after.l.streak, best: after.l.best });
+  assert.equal(after.again, 'Deal again');
+  // The reveal says how the night went for the player.
+  await page.click('#mid-reveal');
+  const top = await page.textContent('dialog .reveal-top');
+  assert.match(top, new RegExp(`^You (won|lost)\\. Night 1 on your tab: ${after.l.won} won\\.Side bet ${end.me.alive ? 'won' : 'lost'}: Still be in your seat when it ends\\.$`));
+  // It is settled once: looking again does not count the night twice.
+  await page.evaluate(() => { document.querySelector('#dlg').close(); Game.UI.reveal(); document.querySelector('#dlg').close(); });
+  assert.equal(await page.evaluate(() => Game.Ledger.read().nights), 1);
+  // Deal again: the same kind of table, a new night, some of the same people, who are told about the last time on the first day only.
+  const before = await page.evaluate(() => ({ seed: Game.state.seed, ids: Game.state.players.map(p => p.id) }));
+  await page.click('#mid-go');
+  const next = await page.evaluate(() => { const g = Game.state; const back = g.players.filter(p => !p.you && g.history[p.id]); const p = back[0]; const day1 = Game.Prompts.secret(p); g.day = 2; const day2 = Game.Prompts.secret(p); g.day = 1;
+    return { phase: g.phase, seed: g.seed, size: g.size, deck: g.deck, live: g.live, mode: g.mode, role: g.players[0].role, back: back.map(q => q.id), hist: g.history[p.id], day1, day2, dialog: document.querySelector('dialog').open,
+      plain: Game.Prompts.secret(g.players.find(q => !q.you && !g.history[q.id])) }; });
+  assert.deepEqual([next.phase, next.size, next.deck, next.live, next.mode, next.role, next.dialog], ['role', 8, 'classic', false, 'demo', 'town', true]);
+  assert.notEqual(next.seed, before.seed);
+  assert.equal(next.back.length, 3, 'three of last night\'s table are back, and are the ones who remember');
+  assert.ok(next.back.every(id => before.ids.includes(id)));
+  assert.match(next.day1, /\nYOU HAVE PLAYED WITH JOE BEFORE \(1 night\)\. The last time: [^{}\n]*\bJoe\b[^{}\n]* You can bring it up, once, the way friends do, if it fits\. The cards are dealt fresh every night, so it tells you nothing about who is what tonight\.$/);
+  assert.doesNotMatch(next.day2, /PLAYED WITH/);
+  assert.doesNotMatch(next.plain, /PLAYED WITH/, 'a stranger is told nothing');
+  // The first screen shows the tab.
+  await page.click('dialog .btn.primary');
+  await page.click('#btn-quit');
+  await page.click('dialog .btn.primary');
+  const tab = await page.evaluate(() => ({ hidden: document.querySelector('#home-tab').hidden, line: document.querySelector('#tab-line').textContent, roles: document.querySelector('#tab-roles').textContent, bets: document.querySelector('#tab-bets').textContent, regs: document.querySelector('#tab-regulars').textContent }));
+  assert.equal(tab.hidden, false);
+  assert.match(tab.line, /^1 night at the table, [01] won$/);
+  assert.match(tab.roles, /^Cards held, 1 of 11: Town [01]\/1\.$/);
+  assert.match(tab.bets, end.me.alive ? /^Side bets won, 1 of 13 kinds: Still be in your seat when it ends\.$/ : /^Side bets won, 0 of 13 kinds\.$/);
+  assert.match(tab.regs, /^The regulars: (\w+ \(1\), ){4}\w+ \(1\)\. They remember the last time\.$/);
+  // A ledger that cannot be read is a new one, and never stops the page.
+  assert.deepEqual(await page.evaluate(() => { localStorage.setItem('novatria.lastcall.ledger', '{"v":1,"nights":"many","seats":7'); const a = Game.Ledger.read(); localStorage.setItem('novatria.lastcall.ledger', JSON.stringify({ v: 1, nights: -4, won: 'x', seats: [1] })); const b = Game.Ledger.read(); Game.UI.home(); return [a.nights, b.nights, b.won, b.seats]; }), [0, 0, 0, {}]);
+});
+
+s.test('with Claude at a house table: the rules every seat is given name tonight\'s cards and the house rule, the note the dead leave is a call of its own, and the first screen deals a house table by default', async h => {
+  const bodies = [];
+  const page = await open(h, { route: standIn(bodies) });
+  await page.evaluate(() => sessionStorage.setItem('novatria.apiKey', 'sk-ant-test-key'));
+  const seed = await seedFor(page, { size: 10, role: 'knife' }, { me: 'knife', has: ['drunk', 'friend', 'listener'] });
+  await sit(page, { seed, size: 10, mode: 'claude', deck: 'house', rule: 'note', role: 'knife', bet: 'none' });
+  assert.match((await sysLines(page))[0], /^Last call was hours ago\. 10 of you round one table, the doors shut\. In tonight's deck: 3 Knives, a Witness, a Listener, two Old Friends, a Drunk, the rest Town\.$/);
+  await begin(page);
+  const prey = await page.evaluate(() => Game.state.players.find(p => p.alive && p.role === 'town'));
+  await page.click(`.seat[data-id="${prey.id}"]`);
+  await page.click('#mid-go');
+  await settle(page);
+  const userOf = b => b.body.messages[0].content.map(c => c.text).join('\n');
+  const note = bodies.find(b => /By the house rule you leave a note/.test(userOf(b)));
+  assert.ok(note, 'the one taken is asked for their note');
+  assert.match(userOf(note), new RegExp(`YOUR SEAT: ${prey.name}\\.`));
+  assert.deepEqual(await page.evaluate(() => Game.state.log.filter(e => e.kind === 'note').map(e => e.text.toLowerCase())), ['you will all be sorry by morning']);
+  await page.fill('#say', 'Well. Who was it?');
+  await page.click('#btn-say');
+  await settle(page);
+  const talk = bodies.filter(b => b.body.output_config.format.schema.required.includes('stance'));
+  assert.ok(talk.length >= 2);
+  const sys = talk[0].body.system[0].text;
+  assert.match(sys, /One of the Town is the Witness\.\n/, 'no Watch tonight, so none in the rules');
+  assert.doesNotMatch(sys, /the Watch|the Fool|the Hothead|the Bouncer|the Turncoat/);
+  assert.match(sys, /^- One of the Town is the Listener, .*Round the table, in order: Joe, /m);
+  assert.match(sys, /^- Two of the Town are Old Friends/m);
+  assert.match(sys, /^- One of the Town is the Drunk, who has been told they are the Witness and is not/m);
+  assert.match(sys, /^- The house rule tonight, "A note is found": Whoever the Knives take in the night leaves a note: one last line, found in the morning\.$/m);
+  assert.match(userOf(talk[0]), new RegExp(`^${prey.first} \\(a note left behind\\): "`, 'm'), 'and the note is in the record');
+  assert.ok(talk.every(b => !/YOUR SECRET ROLE: Drunk/.test(userOf(b))), 'nobody is told they are the Drunk');
+  // The first screen: the house deals unless told otherwise.
+  await page.click('#btn-quit');
+  await page.click('dialog .btn.primary');
+  await page.click('#f-mode [data-v="demo"]');
+  assert.match(await page.textContent('#deck-help'), /^A different table every night/);
+  await page.click('#btn-new');
+  const g = await page.evaluate(() => ({ deck: Game.state.deck, rule: Game.state.rule, bet: Game.state.bet, cards: Object.values(Game.state.cards).reduce((a, b) => a + b, 0), text: document.querySelector('dialog').textContent }));
+  assert.deepEqual([g.deck, g.cards, !!g.rule, !!g.bet], ['house', 3, true, true]);
+  assert.match(g.text, /House rule: [A-Z][^.]+\. /);
+  assert.match(g.text, /Your side bet: /);
+  // The Roles list has tonight's deck, each card in a line, and the house rule.
+  await page.click('dialog .btn.primary');
+  await page.click('#btn-roles');
+  const roles = await page.evaluate(() => ({ cards: [...document.querySelectorAll('dialog .deck li')].map(li => li.dataset.card), n: Object.keys(Game.state.cards).length, text: document.querySelector('dialog').textContent }));
+  assert.equal(roles.cards.length, roles.n);
+  assert.match(roles.text, /Tonight's deck2 Knives, a Witness, .*the rest Town\./);
+  assert.match(roles.text, /House rule: /);
+});
+
+s.test('on a small phone the house deal fits: the tab on the first screen, the role card with the deck, the rule and the bet, the list of tonight\'s cards, the Bouncer\'s two choices and the reveal', async h => {
+  const vp = { width: 320, height: 568 };
+  const page = await open(h, { viewport: vp });
+  const fits = () => page.evaluate(() => { const d = document.querySelector('dialog[open]'); const r = d.getBoundingClientRect(); return r.left >= 0 && r.right <= window.innerWidth && r.top >= 0 && r.bottom <= window.innerHeight + 1 && [...d.querySelectorAll('button')].every(b => b.getBoundingClientRect().height >= 43.5 && b.getBoundingClientRect().bottom <= window.innerHeight + 1); });
+  // A ledger with a few nights in it, and the longest lines it can have.
+  await page.evaluate(() => {
+    const l = Game.Ledger.blank(); l.nights = 124; l.won = 61; l.streak = 12; l.best = 14;
+    for (const r of Object.keys(Game.Rules.ROLE)) l.roles[r] = { n: 11, won: 5 };
+    for (const b of Game.BETS) l.bets[b.id] = 3;
+    Game.CAST.slice(0, 9).forEach((c, i) => { l.seats[c.id] = { n: 30 - i, night: 100 + i, last: 'Neither you nor {P} was a Knife. Town won.' }; });
+    Game.Ledger.write(l); Game.UI.home();
+  });
+  assert.equal(await page.evaluate(() => document.querySelector('#home-tab').hidden), false);
+  assert.match(await page.textContent('#tab-line'), /^124 nights at the table, 61 won · 12 in a row · best run 14$/);
+  assert.deepEqual(await overflowReport(page, vp.width), [], 'the first screen with a full tab');
+  const seed = await seedFor(page, { size: 10 }, { me: 'bouncer', has: ['friend', 'turncoat'] });
+  await page.evaluate(o => { Game.App.speed = 0; Game.App.newGame(Object.assign({ size: 10, mode: 'demo', name: 'Joe', live: false, deck: 'house', rule: 'ballot', bet: 'thrown' }, o)); }, { seed });
+  assert.ok(await fits(), 'the role card');
+  assert.deepEqual(await overflowReport(page, vp.width), []);
+  await page.click('dialog .btn.primary');
+  await page.click('#btn-roles');
+  assert.ok(await fits(), 'the Roles list, with tonight\'s cards under it');
+  assert.equal(await page.evaluate(() => { const sc = document.querySelector('dialog .scroll'); return sc.scrollHeight > sc.clientHeight && getComputedStyle(sc).overflowY === 'auto'; }), true, 'it scrolls in itself');
+  await page.click('dialog .btn.primary');
+  await begin(page);
+  assert.deepEqual(await overflowReport(page, vp.width), [], 'the Bouncer\'s night');
+  const mid = await page.evaluate(() => { const b = document.querySelector('#mid-go').getBoundingClientRect(); return [document.querySelector('#mid-go').textContent, b.height >= 43.5, b.left >= 0 && b.right <= window.innerWidth]; });
+  assert.deepEqual(mid, ['Not tonight', true, true]);
+  await page.click(`.seat[data-id="${await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you).id)}"]`);
+  assert.deepEqual(await overflowReport(page, vp.width), [], 'someone picked to throw out');
+  await page.evaluate(() => { Game.App.quiet = false; Game.state.players[0].alive = false; Game.state.players[0].out = { how: 'night', day: 1 }; Game.UI.sel = null; Game.UI.render(); });
+  await page.click('#btn-skip');
+  await settle(page);
+  await page.waitForSelector('dialog[open] .reveal-top');
+  assert.ok(await fits(), 'the reveal, with how the night went above the roles');
+  assert.deepEqual(await overflowReport(page, vp.width), []);
+});
 
 s.test('one self-contained file: no innerHTML, no markup from strings, one fetch (to the API), nothing loaded from elsewhere', async () => {
   const html = fs.readFileSync(FILE, 'utf8');
