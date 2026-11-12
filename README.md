@@ -1914,17 +1914,54 @@ A game already in progress keeps the town it started with.
 The front page: a hidden-role game of lying and deduction at one table, the
 doors shut for the night. The other seats have the names and faces of the
 town game's adults and nothing else of it. Some of the people shut in are
-**Knives**.
-Each night the Knives take one person out of the game; each day the table
-talks and then votes one person out, whose role is shown. Town wins when
-every Knife is out; the Knives win when they are as many as everyone else.
+**Traitors**; the rest are **Faithful**. Each night the Traitors murder one
+person; each day the Round Table talks and then banishes one, and what they
+were is shown.
 
-- **Seats and roles**: 6 (one Knife), 8 (two) or 10 (three). One of the Town
-  is the **Witness**, who learns each night whether one person is a Knife.
-  You can ask for a role (Town, Knife, Witness, or a wild card) or be dealt
-  one. If you are a Knife your fellow Knife whispers who they would take,
-  and you choose.
-- **No two nights the same: the house deal** (the default; the owner, after
+The words and the default table are the TV game's (the owner, of an earlier
+deck of role cards: "No make it more like traitors with the wordings too"):
+Traitors and Faithful, murdered, banished, the Round Table, breakfast, the
+Shield, recruiting, the end game. The name, the bar, the people and the look
+are this game's own.
+
+- **The Traitors' table** (the default, under **The deck**): 6 seats (one
+  Traitor), 8 (two) or 10 (two). Traitors and Faithful and nothing else:
+  nobody has any power but their judgement and their vote. You can ask to
+  be a Faithful or a Traitor, or be dealt in. If you are a Traitor your
+  fellow Traitor whispers who they would murder, and you choose.
+  - **Breakfast**: everyone still in comes in, one at a time, and whoever
+    was murdered does not.
+  - **The mission**, each morning while five or more are in: everyone, in
+    secret, plays for the **pot** ($500 into it each) or for the
+    **Shield**. One of those who played for the Shield gets it, in secret,
+    and cannot be murdered that night. The table is told how many played
+    for each and never who; anyone can say they hold it, truly or not. A
+    Traitor whose murder a Shield stopped is told so.
+  - **Recruiting**: when a Traitor is banished, the Traitors still in may,
+    on a later night, ask one Faithful to join them instead of murdering
+    (a Traitor's night has **Murder** and **Recruit**). A yes makes a
+    Traitor, who is told who the Traitors are, and nobody is murdered. A
+    no costs nothing, unless only one Traitor was left to ask: that is an
+    ultimatum, and a no is a murder. You can be the one asked. Either way
+    the table is told only that nobody was murdered.
+  - **The end game**: with four or fewer left there are no more nights,
+    and what the banished were is no longer shown. After each vote
+    everyone still in says **End it** or **Banish** (again); a tie there
+    is settled by lot. When all say end, or only two are left, it is over:
+    with even one Traitor still in the Traitors win; with none, the
+    Faithful.
+  - **The pot** is the prize: the Faithful still in at the end share it if
+    the Faithful win; the Traitors still in take all of it if they do.
+    Anyone banished or murdered gets nothing. What you take is added to
+    your tab.
+  - The Faithful also win at once if every Traitor is banished before the
+    end game. The Traitors never win on numbers: it goes to the end game.
+- **The other tables** have a **Witness**, who learns each night whether
+  one person is a Traitor, and no mission, recruiting or end game: the
+  Faithful win when every Traitor is out, the Traitors when they are as
+  many as everyone else. 6 seats (one Traitor), 8 (two) or 10 (three); you
+  can also ask to be the Witness or a wild card.
+- **Wild cards: the house deal** (the owner, after
   a few nights of the one fixed deck: "1 or 2 games and it gets boring").
   The house shuffles a few **wild cards** in from a deck of its own,
   different every night, and tells the table which are in play (the role
@@ -1935,18 +1972,18 @@ every Knife is out; the Knives win when they are as many as everyone else.
     night, and what they were is shown in the morning (you can keep it for
     another night; a door the Watch is keeping holds against it);
   - the **Listener** learns each morning how many of the two people sat
-    either side of them, the nearest still in, are Knives, but not which;
-  - two **Old Friends** know each other, and that the other is no Knife;
+    either side of them, the nearest still in, are Traitors, but not which;
+  - two **Old Friends** know each other, and that the other is no Traitor;
   - the **Hothead** takes one person with them when they go;
   - the **Drunk** has been told they are the Witness and is not: what they
     see is as likely wrong as right, their card says Witness until they are
     out or the game is over, and a real Witness at the same table is told
     there is a Drunk about;
-  - the **Turncoat** is Town until the Knives come for them: then nobody is
+  - the **Turncoat** is a Faithful until the Traitors come for them: then nobody is
     taken, the morning looks like any quiet one, and the Turncoat is a
-    Knife from then on, knows the Knives and wins with them;
+    Traitor from then on, knows the Traitors and wins with them;
   - the **Fool** is on nobody's side and wins alone the moment the table
-    votes them out.
+    banishes them.
 
   The wild cards take two seats at a table of six, three at eight and four
   at ten (the Old Friends take two), with at most one of the Drunk, the
@@ -1955,21 +1992,22 @@ every Knife is out; the Knives win when they are as many as everyone else.
   every night (a Watch at eight seats or more, a Fool at eight, a Hothead
   too at ten); **Plain** has no wild cards. Neither has a house rule.
 - **One house rule a night** (with the house deal): **A note is found**
-  (whoever the Knives take leaves one last line, found in the morning;
-  yours too), **No ties** (a tie between two puts out both), **The house
+  (whoever the Traitors murder leaves one last line, found in the morning;
+  yours too), **No ties** (a tie between two banishes both), **The house
   vouches** (before anything is said, one person is named who is not a
-  Knife), **Lights out** (what someone taken in the night was is not shown
+  Traitor), **Lights out** (what someone murdered in the night was is not shown
   until the game is over; the vote still shows it) or **Secret ballot**
   (the count is shown and never whose vote was whose).
-- **A side bet**: something of your own to play for, dealt with your card,
-  whatever the card is (a plain Town card most of all): still be in your
-  seat at the end, never vote for anyone who is not a Knife, have your
-  Suspect mark on every Knife and nobody else, as a Knife win without one
-  of you voted out, as the Bouncer throw out a Knife, and so on, thirteen
+- **A side bet** (at the other tables; at the Traitors' table the pot is
+  the stake): something of your own to play for, dealt with your card,
+  whatever the card is (a plain Faithful card most of all): still be in your
+  seat at the end, never vote for anyone who is not a Traitor, have your
+  Suspect mark on every Traitor and nobody else, as a Traitor win without one
+  of you banished, as the Bouncer throw out a Traitor, and so on, thirteen
   in all. The reveal says whether it came off.
 - **Your tab**: the house keeps, in this browser, the nights you have
-  played and won, your run of wins, each card you have held and each kind
-  of side bet you have won; the first screen shows it once there has been a
+  played and won, your run of wins, what you have taken from the pot, each
+  card you have held and each kind of side bet you have won; the first screen shows it once there has been a
   night. Nothing of it leaves the browser.
 - **The regulars remember**: the people you have sat with are kept too,
   with what happened between the two of you the last time (which sides you
@@ -2038,11 +2076,11 @@ every Knife is out; the Knives win when they are as many as everyone else.
   up the table steps aside altogether.
 - **It is told like a night at the table**: a host has one line in the
   morning (who is found, and where) and one at the vote. The night is
-  played step by step (everyone shuts their eyes, the Knives open theirs,
-  the Witness looks, the Watch keeps a door). Someone accused scowls and
+  played step by step (the lights go down, the Traitors meet, and at the
+  other tables the Witness looks and the Watch keeps a door). Someone accused scowls and
   gets a mark over their seat until they answer. At the vote everyone
   points at once and the lines are drawn across the table one by one.
-  Whoever is voted out has their **last words** before their role is
+  Whoever is banished has their **last words** before their role is
   shown (you too: the table waits for yours). When it is over, **The
   reveal** shows every role, how each went, how each voted and what each
   was privately thinking.
@@ -2053,7 +2091,7 @@ every Knife is out; the Knives win when they are as many as everyone else.
   them, answers theirs; × sets one aside; the vote clears the rest.
 - **The table is all there is**: the seats are told that the only evidence
   is what happens at the table (what is said, who accuses and defends whom,
-  the votes, who is taken and what they were, what is claimed). Nobody saw
+  the votes, who is murdered and what they were, what is claimed). Nobody saw
   anything in the night, and where anyone was or was going means nothing,
   and nobody can see anybody's face, so they do not ask and do not say who
   is sweating. They are given no town either: to the others a seat is a
@@ -2063,8 +2101,8 @@ every Knife is out; the Knives win when they are as many as everyone else.
   for each seat each time it speaks, votes or chooses in the night, in that
   person's own way of talking. A
   seat is told the public record, its own role and its own private
-  knowledge and nothing else, so a Town seat has to work it out as you do
-  and a Knife has to lie. The host is a call of its own, told only what
+  knowledge and nothing else, so a Faithful seat has to work it out as you do
+  and a Traitor has to lie. The host is a call of its own, told only what
   everyone can see, and what it says is colour: it is never given to a seat
   as evidence. The code deals the roles, counts the votes and decides who
   is out and who has won; nothing a model says can change that. The key the
@@ -2098,7 +2136,7 @@ from `file://`, with the network blocked. Playwright is preinstalled in the
 build environment. Elsewhere, install it outside this folder (as the CI
 workflow does) and point `NODE_PATH` at it, because
 `tests/constraints.test.cjs` checks there is no `package.json` here. There is
-nothing else to install. The whole run is about 845 tests and takes fifteen to
+nothing else to install. The whole run is about 851 tests and takes fifteen to
 twenty minutes. `tests/wave30-rel-people.test.cjs` builds its older save from
 commit `56e69f5`'s `index.html`, so it needs the git history (a shallow clone
 fails it with a message saying so; the CI checkout fetches it all).
@@ -2123,7 +2161,10 @@ fails it with a message saying so; the CI checkout fetches it all).
   26, built alongside the relationship branch's);
 - `lastcall` for Last Call (`index.html`): the deal and the wild cards, the
   rules, a whole scripted game with the host and the reveal, last words, the
-  Fool and the Hothead, the house deal (every deal legal over 240 seeds a
+  Fool and the Hothead, the Traitors' table (the deal and the words every
+  seat is given, the mission and the Shield, recruiting from either side,
+  the end game both ways and the pot, a table of it with Claude, a small
+  phone), the house deal (every deal legal over 240 seeds a
   size, many different decks, a card asked for dealt in), the Drunk, the
   Bouncer, the Turncoat, the Listener and the Old Friends, each house rule,
   the side bets, the tab and the regulars, Deal again, a house table with

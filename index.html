@@ -326,7 +326,7 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
   <section id="screen-home" class="screen active" aria-labelledby="home-title">
     <div class="home">
       <h1 id="home-title" tabindex="-1">Last Call</h1>
-      <p class="tag">The doors are shut and nobody leaves tonight. Somebody at this table is not who they say.</p>
+      <p class="tag">The doors are shut and nobody leaves tonight. Some of you are Traitors.</p>
       <div class="row" id="home-continue-row" hidden>
         <button type="button" class="btn primary" id="btn-continue">Continue</button>
         <span class="note" id="home-continue-note"></span>
@@ -347,17 +347,17 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
         <div class="field">
           <span class="label" id="l-size">Seats</span>
           <div class="seg" role="group" aria-labelledby="l-size" id="f-size">
-            <button type="button" class="btn" data-v="6" aria-pressed="false">6 · one Knife</button>
-            <button type="button" class="btn" data-v="8" aria-pressed="true">8 · two Knives</button>
-            <button type="button" class="btn" data-v="10" aria-pressed="false">10 · three Knives</button>
+            <button type="button" class="btn" data-v="6" aria-pressed="false">6 · one Traitor</button>
+            <button type="button" class="btn" data-v="8" aria-pressed="true">8 · two Traitors</button>
+            <button type="button" class="btn" data-v="10" aria-pressed="false">10 · three Traitors</button>
           </div>
         </div>
         <div class="field">
           <span class="label" id="l-role">Your role</span>
           <div class="seg" role="group" aria-labelledby="l-role" id="f-role">
             <button type="button" class="btn" data-v="any" aria-pressed="true">Deal me in</button>
-            <button type="button" class="btn" data-v="town" aria-pressed="false">Town</button>
-            <button type="button" class="btn" data-v="knife" aria-pressed="false">Knife</button>
+            <button type="button" class="btn" data-v="town" aria-pressed="false">Faithful</button>
+            <button type="button" class="btn" data-v="knife" aria-pressed="false">Traitor</button>
             <button type="button" class="btn" data-v="witness" aria-pressed="false">Witness</button>
             <button type="button" class="btn" data-v="wild" aria-pressed="false">A wild card</button>
           </div>
@@ -365,7 +365,8 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
         <div class="field">
           <span class="label" id="l-deck">The deck</span>
           <div class="seg" role="group" aria-labelledby="l-deck" id="f-deck">
-            <button type="button" class="btn" data-v="house" aria-pressed="true">House deal</button>
+            <button type="button" class="btn" data-v="faithful" aria-pressed="true">Traitors</button>
+            <button type="button" class="btn" data-v="house" aria-pressed="false">Wild cards</button>
             <button type="button" class="btn" data-v="classic" aria-pressed="false">Classic</button>
             <button type="button" class="btn" data-v="plain" aria-pressed="false">Plain</button>
           </div>
@@ -410,14 +411,17 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
       <div class="card how">
         <h2>How it plays</h2>
         <ul>
-          <li><b>Knives</b> know each other. Each night they take one person out of the game.</li>
-          <li><b>Town</b> is everyone else. One of them is the <b>Witness</b>, who learns each night whether one person is a Knife.</li>
-          <li>Each day the table talks, then votes. Most votes is put out and their role is shown; a tie puts out nobody.</li>
-          <li>Town wins when every Knife is out. The Knives win when they are at least as many as everyone else.</li>
-          <li><b>No two nights the same.</b> With the house dealing, a few wild cards are shuffled in, different every night: the <b>Watch</b> guards a door, the <b>Bouncer</b> throws one person out, the <b>Listener</b> hears how many Knives sit beside them, two <b>Old Friends</b> know each other, the <b>Hothead</b> takes someone along, the <b>Drunk</b> only thinks they are the Witness, the <b>Turncoat</b> joins the Knives if they come calling, and the <b>Fool</b> wins alone by being voted out. You are shown the deck when you sit down.</li>
-          <li>The house deal also sets one <b>house rule</b> for the night (a note left by the dead, a tie that puts out both, a secret ballot, the lights out on who the dead were, someone the house vouches for), and gives you a <b>side bet</b> of your own to play for.</li>
-          <li>The house keeps <b>your tab</b>: nights played and won, your streak, the cards you have held and the bets you have won. The people you have sat with remember the last time.</li>
-          <li>Whoever is voted out gets their last words before their role is shown. Listen to them.</li>
+          <li>The <b>Traitors</b> know each other. Each night they murder one person, who does not come in to breakfast.</li>
+          <li>The <b>Faithful</b> are everyone else, and have nothing but their judgement and their vote.</li>
+          <li>Each day the <b>Round Table</b> talks, then votes. Most votes is <b>banished</b> and what they were is shown; a tie banishes nobody.</li>
+          <li><b>The mission</b>, each morning: play for the <b>pot</b> ($500 into it) or for the <b>Shield</b>. One of those who went for the Shield gets it, in secret, and cannot be murdered that night.</li>
+          <li><b>Recruiting</b>: when a Traitor is banished, the Traitors left may ask one Faithful to join them instead of murdering. With one Traitor left it is join, or be murdered. It could be you they ask.</li>
+          <li><b>The end game</b>: with four or fewer left there are no more nights and nothing more is shown. After each vote everyone says <b>end it</b> or <b>banish again</b>. When all say end, it ends: one Traitor still in and the Traitors take the pot; none, and the Faithful share it.</li>
+          <li>Only those still in at the end get anything. The Faithful also win outright if every Traitor is banished before the end game; the Traitors, if they are ever as many as everyone else.</li>
+          <li><b>Other tables</b> (under The deck): <b>Wild cards</b> adds a Witness and a few cards shuffled in, different every night: the <b>Watch</b> guards a door, the <b>Bouncer</b> throws one person out, the <b>Listener</b> hears how many Traitors sit beside them, two <b>Old Friends</b> know each other, the <b>Hothead</b> takes someone along, the <b>Drunk</b> only thinks they are the Witness, the <b>Turncoat</b> joins the Traitors if they come calling, and the <b>Fool</b> wins alone by being banished. You are shown the deck when you sit down.</li>
+          <li>The wild cards table also sets one <b>house rule</b> for the night (a note left by the dead, a tie that banishes both, a secret ballot, the lights out on who the dead were, someone the house vouches for), and gives you a <b>side bet</b> of your own to play for. <b>Classic</b> and <b>Plain</b> are the older fixed decks.</li>
+          <li>The house keeps <b>your tab</b>: nights played and won, your streak, what you have taken from the pot, the cards you have held and the bets you have won. The people you have sat with remember the last time.</li>
+          <li>Whoever is banished gets their last words before their role is shown. Listen to them.</li>
           <li>The table talks on by itself: say something whenever you like. Tap a face, or what someone said, to aim at them; the quick replies say it in one tap (It's you. Liar. Why? I'm with you. Not me.), or type your own.</li>
           <li>The talk ends when you call the vote, when most of the table says it is ready to, or when it gets late.</li>
         </ul>
@@ -483,25 +487,25 @@ const Game = (() => {
   // Per million tokens, in and out (the cache read at a tenth of the input price, a write at one and a quarter).
   const PRICES = { 'claude-opus-5-5': [4, 20], 'claude-fable-5-2': [8, 40], 'claude-sonnet-5-5': [2, 10], 'claude-haiku-5-5': [0.1, 0.5] };
   const SIZES = { 6: { knife: 1, witness: 1, watch: 0 }, 8: { knife: 2, witness: 1, watch: 1 }, 10: { knife: 3, witness: 1, watch: 1 } };
-  // The wild cards, dealt in place of plain Town at the bigger tables unless the table is set without them.
+  // The wild cards, dealt in place of plain Faithful at the bigger tables unless the table is set without them.
   const WILD = { 6: {}, 8: { fool: 1 }, 10: { fool: 1, hothead: 1 } };
   const ROLE = {
-    town: { name: 'Town', blurb: 'You have no power but your judgement and your vote. Find the Knives before they are as many as the rest of you.' },
-    witness: { name: 'Witness', blurb: 'You are Town. Each night you learn whether one person is a Knife. What you know makes you worth silencing: choose when to say it.' },
-    watch: { name: 'Watch', blurb: 'You are Town. Each night you guard one person, yourself included, and whoever you guard survives the night. Never the same person two nights running.' },
-    knife: { name: 'Knife', blurb: 'Each night you and yours take one person out of the game. By day, be one of them. You win when the Knives are as many as everyone else.' },
-    fool: { name: 'Fool', blurb: 'You are on nobody\'s side. You win, alone, the moment the table votes you out. Make them want to, without making it obvious you want it. Taken in the night, you lose like anyone.' },
-    hothead: { name: 'Hothead', blurb: 'You are Town. If you are put out, by the vote or in the night, you do not go alone: you take one person with you.' },
-    bouncer: { name: 'Bouncer', blurb: 'You are Town. Once in the game, at night, you may throw one person out yourself; what they were is shown in the morning. You only get the one.' },
-    listener: { name: 'Listener', blurb: 'You are Town. Each morning you learn how many of the two people sitting either side of you (the nearest still in) are Knives. Not which.' },
-    friend: { name: 'Old Friend', blurb: 'You are Town, and so is your old friend: the two of you came in together, and each knows the other is no Knife.' },
-    turncoat: { name: 'Turncoat', blurb: 'You are Town, for now. If the Knives come for you in the night you do not go: you become one of them, and win with them from then on.' },
+    town: { name: 'Faithful', blurb: 'You have no power but your judgement and your vote. Find the Traitors before they are as many as the rest of you.' },
+    witness: { name: 'Witness', blurb: 'You are a Faithful. Each night you learn whether one person is a Traitor. What you know makes you worth silencing: choose when to say it.' },
+    watch: { name: 'Watch', blurb: 'You are a Faithful. Each night you guard one person, yourself included, and whoever you guard survives the night. Never the same person two nights running.' },
+    knife: { name: 'Traitor', blurb: 'Each night you and yours murder one person. By day, be one of them. You win when the Traitors are as many as everyone else.' },
+    fool: { name: 'Fool', blurb: 'You are on nobody\'s side. You win, alone, the moment the table banishes you. Make them want to, without making it obvious you want it. Murdered in the night, you lose like anyone.' },
+    hothead: { name: 'Hothead', blurb: 'You are a Faithful. If you are banished or murdered, you do not go alone: you take one person with you.' },
+    bouncer: { name: 'Bouncer', blurb: 'You are a Faithful. Once in the game, at night, you may throw one person out yourself; what they were is shown in the morning. You only get the one.' },
+    listener: { name: 'Listener', blurb: 'You are a Faithful. Each morning you learn how many of the two people sitting either side of you (the nearest still in) are Traitors. Not which.' },
+    friend: { name: 'Old Friend', blurb: 'You are a Faithful, and so is your old friend: the two of you came in together, and each knows the other is no Traitor.' },
+    turncoat: { name: 'Turncoat', blurb: 'You are a Faithful, for now. If the Traitors come for you in the night you do not go: you become one of them, and win with them from then on.' },
     drunk: { name: 'Drunk', blurb: 'You were told you were the Witness. You were the Drunk: what you saw in the night was as likely wrong as right.' }
   };
-  // "Lyman was a Knife", "June was Town", "Pearl was the Witness".
-  const wasWord = r => (r === 'town' ? 'Town' : r === 'knife' ? 'a Knife' : r === 'friend' ? 'one of the Old Friends' : `the ${ROLE[r].name}`);
-  // The same of a person: a Turncoat who went over is a Knife, and it is said how.
-  const wasOf = p => (p.was === 'turncoat' ? 'a Knife (the Turncoat, who went over in the night)' : wasWord(p.role));
+  // "Lyman was a Traitor", "June was a Faithful", "Pearl was the Witness".
+  const wasWord = r => (r === 'town' ? 'a Faithful' : r === 'knife' ? 'a Traitor' : r === 'friend' ? 'one of the Old Friends' : `the ${ROLE[r].name}`);
+  // The same of a person: a Turncoat who went over is a Traitor, and it is said how.
+  const wasOf = p => (p.was === 'turncoat' ? 'a Traitor (the Turncoat, who went over in the night)' : p.was === 'recruit' ? 'a Traitor (recruited in the night)' : wasWord(p.role));
   /* The role as its holder is told it: the Drunk is told Witness, and plays
      as one, until they are out or the game is over. */
   const face = p => (p.role === 'drunk' ? 'witness' : p.role);
@@ -511,23 +515,23 @@ const Game = (() => {
      night, so the house shuffles a few cards in from a deck of its own,
      different each time, and the table is told which are in play: a
      Witness who may be the Drunk, a night nobody dies that may have made a
-     Knife, a Bouncer who has one throw. What each card is, as the whole
+     Traitor, a Bouncer who has one throw. What each card is, as the whole
      table is told it (the rules every seat is given, and the Roles list). */
   const CARD = {
-    watch: 'The Watch (Town) guards one person each night, never the same one two nights running. Whoever is guarded survives the night.',
-    fool: 'The Fool is on nobody\'s side, and wins alone the moment the table votes them out. Taken in the night, the Fool just loses.',
-    hothead: 'The Hothead (Town) takes one person of their choosing with them when they are put out, by the vote or in the night.',
-    bouncer: 'The Bouncer (Town) may, once in the game, throw one person out in the night. What that person was is shown in the morning.',
-    listener: 'The Listener (Town) learns each morning how many of the two people sitting either side of them (the nearest still in) are Knives, but not which.',
-    friend: 'The two Old Friends (Town) know each other, and each knows the other is not a Knife.',
-    drunk: 'The Drunk (Town) has been told they are the Witness, and is not: what the Drunk sees in the night is as likely wrong as right. Neither the Witness nor the Drunk can tell which of the two they are.',
-    turncoat: 'The Turncoat is Town until the Knives come for them in the night. Then nobody is taken: the Turncoat becomes a Knife and wins with them, and the morning looks like any night nobody died.'
+    watch: 'The Watch (Faithful) guards one person each night, never the same one two nights running. Whoever is guarded survives the night.',
+    fool: 'The Fool is on nobody\'s side, and wins alone the moment the table banishes them. Murdered in the night, the Fool just loses.',
+    hothead: 'The Hothead (Faithful) takes one person of their choosing with them when they are banished or murdered.',
+    bouncer: 'The Bouncer (Faithful) may, once in the game, throw one person out in the night. What that person was is shown in the morning.',
+    listener: 'The Listener (Faithful) learns each morning how many of the two people sitting either side of them (the nearest still in) are Traitors, but not which.',
+    friend: 'The two Old Friends (Faithful) know each other, and each knows the other is not a Traitor.',
+    drunk: 'The Drunk (Faithful) has been told they are the Witness, and is not: what the Drunk sees in the night is as likely wrong as right. Neither the Witness nor the Drunk can tell which of the two they are.',
+    turncoat: 'The Turncoat is a Faithful until the Traitors come for them in the night. Then nobody is taken: the Turncoat becomes a Traitor and wins with them, and the morning looks like any night nobody died.'
   };
   const CARD_ORDER = ['watch', 'fool', 'hothead', 'bouncer', 'listener', 'friend', 'drunk', 'turncoat'];
   /* What the house may shuffle in, by size: how many seats the wild cards
-     take, and how many of them may be trouble for the Town (the Drunk, the
+     take, and how many of them may be trouble for the Faithful (the Drunk, the
      Turncoat, the Fool: one a night, at any size; with two at a table of
-     ten, six hundred scripted nights went to the Knives three times in
+     ten, six hundred scripted nights went to the Traitors three times in
      four). A table of six is too small for a Turncoat, a Fool or a pair
      of Old Friends. */
   const TROUBLE = ['drunk', 'turncoat', 'fool'];
@@ -539,10 +543,10 @@ const Game = (() => {
   /* One house rule a night, on top of the deck: each changes what the
      table can know or what a vote can do. */
   const RULES = {
-    note: { name: 'A note is found', text: 'Whoever the Knives take in the night leaves a note: one last line, found in the morning.' },
-    both: { name: 'No ties', text: 'A tied vote between two people puts out both of them. (Three or more tied: nobody goes.)' },
-    vouch: { name: 'The house vouches', text: 'Before anything is said, the house names one person who is not a Knife.' },
-    dark: { name: 'Lights out', text: 'What someone taken in the night was is not shown until the game is over. The vote still shows it.' },
+    note: { name: 'A note is found', text: 'Whoever the Traitors murder in the night leaves a note: one last line, found in the morning.' },
+    both: { name: 'No ties', text: 'A tied vote between two people banishes both of them. (Three or more tied: nobody goes.)' },
+    vouch: { name: 'The house vouches', text: 'Before anything is said, the house names one person who is not a Traitor.' },
+    dark: { name: 'Lights out', text: 'What someone murdered in the night was is not shown until the game is over. The vote still shows it.' },
     ballot: { name: 'Secret ballot', text: 'The vote is counted with hands under the table: everyone sees how many votes each person got, and nobody sees whose they were.' }
   };
 
@@ -802,7 +806,7 @@ const Game = (() => {
   const you = () => state.players.find(p => p.you);
   const isKnife = p => p.role === 'knife';
   const firstOf = p => p.first;
-  /* Who has won, from who is still in: 'town' when no Knife is left,
+  /* Who has won, from who is still in: 'town' when no Traitor is left,
      'knives' when they are at least as many as everyone else, else null. */
   function winner(players) {
     const live = players.filter(p => p.alive);
@@ -842,10 +846,12 @@ const Game = (() => {
      player has sat with before, two or three of whom are given a seat. */
   function deal(opts) {
     const size = SIZES[opts.size] ? opts.size : 8;
-    const deck = opts.deck === 'house' ? 'house' : opts.deck === 'plain' || opts.wild === false ? 'plain' : 'classic';
+    const deck = opts.deck === 'faithful' ? 'faithful' : opts.deck === 'house' ? 'house' : opts.deck === 'plain' || opts.wild === false ? 'plain' : 'classic';
     const s = { v: 1, seed: (opts.seed >>> 0) || 1, rng: (opts.seed >>> 0) || 1, size, mode: opts.mode === 'claude' ? 'claude' : 'demo', model: MODELS.includes(opts.model) ? opts.model : MODELS[0],
       day: 1, phase: 'role', live: opts.live !== false, clock: 0, said: 0, bonus: 0, ready: [], yours: null, spat: null, log: [], heat: {}, night: null, last: null, winner: null, usage: { calls: 0, cost: 0, failed: 0 }, pending: [], votesLog: [], asks: [], askSeq: 0,
-      deck, wild: deck === 'house' || (deck === 'classic' && size > 6), cards: {}, rule: null, vouched: null, bet: null, betWon: null, saves: 0, thrown: [], history: {}, tallied: false };
+      deck, wild: deck === 'house' || (deck === 'classic' && size > 6), cards: {}, rule: null, vouched: null, bet: null, betWon: null, saves: 0, thrown: [], history: {}, tallied: false,
+      // The Traitors' game (deck 'faithful'): the prize pot, who holds the Shield and for which night, whether the Traitors may recruit, the end game, the player's share.
+      format: deck === 'faithful', pot: 0, shield: null, recruit: false, blocked: null, endgame: false, share: 0 };
     // (A second generator, off the same seed, for what is drawn beside the table itself: the regulars, the house rule, the side bet. The table's own draws are what they were.)
     const side = { rng: hash('the house', s.seed) || 1 };
     const name = cleanText(opts.name, 20) || 'Riley';
@@ -867,9 +873,13 @@ const Game = (() => {
       }
     }
     const roles = [];
-    for (const r of ['knife', 'witness']) for (let i = 0; i < SIZES[size][r]; i++) roles.push(r);
+    // (The Traitors' game has Traitors and Faithful and nothing else: no Witness.)
+    // (And two Traitors at a table of ten, not three: they can recruit.)
+    s.k0 = deck === 'faithful' && size === 10 ? 2 : SIZES[size].knife;
+    for (let i = 0; i < s.k0; i++) roles.push('knife');
+    if (deck !== 'faithful') for (let i = 0; i < SIZES[size].witness; i++) roles.push('witness');
     if (deck === 'house') s.cards = houseDeck(s, size, CARD[opts.role] ? opts.role : null);
-    else { if (SIZES[size].watch) s.cards.watch = SIZES[size].watch; if (s.wild) Object.assign(s.cards, WILD[size]); }
+    else if (deck !== 'faithful') { if (SIZES[size].watch) s.cards.watch = SIZES[size].watch; if (s.wild) Object.assign(s.cards, WILD[size]); }
     for (const r of CARD_ORDER) for (let i = 0; i < (s.cards[r] || 0); i++) roles.push(r);
     while (roles.length < size) roles.push('town');
     let order = shuffle(s, roles);
@@ -892,19 +902,19 @@ const Game = (() => {
     s.players.forEach((p, i) => { if (p.you) return; p.chat = p.style === 'quiet' ? Math.min(0.5, chat[(i - 1) % chat.length]) : chat[(i - 1) % chat.length]; p.type = types[(i - 1) % types.length].id; });
     // Old Friends are sure of each other.
     for (const p of s.players) if (p.role === 'friend') for (const q of s.players) if (q !== p && q.role === 'friend') p.mem.sus[q.id] = -99;
-    // The house rule: the one asked for, or one drawn by a house deal. The house vouches for someone who is not a Knife.
+    // The house rule: the one asked for, or one drawn by a house deal. The house vouches for someone who is not a Traitor.
     s.rule = RULES[opts.rule] ? opts.rule : opts.rule === undefined && deck === 'house' ? pick(side, Object.keys(RULES)) : null;
     if (s.rule === 'vouch') {
       s.vouched = pick(side, s.players.filter(p => p.role !== 'knife')).id;
       for (const p of s.players) if (!p.you && p.role !== 'knife' && p.id !== s.vouched) p.mem.sus[s.vouched] = -99;
     }
     // The player's side bet: one of those their role can play for.
-    const bets = BETS.filter(b => b.id === opts.bet || (opts.bet === undefined && b.for(face(s.players[0]))));
+    const bets = BETS.filter(b => b.id === opts.bet || (opts.bet === undefined && deck !== 'faithful' && b.for(face(s.players[0]))));
     s.bet = bets.length ? pick(side, bets).id : null;
     s.opts = { size, role: opts.role, mode: s.mode, model: s.model, name, deck, live: s.live, rule: opts.rule };
     return s;
   }
-  // What the player knows of someone's role: their own, a fellow Knife, a Witness's findings, anyone out; else null.
+  // What the player knows of someone's role: their own, a fellow Traitor, a Witness's findings, anyone out; else null.
   function known(p) {
     const me = you();
     // Out of the game, the player sees every role (they can no longer use it).
@@ -919,13 +929,15 @@ const Game = (() => {
     if (c) return c.knife ? 'knife' : 'clean';
     return state.vouched === p.id ? 'clean' : null;
   }
-  const roleWord = r => (r === 'clean' ? 'Not a Knife' : ROLE[r] ? ROLE[r].name : '');
+  const roleWord = r => (r === 'clean' ? 'Not a Traitor' : ROLE[r] ? ROLE[r].name : '');
   function putOut(p, how) { p.alive = false; p.out = { how, day: state.day }; }
-  // Tonight's deck in a line: "2 Knives, a Witness, a Watch, a Fool, the rest Town."
+  // How many Traitors were dealt (a recruit or a Turncoat who went over is one more, later).
+  const dealtKnives = () => state.k0 || SIZES[state.size].knife;
+  // Tonight's deck in a line: "2 Traitors, a Witness, a Watch, a Fool, the rest Faithful."
   function deckText() {
-    const k = SIZES[state.size].knife;
+    const k = dealtKnives();
     const a = { watch: 'a Watch', fool: 'a Fool', hothead: 'a Hothead', bouncer: 'a Bouncer', listener: 'a Listener', friend: 'two Old Friends', drunk: 'a Drunk', turncoat: 'a Turncoat' };
-    return `${k} ${k === 1 ? 'Knife' : 'Knives'}, a Witness${CARD_ORDER.filter(r => state.cards[r]).map(r => `, ${a[r]}`).join('')}, the rest Town.`;
+    return `${k} ${k === 1 ? 'Traitor' : 'Traitors'}${state.deck === 'faithful' ? '' : ', a Witness'}${CARD_ORDER.filter(r => state.cards[r]).map(r => `, ${a[r]}`).join('')}, the rest Faithful.`;
   }
   /* Who sits either side of someone: the nearest still in, each way round
      the table (one person, when only two are left). */
@@ -936,15 +948,15 @@ const Game = (() => {
     for (const step of [1, n - 1]) for (let i = 1; i < n; i++) { const q = state.players[(at + step * i) % n]; if (q === p) break; if (q.alive) { if (!out.includes(q)) out.push(q); break; } }
     return out;
   }
-  // What a Listener heard one morning, in words: "one of Wade and June is a Knife".
+  // What a Listener heard one morning, in words: "one of Wade and June is a Traitor".
   function heardText(h) {
     const names = h.ids.map(id => (P(id) ? P(id).first : id));
-    if (names.length < 2) return `${names[0]} ${h.n ? 'is a Knife' : 'is not a Knife'}`;
-    return h.n === 0 ? `neither ${names[0]} nor ${names[1]} is a Knife` : h.n === 1 ? `one of ${names[0]} and ${names[1]} is a Knife` : `${names[0]} and ${names[1]} are both Knives`;
+    if (names.length < 2) return `${names[0]} ${h.n ? 'is a Traitor' : 'is not a Traitor'}`;
+    return h.n === 0 ? `neither ${names[0]} nor ${names[1]} is a Traitor` : h.n === 1 ? `one of ${names[0]} and ${names[1]} is a Traitor` : `${names[0]} and ${names[1]} are both Traitors`;
   }
 
   /* A side bet: something of the player's own to play for, different each
-     night, whatever card they hold (a plain Town card most of all). for:
+     night, whatever card they hold (a plain Faithful card most of all). for:
      the roles it can be dealt to, as the player is told theirs. won(x):
      whether it came off, from how the game went (x.mine: each of the
      player's votes, { day, p, went: that vote put p out }). */
@@ -953,16 +965,16 @@ const Game = (() => {
     { id: 'standing', text: 'Still be in your seat when it ends.', for: r => r !== 'fool', won: x => x.me.alive },
     { id: 'unmarked', text: 'Get to the end without one vote against you.', for: r => r !== 'fool', won: x => x.votes.length > 0 && !x.votes.some(v => Object.keys(v.votes).some(id => id !== 'you' && v.votes[id] === 'you')) },
     { id: 'herd', text: 'Twice, be on the vote that puts someone out.', for: r => r !== 'fool', won: x => x.mine.filter(m => m.went).length >= 2 },
-    { id: 'sharp', text: 'Never vote for anyone who is not a Knife.', for: townSide, won: x => x.mine.length > 0 && x.mine.every(m => isKnife(m.p)) },
-    { id: 'early', text: 'Have a Knife voted out on day one, with your vote on them.', for: townSide, won: x => x.mine.some(m => m.day === 1 && m.went && isKnife(m.p)) },
-    { id: 'marks', text: 'When it ends, have your Suspect mark on every Knife and on nobody else still in.', for: townSide, won: x => x.players.filter(isKnife).every(p => p.mark === 'sus') && !x.players.some(p => !isKnife(p) && p.alive && p.mark === 'sus') },
-    { id: 'hands', text: 'Win without a single Knife being voted out.', for: r => r === 'knife', won: x => x.won && !x.players.some(p => isKnife(p) && p.out && p.out.how === 'vote') },
-    { id: 'frame', text: 'Twice, have your vote on someone who is not a Knife when they are put out.', for: r => r === 'knife', won: x => x.mine.filter(m => m.went && !isKnife(m.p)).length >= 2 },
-    { id: 'found', text: 'See a Knife in the night, and see them voted out.', for: r => r === 'witness', won: x => x.me.mem.checks.some(c => c.knife && P(c.id) && isKnife(P(c.id)) && P(c.id).out && P(c.id).out.how === 'vote') },
-    { id: 'door', text: 'Turn the Knives away from a door at least once.', for: r => r === 'watch', won: x => x.saves > 0 },
-    { id: 'thrown', text: 'Throw out a Knife.', for: r => r === 'bouncer', won: x => x.thrown.some(t => t.by === 'you' && P(t.id) && isKnife(P(t.id))) },
-    { id: 'spite', text: 'Take a Knife with you when you go.', for: r => r === 'hothead', won: x => x.players.some(p => isKnife(p) && p.out && p.out.how === 'shot' && p.out.by === 'you') },
-    { id: 'quick', text: 'Get yourself voted out by the second day.', for: r => r === 'fool', won: x => x.won && x.me.out && x.me.out.day <= 2 }
+    { id: 'sharp', text: 'Never vote for anyone who is not a Traitor.', for: townSide, won: x => x.mine.length > 0 && x.mine.every(m => isKnife(m.p)) },
+    { id: 'early', text: 'Have a Traitor banished on day one, with your vote on them.', for: townSide, won: x => x.mine.some(m => m.day === 1 && m.went && isKnife(m.p)) },
+    { id: 'marks', text: 'When it ends, have your Suspect mark on every Traitor and on nobody else still in.', for: townSide, won: x => x.players.filter(isKnife).every(p => p.mark === 'sus') && !x.players.some(p => !isKnife(p) && p.alive && p.mark === 'sus') },
+    { id: 'hands', text: 'Win without a single Traitor being banished.', for: r => r === 'knife', won: x => x.won && !x.players.some(p => isKnife(p) && p.out && p.out.how === 'vote') },
+    { id: 'frame', text: 'Twice, have your vote on someone who is not a Traitor when they are banished.', for: r => r === 'knife', won: x => x.mine.filter(m => m.went && !isKnife(m.p)).length >= 2 },
+    { id: 'found', text: 'See a Traitor in the night, and see them banished.', for: r => r === 'witness', won: x => x.me.mem.checks.some(c => c.knife && P(c.id) && isKnife(P(c.id)) && P(c.id).out && P(c.id).out.how === 'vote') },
+    { id: 'door', text: 'Turn the Traitors away from a door at least once.', for: r => r === 'watch', won: x => x.saves > 0 },
+    { id: 'thrown', text: 'Throw out a Traitor.', for: r => r === 'bouncer', won: x => x.thrown.some(t => t.by === 'you' && P(t.id) && isKnife(P(t.id))) },
+    { id: 'spite', text: 'Take a Traitor with you when you go.', for: r => r === 'hothead', won: x => x.players.some(p => isKnife(p) && p.out && p.out.how === 'shot' && p.out.by === 'you') },
+    { id: 'quick', text: 'Get yourself banished by the second day.', for: r => r === 'fool', won: x => x.won && x.me.out && x.me.out.day <= 2 }
   ];
   const betOf = id => BETS.find(b => b.id === id) || null;
 
@@ -971,7 +983,7 @@ const Game = (() => {
   /* A line of the game's own. rec: the same line as the record gives it to a seat (the player by name, never "You"). */
   function sys(text, kind, priv, rec) { const e = { t: 'sys', text, day: state.day, kind: kind || 'sys', priv: priv === true }; if (rec) e.rec = rec; state.log.push(e); UI.logEntry(e); return e; }
   /* The record as a seat is given it: everything public, in order (never a
-     private line, never a whisper among the Knives). */
+     private line, never a whisper among the Traitors). */
   function recordText(upToDay) {
     const out = [];
     for (const e of state.log) {
@@ -984,8 +996,8 @@ const Game = (() => {
   }
 
   // ----- reading a line (who it is about, and how) -----
-  const VOUCH_RE = /\b(trust|vouch|clean|innocent|believe (?:him|her|them|you)|not (?:a |the )?knife|isn'?t (?:a |the )?knife|with (?:him|her|them) on)\b/i;
-  const ACCUSE_RE = /\b(knife|lying|liar|lied|lies|suspect|suspicious|don'?t trust|do not trust|not buying|hiding|vote (?:for|out)?|put (?:him|her|them) out|it'?s (?:you|him|her|them)|it was (?:you|him|her|them)|guilty|shifty|off about)\b/i;
+  const VOUCH_RE = /\b(trust|vouch|clean|innocent|believe (?:him|her|them|you)|not (?:a |the )?(?:knife|traitor)|isn'?t (?:a |the )?(?:knife|traitor)|faithful|with (?:him|her|them) on)\b/i;
+  const ACCUSE_RE = /\b(knife|traitor|lying|liar|lied|lies|suspect|suspicious|don'?t trust|do not trust|not buying|hiding|vote (?:for|out)?|put (?:him|her|them) out|it'?s (?:you|him|her|them)|it was (?:you|him|her|them)|guilty|shifty|off about)\b/i;
   function mentioned(text, speakerId) {
     const t = String(text || '');
     const hits = [];
@@ -1037,7 +1049,7 @@ const Game = (() => {
       }
       return best;
     },
-    // Who a scripted seat wants out: a Witness the Knife they found; a Knife whoever of the Town is hottest; Town their worst suspicion.
+    // Who a scripted seat wants out: a Witness the Traitor they found; a Traitor whoever of the Faithful is hottest; Faithful their worst suspicion.
     target(p) {
       if (face(p) === 'witness') { const c = p.mem.checks.find(x => x.knife && P(x.id).alive); if (c) return P(c.id); }
       const clean = new Set(p.mem.checks.filter(x => !x.knife).map(x => x.id));
@@ -1067,7 +1079,7 @@ const Game = (() => {
       const found = face(p) === 'witness' ? p.mem.checks.find(x => x.knife && P(x.id).alive) : null;
       if (found && !p.mem.claimed) {
         p.mem.claimed = true;
-        return { text: `${tic} I'm the Witness. I looked at ${P(found.id).first} in the night. ${P(found.id).first} is a Knife.`, aim: P(found.id), stance: 'accuse', weight: 4 };
+        return { text: `${tic} I'm the Witness. I looked at ${P(found.id).first} in the night. ${P(found.id).first} is a Traitor.`, aim: P(found.id), stance: 'accuse', weight: 4 };
       }
       const by = p.mem.accusedBy ? P(p.mem.accusedBy) : null;
       if (by && by.alive) {
@@ -1077,7 +1089,7 @@ const Game = (() => {
       }
       if (t && ((p.mem.sus[t.id] || 0) + (state.heat[t.id] || 0) >= 1.6 || rnd(state) < 0.5)) {
         const votedFor = state.lastVotes && state.lastVotes[t.id] ? P(state.lastVotes[t.id]) : null;
-        const why = votedFor && !votedFor.alive && !isKnife(votedFor) ? `${t.first} voted ${votedFor.first} out. ${votedFor.first} was Town.` : pick(state, [`${t.first}'s too quiet.`, `${t.first} pointed awful fast.`, `Something's off with ${t.first}.`, `${t.first} keeps changing their mind.`, `It's ${t.first}. I can feel it.`]);
+        const why = votedFor && !votedFor.alive && !isKnife(votedFor) ? `${t.first} voted ${votedFor.first} out. ${votedFor.first} was a Faithful.` : pick(state, [`${t.first}'s too quiet.`, `${t.first} pointed awful fast.`, `Something's off with ${t.first}.`, `${t.first} keeps changing their mind.`, `It's ${t.first}. I can feel it.`]);
         // A reason the table has heard today is not said again word for word.
         if (state.log.some(e => e.t === 'say' && e.day === state.day && e.text.includes(why))) return { text: pick(state, [`Yep. ${t.first}.`, `Same. ${t.first}.`, `${t.first}, well?`, `I'm with that.`]), aim: t, stance: 'accuse' };
         return { text: rnd(state) < 0.35 ? `${tic} ${why}` : why, aim: t, stance: 'accuse' };
@@ -1089,7 +1101,7 @@ const Game = (() => {
       const t = (p.role === 'fool' ? null : Bots.target(p)) || pick(state, alive().filter(q => q !== p));
       return { vote: t, text: pick(state, [`${t.first}.`, `I'm voting ${t.first}.`, `${t.first}. I've said why.`, `It's ${t.first} for me.`]) };
     },
-    // Who the Knives take: someone who has claimed to be the Witness, else whoever suspects a Knife hardest, else anyone.
+    // Who the Traitors take: someone who has claimed to be the Witness, else whoever suspects a Traitor hardest, else anyone.
     kill() {
       const knives = alive().filter(isKnife);
       const prey = alive().filter(q => !isKnife(q));
@@ -1107,13 +1119,29 @@ const Game = (() => {
       if (face(p) === 'witness') {
         const k = p.mem.checks.find(c => c.knife && P(c.id).alive);
         const clean = p.mem.checks.filter(c => !c.knife && P(c.id).alive).map(c => P(c.id).first);
-        return k ? `I was the Witness, you fools. ${P(k.id).first} is a Knife. I saw it.` : clean.length ? `I was the Witness. ${andList(clean)}: not a Knife. That's all I have. Use it.` : "I was the Witness, and you've just put out your own eyes.";
+        return k ? `I was the Witness, you fools. ${P(k.id).first} is a Traitor. I saw it.` : clean.length ? `I was the Witness. ${andList(clean)}: not a Traitor. That's all I have. Use it.` : "I was the Witness, and you've just banished your own eyes.";
       }
       const t = Bots.target(p);
       return pick(state, [`It wasn't me. It's still sitting among you${t ? `, and my money was on ${t.first}` : ''}.`, "You've made a mistake, and you'll know it by morning.", `Wrong one${t ? `. Watch ${t.first}` : ''}.`]);
     },
     // Who the Hothead takes with them: their worst suspicion.
     shot(p) { return Bots.target(p) || pick(state, alive().filter(q => q !== p)); },
+    /* The Traitors' game. Who a Traitor would recruit: any Faithful still
+       in. Whether someone asked says yes (an ultimatum is hard to refuse).
+       And a scripted seat's vote in the end game: a Traitor wants it ended
+       while they are in it; a Faithful ends it only with nobody left they
+       suspect enough. */
+    // What a seat plays for at the mission: a Traitor has less use for a Shield.
+    mission(p) { return rnd(state) < (isKnife(p) ? 0.2 : 0.4) ? 'shield' : 'pot'; },
+    recruit() { const prey = alive().filter(q => !isKnife(q)); return prey.length ? pick(state, prey) : null; },
+    joins(p, ultimatum) { return rnd(state) < (ultimatum ? 0.9 : 0.65); },
+    endVote(p) {
+      if (isKnife(p)) return { end: true, text: 'End it.' };
+      const t = Bots.target(p);
+      // (With four left a Faithful wants to be surer than with three, when one more banishment leaves two.)
+      const end = !(t && (p.mem.sus[t.id] || 0) >= (alive().length <= 3 ? 3 : 1.5));
+      return { end, text: end ? pick(state, ['End it.', "I think we're done.", 'End it. I trust this table.']) : pick(state, [`Not yet. ${t.first}.`, 'Banish again.', "I'm not sure of all of you."]) };
+    },
     /* Whether the Bouncer throws someone out tonight, and who: never before
        there has been a day's talk to go on, and only someone they have
        settled on (the one a Claude seat named as who it most wants out; a
@@ -1125,16 +1153,16 @@ const Game = (() => {
       if (!t || t === p || (t !== s && (p.mem.sus[t.id] || 0) < 4)) return null;
       return rnd(state) < 0.65 ? t : null;
     },
-    /* The note someone taken in the night leaves (the house rule): what
+    /* The note someone murdered in the night leaves (the house rule): what
        they knew, or who they had their eye on. */
     note(p) {
       if (face(p) === 'witness') {
         const k = p.mem.checks.find(c => c.knife && P(c.id).alive);
         const clean = p.mem.checks.filter(c => !c.knife && P(c.id).alive).map(c => P(c.id).first);
-        return k ? `I was the Witness. ${P(k.id).first} is a Knife.` : clean.length ? `I was the Witness. Not a Knife: ${andList(clean)}.` : 'I was the Witness. I had nothing yet.';
+        return k ? `I was the Witness. ${P(k.id).first} is a Traitor.` : clean.length ? `I was the Witness. Not a Traitor: ${andList(clean)}.` : 'I was the Witness. I had nothing yet.';
       }
       if (p.role === 'listener' && p.mem.heard && p.mem.heard.length) return `I was the Listener. Last I heard, ${heardText(p.mem.heard[p.mem.heard.length - 1])}.`;
-      if (p.role === 'friend') { const m = state.players.find(q => q !== p && q.role === 'friend'); if (m && m.alive) return `${m.first} is with me. Not a Knife.`; }
+      if (p.role === 'friend') { const m = state.players.find(q => q !== p && q.role === 'friend'); if (m && m.alive) return `${m.first} is with me. Not a Traitor.`; }
       const t = Bots.target(p);
       return t ? pick(state, [`Watch ${t.first}.`, `It's ${t.first}. I'd bet on it.`, `Ask ${t.first} why I'm gone.`]) : 'I had nothing. Sorry.';
     },
@@ -1146,7 +1174,7 @@ const Game = (() => {
       if (kind === 'saved') return pick(state, ['There are scratches round the lock of the back room this morning, and a chair jammed under the handle that held.', 'Somebody tried a door in the night and found it watched. Whoever it was went back to bed.']);
       if (kind === 'quiet') return 'Grey light through the shutters. Every stool is taken. Somehow that is worse.';
       if (kind === 'banish') return pick(state, [`They walk ${first} to the storeroom and turn the key. Nobody looks pleased about it.`, `${first} goes out through the kitchen with a coat over one arm, and the bolt goes home behind.`, `Nobody helps ${first} with the door. It shuts, and the room breathes out.`]);
-      if (kind === 'tie') return 'Hands go up, hands come down, and it comes out even. Nobody goes anywhere. The Knives will like that.';
+      if (kind === 'tie') return 'Hands go up, hands come down, and it comes out even. Nobody goes anywhere. The Traitors will like that.';
       if (kind === 'fool') return `${first} is laughing before the door has shut. The whole table has been had.`;
       if (kind === 'shot') return `${first} does not go quietly.`;
       if (kind === 'thrown') return pick(state, [`${first} is out on the step before the lights come up, and the bolt is back across.`, `Somebody big walks ${first} to the door in the dark. Nobody hears it open.`]);
@@ -1179,44 +1207,53 @@ const Game = (() => {
       about: Object.assign({ description: 'The first name of the one person your message is aimed at or about, or null.' }, nullable('string')),
       stance: { type: 'string', enum: ['accuse', 'vouch', 'question', 'defend', 'claim', 'other'] },
       ready: { type: 'boolean', description: 'True if you have heard enough today and would be happy to vote now.' },
-      suspect: Object.assign({ description: 'The first name of who you most want put out next (your real aim, not necessarily what you said), or null.' }, nullable('string')),
+      suspect: Object.assign({ description: 'The first name of who you most want banished next (your real aim, not necessarily what you said), or null.' }, nullable('string')),
       trust: Object.assign({ description: 'The first name of who you most believe is on your side, or null.' }, nullable('string')),
       feel: { type: 'string', description: 'Private: how you feel about these people right now, under 15 words (who has annoyed you, who had your back, what you are sore or smug about).' },
       note: { type: 'string', description: 'A private memo to yourself for later, under 40 words: your reads and your plan.' } } },
     vote: { type: 'object', additionalProperties: false, required: ['vote', 'say', 'note'], properties: {
-      vote: { type: 'string', description: 'The first name of the one person you vote to put out. Someone still in, not yourself.' },
+      vote: { type: 'string', description: 'The first name of the one person you vote to banish. Someone still in, not yourself.' },
       say: { type: 'string', description: 'A few words sent as you vote.' }, note: { type: 'string', description: 'A private memo to yourself, under 40 words.' } } },
     kill: { type: 'object', additionalProperties: false, required: ['take', 'note'], properties: {
-      take: { type: 'string', description: 'The first name of the one person the Knives take tonight. Someone still in who is not a Knife.' }, note: { type: 'string', description: 'A private memo to yourself, under 40 words.' } } },
-    last: { type: 'object', additionalProperties: false, required: ['say'], properties: { say: { type: 'string', description: 'Your last words to the table before you are put out: one to three sentences, spoken, in your own voice.' } } },
+      take: { type: 'string', description: 'The first name of the one person the Traitors murder tonight. Someone still in who is not a Traitor.' }, note: { type: 'string', description: 'A private memo to yourself, under 40 words.' } } },
+    end: { type: 'object', additionalProperties: false, required: ['end', 'say'], properties: {
+      end: { type: 'boolean', description: 'True to vote to end the game now; false to vote to banish again.' }, say: { type: 'string', description: 'A few words sent as you vote, eight at most.' } } },
+    last: { type: 'object', additionalProperties: false, required: ['say'], properties: { say: { type: 'string', description: 'Your last words to the table before you are banished: one to three sentences, spoken, in your own voice.' } } },
     shot: { type: 'object', additionalProperties: false, required: ['take', 'say'], properties: {
       take: { type: 'string', description: 'The first name of the one person still in that you take with you.' }, say: { type: 'string', description: 'One short sentence said as you do it.' } } },
     host: { type: 'object', additionalProperties: false, required: ['say'], properties: { say: { type: 'string', description: 'The narration: one sentence.' } } },
     whisper: { type: 'object', additionalProperties: false, required: ['take', 'say'], properties: {
-      take: { type: 'string', description: 'The first name of who you would take tonight. Someone still in who is not a Knife.' }, say: { type: 'string', description: 'One or two sentences whispered to your fellow Knife: who and why.' } } }
+      take: { type: 'string', description: 'The first name of who you would murder tonight. Someone still in who is not a Traitor.' }, say: { type: 'string', description: 'One or two sentences whispered to your fellow Traitor: who and why.' } } }
   };
   const Prompts = {
     system() {
       const n = state.players.length;
-      const c = SIZES[state.size];
+      const c = { knife: dealtKnives() };
       const me = you();
       const wild = state.cards;
       const names = state.players.map(p => p.first);
+      // The Traitors' game: Traitors and Faithful and nothing else, with a mission, a Shield, a pot, recruiting and an end game.
+      const fmt = state.format;
+      const plain = state.deck === 'faithful';
       return [
-        `You are one of ${n} friends playing "Last Call", a hidden-role party game like Werewolf or Mafia, in the game's group chat. Everything anyone says is a message in that chat, and everyone reads all of it. "The table" is everyone playing.`,
+        `You are one of ${n} friends playing "Last Call", a hidden-role party game ${fmt ? 'of Traitors and Faithful, in the manner of the TV game The Traitors' : 'like Werewolf or Mafia'}, in the game's group chat. Everything anyone says is a message in that chat, and everyone reads all of it. "The table"${fmt ? ', or the Round Table,' : ''} is everyone playing.`,
         '',
         'THE GAME',
-        `- ${n} people are playing. ${c.knife === 1 ? 'One of them is secretly a Knife' : `${capFirst(['', 'one', 'two', 'three'][c.knife])} of them are secretly Knives, who know each other`}. Everyone else is Town. One of the Town is the Witness${wild.watch ? ', and one is the Watch' : ''}.`,
-        `- Each night the Knives take one person out of the game. The Witness learns whether one person of their choosing is a Knife.${wild.watch ? ' The Watch guards one person (never the same one two nights running); a guarded person survives the night.' : ''}`,
-        `- Each day everyone still in talks, then votes. Whoever has the most votes is put out; ${state.rule === 'both' ? 'a tie between two puts out both of them, and a tie between three or more puts nobody out' : 'a tie puts nobody out'}. ${state.rule === 'dark' ? 'The role of anyone voted out is shown to all; the role of anyone taken in the night is not shown until the game is over.' : 'The role of anyone put out, by vote or in the night, is shown to all.'}`,
-        '- Town wins when every Knife is out. The Knives win when they are at least as many as everyone else still in.',
-        wild.fool ? '- One person is the Fool, on nobody\'s side: if the table votes the Fool out, the Fool wins alone and everyone else loses, at once. Taken in the night, the Fool just loses. So a vote for someone who seems to want it is a risk.' : null,
-        wild.hothead ? '- One of the Town is the Hothead: when the Hothead is put out, by the vote or in the night, they take one person of their choosing out with them.' : null,
-        wild.bouncer ? '- One of the Town is the Bouncer: once in the game, in the night, the Bouncer may throw one person out. What that person was is shown in the morning.' : null,
-        wild.listener ? `- One of the Town is the Listener, who learns each morning how many of the two people sitting either side of them (the nearest still in) are Knives, but not which. Round the table, in order: ${names.join(', ')} (and ${names[names.length - 1]} sits beside ${names[0]}).` : null,
-        wild.friend ? '- Two of the Town are Old Friends: they know each other, and each knows the other is not a Knife.' : null,
-        wild.drunk ? '- One of the Town is the Drunk, who has been told they are the Witness and is not: what the Drunk sees in the night is as likely wrong as right. Neither the Witness nor the Drunk can tell which of the two they are, so two people may honestly say they are the Witness, and one of them is worth nothing.' : null,
-        wild.turncoat ? '- One person is the Turncoat: Town, until the Knives come for them in the night. Then nobody is taken: the Turncoat becomes a Knife and wins with them, and the morning looks like any night nobody died. So a night without a death may mean one more Knife.' : null,
+        `- ${n} people are playing. ${c.knife === 1 ? 'One of them is secretly a Traitor' : `${capFirst(['', 'one', 'two', 'three'][c.knife])} of them are secretly Traitors, who know each other`}. Everyone else is a Faithful.${plain ? ' Nobody has any power but their judgement and their vote.' : ` One of the Faithful is the Witness${wild.watch ? ', and one is the Watch' : ''}.`}`,
+        `- Each night the Traitors murder one person.${plain ? ' Whoever it is does not come in to breakfast.' : ` The Witness learns whether one person of their choosing is a Traitor.${wild.watch ? ' The Watch guards one person (never the same one two nights running); a guarded person survives the night.' : ''}`}`,
+        fmt ? '- Each day starts with a mission: everyone, in secret, plays either for the pot (each who does adds $500 to it) or for the Shield. One of those who played for the Shield wins it, in secret, and whoever holds the Shield cannot be murdered that night. The table is told how many played for each and never who. Anyone can say they hold the Shield, truly or not.' : null,
+        `- Each day everyone still in talks, then votes. Whoever has the most votes is banished; ${state.rule === 'both' ? 'a tie between two banishes both of them, and a tie between three or more banishes nobody' : 'a tie banishes nobody'}. ${state.rule === 'dark' ? 'The role of anyone banished is shown to all; the role of anyone murdered in the night is not shown until the game is over.' : 'The role of anyone banished or murdered is shown to all.'}`,
+        fmt ? '- The Faithful win at once if every Traitor is banished before the end game. Otherwise it is settled in the end game, below: there is no winning on numbers.' : '- The Faithful win when every Traitor is out. The Traitors win when they are at least as many as everyone else still in.',
+        fmt ? '- When a Traitor is banished, the Traitors still in may, on a later night, recruit instead of murdering: they ask one Faithful, in secret, to join them. A yes makes that person a Traitor from then on. (With only one Traitor left it is an ultimatum: join, or be murdered.) So a night when nobody is murdered may mean a Shield was held, or that there is a new Traitor.' : null,
+        fmt ? '- The end game: once four or fewer are left there are no more nights, and what the banished were is no longer shown. After each vote everyone still in votes to end the game or to banish again. When all of them vote to end it (or only two are left) it is over: with even one Traitor still in, the Traitors win; with none, the Faithful win.' : null,
+        fmt ? '- The pot is the prize. If the Faithful win, the Faithful still in at the end share it. If the Traitors win, the Traitors still in take all of it. Anyone banished or murdered gets nothing, so everyone wants to be there at the end.' : null,
+        wild.fool ? '- One person is the Fool, on nobody\'s side: if the table votes the Fool out, the Fool wins alone and everyone else loses, at once. Murdered in the night, the Fool just loses. So a vote for someone who seems to want it is a risk.' : null,
+        wild.hothead ? '- One of the Faithful is the Hothead: when the Hothead is banished or murdered, they take one person of their choosing out with them.' : null,
+        wild.bouncer ? '- One of the Faithful is the Bouncer: once in the game, in the night, the Bouncer may throw one person out. What that person was is shown in the morning.' : null,
+        wild.listener ? `- One of the Faithful is the Listener, who learns each morning how many of the two people sitting either side of them (the nearest still in) are Traitors, but not which. Round the table, in order: ${names.join(', ')} (and ${names[names.length - 1]} sits beside ${names[0]}).` : null,
+        wild.friend ? '- Two of the Faithful are Old Friends: they know each other, and each knows the other is not a Traitor.' : null,
+        wild.drunk ? '- One of the Faithful is the Drunk, who has been told they are the Witness and is not: what the Drunk sees in the night is as likely wrong as right. Neither the Witness nor the Drunk can tell which of the two they are, so two people may honestly say they are the Witness, and one of them is worth nothing.' : null,
+        wild.turncoat ? '- One person is the Turncoat: a Faithful, until the Traitors come for them in the night. Then nobody is taken: the Turncoat becomes a Traitor and wins with them, and the morning looks like any night nobody died. So a night without a death may mean one more Traitor.' : null,
         state.rule ? `- The house rule tonight, "${RULES[state.rule].name}": ${RULES[state.rule].text}` : null,
         '',
         'HOW TO PLAY YOUR SEAT',
@@ -1225,12 +1262,13 @@ const Game = (() => {
         '- This is a conversation: listen to it. What you say answers what was just said, or the person who spoke to you. Agree, argue, answer the question, push back, add what they missed. When someone says something to everyone, take it up; never talk past it to run a line of your own.',
         `- ${me.first} is a player like any other. Take what ${me.first} says as seriously as anyone's: answer it, argue with it, hold them to it.`,
         '- You are a person and you carry things: sore at whoever came after you or voted for you, pleased with yourself when you called it, warm to whoever backed you up, a joke from earlier brought back. WHAT YOU ARE CARRYING and HOW YOU FEEL, given with your seat when there is something, are yours. Let them show.',
-        '- If you are Town: you want the Knives out. Use what the table gives you: who pushed whom, who went quiet, who voted how, what the dead turned out to be.',
-        '- If you are a Knife: never admit it. Sound like Town, push suspicion where it will stick, and lie when you need to. You may claim a role you do not hold.',
-        '- If you are the Witness: what you know wins games and gets you taken in the night. Decide when to say it.',
-        wild.fool ? '- If you are the Fool: get yourself voted out without it showing that you want it. Be a little too evasive, a little too slow to deny. If they see what you are doing they will never vote for you.' : null,
+        '- If you are a Faithful: you want the Traitors out. Use what the table gives you: who pushed whom, who went quiet, who voted how, what the dead turned out to be.',
+        '- If you are a Traitor: never admit it. Sound like a Faithful, push suspicion where it will stick, and lie when you need to. You may claim a role you do not hold.',
+        plain ? null : '- If you are the Witness: what you know wins games and gets you murdered in the night. Decide when to say it.',
+        fmt ? '- Talk the way people at that Round Table do: "I am a Faithful, one hundred percent" proves nothing, everyone says it. What counts is who went for the Shield and who says they hold it, who was murdered and who gained by it, who voted how, and who is steering the table.' : null,
+        wild.fool ? '- If you are the Fool: get yourself banished without it showing that you want it. Be a little too evasive, a little too slow to deny. If they see what you are doing they will never vote for you.' : null,
         '- Anyone can lie about their role. Weigh every claim.',
-        '- The table is all there is. The only evidence in this game is what happens at it: what people say, who they accuse and who they defend, how they vote, who is taken in the night and what they turned out to be, and what people claim to be. Everyone\'s eyes are shut at night, so nobody saw or heard anything and nobody has an alibi. Nobody can see anybody, either: no faces, no looks, no sweating, no body language. Where anyone was, where they were going, what they do for a living, who they are to each other and how they came to be here tell you nothing: never ask about them, never bring them up, and never make up something seen, heard or found.',
+        '- The table is all there is. The only evidence in this game is what happens at it: what people say, who they accuse and who they defend, how they vote, who is murdered in the night and what they turned out to be, and what people claim to be. Everyone\'s eyes are shut at night, so nobody saw or heard anything and nobody has an alibi. Nobody can see anybody, either: no faces, no looks, no sweating, no body language. Where anyone was, where they were going, what they do for a living, who they are to each other and how they came to be here tell you nothing: never ask about them, never bring them up, and never make up something seen, heard or found.',
         '- One question at a time. If someone has just been asked something and has not yet had the chance to answer, do not put another question to them: say what you make of things instead.',
         '- When you have heard enough to vote, say so in the chat ("can we just vote") and mark yourself ready. When most are ready the vote is called.',
         '',
@@ -1244,7 +1282,7 @@ const Game = (() => {
         '- Nothing that sounds written. No "I must say", "interesting", "noted", "well, well", "mark my words", no neat turn of phrase, no metaphor, no flourish. If a line sounds clever, say it plainer.',
         '- Not every message is a move. People also groan, laugh, take the piss, complain that it is dragging, or agree in one word. When LENGTH THIS TURN says just a reaction, that is all you send.',
         '- One thought a message, with its reason in a few words when you have one ("you jumped on her way too fast"). Never a list of reasons, never the day summed up, never the rules explained, never someone\'s own words said back to them, nothing you have already said today said again.',
-        '- Talk about the game and nothing else: this table, tonight, who is lying. Nothing about a town ("Town" is only the name of a side in this game), anybody\'s work, family, money or past, the weather, or any life outside this room: none of it exists here.',
+        '- Talk about the game and nothing else: this table, tonight, who is lying. Nothing about a town, anybody\'s work, family, money or past, the weather, or any life outside this room: none of it exists here.',
         '',
         `PLAYING: ${state.players.map(p => p.first).join(', ')}. (${me.first} is one of the people at the table, the same as anyone: there is nothing more to know about them than how they play.)`
       ].filter(x => x !== null).join('\n');
@@ -1258,14 +1296,14 @@ const Game = (() => {
       if (v && v.day === state.day - 1) {
         // (Under a secret ballot a seat knows its own vote and nobody else's.)
         const on = v.secret ? [] : Object.keys(v.votes).filter(id => v.votes[id] === p.id && P(id)).map(id => P(id).first);
-        if (on.length) out.push(`${andList(on)} voted to put you out yesterday.`);
+        if (on.length) out.push(`${andList(on)} voted to banish you yesterday.`);
         const mine = v.votes[p.id] ? P(v.votes[p.id]) : null;
         if (mine) {
           const gone = !mine.alive && mine.out && mine.out.how === 'vote' && mine.out.day === v.day;
           const too = v.secret ? [] : Object.keys(v.votes).filter(id => id !== p.id && v.votes[id] === mine.id && P(id) && P(id).alive).map(id => P(id).first);
           if (!gone) out.push(`Yesterday you voted for ${mine.first}, who is still here.`);
           else if (isKnife(p)) out.push(`Yesterday you voted for ${mine.first}, who was ${wasOf(mine)}.`);
-          else out.push(isKnife(mine) ? `Yesterday you voted for ${mine.first}, who was a Knife. You called it.` : `Yesterday you voted for ${mine.first}, who was ${wasOf(mine)}. You got that one wrong${too.length ? `, and so did ${andList(too)}` : ''}.`);
+          else out.push(isKnife(mine) ? `Yesterday you voted for ${mine.first}, who was a Traitor. You called it.` : `Yesterday you voted for ${mine.first}, who was ${wasOf(mine)}. You got that one wrong${too.length ? `, and so did ${andList(too)}` : ''}.`);
         }
       }
       const when = d => (d === state.day ? 'today' : 'yesterday');
@@ -1280,29 +1318,33 @@ const Game = (() => {
       const lines = [`YOUR SEAT: ${p.name}.`];
       if (isKnife(p)) {
         const mates = state.players.filter(q => isKnife(q) && q !== p);
-        lines.push(`YOUR SECRET ROLE: Knife.${mates.length ? ` Your fellow ${mates.length > 1 ? 'Knives' : 'Knife'}: ${andList(mates.map(q => `${q.name}${q.alive ? '' : ' (out)'}`))}.` : ' You are the only Knife.'}`);
-        if (p.was === 'turncoat') lines.push(`You were the Turncoat, and Town, until the Knives came for you on night ${p.turned}. You are a Knife now and you win with them. Nobody else at the table knows it.`);
-        for (const q of mates) if (q.was === 'turncoat') lines.push(`${q.first} was the Turncoat: the Knives went for ${q.first} on night ${q.turned}, and ${q.first} is one of you now.`);
+        lines.push(`YOUR SECRET ROLE: Traitor.${mates.length ? ` Your fellow ${mates.length > 1 ? 'Traitors' : 'Traitor'}: ${andList(mates.map(q => `${q.name}${q.alive ? '' : ' (out)'}`))}.` : ' You are the only Traitor.'}`);
+        if (p.was === 'turncoat') lines.push(`You were the Turncoat, and a Faithful, until the Traitors came for you on night ${p.turned}. You are a Traitor now and you win with them. Nobody else at the table knows it.`);
+        for (const q of mates) if (q.was === 'turncoat') lines.push(`${q.first} was the Turncoat: the Traitors went for ${q.first} on night ${q.turned}, and ${q.first} is one of you now.`);
+        // The Traitors' game: who was recruited, whether they may recruit now, and a murder a Shield stopped.
+        if (p.was === 'recruit') lines.push(`You were a Faithful until night ${p.turned}, when the Traitors asked you to join them and you said yes. You are a Traitor now and you win with them. Nobody else at the table knows it.`);
+        for (const q of mates) if (q.was === 'recruit') lines.push(`${q.first} was recruited on night ${q.turned}, and is one of you now.`);
+        if (state.blocked && state.blocked.night === state.day && P(state.blocked.id)) lines.push(`Last night the Traitors went for ${P(state.blocked.id).first}, who held the Shield: nobody was murdered.`);
         const taken = state.log.filter(e => e.kind === 'death' && e.victim).map(e => P(e.victim).first);
-        if (taken.length) lines.push(`The Knives took: ${taken.join(', ')}.`);
+        if (taken.length) lines.push(`The Traitors murdered: ${taken.join(', ')}.`);
       } else if (face(p) === 'witness') {
-        lines.push('YOUR SECRET ROLE: Witness (Town).');
-        lines.push(p.mem.checks.length ? `What you have learned in the night: ${p.mem.checks.map(c => `${P(c.id).name} is ${c.knife ? 'a Knife' : 'not a Knife'} (night ${c.night})`).join('; ')}.` : 'You have not looked at anyone yet.');
+        lines.push('YOUR SECRET ROLE: Witness (Faithful).');
+        lines.push(p.mem.checks.length ? `What you have learned in the night: ${p.mem.checks.map(c => `${P(c.id).name} is ${c.knife ? 'a Traitor' : 'not a Traitor'} (night ${c.night})`).join('; ')}.` : 'You have not looked at anyone yet.');
       } else if (p.role === 'watch') {
-        lines.push('YOUR SECRET ROLE: Watch (Town).');
+        lines.push('YOUR SECRET ROLE: Watch (Faithful).');
         if (p.mem.lastGuard) lines.push(`Last night you guarded ${P(p.mem.lastGuard).name}.`);
-      } else if (p.role === 'fool') lines.push('YOUR SECRET ROLE: Fool. You are on nobody\'s side. You win, alone, if the table votes you out by day; you lose if the Knives take you or the game ends any other way. Nobody knows what you are.');
-      else if (p.role === 'hothead') lines.push('YOUR SECRET ROLE: Hothead (Town). If you are put out, by the vote or in the night, you take one person of your choosing with you.');
-      else if (p.role === 'bouncer') lines.push(`YOUR SECRET ROLE: Bouncer (Town). ${p.used ? 'You have thrown your one person out; you have no more than your vote now.' : 'Once in the game, in the night, you throw one person out: whoever you have named as the one you most want put out, once there has been a day\'s talk to go on. So mean it when you name them.'}`);
+      } else if (p.role === 'fool') lines.push('YOUR SECRET ROLE: Fool. You are on nobody\'s side. You win, alone, if the table banishes you by day; you lose if the Traitors murder you or the game ends any other way. Nobody knows what you are.');
+      else if (p.role === 'hothead') lines.push('YOUR SECRET ROLE: Hothead (Faithful). If you are banished or murdered, you take one person of your choosing with you.');
+      else if (p.role === 'bouncer') lines.push(`YOUR SECRET ROLE: Bouncer (Faithful). ${p.used ? 'You have thrown your one person out; you have no more than your vote now.' : 'Once in the game, in the night, you throw one person out: whoever you have named as the one you most want banished, once there has been a day\'s talk to go on. So mean it when you name them.'}`);
       else if (p.role === 'listener') {
-        lines.push('YOUR SECRET ROLE: Listener (Town).');
+        lines.push('YOUR SECRET ROLE: Listener (Faithful).');
         const heard = p.mem.heard || [];
         lines.push(heard.length ? `What you have heard: ${heard.map(h => `morning ${h.day}, ${heardText(h)}`).join('; ')}.` : 'You have heard nothing yet.');
       } else if (p.role === 'friend') {
         const mate = state.players.find(q => q !== p && q.role === 'friend');
-        lines.push(`YOUR SECRET ROLE: Old Friend (Town).${mate ? ` Your old friend is ${mate.name}${mate.alive ? '' : ' (out)'}: you know for certain that ${mate.first} is not a Knife, and ${mate.first} knows the same of you.` : ''}`);
-      } else if (p.role === 'turncoat') lines.push('YOUR SECRET ROLE: Turncoat. You are Town and you want the Knives out, unless the Knives come for you in the night: then you are not taken, you become a Knife, and you win with them. Nobody knows what you are.');
-      else lines.push('YOUR SECRET ROLE: Town. You have no power but your judgement and your vote.');
+        lines.push(`YOUR SECRET ROLE: Old Friend (Faithful).${mate ? ` Your old friend is ${mate.name}${mate.alive ? '' : ' (out)'}: you know for certain that ${mate.first} is not a Traitor, and ${mate.first} knows the same of you.` : ''}`);
+      } else if (p.role === 'turncoat') lines.push('YOUR SECRET ROLE: Turncoat. You are a Faithful and you want the Traitors out, unless the Traitors come for you in the night: then you are not taken, you become a Traitor, and you win with them. Nobody knows what you are.');
+      else lines.push('YOUR SECRET ROLE: Faithful. You have no power but your judgement and your vote.');
       const style = STYLES.find(x => x.id === p.style);
       if (style) lines.push(`YOUR TEMPERAMENT: ${style.text}`);
       const ty = TYPES.find(x => x.id === p.type);
@@ -1311,6 +1353,10 @@ const Game = (() => {
       const gut = p.mem.gut ? P(p.mem.gut) : null;
       if (gut && gut.alive && !isKnife(p)) lines.push(`A HUNCH: you have a slight feeling about ${gut.first}, nothing solid. It is somewhere to start; drop it the moment the table gives you something better.`);
       const carry = Prompts.carrying(p);
+      // The Traitors' game: what this seat did at today's mission, and an offer it turned down.
+      const mi = p.mem.mission;
+      if (state.format && mi && mi.day === state.day) lines.push(`TODAY'S MISSION: you played for the ${mi.pick === 'shield' ? 'Shield' : 'pot'}.${mi.shield ? ' You won the Shield: the Traitors cannot murder you tonight. Nobody knows you hold it unless you say so.' : mi.pick === 'shield' ? ' Someone else got it.' : ''}`);
+      if (p.mem.refused && !isKnife(p)) lines.push(`On night ${p.mem.refused} the Traitors asked you, in secret, to join them, and you refused. You do not know who they are.`);
       if (carry.length) lines.push(`WHAT YOU ARE CARRYING: ${carry.join(' ')}`);
       if (p.mem.feel) lines.push(`HOW YOU FEEL: ${p.mem.feel}`);
       if (p.mem.note) lines.push(`YOUR OWN PRIVATE NOTES FROM EARLIER: ${p.mem.note}`);
@@ -1336,12 +1382,13 @@ const Game = (() => {
     },
     task: {
       say(p, x) { x = x || {}; return `NOW: day ${state.day}, the chat is going.${state.clock <= 3 ? ' It is getting late: the vote is close.' : ''}${x.why ? ` ${x.why}` : ''} You are about to send a message.\nLENGTH THIS TURN: ${(x.len || LENGTHS[2]).text}`; },
-      vote(p) { return `NOW: day ${state.day}, the vote. Everyone votes at once, so you do not know how the others vote. Name the one person still in that you vote to put out (not yourself). Vote for the one you really think it is, from what was said and done today (as a Knife: whoever it suits your side to lose). Send a few words as you do, eight at most.`; },
-      kill(p) { return `NOW: night ${state.day}. You decide for the Knives who is taken tonight. Choose the one person still in, not a Knife, whose going helps the Knives most.`; },
-      whisper(p, mate) { return `NOW: night ${state.day}. ${mate.name} is your fellow Knife and decides tonight. Whisper to them who you would take, and why, in one or two sentences.`; },
-      note(p) { return `NOW: night ${state.day}. The Knives have just taken you: you are out of the game. By the house rule you leave a note, which the table finds in the morning. Write it: what you most want them to know. One or two short sentences, twenty-five words at most.`; },
-      last(p, votes) { return `NOW: day ${state.day}. The table has voted you out (${votes}). Your role is about to be shown to everyone. Say your last words to the table, as you would: angry, smug, hurt, funny. One or two short sentences, twenty-five words at most.`; },
-      shot(p, how) { return `NOW: you are the Hothead and you have just been put out (${how}). Name the one person still in that you take with you, the one whose going helps Town most, and one short sentence you say as you do it.`; }
+      vote(p) { return `NOW: day ${state.day}, the vote. Everyone votes at once, so you do not know how the others vote. Name the one person still in that you vote to banish (not yourself). Vote for the one you really think it is, from what was said and done today (as a Traitor: whoever it suits your side to lose). Send a few words as you do, eight at most.`; },
+      kill(p) { return `NOW: night ${state.day}. You decide for the Traitors who is murdered tonight. Choose the one person still in, not a Traitor, whose going helps the Traitors most.`; },
+      whisper(p, mate) { return `NOW: night ${state.day}. ${mate.name} is your fellow Traitor and decides tonight. Whisper to them who you would murder, and why, in one or two sentences.`; },
+      end(p) { return `NOW: the end game. ${alive().length} of you are left: ${alive().map(q => q.first).join(', ')}. Everyone votes at once: END THE GAME, or BANISH AGAIN. If every one of you votes to end it, it ends there: with even one Traitor still in, the Traitors take the pot; with none, the Faithful share it. Otherwise the Round Table sits again and one more of you is banished, and what they were is not shown. Vote to end it only if you believe no Traitor is left (as a Traitor, you want it ended while you are still in). Send a few words as you vote, eight at most.`; },
+      note(p) { return `NOW: night ${state.day}. The Traitors have just murdered you: you are out of the game. By the house rule you leave a note, which the table finds in the morning. Write it: what you most want them to know. One or two short sentences, twenty-five words at most.`; },
+      last(p, votes) { return `NOW: day ${state.day}. The table has banished you (${votes}). Your role is about to be shown to everyone. Say your last words to the table, as you would: angry, smug, hurt, funny. One or two short sentences, twenty-five words at most.`; },
+      shot(p, how) { return `NOW: you are the Hothead and you are out of the game (${how}). Name the one person still in that you take with you, the one whose going helps the Faithful most, and one short sentence you say as you do it.`; }
     },
     /* The host: the house's own voice for a moment of the game. It is told
        only what the whole table can see, and its words are never given to a
@@ -1470,7 +1517,7 @@ const Game = (() => {
         } catch (e) { failed(e); }
       }
       const t = Bots.kill();
-      return { take: t, text: t ? pick(state, [`${t.first}. They're the one who'll work it out.`, `I'd take ${t.first} tonight. Too sharp by half.`, `${t.first}, before they talk the rest round.`]) : '' };
+      return { take: t, text: t ? pick(state, [`${t.first}. They're the one who'll work it out.`, `I'd murder ${t.first} tonight. Too sharp by half.`, `${t.first}, before they talk the rest round.`]) : '' };
     },
     async lastWords(p, votes) {
       if (useClaude()) {
@@ -1478,7 +1525,14 @@ const Game = (() => {
       }
       return Bots.lastWords(p);
     },
-    // The note someone taken in the night leaves behind (the house rule).
+    // The note someone murdered in the night leaves behind (the house rule).
+    // A seat's vote in the end game: { end, text }.
+    async endVote(p) {
+      if (useClaude()) {
+        try { const r = await callClaude(p, 'end', Prompts.task.end(p)); if (typeof r.end !== 'boolean') throw Object.assign(new Error('no vote'), { type: 'bad_json' }); return { end: r.end, text: typed(p, clip(r.say, 8)) }; } catch (e) { failed(e); }
+      }
+      return Bots.endVote(p);
+    },
     async note(p) {
       if (useClaude()) {
         try { const r = await callClaude(p, 'last', Prompts.task.note(p)); const text = typed(p, clip(r.say, 25)); if (text) return text; } catch (e) { failed(e); }
@@ -1506,9 +1560,9 @@ const Game = (() => {
             thrown: `Morning of day ${state.day}. In the night the Bouncer, whoever that is, threw ${x && x.name} (${x && x.role}) out of the bar; the door is bolted again and they are not coming back in.`,
             saved: `Morning of day ${state.day}. Somebody came for one of them in the night and was stopped; nobody died. Nobody knows who was after whom.`,
             quiet: `Morning of day ${state.day}. Nobody died in the night.`,
-            banish: `Day ${state.day}. The table has voted to put ${x && x.name} (${x && x.role}) out of the game; they are shut away from the others. Whether they were guilty is about to be shown.`,
-            tie: `Day ${state.day}. The vote was tied, so nobody is put out, and night is coming.`,
-            fool: `Day ${state.day}. The table has just voted out ${x && x.name}, who turns out to be the Fool: the one person who wanted exactly that, and who wins by it.`,
+            banish: `Day ${state.day}. The table has voted to put ${x && x.name}${x && x.role ? ` (${x.role})` : ''} out of the game; they are shut away from the others. ${x && x.role ? 'Whether they were guilty is about to be shown.' : 'Whether they were guilty will not be shown until the game is over.'}`,
+            tie: `Day ${state.day}. The vote was tied, so nobody is banished, and night is coming.`,
+            fool: `Day ${state.day}. The table has just banished ${x && x.name}, who turns out to be the Fool: the one person who wanted exactly that, and who wins by it.`,
             shot: `${x && x.name}, put out of the game, turns out to be the Hothead and is about to take someone with them.` }[kind];
           const r = await callClaude(null, 'host', `THE MOMENT: ${facts}`);
           const text = clip(r.say, 22);
@@ -1546,15 +1600,96 @@ const Game = (() => {
   // Whether the player's side has won (the Fool has no side but their own).
   function youWon() { const me = you(); return me.role === 'fool' ? state.winner === 'fool' : state.winner === (isKnife(me) ? 'knives' : 'town'); }
   function finish() {
+    // (The end game ends by its own vote, and by nothing else.)
+    if (state.endgame) return false;
     const w = winner(state.players);
-    if (!w) return false;
+    // (Nor do the Traitors win on numbers in the Traitors' game: it goes to the end game.)
+    if (!w || (state.format && w === 'knives')) return false;
     state.winner = w;
     state.phase = 'over';
     const knives = state.players.filter(isKnife).map(p => p.name);
-    sys(w === 'town' ? `Town wins. Every Knife is out: ${andList(knives)}.` : `The Knives win: ${andList(knives)}. There are as many of them left as everyone else.`, 'end');
+    sys(w === 'town' ? `The Faithful win. Every Traitor is out: ${andList(knives)}.` : `The Traitors win: ${andList(knives)}. There are as many of them left as everyone else.`, 'end');
+    payOut();
     settle();
     UI.rebuildLog();
     return true;
+  }
+  const money = n => `$${Math.round(n).toLocaleString('en-US')}`;
+  /* The pot (the Traitors' game): the Faithful still in at the end share
+     it when the Faithful win; when the Traitors win, the Traitors still in
+     take all of it. Anyone banished or murdered gets nothing. */
+  function payOut() {
+    if (!state.format) return;
+    const side = state.winner === 'town' ? alive().filter(p => !isKnife(p)) : alive().filter(isKnife);
+    const each = side.length ? Math.floor(state.pot / side.length) : 0;
+    state.share = side.some(p => p.you) ? each : 0;
+    const who = andList(side.map(p => (p.you ? 'you' : p.first)));
+    sys(!state.pot ? 'There was nothing in the pot.' : !side.length ? `The pot was ${money(state.pot)}, and nobody is left to take it.` : side.length === 1 ? `The pot is ${money(state.pot)}, and ${who} ${side[0].you ? 'take' : 'takes'} all of it.` : `The pot is ${money(state.pot)}. ${capFirst(who)} share it: ${money(each)} each.`, 'end');
+  }
+  /* The end game is ended: every card is turned. With even one Traitor
+     still in, the Traitors have won. */
+  function endIt() {
+    const left = alive().filter(isKnife);
+    state.winner = left.length ? 'knives' : 'town';
+    state.phase = 'over';
+    UI.tally = null; UI.arrows = []; UI.stage(null);
+    const line = pub => (left.length ? `The game is ended, and ${andList(left.map(p => (p.you && !pub ? 'you' : p.name)))} ${left.length === 1 && (pub || !left[0].you) ? 'was a Traitor' : left.length === 1 ? 'were a Traitor' : 'were Traitors'} all along. The Traitors win.` : 'The game is ended, and there is not a Traitor left among you. The Faithful win.');
+    sys(line(false), 'end', false, line(true));
+    payOut();
+    settle();
+    UI.rebuildLog();
+  }
+  /* The end game's vote (four or fewer left): everyone still in votes to
+     end the game or to banish again. All for ending it, or only two left,
+     and it is over (true); otherwise the Round Table sits again. */
+  async function endVote() {
+    const live = alive();
+    if (live.length <= 2) { endIt(); return true; }
+    await UI.stage('The end game', 'End it, or banish again?', `${live.length} of you are left.`, 900);
+    UI.setBusy('The table decides…');
+    const mine = () => (App.fast ? Promise.resolve('end') : UI.askPick('End it, or banish again?', [['End it', 'end'], ['Banish', 'again']], 'The end game')).then(v => ({ end: v === 'end', text: v === 'end' ? 'End it.' : 'Banish again.' }));
+    const got = await Promise.all(live.map(p => (p.you ? mine() : Seat.endVote(p))));
+    UI.setBusy('');
+    live.forEach((p, i) => { if (got[i].text) say(p.id, got[i].text, 'vote'); });
+    const enders = live.filter((p, i) => got[i].end);
+    const more = live.filter((p, i) => !got[i].end);
+    const list = (a, pub) => andList(a.map(p => (p.you && !pub ? 'you' : p.first)));
+    const verb = (a, pub) => (a.length === 1 && (pub || !a[0].you) ? 'votes' : 'vote');
+    const line = pub => `The end game. ${enders.length ? `${capFirst(list(enders, pub))} ${verb(enders, pub)} to end it` : 'Nobody votes to end it'}${more.length ? `; ${list(more, pub)} ${verb(more, pub)} to banish again` : ''}.`;
+    sys(line(false), 'sys', false, line(true));
+    if (!more.length) { endIt(); return true; }
+    return false;
+  }
+  /* The mission (the Traitors' game), before the day's talk: everyone
+     secretly plays for the pot ($500 into it each) or for the Shield. One
+     of those who played for the Shield wins it, and whoever holds it
+     cannot be murdered that night. The table is told how many played for
+     each, never who. (Not in the end game, nor with fewer than five in.) */
+  async function mission() {
+    const live = alive();
+    const me = you();
+    if (!state.format || state.endgame || live.length < 5) return;
+    await UI.stage(`Day ${state.day}`, 'The mission.', 'The pot, or the Shield?', 700);
+    const picks = {};
+    for (const p of live) if (!p.you) picks[p.id] = Bots.mission(p);
+    if (me.alive) picks.you = App.fast ? 'pot' : await UI.askPick('The pot, or the Shield?', [['Pot', 'pot'], ['Shield', 'shield']], 'The mission');
+    const forShield = live.filter(p => picks[p.id] === 'shield');
+    const forPot = live.length - forShield.length;
+    state.pot += forPot * 500;
+    const holder = forShield.length ? pick(state, forShield) : null;
+    state.shield = holder ? { id: holder.id, night: state.day + 1 } : null;
+    for (const p of live) p.mem.mission = { day: state.day, pick: picks[p.id], shield: p === holder };
+    sys(`The mission: ${forPot} played for the pot, which stands at ${money(state.pot)}. ${forShield.length ? `${forShield.length} played for the Shield, and one of them holds it tonight.` : 'Nobody played for the Shield, so nobody holds it tonight.'}`, 'sys');
+    if (me.alive) sys(holder === me ? 'You won the Shield: the Traitors cannot murder you tonight. Nobody knows you hold it unless you say so.' : picks.you === 'shield' ? 'You played for the Shield, and someone else got it.' : 'You played for the pot.', 'private', true);
+    UI.stage(null);
+  }
+  /* Whether the Traitors may recruit tonight: one of them has been
+     banished since they last could, one is still in, and the Faithful
+     would still outnumber them afterwards. */
+  function canRecruit() {
+    if (!state.format || !state.recruit || state.endgame) return false;
+    const t = alive().filter(isKnife).length;
+    return t >= 1 && alive().length - t >= t + 3;
   }
   /* The house's ledger: what is kept from night to night in this browser
      (the owner: "1 or 2 games and it gets boring": nothing was). Nights
@@ -1562,11 +1697,11 @@ const Game = (() => {
      and, for everyone the player has sat with, how many nights and what
      happened between the two of them the last time. */
   const Ledger = {
-    blank() { return { v: 1, nights: 0, won: 0, streak: 0, best: 0, roles: {}, bets: {}, seats: {} }; },
+    blank() { return { v: 1, nights: 0, won: 0, streak: 0, best: 0, winnings: 0, roles: {}, bets: {}, seats: {} }; },
     read() {
       try {
         const l = JSON.parse(store.get(LEDGER_KEY) || 'null');
-        if (isObj(l) && l.v === 1) { const b = Ledger.blank(); for (const k of ['nights', 'won', 'streak', 'best']) if (Number.isFinite(l[k]) && l[k] >= 0) b[k] = Math.floor(l[k]); for (const k of ['roles', 'bets', 'seats']) if (isObj(l[k])) b[k] = l[k]; return b; }
+        if (isObj(l) && l.v === 1) { const b = Ledger.blank(); for (const k of ['nights', 'won', 'streak', 'best', 'winnings']) if (Number.isFinite(l[k]) && l[k] >= 0) b[k] = Math.floor(l[k]); for (const k of ['roles', 'bets', 'seats']) if (isObj(l[k])) b[k] = l[k]; return b; }
       } catch (e) { /* a ledger that cannot be read is a new one */ }
       return Ledger.blank();
     },
@@ -1580,17 +1715,17 @@ const Game = (() => {
     memory(p) {
       const me = you();
       const w = state.winner;
-      const end = w === 'fool' ? 'The Fool won it.' : w === 'town' ? 'Town won.' : 'The Knives won.';
+      const end = w === 'fool' ? 'The Fool won it.' : w === 'town' ? 'The Faithful won.' : 'The Traitors won.';
       const out = [];
-      if (p.role === 'fool' && w === 'fool') out.push('You were the Fool, and you got the table to vote you out: you won, alone.');
-      else if (me.role === 'fool' && w === 'fool') out.push('{P} was the Fool and got the table to vote them out: {P} won, and you all lost.');
-      else if (isKnife(me) && isKnife(p)) out.push(`You and {P} were Knives together. ${end}`);
-      else if (isKnife(me)) out.push(`{P} was a Knife and lied to you all night. ${end}`);
-      else if (isKnife(p)) out.push(`You were a Knife and {P} was not. ${end}`);
-      else out.push(`Neither you nor {P} was a Knife. ${end}`);
+      if (p.role === 'fool' && w === 'fool') out.push('You were the Fool, and you got the table to banish you: you won, alone.');
+      else if (me.role === 'fool' && w === 'fool') out.push('{P} was the Fool and got the table to banish them: {P} won, and you all lost.');
+      else if (isKnife(me) && isKnife(p)) out.push(`You and {P} were Traitors together. ${end}`);
+      else if (isKnife(me)) out.push(`{P} was a Traitor and lied to you all night. ${end}`);
+      else if (isKnife(p)) out.push(`You were a Traitor and {P} was not. ${end}`);
+      else out.push(`Neither you nor {P} was a Traitor. ${end}`);
       const hit = (by, on) => state.votesLog.some(v => !v.secret && v.votes[by.id] === on.id && on.out && on.out.how === 'vote' && on.out.day === v.day);
-      if (hit(me, p)) out.push(p.role === 'fool' ? '{P} was one of the ones who voted for you.' : isKnife(p) ? '{P} voted you out, and had you right.' : '{P} voted to put you out, and you were no Knife.');
-      else if (hit(p, me)) out.push(isKnife(me) ? 'You voted {P} out, and you had it right.' : 'You voted to put {P} out, and {P} was no Knife.');
+      if (hit(me, p)) out.push(p.role === 'fool' ? '{P} was one of the ones who voted for you.' : isKnife(p) ? '{P} banished you, and had you right.' : '{P} voted to banish you, and you were no Traitor.');
+      else if (hit(p, me)) out.push(isKnife(me) ? 'You banished {P}, and you had it right.' : 'You voted to banish {P}, and {P} was no Traitor.');
       return out.join(' ');
     }
   };
@@ -1612,8 +1747,10 @@ const Game = (() => {
     l.roles[held] = { n: (r0.n | 0) + 1, won: (r0.won | 0) + (won ? 1 : 0) };
     if (state.betWon) l.bets[bet.id] = (l.bets[bet.id] | 0) + 1;
     for (const p of state.players) if (!p.you) { const s0 = isObj(l.seats[p.id]) ? l.seats[p.id] : { n: 0 }; l.seats[p.id] = { n: (s0.n | 0) + 1, night: l.nights, last: Ledger.memory(p) }; }
+    // (What the player took from the pot, in the Traitors' game.)
+    l.winnings += state.share | 0;
     Ledger.write(l);
-    state.tab = { nights: l.nights, won: l.won, streak: l.streak, best: l.best };
+    state.tab ={ nights: l.nights, won: l.won, streak: l.streak, best: l.best };
   }
   // The host says a moment (the house's voice; never part of the record a seat is given).
   async function hostLine(kind, p) {
@@ -1644,27 +1781,51 @@ const Game = (() => {
     sys(`Night ${state.day}`, 'day');
     UI.sel = null;
   }
-  /* The night resolved: the Knives' choice (the player's, when they are a
-     Knife still in), the Witness's look, the Watch's guard, then the
+  /* The night resolved: the Traitors' choice (the player's, when they are a
+     Traitor still in), the Witness's look, the Watch's guard, then the
      morning. pickId: the player's own night choice, or null. */
-  async function resolveNight(pickId) {
+  async function resolveNight(pickId, how) {
     const me = you();
     const cards = state.cards;
     UI.setBusy('The night passes…');
     const chosen = pickId ? P(pickId) : null;
-    // The night, told as the host tells it at a table: eyes shut, each role in its turn.
-    await UI.stage(`Night ${state.day}`, 'Everyone shuts their eyes.', '', 800);
-    const taking = me.alive && isKnife(me) ? Promise.resolve(chosen) : Seat.kill();
-    await UI.stage(`Night ${state.day}`, alive().filter(isKnife).length > 1 ? 'The Knives open theirs.' : 'The Knife opens theirs.', 'Somebody is chosen.', 900);
+    // The night, told as the host tells it at a table: the lights down, each role in its turn.
+    await UI.stage(`Night ${state.day}`, 'The lights go down.', '', 800);
+    const mine = me.alive && isKnife(me);
+    const taking = mine ? Promise.resolve(chosen) : Seat.kill();
+    await UI.stage(`Night ${state.day}`, alive().filter(isKnife).length > 1 ? 'The Traitors meet.' : 'The Traitor is awake.', 'Somebody is chosen.', 900);
     let victim = await taking;
-    await UI.stage(`Night ${state.day}`, 'The Witness looks at one face.', '', 700);
+    /* The Traitors' game: with one of theirs banished, the Traitors may
+       recruit instead of murdering. Whoever they ask says yes or no in
+       secret; a yes makes a Traitor and nobody is murdered. A no costs
+       nothing, unless only one Traitor was left to ask: that one is an
+       ultimatum, and a no is a murder. */
+    let joined = null;
+    if (canRecruit() && (mine ? how === 'recruit' : alive().filter(isKnife).length === 1 || rnd(state) < 0.7)) {
+      const ask = mine ? chosen : Bots.recruit();
+      const ultimatum = alive().filter(isKnife).length === 1;
+      if (ask && ask.alive && !isKnife(ask)) {
+        state.recruit = false;
+        await UI.stage(`Night ${state.day}`, 'A knock at one door.', '', 800);
+        const yes = ask.you ? (App.fast ? false : (await UI.askPick(ultimatum ? 'Join the Traitors, or be murdered.' : 'The Traitors want you. Join them?', [['Join', 'yes'], ['Refuse', 'no']], 'In the night')) === 'yes') : Bots.joins(ask, ultimatum);
+        UI.setBusy('The night passes…');
+        if (yes) { joined = ask; victim = null; }
+        else {
+          victim = ultimatum ? ask : null;
+          ask.mem.refused = state.day;
+          if (ask.you && !ultimatum) sys('You refused. You do not know who asked.', 'private', true);
+          if (mine) sys(`${ask.name} refused.${ultimatum ? '' : ' Nobody is murdered tonight.'}`, 'private', true);
+        }
+      }
+    }
+    if (state.deck !== 'faithful') await UI.stage(`Night ${state.day}`, 'The Witness looks at one face.', '', 700);
     // (The Drunk looks too, and is told something: right or wrong, as the coin falls.)
     for (const w of alive().filter(p => face(p) === 'witness')) {
       const t = w.you ? chosen : Bots.check(w);
       if (!t) continue;
       const knife = w.role === 'drunk' && rnd(state) < 0.5 ? !isKnife(t) : isKnife(t);
       w.mem.checks.push({ id: t.id, knife, night: state.day });
-      if (w.you) sys(`You watched ${t.name} in the night. ${t.first} is ${knife ? 'a Knife' : 'not a Knife'}.`, 'private', true);
+      if (w.you) sys(`You watched ${t.name} in the night. ${t.first} is ${knife ? 'a Traitor' : 'not a Traitor'}.`, 'private', true);
       else if (knife) w.mem.sus[t.id] = 99; else w.mem.sus[t.id] = -99;
     }
     let guarded = null;
@@ -1689,21 +1850,27 @@ const Game = (() => {
       state.thrown.push({ id: t.id, by: b.id, day: state.day });
     }
     if (victim && (!victim.alive || victim === threw)) victim = null;
-    const saved = !!victim && guarded === victim;
+    // The Shield (the Traitors' game): whoever won it at yesterday's mission cannot be murdered tonight.
+    const shielded = state.format && state.shield && state.shield.night === state.day ? P(state.shield.id) : null;
+    const saved = !!victim && (guarded === victim || shielded === victim);
     if (saved) state.saves = (state.saves || 0) + 1;
-    // The Knives come for the Turncoat: nobody is taken, and there is one more Knife.
+    state.blocked = saved && shielded === victim ? { id: victim.id, night: state.day } : null;
+    if (state.blocked && mine) sys(`${victim.name} held the Shield. Nobody is murdered tonight.`, 'private', true);
+    // The Traitors come for the Turncoat: nobody is taken, and there is one more Traitor.
     const turned = victim && !saved && victim.role === 'turncoat' ? victim : null;
     const taken = victim && !saved && !turned ? victim : null;
     const gone = [threw, taken].filter(Boolean);
     state.phase = 'talk';
     UI.render();
     sys(`Day ${state.day}`, 'day');
-    await UI.stage(`Day ${state.day}`, 'Morning.', gone.length > 1 ? 'Two chairs are empty.' : gone.length ? 'One chair is empty.' : 'Everyone counts heads.', 900);
+    // Breakfast (the Traitors' game): they come in one at a time, and somebody does not.
+    if (state.format) for (const p of alive()) { if (gone.includes(p)) continue; await UI.stage(`Day ${state.day} · breakfast`, `${p.you ? 'You come' : `${p.first} comes`} in.`, '', 260); }
+    await UI.stage(`Day ${state.day}`, 'Breakfast.', gone.length > 1 ? 'Two chairs are empty.' : gone.length ? 'One chair is empty.' : 'Everyone counts heads.', 900);
     if (threw) {
       putOut(threw, 'thrown');
       UI.gone(threw.id);
       await hostLine('thrown', threw);
-      const e = sys(`${threw.you ? 'You were' : `${threw.name} was`} thrown out in the night by the Bouncer. ${threw.you ? 'You were' : `${threw.first} was`} ${wasOf(threw)}.`, 'death', false, `Morning. ${threw.name} was thrown out in the night by the Bouncer. ${threw.first} was ${wasOf(threw)}.`);
+      const e = sys(`${threw.you ? 'You were' : `${threw.name} was`} thrown out in the night by the Bouncer. ${threw.you ? 'You were' : `${threw.first} was`} ${wasOf(threw)}.`, 'death', false, `Breakfast. ${threw.name} was thrown out in the night by the Bouncer. ${threw.first} was ${wasOf(threw)}.`);
       e.thrown = threw.id;
       if (threw.role === 'hothead') await takeWith(threw, 'thrown out in the night by the Bouncer');
     }
@@ -1714,34 +1881,47 @@ const Game = (() => {
       UI.gone(taken.id);
       await hostLine('death', dark ? { name: taken.name, role: 'town', hide: true } : taken);
       const was = dark ? '' : ` ${taken.you ? 'You were' : `${taken.first} was`} ${wasOf(taken)}.`;
-      const e = sys(`${taken.you ? 'You were' : `${taken.name} was`} taken in the night.${was}`, 'death', false, `Morning. ${taken.name} was taken in the night.${dark ? '' : ` ${taken.first} was ${wasOf(taken)}.`}`);
+      const e = sys(`${taken.you ? 'You were' : `${taken.name} was`} murdered in the night.${was}`, 'death', false, `Breakfast. ${taken.name} was murdered in the night.${dark ? '' : ` ${taken.first} was ${wasOf(taken)}.`}`);
       e.victim = taken.id;
       // A note is found (the house rule): the last thing they have to say.
       if (state.rule === 'note') {
         let words = '';
-        if (taken.you) words = App.fast ? '' : await UI.askLine('The Knives came for you. Leave a note?');
+        if (taken.you) words = App.fast ? '' : await UI.askLine('The Traitors came for you. Leave a note?');
         else { UI.setBusy(`${taken.first} left a note…`); words = await Seat.note(taken); UI.setBusy(''); }
         if (words) say(taken.id, words, 'note');
       }
       // Whoever the one taken had been pressing looks worse for it.
       if (!taken.you && taken.mem.suspect && P(taken.mem.suspect)) for (const l of alive()) if (!l.you && !isKnife(l)) l.mem.sus[taken.mem.suspect] = (l.mem.sus[taken.mem.suspect] || 0) + 1;
-      if (taken.role === 'hothead') await takeWith(taken, 'taken in the night by the Knives');
+      if (taken.role === 'hothead') await takeWith(taken, 'murdered in the night by the Traitors');
     }
     const away = saved || bounced;
-    if (!gone.length) {
+    if (!gone.length && state.format) {
+      // (A Shield held, an offer made: the table is told only that nobody died.)
+      await hostLine('quiet');
+      sys('Everyone comes in to breakfast. Nobody was murdered in the night.', 'sys', false, 'Breakfast. Everyone is still here: nobody was murdered in the night.');
+    } else if (!gone.length) {
       await hostLine(away ? 'saved' : 'quiet');
-      sys(away ? 'Someone came for one of you in the night and was turned away. Everyone is still here.' : 'Everyone is still here.', 'sys', false, away ? 'Morning. Someone came for one of you in the night and was turned away. Everyone is still here.' : 'Morning. Everyone is still here.');
+      sys(away ? 'Someone came for one of you in the night and was turned away. Everyone is still here.' : 'Everyone is still here.', 'sys', false, away ? 'Breakfast. Someone came for one of you in the night and was turned away. Everyone is still here.' : 'Breakfast. Everyone is still here.');
     } else if (away) sys('Someone else was come for in the night, and was turned away.', 'sys');
     if (turned) {
       const mates = state.players.filter(q => isKnife(q) && q.alive);
       turned.role = 'knife';
       turned.was = 'turncoat';
       turned.turned = state.day;
-      if (turned.you) sys(`The Knives came for you in the night, and you are the Turncoat: you did not go. You are a Knife now, with ${andList(mates.map(q => q.name))}, and you win with them.`, 'private', true);
-      else if (isKnife(me) && me.alive) sys(`${turned.name} was the Turncoat. ${turned.first} is a Knife now, and with you.`, 'private', true);
+      if (turned.you) sys(`The Traitors came for you in the night, and you are the Turncoat: you did not go. You are a Traitor now, with ${andList(mates.map(q => q.name))}, and you win with them.`, 'private', true);
+      else if (isKnife(me) && me.alive) sys(`${turned.name} was the Turncoat. ${turned.first} is a Traitor now, and with you.`, 'private', true);
+    }
+    // Recruited: a Traitor from tonight on, who knows the Traitors and wins with them.
+    if (joined) {
+      const mates = state.players.filter(q => isKnife(q) && q.alive);
+      joined.role = 'knife';
+      joined.was = 'recruit';
+      joined.turned = state.day;
+      if (joined.you) sys(`You said yes. You are a Traitor now, with ${andList(mates.map(q => q.name))}, and you win with them.`, 'private', true);
+      else if (isKnife(me) && me.alive) sys(`${joined.name} said yes. ${joined.first} is a Traitor now, and with you.`, 'private', true);
     }
     state.last = { victim: taken ? taken.id : null, thrown: threw ? threw.id : null, saved: away };
-    // The Listener hears how many Knives sit either side of them.
+    // The Listener hears how many Traitors sit either side of them.
     for (const l of alive().filter(p => p.role === 'listener')) {
       const near = beside(l);
       if (!near.length) continue;
@@ -1750,13 +1930,14 @@ const Game = (() => {
       if (l.you) sys(`You listen to either side of you: ${heardText(h)}.`, 'private', true);
       else for (const q of near) l.mem.sus[q.id] = h.n === 0 ? -99 : h.n === near.length ? 99 : (l.mem.sus[q.id] || 0) + 2.5;
     }
-    // A slight hunch for a few of those who are not Knives (more on the first morning, when there is nothing else to go on).
+    // A slight hunch for a few of those who are not Traitors (more on the first morning, when there is nothing else to go on).
     for (const p of alive()) { if (p.you) continue; const others = alive().filter(q => q !== p); p.mem.gut = !isKnife(p) && others.length && rnd(state) < (state.day === 1 ? 0.4 : 0.15) ? pick(state, others).id : null; }
     openDay();
     UI.stage(null);
     if (finish()) return;
     if (!me.alive && gone.includes(me)) sys('You are out, and you can see every role now. Watch it play out, or skip to the end.', 'notice', true);
-    else if (turned && turned.you && !App.quiet) UI.roleCard();
+    await mission();
+    if (me.alive && ((turned && turned.you) || (joined && joined.you)) && !App.quiet) UI.roleCard();
   }
   /* The day's talk. (The owner, after real games: "how can it feel like 8
      humans are talking? rather than ai and game".) It is not rounds. The
@@ -1843,7 +2024,7 @@ const Game = (() => {
     const found = state.last ? P(state.last.victim) || P(state.last.thrown) : null;
     if (!today.length && found) {
       const v = found;
-      const why = `The table has just learned that ${v.first} was ${state.last.victim === v.id ? 'taken in the night' : 'thrown out in the night by the Bouncer'}${v.out && v.out.hidden ? ', and nobody knows what they were' : `, and was ${wasOf(v)}`}. Nobody has said anything yet today: say what comes out of you.`;
+      const why = `The table has just learned that ${v.first} was ${state.last.victim === v.id ? 'murdered in the night' : 'thrown out in the night by the Bouncer'}${v.out && v.out.hidden ? ', and nobody knows what they were' : `, and was ${wasOf(v)}`}. Nobody has said anything yet today: say what comes out of you.`;
       const a = draw(seats); const rest = seats.filter(p => p !== a);
       return [a].concat(rest.length ? [draw(rest)] : []).map((p, i) => ({ p, why, answering: false, morning: v.first, nth: i, len: pick(state, LENGTHS.slice(0, 3)) }));
     }
@@ -1983,7 +2164,7 @@ const Game = (() => {
   }
   function stopTable() { tableRun += 1; talking = false; UI.typing([]); }
   /* The vote: everyone still in votes at once, the votes are shown one by
-     one, the most is put out (a tie puts out nobody), and night falls. */
+     one, the most is put out (a tie banishes nobody), and night falls. */
   async function runVote(pickId) {
     UI.setBusy('The table is voting…');
     UI.emotes = {};
@@ -2028,18 +2209,21 @@ const Game = (() => {
     const top = Math.max(...Object.values(tally));
     const tied = Object.keys(tally).filter(id => tally[id] === top);
     const count = secret ? `${Object.keys(tally).sort((a, b) => tally[b] - tally[a]).map(id => `${P(id).first} ${tally[id]}`).join(', ')} (a secret ballot)` : voters.map(p => `${p.first} voted ${P(votes[p.id]).first}`).join('; ');
-    // Who goes: the one with the most; nobody on a tie, unless the house rule puts out both of two.
-    const outs = tied.length === 1 || (tied.length === 2 && state.rule === 'both') ? tied.map(P) : [];
+    // Who goes: the one with the most; nobody on a tie, unless the house rule banishes both of two.
+    // (In the end game someone always goes: a tie is settled by lot.)
+    const lot = state.endgame && tied.length > 1 ? pick(state, tied) : null;
+    if (lot) sys(`A tie between ${andList(tied.map(id => P(id).first))} (${top} each). In the end game somebody goes: it is settled by lot.`, 'sys');
+    const outs = lot ? [P(lot)] : tied.length === 1 || (tied.length === 2 && state.rule === 'both') ? tied.map(P) : [];
     if (!outs.length) {
       await UI.stage(`Day ${state.day} · the vote`, 'A tie.', `${andList(tied.map(id => P(id).first))}, ${top} each.`, 900);
       await hostLine('tie');
-      sys(`The vote: ${count}. A tie between ${andList(tied.map(id => P(id).first))} (${top} each), so nobody is put out.`, 'sys');
+      sys(`The vote: ${count}. A tie between ${andList(tied.map(id => P(id).first))} (${top} each), so nobody is banished.`, 'sys');
     } else {
       if (outs.length > 1) await UI.stage(`Day ${state.day} · the vote`, 'A tie.', `${andList(outs.map(p => p.first))}, ${top} each. Both go.`, 900);
       for (let i = 0; i < outs.length; i++) {
         // (The second of two may have gone already, with a Hothead.)
         if (!outs[i].alive) continue;
-        const head = i ? '' : `The vote: ${count}. ${outs.length > 1 ? `A tie between ${andList(outs.map(p => p.first))} (${top} each), and tonight a tie puts out both. ` : ''}`;
+        const head = i ? '' : `The vote: ${count}. ${outs.length > 1 ? `A tie between ${andList(outs.map(p => p.first))} (${top} each), and tonight a tie banishes both. ` : ''}`;
         if (await banish(outs[i], { top, count, head, voters, votes, secret })) return;
       }
     }
@@ -2048,6 +2232,22 @@ const Game = (() => {
     UI.arrows = [];
     UI.stage(null);
     if (finish()) return;
+    /* The end game (the Traitors' game): with four or fewer left there are
+       no more nights. After each vote everyone still in votes to end the
+       game or to banish again; until they all say end, the Round Table
+       sits again. */
+    if (state.format && (state.endgame || alive().length <= 4)) {
+      if (!state.endgame) { state.endgame = true; sys(`The end game. ${capFirst(['', 'one', 'two', 'three', 'four'][alive().length] || 'few')} of you are left: there are no more nights, and what the banished were is not shown until it is over.`, 'sys'); }
+      if (await endVote()) return;
+      state.day += 1;
+      state.phase = 'talk';
+      state.pending = []; state.asks = []; state.last = null;
+      UI.sel = null;
+      sys(`Day ${state.day}`, 'day');
+      sys('The Round Table sits again.', 'sys');
+      openDay();
+      return;
+    }
     state.day += 1;
     startNight();
   }
@@ -2066,9 +2266,20 @@ const Game = (() => {
     UI.speaking(null);
     putOut(out, 'vote');
     UI.gone(out.id);
+    // In the end game (the Traitors' game) what the banished were is not shown until it is over.
+    if (state.endgame) {
+      out.out.hidden = true;
+      await hostLine('banish', { name: out.name, role: 'town', hide: true });
+      sys(`${x.head}${out.you ? 'You are' : `${out.name} is`} banished with ${top} vote${top === 1 ? '' : 's'}. What ${out.you ? 'you were' : `${out.first} was`} is not shown until the game is over.`, 'banish', false, `${x.head}${out.name} is banished with ${top} vote${top === 1 ? '' : 's'}. What ${out.first} was is not shown until the game is over.`);
+      state.heat = {};
+      if (out.you) sys('You are out, and you can see every role now. Watch it play out, or skip to the end.', 'notice', true);
+      return false;
+    }
     await hostLine(out.role === 'fool' ? 'fool' : 'banish', out);
-    await UI.stage(`Day ${state.day} · the vote`, `${out.you ? 'You were' : `${out.first} was`}…`, '', 1100);
-    sys(`${x.head}${out.you ? 'You are' : `${out.name} is`} put out with ${top} vote${top === 1 ? '' : 's'}. ${out.you ? 'You were' : `${out.first} was`} ${wasOf(out)}.`, 'banish', false, `${x.head}${out.name} is put out with ${top} vote${top === 1 ? '' : 's'}. ${out.first} was ${wasOf(out)}.`);
+    await UI.stage(`Day ${state.day} · the vote`, `${out.you ? 'You stand' : `${out.first} stands`}: “I am…”`, '', 1100);
+    // With a Traitor banished, the Traitors still in may recruit (the Traitors' game).
+    if (state.format && isKnife(out) && alive().some(isKnife)) state.recruit = true;
+    sys(`${x.head}${out.you ? 'You are' : `${out.name} is`} banished with ${top} vote${top === 1 ? '' : 's'}. ${out.you ? 'You were' : `${out.first} was`} ${wasOf(out)}.`, 'banish', false, `${x.head}${out.name} is banished with ${top} vote${top === 1 ? '' : 's'}. ${out.first} was ${wasOf(out)}.`);
     if (out.role === 'fool') {
       // The Fool wanted exactly that: the game ends, and the Fool alone has won.
       state.winner = 'fool';
@@ -2079,13 +2290,13 @@ const Game = (() => {
       UI.rebuildLog();
       return true;
     }
-    // The scripted seats read the vote: who put out a Knife, who put out one of their own (not a secret ballot, which nobody can read).
+    // The scripted seats read the vote: who put out a Traitor, who put out one of their own (not a secret ballot, which nobody can read).
     if (!x.secret) for (const l of alive()) {
       if (l.you || isKnife(l)) continue;
       for (const v of voters) { if (v === l || !v.alive) continue; const on = votes[v.id] === out.id; l.mem.sus[v.id] = (l.mem.sus[v.id] || 0) + (isKnife(out) ? (on ? -1 : 0.7) : (on ? 0.6 : 0)); }
     }
     state.heat = {};
-    if (out.role === 'hothead') await takeWith(out, 'voted out by the table');
+    if (out.role === 'hothead') await takeWith(out, 'banished by the table');
     if (out.you && !winner(state.players)) sys('You are out, and you can see every role now. Watch it play out, or skip to the end.', 'notice', true);
     return false;
   }
@@ -2169,6 +2380,8 @@ const Game = (() => {
     /* A question only the player can answer in the middle of a step: a line to say (resolves to the text, '' for nothing)... */
     askLine(title) { return new Promise(resolve => { UI.wait = { kind: 'line', title, resolve: v => { UI.wait = null; UI.render(); resolve(cleanText(v, 400)); } }; UI.setBusy(''); UI.render(); const i = $('#say'); if (i) i.focus(); }); },
     /* ...or a seat to pick (resolves to its id). ok(p): who can be picked. */
+    /* ...or one of two answers (the mission, an offer in the night, the end game): resolves to the value of the one pressed. options: [[label, value], ...]; k: the small caption. */
+    askPick(title, options, k) { return new Promise(resolve => { UI.wait = { kind: 'pick', title, k: k || 'Your choice', options, resolve: v => { UI.wait = null; UI.render(); resolve(v); } }; UI.sel = null; UI.setBusy(''); UI.render(); }); },
     askSeat(title, ok) { return new Promise(resolve => { UI.wait = { kind: 'seat', title, ok, resolve: id => { UI.wait = null; UI.sel = null; UI.render(); resolve(id); } }; UI.sel = null; UI.setBusy(''); UI.render(); }); },
     show(name) { for (const s of $$('.screen')) s.classList.toggle('active', s.id === `screen-${name}`); const h = $(name === 'home' ? '#home-title' : '#game-title'); if (h) h.focus({ preventScroll: true }); },
     setBusy(text) { const b = $('#busy'); b.hidden = !text; $('#busy-text').textContent = text || ''; },
@@ -2244,7 +2457,7 @@ const Game = (() => {
     nightJob() {
       const me = you();
       if (!me.alive) return null;
-      if (isKnife(me)) return { verb: 'Take', hint: 'Tap who the Knives take tonight.', ok: p => p.alive && !isKnife(p) };
+      if (isKnife(me)) return { verb: 'Murder', hint: canRecruit() ? 'Tap someone: murder them, or ask them to join you.' : 'Tap who the Traitors murder tonight.', ok: p => p.alive && !isKnife(p), recruit: canRecruit() };
       if (face(me) === 'witness') { const done = new Set(me.mem.checks.map(c => c.id)); return { verb: 'Watch', hint: 'Tap who you watch tonight.', ok: p => p.alive && !p.you && !done.has(p.id) }; }
       if (me.role === 'watch') return { verb: 'Guard', hint: 'Tap who you guard tonight (yourself if you like).', ok: p => p.alive && p.id !== me.mem.lastGuard };
       // The Bouncer's one throw: tonight, or kept for another night.
@@ -2263,6 +2476,11 @@ const Game = (() => {
       // A question the player is being asked in the middle of a step.
       if (UI.wait) {
         const w = UI.wait;
+        if (w.kind === 'pick') {
+          mid.replaceChildren(el('span', { class: 'mid-k' }, w.k), el('span', { class: 'mid-t' }, w.title),
+            el('div', { class: 'row mid-row' }, w.options.map(([label, v], i) => el('button', { type: 'button', class: `btn${i ? '' : ' primary'}`, id: `pick-${i}`, onclick: () => w.resolve(v) }, label))));
+          return;
+        }
         kids.push(el('span', { class: 'mid-k' }, w.kind === 'seat' ? 'Your choice' : 'The table waits'), el('span', { class: 'mid-t' }, w.kind === 'seat' && sel && w.ok(sel) ? `${sel.first}?` : w.title));
         if (w.kind === 'seat' && sel && w.ok(sel)) kids.push(el('button', { type: 'button', class: 'btn primary', id: 'mid-go', onclick: () => w.resolve(sel.id) }, `Take ${sel.first}`));
         mid.replaceChildren(...kids);
@@ -2284,26 +2502,27 @@ const Game = (() => {
         if (job) {
           const ok = sel && job.ok(sel);
           kids.push(el('span', { class: 'mid-t' }, ok ? `${job.verb} ${sel.you ? 'yourself' : sel.first}?` : job.hint));
-          if (ok) kids.push(go(`${job.verb} ${sel.you ? 'yourself' : sel.first}`, () => App.night(sel.id)));
+          if (ok && job.recruit) kids.push(el('div', { class: 'row mid-row' }, go('Murder', () => App.night(sel.id)), el('button', { type: 'button', class: 'btn', id: 'mid-alt', disabled: busy, onclick: () => { if (!busy) App.night(sel.id, 'recruit'); } }, 'Recruit')));
+          else if (ok) kids.push(go(`${job.verb} ${sel.you ? 'yourself' : sel.first}`, () => App.night(sel.id)));
           else if (job.optional) kids.push(go('Not tonight', () => App.night(null), ''));
           else if (!alive().some(job.ok)) kids.push(go('Sleep', () => App.night(null)));
         } else kids.push(el('span', { class: 'mid-t' }, me.alive ? 'The lights go down.' : 'The lights go down without you.'), go(me.alive ? 'Sleep' : 'Next', () => App.night(null)));
       } else if (state.phase === 'talk') {
-        kids.push(el('span', { class: 'mid-k' }, `Day ${state.day}`), el('span', { class: 'mid-s', id: 'mid-ready' }, UI.readyText()));
+        kids.push(el('span', { class: 'mid-k' }, state.format ? (state.endgame ? `Day ${state.day} · the end game` : `Day ${state.day} · the Round Table`) : `Day ${state.day}`), el('span', { class: 'mid-s', id: 'mid-ready' }, UI.readyText()));
         if (me.alive) kids.push(el('button', { type: 'button', class: 'btn', id: 'btn-vote', disabled: busy, onclick: () => { if (!busy) App.callVote(); } }, 'Call the vote'));
       } else if (state.phase === 'vote') {
         kids.push(el('span', { class: 'mid-k' }, `Day ${state.day} · the vote`));
         if (!me.alive) kids.push(el('span', { class: 'mid-t' }, 'They vote without you.'), go('Count the votes', () => App.vote(null)));
-        else if (sel && sel.alive && !sel.you) kids.push(el('span', { class: 'mid-t' }, `Put ${sel.first} out?`), go(`Vote ${sel.first}`, () => App.vote(sel.id)));
-        else kids.push(el('span', { class: 'mid-t' }, 'Tap who you vote to put out.'));
+        else if (sel && sel.alive && !sel.you) kids.push(el('span', { class: 'mid-t' }, `Banish ${sel.first}?`), go(`Vote ${sel.first}`, () => App.vote(sel.id)));
+        else kids.push(el('span', { class: 'mid-t' }, 'Tap who you vote to banish.'));
       } else if (state.phase === 'over') {
-        kids.push(el('span', { class: 'mid-k' }, youWon() ? 'You won' : 'You lost'), el('span', { class: 'mid-t' }, state.winner === 'town' ? 'Town wins' : state.winner === 'fool' ? 'The Fool wins' : 'The Knives win'),
+        kids.push(el('span', { class: 'mid-k' }, youWon() ? 'You won' : 'You lost'), el('span', { class: 'mid-t' }, state.winner === 'town' ? 'The Faithful win' : state.winner === 'fool' ? 'The Fool wins' : 'The Traitors win'),
           el('div', { class: 'row mid-row' }, el('button', { type: 'button', class: 'btn', id: 'mid-reveal', onclick: () => UI.reveal() }, 'The reveal'), go('Deal again', () => App.again())));
       }
       mid.replaceChildren(...kids);
     },
     // Under the day in the middle of the table: how many are in, how many have said they would vote, and when it is late.
-    readyText() { const want = state.ready.filter(id => P(id) && P(id).alive).length; return `${alive().length} still in${want ? ` · ${want} want to vote` : ''}${state.clock <= 3 ? ' · getting late' : ''}`; },
+    readyText() { const want = state.ready.filter(id => P(id) && P(id).alive).length; return `${alive().length} still in${state.format ? ` · pot ${money(state.pot)}` : ''}${want ? ` · ${want} want to vote` : ''}${state.clock <= 3 ? ' · getting late' : ''}`; },
     syncMid() { const r = $('#mid-ready'); if (r && state && state.phase === 'talk') r.textContent = UI.readyText(); },
     /* The seat picked: one row (who, what the player knows of them, and the
        two marks). What to say to them is the quick replies' business. */
@@ -2404,8 +2623,9 @@ const Game = (() => {
       UI.dialog('Your role', el('div', { class: 'scroll' },
         el('p', { class: 'role-name', dataset: { role: r } }, ROLE[r].name), el('p', null, ROLE[r].blurb),
         r === 'witness' && state.cards.drunk && me.alive && state.phase !== 'over' ? el('p', null, 'There is a Drunk in tonight\'s deck who was told exactly this. You cannot tell which of the two you are.') : null,
-        me.was === 'turncoat' ? el('p', null, `You were the Turncoat. The Knives came for you on night ${me.turned}, and you are one of them now.`) : null,
-        isKnife(me) && mates.length ? el('p', null, `Your fellow ${mates.length > 1 ? 'Knives' : 'Knife'}: `, el('b', null, andList(mates.map(p => p.name))), '.') : null,
+        me.was === 'turncoat' ? el('p', null, `You were the Turncoat. The Traitors came for you on night ${me.turned}, and you are one of them now.`) : null,
+        me.was === 'recruit' ? el('p', null, `You were a Faithful until night ${me.turned}, when the Traitors asked and you said yes.`) : null,
+        isKnife(me) && mates.length ? el('p', null, `Your fellow ${mates.length > 1 ? 'Traitors' : 'Traitor'}: `, el('b', null, andList(mates.map(p => p.name))), '.') : null,
         friend ? el('p', null, 'Your old friend: ', el('b', null, friend.name), '.') : null,
         el('p', { class: 'note' }, `${state.players.length} at the table: ${deckText()}`),
         state.rule ? el('p', { class: 'extra', dataset: { extra: 'rule' } }, el('b', null, `House rule: ${RULES[state.rule].name}. `), RULES[state.rule].text) : null,
@@ -2416,7 +2636,7 @@ const Game = (() => {
        note to itself; the scripted table's worst suspicion). */
     reveal() {
       if (!state || state.phase !== 'over') return;
-      const fate = p => (p.alive ? 'in at the end' : p.out.how === 'vote' ? `voted out, day ${p.out.day}` : p.out.how === 'shot' ? `taken by the Hothead, day ${p.out.day}` : p.out.how === 'thrown' ? `thrown out by the Bouncer, day ${p.out.day}` : `taken in the night, day ${p.out.day}`);
+      const fate = p => (p.alive ? 'in at the end' : p.out.how === 'vote' ? `banished, day ${p.out.day}` : p.out.how === 'shot' ? `taken by the Hothead, day ${p.out.day}` : p.out.how === 'thrown' ? `thrown out by the Bouncer, day ${p.out.day}` : `murdered in the night, day ${p.out.day}`);
       const voted = p => state.votesLog.filter(v => v.votes[p.id]).map(v => P(v.votes[p.id]).first);
       const thought = p => {
         if (p.you) return '';
@@ -2432,14 +2652,15 @@ const Game = (() => {
       const tab = state.tab;
       const top = el('div', { class: 'reveal-top' },
         el('p', null, el('b', null, youWon() ? 'You won. ' : 'You lost. '), tab ? `Night ${tab.nights} on your tab: ${tab.won} won${tab.streak > 1 ? `, ${tab.streak} running` : ''}.` : ''),
+        state.format ? el('p', { class: 'extra', dataset: { extra: 'pot', won: state.share ? '1' : '0' } }, el('b', null, `The pot: ${money(state.pot)}. `), state.share ? `Your share: ${money(state.share)}.` : youWon() ? 'You were not there at the end to share it.' : 'None of it is yours.') : null,
         bet ? el('p', { class: 'extra', dataset: { extra: 'bet', won: state.betWon ? '1' : '0' } }, el('b', null, state.betWon ? 'Side bet won: ' : 'Side bet lost: '), bet.text) : null,
         state.rule ? el('p', { class: 'note' }, `House rule: ${RULES[state.rule].name}.`) : null);
-      UI.dialog(state.winner === 'town' ? 'Town wins' : state.winner === 'fool' ? 'The Fool wins' : 'The Knives win', el('div', { class: 'reveal' }, top, order.map(p => {
+      UI.dialog(state.winner === 'town' ? 'The Faithful win' : state.winner === 'fool' ? 'The Fool wins' : 'The Traitors win', el('div', { class: 'reveal' }, top, order.map(p => {
         const v = voted(p);
         const th = thought(p);
         return el('div', { class: 'reveal-row', dataset: { role: p.role } },
           el('span', { class: 'say-face' }, faceNode(p.you ? YOU_FACE : castOf(p.id))),
-          el('div', null, el('p', { class: 'reveal-name' }, p.you ? `${p.name} (you)` : p.name, el('span', { class: 'seat-tag', dataset: { role: p.role } }, ROLE[p.role].name), p.was === 'turncoat' ? el('span', { class: 'seat-tag' }, 'was the Turncoat') : null),
+          el('div', null, el('p', { class: 'reveal-name' }, p.you ? `${p.name} (you)` : p.name, el('span', { class: 'seat-tag', dataset: { role: p.role } }, ROLE[p.role].name), p.was === 'turncoat' ? el('span', { class: 'seat-tag' }, 'was the Turncoat') : p.was === 'recruit' ? el('span', { class: 'seat-tag' }, `recruited, night ${p.turned}`) : null),
             el('p', { class: 'reveal-fate' }, [capFirst(fate(p)), v.length ? `voted ${v.join(', ')}` : ''].filter(Boolean).join(' · ')),
             th ? el('p', { class: 'reveal-note' }, `\u201C${th}\u201D`) : null));
       })), [['Deal again', () => App.again()], ['Close', null, 'primary']]);
@@ -2450,7 +2671,7 @@ const Game = (() => {
       const l = Ledger.read();
       $('#home-tab').hidden = !l.nights;
       if (!l.nights) return;
-      $('#tab-line').textContent = `${l.nights} night${l.nights === 1 ? '' : 's'} at the table, ${l.won} won${l.streak > 1 ? ` · ${l.streak} in a row` : ''}${l.best > 1 && l.best > l.streak ? ` · best run ${l.best}` : ''}`;
+      $('#tab-line').textContent = `${l.nights} night${l.nights === 1 ? '' : 's'} at the table, ${l.won} won${l.streak > 1 ? ` · ${l.streak} in a row` : ''}${l.best > 1 && l.best > l.streak ? ` · best run ${l.best}` : ''}${l.winnings > 0 ? ` · ${money(l.winnings)} from the pot` : ''}`;
       const all = Object.keys(ROLE);
       const held = all.filter(r => isObj(l.roles[r]) && l.roles[r].n > 0);
       $('#tab-roles').textContent = `Cards held, ${held.length} of ${all.length}: ${held.map(r => `${ROLE[r].name} ${l.roles[r].won | 0}/${l.roles[r].n}`).join(', ')}.`;
@@ -2465,8 +2686,12 @@ const Game = (() => {
       if (saved) { const me = saved.players.find(p => p.you); $('#home-continue-note').textContent = `${me.name}, ${ROLE[me.alive ? face(me) : me.role].name} · ${saved.phase === 'night' ? 'Night' : 'Day'} ${saved.day} · ${saved.players.filter(p => p.alive).length} still in`; }
       UI.tab();
       const deck = $('#f-deck [aria-pressed="true"]').dataset.v;
-      $('#deck-help').textContent = deck === 'house' ? 'A different table every night: the Knives, a Witness, and a few wild cards from the house\'s deck, with one house rule on top. You are shown what is in play when you sit down.'
-        : deck === 'classic' ? 'The same every night: a Watch at eight seats or more, a Fool at eight, a Hothead too at ten. No house rule.' : 'No wild cards and no house rule: the Knives, a Witness, and a Watch at eight seats or more.';
+      $('#f-size [data-v="10"]').textContent = deck === 'faithful' ? '10 · two Traitors' : '10 · three Traitors';
+      // (The Traitors' table has no Witness and no wild cards to ask for.)
+      for (const v of ['witness', 'wild']) { const b = $(`#f-role [data-v="${v}"]`); b.hidden = deck === 'faithful'; if (b.hidden && b.getAttribute('aria-pressed') === 'true') { b.setAttribute('aria-pressed', 'false'); $('#f-role [data-v="any"]').setAttribute('aria-pressed', 'true'); } }
+      $('#deck-help').textContent = deck === 'faithful' ? 'Traitors and Faithful, and nothing else. A mission each morning for the pot or the Shield, the Traitors may recruit when one of them is banished, and at the last four the table votes to end the game or banish again.'
+        : deck === 'house' ? 'A different table every night: the Traitors, a Witness, and a few wild cards from the house\'s deck, with one house rule on top. You are shown what is in play when you sit down.'
+        : deck === 'classic' ? 'The same every night: a Watch at eight seats or more, a Fool at eight, a Hothead too at ten. No house rule.' : 'No wild cards and no house rule: the Traitors, a Witness, and a Watch at eight seats or more.';
       const mode = $('#f-mode [aria-pressed="true"]').dataset.v;
       $('#claude-fields').hidden = mode !== 'claude';
       const townKey = !!(session.get(TOWN_KEY) || store.get(TOWN_KEY));
@@ -2496,10 +2721,11 @@ const Game = (() => {
       UI.sel = null; UI.tally = null; UI.speakingId = null; UI.emotes = {}; UI.arrows = []; UI.over = null; UI.wait = null; UI.revealed = false;
       UI.show('game');
       UI.rebuildLog();
-      if (state.deck === 'house') sys(`Last call was hours ago. ${state.players.length} of you round one table, the doors shut. In tonight's deck: ${deckText()}`, 'sys');
-      else sys(`Last call was hours ago. ${state.players.length} of you round one table, the doors shut, and ${SIZES[state.size].knife === 1 ? 'one Knife' : `${['', 'one', 'two', 'three'][SIZES[state.size].knife]} Knives`} among you${state.wild && WILD[state.size].fool ? `, and a Fool${WILD[state.size].hothead ? ' and a Hothead' : ''} besides` : ''}.`, 'sys');
+      if (state.format) sys(`Last call was hours ago. ${state.players.length} of you round one table, the doors shut, and ${dealtKnives() === 1 ? 'one Traitor' : `${['', 'one', 'two', 'three'][dealtKnives()]} Traitors`} among you. The rest of you are Faithful: banish them at the Round Table before they murder their way to the pot.`, 'sys');
+      else if (state.deck === 'house') sys(`Last call was hours ago. ${state.players.length} of you round one table, the doors shut. In tonight's deck: ${deckText()}`, 'sys');
+      else sys(`Last call was hours ago. ${state.players.length} of you round one table, the doors shut, and ${SIZES[state.size].knife === 1 ? 'one Traitor' : `${['', 'one', 'two', 'three'][SIZES[state.size].knife]} Traitors`} among you${state.wild && WILD[state.size].fool ? `, and a Fool${WILD[state.size].hothead ? ' and a Hothead' : ''} besides` : ''}.`, 'sys');
       if (state.rule) sys(`House rule tonight: ${RULES[state.rule].name}. ${RULES[state.rule].text}`, 'sys');
-      if (state.vouched) { const v = P(state.vouched); sys(`The house vouches for ${v.you ? 'you' : v.name}: ${v.you ? 'you are' : `${v.first} is`} not a Knife.`, 'sys', false, `The house vouches for ${v.name}: ${v.first} is not a Knife.`); }
+      if (state.vouched) { const v = P(state.vouched); sys(`The house vouches for ${v.you ? 'you' : v.name}: ${v.you ? 'you are' : `${v.first} is`} not a Traitor.`, 'sys', false, `The house vouches for ${v.name}: ${v.first} is not a Traitor.`); }
       save();
       UI.render();
       UI.roleCard();
@@ -2516,7 +2742,7 @@ const Game = (() => {
       if (!isObj(state.history)) state.history = {};
       failNoted = false; App.fast = false; UI.sel = null; UI.tally = null; UI.emotes = {}; UI.arrows = []; UI.over = null; UI.wait = null; UI.revealed = false; UI.show('game'); UI.rebuildLog(); UI.render(); if (state.live && state.phase === 'talk') runTable(); return true; },
     begin() { return locked(async () => { startNight(); await App.nightOpen(); }); },
-    // A Knife's night starts with what their fellow Knife would do.
+    // A Traitor's night starts with what their fellow Traitor would do.
     async nightOpen() {
       const me = you();
       const mate = me.alive && isKnife(me) ? alive().find(p => isKnife(p) && !p.you) : null;
@@ -2525,7 +2751,8 @@ const Game = (() => {
       const w = await Seat.whisper(mate);
       if (w.text) { const e = say(mate.id, w.text, 'whisper'); e.priv = true; }
     },
-    night(pickId) { return locked(async () => { if (state.phase !== 'night') return; UI.sel = null; await resolveNight(pickId); }); },
+    // The night's choice: who (or nobody), and for a Traitor who may recruit, how ('recruit': ask them to join instead of murdering them).
+    night(pickId, how) { return locked(async () => { if (state.phase !== 'night') return; UI.sel = null; await resolveNight(pickId, how); }); },
     /* The player says something (meta: what a quick reply is, { aim,
        stance }, so its words are not read). At a live table it goes into
        the talk as it is, whoever is typing. At a table that takes turns
@@ -2583,7 +2810,7 @@ const Game = (() => {
       const inDeck = CARD_ORDER.filter(r => state.cards[r]);
       const bet = betOf(state.bet);
       UI.dialog('Who is who', el('div', { class: 'scroll' }, el('ul', { class: 'roles' }, state.players.map(p => { const k = known(p); return el('li', null, el('span', null, p.you ? `${p.name} (you)` : p.name, p.alive ? '' : ' · out'), el('b', null, k ? roleWord(k) : '?')); })),
-        el('p', { class: 'note' }, 'Only what you know: your own role, anyone put out, and what your role has shown you.'),
+        el('p', { class: 'note' }, 'Only what you know: your own role, anyone banished or murdered, and what your role has shown you.'),
         el('h3', { class: 'deck-head' }, 'Tonight\'s deck'), el('p', null, deckText()),
         inDeck.length ? el('ul', { class: 'deck' }, inDeck.map(r => el('li', { dataset: { card: r } }, CARD[r]))) : null,
         state.rule ? el('p', { class: 'extra', dataset: { extra: 'rule' } }, el('b', null, `House rule: ${RULES[state.rule].name}. `), RULES[state.rule].text) : null,
