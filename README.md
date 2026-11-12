@@ -1928,11 +1928,27 @@ every Knife is out; the Knives win when they are as many as everyone else.
   they go. You can ask for a role or be dealt one. If you are a Knife your
   fellow Knife whispers who they would take, and you choose.
 - **The table is the screen**: everyone's face round it, yours at the foot.
-  Tap a face to mark them (suspect or trust, a ring only you see), to
-  accuse, vouch or ask (it fills the box; you can change the words), to
-  pick them at night or to vote for them. Say anything in the box and two
-  or three of them answer; **Let them talk** hears a round without you;
-  **Call the vote** ends the talk (it is called for you after five rounds).
+  Tap a face to aim at them, to mark them (Suspect or Trust, a ring only you
+  see), to pick them at night or to vote for them. **Call the vote** is in
+  the middle of the table (it is called for you after five rounds).
+- **One tap says it**: under the story is a row of quick replies aimed at
+  whoever you picked, whoever you chose to answer, or whoever spoke last:
+  **It's you. Liar. Why? I'm with you. Not me.** Each is said at once, by
+  name, and two or three of the table answer. Or type your own in the box.
+  The button beside it is **Say** with words in the box and **Pass** with
+  none: Pass lets the table talk a round without you.
+- **They play like people**: nobody at the table is a detective. Each seat
+  is dealt a way of playing for the game (goes on gut feeling, holds a
+  grudge, goes along with the loudest, jumpy, the joker, the quiet one,
+  always certain and often wrong, sticks up for whoever is piled on, likes
+  the drama, half paying attention; one, and only one, keeps track of the
+  votes), most get a hunch each morning with nothing behind it, and each
+  is told every turn how little to say (mostly a few words, sometimes a
+  sentence, now and then two). A seat that goes on anyway is cut off. When
+  something lands, two or three of the room react in a few words.
+- **A phone first**: what is said is one compact line each (a small face,
+  a first name, the words). With the keyboard up the table steps aside so
+  the story and the box have the screen.
 - **It is told like a night at the table**: a host speaks at each turn of
   it (the lights going down, who is found in the morning and where, the
   vote). The night is played step by step (everyone shuts their eyes, the
@@ -1946,9 +1962,9 @@ every Knife is out; the Knives win when they are as many as everyone else.
   was privately thinking.
 - **Waiting on you**: anything put to you, a question or an accusation, is
   marked "to you" in the story, puts a mark on that person's seat, and is
-  listed above the box until you deal with it. **Answer** starts your reply
-  with their name; a line that names them answers theirs; × sets one aside;
-  the vote clears the rest.
+  listed above the box until you deal with it. Tap one to aim the quick
+  replies and the box at that person; a reply to them, or a line that names
+  them, answers theirs; × sets one aside; the vote clears the rest.
 - **The table is all there is**: the seats are told that the only evidence
   is what happens at the table (what is said, who accuses and defends whom,
   the votes, who is taken and what they were, what is claimed). Nobody saw
@@ -2021,9 +2037,11 @@ fails it with a message saying so; the CI checkout fetches it all).
   26, built alongside the relationship branch's);
 - `lastcall` for Last Call (`index.html`): the deal and the wild cards, the
   rules, a whole scripted game with the host and the reveal, last words, the
-  Fool and the Hothead, the Claude path against a stand-in API (the request,
-  what each seat and the host are told, a failed call), the player out, a
-  reload, phone widths;
+  Fool and the Hothead, what is waiting on the player and the quick replies,
+  the ways of playing and the lengths (a seat that goes on is cut off), the
+  room's reactions, the Claude path against a stand-in API (the request,
+  what each seat, the host and the room are told, a failed call), the player
+  out, a reload, phone widths and the keyboard up;
 - `wave38-date` for the faces, the strip of who is here, the date table,
   Deal again and the one-tap flirt; `wave39-table-talk` for words said with
   a bet being answered before the cards;

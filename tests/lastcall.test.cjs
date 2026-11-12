@@ -47,6 +47,8 @@ const sit = async (page, opts) => {
   await page.click('dialog .btn.primary');
 };
 const begin = async page => { await page.click('#mid-go'); await settle(page); };
+/* Let the table talk a round without the player: Pass beside the empty box (still in), or Watch them talk (out). */
+const pass = async page => { if (await page.$('#btn-pass')) await page.click('#btn-pass'); else { await page.fill('#say', ''); await page.click('#btn-say'); } await settle(page); };
 const st = page => page.evaluate(() => { const g = Game.state; return { phase: g.phase, day: g.day, beat: g.beat, winner: g.winner, me: g.players[0], players: g.players.map(p => ({ id: p.id, first: p.first, name: p.name, role: p.role, alive: p.alive, out: p.out })) }; });
 const sysLines = (page, kind) => page.evaluate(k => Game.state.log.filter(e => e.t === 'sys' && (!k || e.kind === k)).map(e => e.text), kind || null);
 /* A stand-in for the API: answers each call with JSON of the shape asked for, naming someone still in who is not the seat itself (nor its fellow Knife). */
@@ -67,7 +69,9 @@ function standIn(bodies, opts) {
     const still = ((/STILL IN: (.*)\./.exec(user) || [])[1] || '').split(', ');
     const me = (/YOUR SEAT: (\S+)/.exec(user) || [])[1];
     const other = still.find(n => n !== me && !new RegExp(`fellow Kni(?:fe|ves): [^.]*${n}`).test(user));
-    const out = host ? { say: 'The generator coughs twice and the room goes dark.' }
+    const room = need.includes('reactions') ? [...body.system[0].text.matchAll(/^- (\w+):/gm)].map(m => m[1]) : null;
+    const out = room ? { reactions: [{ name: room[0], say: 'Ha!' }, { name: room[1], say: 'Oh, come on now, really, honestly, you cannot possibly mean that at all' }] }
+      : host ? { say: 'The generator coughs twice and the room goes dark.' }
       : need.includes('vote') ? { vote: other, say: `${other}. I have my reasons.`, note: `voted ${other}` }
         : need.includes('take') && need.includes('say') ? { take: other, say: `Take ${other}. Too sharp by half.` }
           : need.includes('take') ? { take: other, note: `took ${other}` }
@@ -145,7 +149,7 @@ s.test('a whole scripted game through the buttons: the role card, the host at ea
     if (g.phase === 'night') { await page.click('#mid-go'); await settle(page); }
     else if (g.phase === 'talk') {
       if (g.me.alive && g.beat === 0) { await page.fill('#say', 'Somebody here is lying to me.'); await page.click('#btn-say'); await settle(page); }
-      else if (g.beat < 2) { await page.click('#btn-pass'); await settle(page); }
+      else if (g.beat < 2) await pass(page);
       else await page.click('#btn-vote');
     } else if (g.phase === 'vote') {
       const aliveBefore = g.players.filter(p => p.alive).length;
@@ -374,12 +378,13 @@ s.test('with Claude at the seats: the request is the API\'s own shape, each seat
   assert.ok(await page.evaluate(() => Game.state.log.some(e => e.kind === 'host' && e.text === 'The generator coughs twice and the room goes dark.')));
   // The vote: the stand-in has every seat vote for the first name still in that is not its own, so the table goes for the player.
   await page.click('#btn-vote');
+  const others = await page.evaluate(() => Game.state.players.filter(p => p.alive && !p.you).length);
   const target = await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you && p.role === 'town').id);
   await page.click(`.seat[data-id="${target}"]`);
   await page.click('#mid-go');
   await settle(page, { words: 'You have the wrong one.' });
   const votes = bodies.filter(b => b.body.output_config.format.schema.required.includes('vote'));
-  assert.equal(votes.length, 6, 'each other seat still in votes in a call of its own');
+  assert.equal(votes.length, others, 'each other seat still in votes in a call of its own');
   const cost = await page.textContent('#cost');
   assert.match(cost, /^claude-opus-5-5 · \d+ calls · about \$0\.\d{3}$/);
   assert.equal(await page.evaluate(() => Game.state.usage.failed), 0);
@@ -396,8 +401,7 @@ s.test('a call that fails costs the game nothing: that seat plays from the scrip
   await begin(page);
   await page.click('#mid-go');
   await settle(page);
-  if ((await st(page)).me.alive) { await page.fill('#say', 'Well?'); await page.click('#btn-say'); } else await page.click('#btn-pass');
-  await settle(page);
+  if ((await st(page)).me.alive) { await page.fill('#say', 'Well?'); await page.click('#btn-say'); await settle(page); } else await pass(page);
   const out = await page.evaluate(() => ({ notices: Game.state.log.filter(e => e.kind === 'notice' && /failed/.test(e.text)).map(e => e.text), talk: Game.state.log.filter(e => e.t === 'say' && e.who !== 'you').length, host: Game.state.log.filter(e => e.kind === 'host').length, failed: Game.state.usage.failed, save: window.localStorage.getItem('novatria.lastcall'), text: document.body.textContent }));
   assert.ok(bodies.length >= 2, 'the calls were made');
   assert.equal(out.notices.length, 1, 'said once');
@@ -440,20 +444,20 @@ s.test('out of the game the player sees every role, can watch or skip to the end
   assert.equal(await page.evaluate(() => !!document.querySelector('dialog[open] .reveal')), true, 'and the reveal opens by itself at the end');
 });
 
-s.test('what is put to the player is kept until they answer it: marked in the story, listed above the box with Answer, a mark on the asker\'s seat; a named reply, Answer or setting it aside takes it off, and the vote clears the rest', async h => {
+s.test('what is put to the player is kept until they answer it: marked in the story, listed above the box, a mark on the asker\'s seat; tapping one aims the quick replies at them, a reply or a line naming them or setting it aside takes it off, and the vote clears the rest', async h => {
   const page = await open(h);
   await sit(page, { seed: 81, role: 'town', wild: false });
   await begin(page);
-  await page.evaluate(() => { Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop(); });
+  await page.evaluate(() => { Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop(); Game.Bots.room = () => []; });
   await page.click('#mid-go');
   await settle(page);
   // Everyone who speaks puts something to the player: the first a question, the rest an accusation.
   await page.evaluate(() => { let n = 0; Game.Bots.say = p => { n += 1; const me = Game.state.players[0]; return n === 1 ? { text: `Joe, who do you make it? (${p.first})`, aim: me, stance: 'question' } : { text: `It's Joe. I'd put money on it. (${p.first})`, aim: me, stance: 'accuse' }; }; });
-  await page.click('#btn-pass');
-  await settle(page);
+  await pass(page);
   const tray = () => page.evaluate(() => ({ hidden: document.querySelector('#asks').hidden, head: (document.querySelector('#asks .asks-head') || {}).textContent || null,
-    rows: [...document.querySelectorAll('#asks .ask')].map(r => ({ who: r.dataset.who, kind: r.dataset.kind, label: r.querySelector('.ask-who').textContent, text: r.querySelector('.ask-text').textContent })),
-    seats: [...document.querySelectorAll('.seat[data-asking="1"]')].map(x => x.dataset.id), marked: [...document.querySelectorAll('#log .say[data-toyou="1"]')].length, tags: [...document.querySelectorAll('#log .say .to-you')].length }));
+    rows: [...document.querySelectorAll('#asks .ask')].map(r => ({ who: r.dataset.who, kind: r.dataset.kind, label: r.querySelector('.ask-who').textContent, text: r.querySelector('.ask-text').textContent, on: r.querySelector('.ask-go').getAttribute('aria-pressed') })),
+    seats: [...document.querySelectorAll('.seat[data-asking="1"]')].map(x => x.dataset.id), marked: [...document.querySelectorAll('#log .say[data-toyou="1"]')].length, tags: [...document.querySelectorAll('#log .say .to-you')].length,
+    to: (document.querySelector('#chips .chips-to') || {}).textContent || null, chips: [...document.querySelectorAll('#chips .chip')].map(c => c.textContent), placeholder: document.querySelector('#say').placeholder }));
   let t = await tray();
   assert.equal(t.hidden, false);
   assert.equal(t.head, 'Waiting on you (3)');
@@ -462,23 +466,26 @@ s.test('what is put to the player is kept until they answer it: marked in the st
   assert.match(t.rows[0].text, /^Joe, who do you make it\?/);
   assert.deepEqual(t.seats.slice().sort(), t.rows.map(r => r.who).sort(), 'each of them has a mark on their seat');
   assert.deepEqual([t.marked, t.tags], [3, 3], 'and each line is marked "to you" in the story');
-  // Answer starts the reply with the name; sending it takes that one off.
+  assert.deepEqual(t.chips, ["It's you.", 'Liar.', 'Why?', "I'm with you.", 'Not me.'], 'the quick replies');
+  // Tapping one aims the quick replies and the box at that person; a quick reply answers it in one tap.
   const firstWho = t.rows[0].who;
-  const firstName = await page.evaluate(id => Game.state.players.find(p => p.id === id).first, firstWho);
+  const nameOf = id => page.evaluate(x => Game.state.players.find(p => p.id === x).first, id);
+  const firstName = await nameOf(firstWho);
   await page.evaluate(() => { Game.Bots.say = p => ({ text: `Hm. (${p.first})`, aim: null, stance: 'other' }); });
   await page.click(`#asks .ask[data-who="${firstWho}"] .ask-go`);
-  assert.equal(await page.inputValue('#say'), `${firstName}, `);
-  await page.fill('#say', `${firstName}, I don't know yet.`);
-  await page.click('#btn-say');
+  t = await tray();
+  assert.deepEqual([t.to, t.placeholder, t.rows.find(r => r.who === firstWho).on], [`To ${firstName}:`, `Answer ${firstName}`, 'true']);
+  await page.click('#chips .chip[data-chip="Not me."]');
   await settle(page);
+  assert.equal(await page.evaluate(() => Game.state.log.filter(e => e.who === 'you').pop().text), `Not me, ${firstName}.`);
   t = await tray();
   assert.equal(t.head, 'Waiting on you (2)');
   assert.ok(!t.rows.some(r => r.who === firstWho));
-  // A line that names an asker answers theirs; setting one aside takes it off too.
+  // A typed line that names an asker answers theirs; setting one aside takes it off too.
   const second = t.rows[0].who;
   const third = t.rows[1].who;
-  const secondName = await page.evaluate(id => Game.state.players.find(p => p.id === id).first, second);
-  await page.fill('#say', `It isn't me, ${secondName}.`);
+  await page.fill('#say', `It isn't me, ${await nameOf(second)}.`);
+  assert.equal(await page.textContent('#btn-say'), 'Say', 'the button says Say once there are words');
   await page.click('#btn-say');
   await settle(page);
   t = await tray();
@@ -486,13 +493,99 @@ s.test('what is put to the player is kept until they answer it: marked in the st
   await page.click(`#asks .ask[data-who="${third}"] .ask-x`);
   t = await tray();
   assert.deepEqual([t.hidden, t.rows.length, t.seats.length], [true, 0, 0]);
+  assert.equal(await page.textContent('#btn-say'), 'Pass', 'and Pass with none');
   // Asked again, then the vote is called: nothing is left waiting.
   await page.evaluate(() => { Game.Bots.say = p => ({ text: `Joe, well? (${p.first})`, aim: Game.state.players[0], stance: 'question' }); });
-  await page.click('#btn-pass');
-  await settle(page);
+  await pass(page);
   assert.equal((await tray()).hidden, false);
   await page.click('#btn-vote');
   assert.deepEqual(await page.evaluate(() => [document.querySelector('#asks').hidden, Game.state.asks.length]), [true, 0]);
+});
+
+s.test('they play like people, not detectives: each seat has its own way of playing and a gut feeling, is told how little to say each turn, and is cut off if it goes on; the room reacts in a few words that are never evidence', async h => {
+  const bodies = [];
+  const page = await open(h, { route: standIn(bodies) });
+  await page.fill('#f-key', 'sk-ant-test-key');
+  await page.fill('#f-name', 'Joe');
+  await page.click('#f-role [data-v="town"]');
+  await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
+  await page.click('#btn-new');
+  await page.click('dialog .btn.primary');
+  await begin(page);
+  await page.click('#mid-go');
+  await settle(page);
+  await pass(page);
+  await pass(page);
+  const userOf = b => b.body.messages[0].content.map(c => c.text).join('\n');
+  const talk = bodies.filter(b => b.body.output_config.format.schema.required.includes('stance'));
+  assert.ok(talk.length >= 4);
+  const sys = talk[0].body.system[0].text;
+  assert.match(sys, /Play it like a person at a party game, never like a detective or a machine\./);
+  assert.match(sys, /Never weigh the evidence out loud, never list reasons, never sum up what has happened\./);
+  assert.match(sys, /Short\. This is talk across a table, not a speech/);
+  assert.doesNotMatch(sys, /Reason from the votes|one to three short sentences|Hold a view and say why/, 'the instructions that made them all careful and long are gone');
+  // Each turn: a way of playing, and how much to say.
+  const ways = new Set();
+  const lengths = new Set();
+  for (const b of talk) {
+    const u = userOf(b);
+    const way = /^YOUR WAY OF PLAYING: (.+)$/m.exec(u);
+    const len = /^LENGTH THIS TURN: (.+)$/m.exec(u);
+    assert.ok(way && len, 'every turn is given both');
+    ways.add(way[1]);
+    lengths.add(len[1]);
+  }
+  assert.ok(ways.size >= 2, 'they do not all play the same way');
+  assert.ok([...lengths].every(l => /^(a few words: eight at most\. A fragment is fine\.|one short sentence: sixteen words at most\.|two short sentences: twenty-eight words at most\.)$/.test(l)));
+  assert.ok(talk.some(b => /^YOUR GUT TODAY: something about \w+ bothers you\. You could not say why\.$/m.test(userOf(b))), 'some of them have a hunch with nothing behind it');
+  const dealt = await page.evaluate(() => ({ styles: Game.state.players.filter(p => !p.you).map(p => p.style), known: Game.STYLES.map(x => x.id) }));
+  assert.ok(dealt.styles.every(x => dealt.known.includes(x)));
+  assert.equal(dealt.styles.filter(x => x === 'tracker').length, 1, 'one of them keeps track of the votes, and only one');
+  // Cut off: whole sentences up to the limit, else at a clause.
+  const cut = await page.evaluate(() => [
+    Game.clip('Nah.', 8),
+    Game.clip('It is you, Leon. I have watched you all night and you never once looked up, which is what a guilty man does when he thinks nobody is counting.', 8),
+    Game.clip('I have watched you all night and you never once looked up from that glass, which is what a guilty man does when he thinks nobody at the table is counting', 8),
+    Game.clip('One. Two. Three. Four. Five. Six. Seven. Eight. Nine. Ten. Eleven. Twelve. Thirteen. Fourteen. Fifteen.', 8)
+  ]);
+  assert.equal(cut[0], 'Nah.');
+  assert.equal(cut[1], 'It is you, Leon.');
+  assert.ok(cut[2].endsWith('\u2026') && cut[2].split(' ').length <= 13, cut[2]);
+  assert.equal(cut[3].split(' ').length, 12);
+  const said = await page.evaluate(() => Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk' && e.who !== 'you').map(e => e.text.split(/\s+/).length));
+  assert.ok(said.every(n => n <= 42), 'nothing said is a paragraph: ' + said.join(','));
+  // The room.
+  const rooms = bodies.filter(b => b.body.output_config.format.schema.required.includes('reactions'));
+  assert.ok(rooms.length >= 1, 'the room is asked to react');
+  assert.doesNotMatch(rooms[0].body.system[0].text + userOf(rooms[0]), /SECRET ROLE|fellow Kni|is a Knife\b/, 'and is told nobody\'s role');
+  const react = await page.evaluate(() => ({ lines: Game.state.log.filter(e => e.kind === 'react').map(e => e.text), record: Game.recordText() }));
+  assert.ok(react.lines.length >= 1);
+  assert.match(react.lines[0], /^\w+: \u201CHa!\u201D {2}\w+: \u201COh, come on now, really, honestly\u2026\u201D$/, 'each a few words, the long one cut: ' + react.lines[0]);
+  assert.ok(react.lines.every(l => !react.record.includes(l)), 'never in the record a seat is given');
+});
+
+s.test('typing on a phone with the keyboard up gives the room to the story and the box: the table and the quick replies step aside, and come back when the keyboard goes', async h => {
+  const page = await open(h, { viewport: { width: 375, height: 740 } });
+  await sit(page, { seed: 91, role: 'town', wild: false });
+  await begin(page);
+  await page.evaluate(() => { Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town').pop(); });
+  await page.click('#mid-go');
+  await settle(page);
+  await pass(page);
+  // The keyboard comes up: the page is short and the box has the focus.
+  await page.setViewportSize({ width: 375, height: 400 });
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.table-area')).display), 'block', 'short but not typing: the table stays (its buttons are needed)');
+  await page.focus('#say');
+  const short = await page.evaluate(() => ({ table: getComputedStyle(document.querySelector('.table-area')).display, log: Math.round(document.querySelector('#log-wrap').getBoundingClientRect().height), chips: getComputedStyle(document.querySelector('#chips')).display,
+    box: Math.round(document.querySelector('#say').getBoundingClientRect().bottom) <= window.innerHeight }));
+  assert.deepEqual([short.table, short.chips, short.box], ['none', 'none', true]);
+  assert.ok(short.log >= 180, 'the story has room: ' + short.log);
+  assert.deepEqual(await overflowReport(page, 375), []);
+  await page.setViewportSize({ width: 375, height: 740 });
+  await page.evaluate(() => document.querySelector('#say').blur());
+  const tall = await page.evaluate(() => ({ table: getComputedStyle(document.querySelector('.table-area')).display, chips: getComputedStyle(document.querySelector('#chips')).display, log: Math.round(document.querySelector('#log-wrap').getBoundingClientRect().height) }));
+  assert.deepEqual([tall.table, tall.chips], ['block', 'flex']);
+  assert.ok(tall.log >= 150, 'and with the keyboard down the story has its room under the table: ' + tall.log);
 });
 
 s.test('the seats are told the table is all there is: nothing about where anyone was or was going, nothing to ask the player about but how they play', async h => {
