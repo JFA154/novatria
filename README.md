@@ -1064,7 +1064,10 @@ five on the board. Tap Curtis in the strip of faces and **Play cards** to
 sit in with nothing typed, and when a hand is over **Deal again ($20)** is
 under the story: the next hand at the same stake, at once, told in one plain
 line with no wait for the story, so you can play hand after hand; type
-anything and the story picks up again. Or say you bet, in Do or in Say mode ("I put $50 in", "deal
+anything and the story picks up again. If you say something with the bet
+("I will kick your ass, let's play"), you are answered first, in a line or
+two above the table, then the hand is played and told; a line that is only
+the bet ("Deal me in for twenty") opens the table at once. Or say you bet, in Do or in Say mode ("I put $50 in", "deal
 me in", "I'm in for fifty", "another hand", "I go all in", "I bet $20", "I
 bet twenty on the next hand", "deal me in at hold'em", "a hand of draw", "I
 sit down with Curtis for a hand of cards, five dollars", "Mind if I sit
@@ -1934,7 +1937,8 @@ fails it with a message saying so; the CI checkout fetches it all).
   meetings kept, narrated arrivals and the Objectives tab (main's own wave
   26, built alongside the relationship branch's);
 - `wave38-date` for the faces, the strip of who is here, the date table,
-  Deal again and the one-tap flirt;
+  Deal again and the one-tap flirt; `wave39-table-talk` for words said with
+  a bet being answered before the cards;
 - `wave26-rel-tracks`, `wave27-rel-engine`, `wave28-social-events`,
   `wave29-rel-hold` and `wave30-rel-people` for the relationship system by
   wave (wave 30: the People card, the editor, the feed, `/recap`, the

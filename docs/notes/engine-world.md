@@ -2273,3 +2273,36 @@ amazing, I don't like that it's chat by chat tho". The UI side:
   played it is told by `plainNarration(ctx, 'quick')` (the engine's line,
   no notice), so there is no narrator and no bookkeeper call; it needs the
   newest log entry to be a hand at this dealer today.
+
+## Wave 39 (12 Nov 2026): words said with a bet are answered before the cards
+
+The owner: "if I say: 'I will kick your ass, let's play', instead of it
+being: 'We'll see, the [game]', it is [game] finishes, then we'll see".
+The UI side: `docs/notes/ui.md`, Wave 39. Tests:
+`tests/wave39-table-talk.test.cjs`.
+
+- **`tableWords(ctx, dealer)`**: the words to answer, or null. In Say mode
+  the line; in Do mode what it quotes. They are talk when two or more of
+  their words are not in `TABLE_WORDS` (the bet's own words, the games, the
+  money and number words, small words) and not the dealer's name. "Deal me
+  in for twenty", "Mind if I sit in?", "Another hand, Curtis" are null.
+- **`tableTalk(ctx, dealer)`**, called in `gamble` once the hand is going to
+  be dealt (after every refusal, before the chooser and the deal; never on a
+  replay, a resumed hand, Deal again or Play cards, which carry no words):
+  one narrator call with the turn's own packet plus a `TABLE TALK` line
+  (only the dealer's answer and the cards coming out; no card, no winner)
+  and `LENGTH: one or two sentences, under 40 words`. No style check and no
+  rewrite. Its text is `ctx.lead`.
+- After the hand, `ALREADY TOLD` in the narrator's lines quotes the lead and
+  forbids answering the words again. The turn's narration is
+  `lead + "\n\n" + the hand's` (the bookkeeper, the log, LAST 3 TURNS and
+  the chronicle read the whole); the log entry keeps `lead` (State's
+  `logEntry` takes it only when the narration starts with it).
+- **Failure**: a refusal, an empty reply or an error leaves `ctx.lead`
+  unset with a debug line ("no answer before the cards"), and the hand goes
+  on. Stop during the call is an abort before anything is dealt: the turn is
+  called off and the line goes back in the box.
+- **Cost**: one short extra call on a turn that both talks and bets; the
+  cached blocks are the turn's own.
+- **The demo** (`mockOpening`): the one spoken to answers in Say mode, a
+  quoted Do line is "heard out", then "The cards come out."

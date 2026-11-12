@@ -20832,6 +20832,8 @@ const State = (() => {
       if (cards) entry.cards = cards;
       const dated = logDate(e.date);
       if (dated) entry.date = dated;
+      // Wave 39: the start of the narration that was told before the card table (it is drawn above the table); only when the narration begins with it.
+      if (typeof e.lead === 'string' && e.lead.trim() && entry.narration.startsWith(e.lead.trim()) && entry.narration.length > e.lead.trim().length) entry.lead = e.lead.trim();
       /* How the input was meant (the composer's Do / Say): mode 'do' or
          'say'; a Say entry also names who it was said to (to: an npc id or
          'everyone', toName: their name then). input is then the exact
@@ -30853,7 +30855,17 @@ const Api = (() => {
     if (kind === 'drink' || kind === 'food') return ['bar', 'tavern', 'inn', 'gas', 'diner', 'cafe', 'pub', 'saloon', 'cantina', 'canteen'].includes(l.type);
     return ['gas', 'pawn', 'shop', 'store', 'market', 'general', 'marina'].includes(l.type);
   }
+  /* Wave 39: the answer before the cards (Pipeline.tableTalk): in Say mode
+     the one spoken to answers, in their own words; a quote in a Do line is
+     heard out. Then the cards come out. */
+  function mockOpening(c) {
+    const dealer = State.npc(c.opening.dealerId);
+    const who = dealer ? capFirst(npcLabel(dealer)) : 'The dealer';
+    if (isSay(c.speech)) { const r = mockReply(c, 2); return `${r.core.slice(0, 2).join(' ')} The cards come out.`; }
+    return `${who} hears you out and squares the deck. The cards come out.`;
+  }
   function mockNarration(c) {
+    if (isObj(c.opening)) return mockOpening(c);
     const s = State.current;
     const a = c.action || {};
     const loc = String(c.locationName || (c.location && c.location.name) || 'this place').replace(/^The /, 'the ');
@@ -37153,6 +37165,68 @@ const Pipeline = (() => {
       action: () => ({ actionType: 'talk', summary: `${s.player.name} spends a while with ${n.name}, the two of them`, targets: [n.id], needsRoll: false, timeCost: 'long', declaresWorldFact: false })
     });
   }
+  /* Wave 39 (the owner: "when i say something before playing poker, and we
+     play, i don't see the message until the game finishes. I.e. if I say:
+     'I will kick your ass, let's play', instead of it being: 'We'll see,
+     the [game]', it is [game] finishes, then we'll see"): words said with
+     a bet are answered before a card is dealt. tableWords finds them: in
+     Say mode the line itself, in Do mode what it quotes; they are talk when
+     two or more of their words are neither the bet's own (deal, hand,
+     cards, the game, the stake, sitting in) nor small words nor the
+     dealer's name, so "Deal me in for twenty" and "Mind if I sit in?" open
+     the table at once as they did. tableTalk then asks the narrator for
+     one or two sentences (the turn's own packet with a TABLE TALK line and
+     a short LENGTH; no style rewrite), shown under the player's line and
+     above the table, and kept as ctx.lead: the hand's narration is told
+     what was already said (ALREADY TOLD), the turn's narration is the two
+     together (the bookkeeper and the log read the whole), and the log
+     entry keeps the first part as lead so the feed draws it above the
+     table again. A narrator that fails or declines there costs nothing:
+     the table opens with no answer, as before. Stop during it calls the
+     turn off (no card is dealt yet). */
+  const TABLE_WORDS = new Set(("i i'm im i'll ill i'd id me my mine you your you're youre we us our a an the and or but of for at in on to with it it's its is are be this that these some please hey hi hello ok okay yes yeah yep so now then up down out here there " +
+    "let let's lets go going got get gets can could may might mind if do does want wanna would like will shall just one more next time tonight today again another " +
+    "deal deals dealt dealing bet bets betting put puts play plays playing game games hand hands card cards poker hold'em holdem hold em texas draw five-card table tables seat seats sit sits sitting join joins ante antes stake stakes pot chips chip money cash bucks buck dollars dollar buy buy-in buyin all round rounds shuffle shuffles start begin ready sure fine good right " +
+    "two three four five six seven eight nine ten twenty thirty forty fifty sixty seventy eighty ninety hundred thousand grand half").split(' '));
+  function tableWords(ctx, dealer) {
+    const input = String((ctx && ctx.input) || '');
+    const said = isSay(ctx.speech) ? input : (input.match(/["“][^"“”]+["”]/g) || []).join(' ');
+    if (!said.trim()) return null;
+    const names = new Set(String((dealer && dealer.name) || '').toLowerCase().split(/\s+/).filter(Boolean));
+    const words = said.toLowerCase().replace(/[’]/g, "'").split(/[^a-z'-]+/).map(w => w.replace(/^['-]+|['-]+$/g, '')).filter(w => w.length > 1 || w === 'i');
+    const talk = words.filter(w => !TABLE_WORDS.has(w) && !names.has(w));
+    return talk.length >= 2 ? said.trim() : null;
+  }
+  async function tableTalk(ctx, dealer) {
+    const s = State.current;
+    const said = tableWords(ctx, dealer);
+    if (!said) return null;
+    const mock = Api.providerName() === 'mock';
+    const lines = ctx.narratorLines;
+    ctx.opening = { dealerId: dealer.id };
+    ctx.narratorLines = (Array.isArray(lines) ? lines : []).concat([`TABLE TALK (before any card is dealt): the player says this as they sit down at ${dealer.name}'s card table. Give only ${dealer.name}'s answer to the words, in ${dealer.name}'s own voice, and the cards coming out; one or two sentences. Do not deal, play or decide the hand, name no card and no winner, and do not repeat the player's words.`]);
+    let text;
+    try { text = withTurnLines(narratorPacket(ctx), ctx).replace(/^LENGTH: .*$/m, () => 'LENGTH: one or two sentences, under 40 words. Stop as the cards are dealt.'); } finally { ctx.narratorLines = lines; }
+    status('narrate');
+    const node = UI.feed.beginNarration({ mock });
+    try {
+      UI.feed.stream(node, '');
+      const res = await Api.narrate({ text, context: ctx, system: Style.systemPrompt(Style.current()), town: townBlock(), cast: castBlock() }, (chunk, soFar) => UI.feed.stream(node, soFar));
+      const told = isRefusal(res) ? '' : String((res && res.text) || '').trim();
+      if (!told || State.current !== s) { node.remove(); UI.feed.leadDone(); if (!told) State.debugLog.push({ turn: s.meta.turn, kind: 'narrator', reason: 'no answer before the cards (declined or empty); the table opens without one' }); return null; }
+      UI.feed.endNarration(node, told);
+      UI.feed.leadDone();
+      ctx.lead = told;
+      return told;
+    } catch (err) {
+      node.remove();
+      UI.feed.leadDone();
+      // Stop: nothing is dealt yet, so the turn is called off as any stopped turn is.
+      if (err && err.type === 'aborted') throw err;
+      State.debugLog.push({ turn: s.meta.turn, kind: 'narrator', reason: `no answer before the cards (${(err && (err.type || err.message)) || err}); the table opens without one` });
+      return null;
+    } finally { delete ctx.opening; }
+  }
   async function gamble(ctx) {
     const s = State.current;
     const p = s.player;
@@ -37211,6 +37285,8 @@ const Pipeline = (() => {
     heldOpen = null;
     if (st.note) base.stakeNote = st.note;
     if (st.note && st.named !== null && st.named !== stake) base.named = st.named;
+    // Wave 39: words said with the bet are answered before a card is dealt (tableTalk).
+    if (!replay && !stored && !left) { await tableTalk(ctx, dealer); if (State.current !== s) return {}; }
     status('cards');
     /* The game (wave 13): as played (a replay), as stored (a page closed on
        the hand), named in the words, or the one played last; with none,
@@ -37349,6 +37425,8 @@ const Pipeline = (() => {
     // Held to the limit (amendment 2): one clause, so the narrator can show it; the amounts were on the table already.
     const heldTo = (rec0.pushback | 0) > 0 ? ` When the player tried to bet past the limit, ${dealer.name} held them to the house's ${money(unitFor(stake))} bets${rec0.pushback > 1 ? ` (${rec0.pushback === 2 ? 'twice' : `${rec0.pushback} times`})` : ''}.` : '';
     ctx.gamble.pushback = rec0.pushback | 0;
+    // Wave 39: what was answered before the cards is not told again.
+    if (ctx.lead) nl.push(`ALREADY TOLD (before the hand, on screen above the table): ${JSON.stringify(ctx.lead)} The player's words are answered there: do not repeat or rephrase that answer, and do not answer the words again; tell the hand and what follows it.`);
     const cash = delta ? `cash now ${money(p.gold)}` : `cash still ${money(p.gold)}`;
     // Said only when money moved (wave 11, M6): a split pot moves none.
     const moved = delta ? ' The money has already changed hands.' : '';
@@ -39002,7 +39080,8 @@ const Pipeline = (() => {
         if (told.refusal && played) told = plainNarration(ctx, 'refused');
       }
       if (told.refusal) return fail(snap, mark, { text: opts.epilogue ? NOTICES.endingLater('the narrator declined it') : refusedText('narrator') }, { reason: 'refused', restoreInput: true });
-      let narration = told.narration;
+      // Wave 39: an answer given before the cards (tableTalk) leads the turn's narration; the feed shows it above the table.
+      let narration = ctx.lead ? `${ctx.lead}\n\n${told.narration}` : told.narration;
       ctx.narration = narration;
       // Who the narration introduces: on a walk, the people where it lands (wave 3, playtest N5); the one spoken to is met too.
       noteIntroductions(narration, dest ? dest.id : ctx.location && ctx.location.id, dest ? { phase: dest.phase, day: dest.day } : null, isSay(ctx.speech) && ctx.speech.to && ctx.speech.to !== 'everyone' ? [ctx.speech.to] : []);
@@ -39052,7 +39131,7 @@ const Pipeline = (() => {
       if (s.player.hp <= 0 && !s.player.dead) {
         ctx.defeat = defeat(ctx);
         narration = `${narration}\n\n${ctx.defeat.text}`;
-        UI.feed.endNarration(told.node, narration);
+        UI.feed.endNarration(told.node, ctx.lead ? narration.slice(ctx.lead.length).trim() : narration);
         if (ctx.defeat.outcome === 'dead') UI.feed.notice(NOTICES.dead, 'error');
       }
       // Step 10. Advance time; World.tick runs for every phase that passes. A defeat
@@ -39088,6 +39167,8 @@ const Pipeline = (() => {
       if (ctx.cards) entry.cards = ctx.plain ? Object.assign({}, ctx.cards, { plain: true }) : ctx.cards;
       // Wave 38: the date table as it ended, drawn again after a reload or an /undo.
       if (ctx.dateRec) entry.date = ctx.dateRec;
+      // Wave 39: the part of the narration told before the table, so the feed draws it there again.
+      if (ctx.lead) entry.lead = ctx.lead;
       State.apply({ logEntry: entry });
       // The ending has been told: its news is seen now, not before (a failed or stopped ending is told after the next turn).
       // One /undo takes it back with the turn that brought it (wave 5, playtest Q5).
@@ -40176,6 +40257,8 @@ const Pipeline = (() => {
     foldPrice,
     // Wave 38: time with someone at its own table.
     date, dateOk, dateTaste, dateMoves, dateEase, plainDateText, DATE, DATE_MOVES, flirt, sitIn, dealAgain,
+    // Wave 39: words said with a bet, answered before the cards.
+    tableWords,
     get handOpen() { return !!hand; },
     /* The open hand's table (stake, dealer, cards as dealt), or null (wave 11: the box's nudge names the fold price). Wave 13: kind is 'choose', 'draw' or 'holdem'. */
     get openHand() { return hand ? hand.table : null; },
@@ -45560,6 +45643,8 @@ const UI = (() => {
       return feed.add(node);
     },
     stream(node, soFar) { fillParas(node, soFar); afterAppend(); if (soFar) releaseNote(); },
+    // Wave 39: an answer told before the card table is not the turn's narration: the table's quiet lines still come before that.
+    leadDone() { turnMark.narr = false; },
     endNarration(node, text) {
       liveOn();
       node.classList.remove('rewriting');
@@ -45865,13 +45950,17 @@ const UI = (() => {
       if (e.input) d.feed.append(inputNode(e.input, e));
       for (const n of where('start')) quietAt(e, n);
       at(e.day, e.phase);
+      // Wave 39: what was answered before the cards, above the table.
+      const lead = typeof e.lead === 'string' && e.lead && typeof e.narration === 'string' && e.narration.startsWith(e.lead) ? e.lead : null;
+      if (lead) d.feed.append(narrationNode(lead, e.mock === true));
       // The card table as it ended (wave 10), before the marked deck's roll.
       if (isObj(e.cards)) d.feed.append(cardsNode(e.cards));
       // The date table as it ended (wave 38).
       if (isObj(e.date)) d.feed.append(dateNode(e.date));
       if (e.roll && e.roll.line && showRolls) d.feed.append(rollNode(e.roll));
       for (const n of where('before')) quietAt(e, n);
-      if (e.narration) { at(e.day, e.phase); d.feed.append(narrationNode(e.narration, e.mock === true)); }
+      const rest = lead ? e.narration.slice(lead.length).trim() : e.narration;
+      if (rest) { at(e.day, e.phase); d.feed.append(narrationNode(rest, e.mock === true)); }
       // The quiet lines of that turn (added to the map, edited someone, damage), kept with it.
       for (const n of where('after')) quietAt(e, n);
     }

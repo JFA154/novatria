@@ -2057,3 +2057,25 @@ Wave 38. Tests: `tests/wave38-date.test.cjs`.
   a hand of cards, its dealer still deals here, the player has money and no
   turn runs: **Deal again ($20)** (`.cards-again`). One press runs
   `Pipeline.dealAgain()`. It goes when any other turn is played.
+
+## Wave 39 (12 Nov 2026): the answer before the cards
+
+The owner: "when i say something before playing poker, and we play, i don't
+see the message until the game finishes. I.e. if I say: 'I will kick your
+ass, let's play', instead of it being: 'We'll see, the [game]', it is
+[game] finishes, then we'll see". The engine side:
+`docs/notes/engine-world.md`, Wave 39. Tests:
+`tests/wave39-table-talk.test.cjs`.
+
+- The story now reads: the player's line, the answer to it (a narration of
+  a line or two, streamed as any narration is), the table (or the chooser),
+  then the hand's narration. The status line says "Writing…" for the answer
+  and "Your hand" once the table is open.
+- `UI.feed.leadDone()` clears the turn's narration mark after the answer,
+  so the table's quiet lines are still kept as coming before the turn's
+  narration.
+- `rebuildFeed` draws a log entry's `lead` above its table and the rest of
+  the narration after it, so a reload, an `/undo` of a later turn and a
+  reroll's rebuild show the order that was played.
+- A narrator that fails or declines there leaves nothing behind (no empty
+  placeholder, no notice): the table opens as it did before this wave.
