@@ -1070,6 +1070,8 @@ button.card[data-held="true"] .card-hold { visibility: visible; }
 #slot-list { margin-bottom: 24px; }
 .saves-export-note { margin: 0 0 12px; font-size: 13px; color: var(--muted); }
 
+/* A link that looks like a button (the title's way to Last Call). */
+a.btn { text-decoration: none; }
 /* ===== Wave 38: faces, meters, hearts, the scene strip, the date table ===== */
 /* A face (UI.faceNode): an SVG bust on the person's own colour. */
 .face { display: block; width: 100%; height: 100%; }
@@ -2089,6 +2091,8 @@ details.people-group[open] > summary::after { transform: rotate(-135deg); }
         <p class="status-chip" id="title-mode" data-mode="demo"><span id="title-mode-text"></span><button type="button" class="link-btn" id="title-mode-act" hidden></button></p>
         <div class="title-foot">
           <button type="button" class="btn ghost small" id="btn-theme">Parchment theme</button>
+          <!-- Last Call (lastcall.html): the hidden-role game at the Low Water, a page of its own beside this one. -->
+          <a class="btn ghost small" id="link-lastcall" href="lastcall.html">Last Call: a game of liars</a>
         </div>
         <div class="title-about">
           <p id="title-setting" class="title-setting"></p>

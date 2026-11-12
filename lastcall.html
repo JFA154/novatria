@@ -1,0 +1,1241 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<!-- As the town game: the page may talk only to the Anthropic API and run only its own inline code. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com; img-src data: blob:; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#17130f">
+<title>Last Call</title>
+<script>
+// The theme the town game was left in, before the first paint.
+(function () {
+  try {
+    var saved = JSON.parse(window.localStorage.getItem('novatria.settings') || 'null');
+    if (saved && (saved.theme === 'dark' || saved.theme === 'parchment')) document.documentElement.setAttribute('data-theme', saved.theme);
+  } catch (e) { /* storage off: the default theme */ }
+})();
+</script>
+<style>
+:root {
+  --read-font: Georgia, "Times New Roman", serif;
+  --ui-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --tap: 44px;
+  --radius: 8px;
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+}
+:root, :root[data-theme="dark"] {
+  --bg: #17130f; --surface: #1f1a15; --surface-2: #2a241d; --text: #ece4d5; --muted: #a99e8b; --faint: #958b79;
+  --border: #3a3229; --field: #7a6f5d; --accent: #d2aa69; --accent-ink: #1b150e; --danger: #e2917a; --good: #9fbf8a; --focus: #e9c27f;
+  --person-1: #74493a; --person-2: #57613d; --person-3: #3e5969; --person-4: #7a5f2d; --person-5: #604459; --person-6: #3d6057;
+  --felt: #233029; --felt-edge: #3d2f22; --night: #0d1016;
+  color-scheme: dark;
+}
+:root[data-theme="parchment"] {
+  --bg: #f4ecda; --surface: #ede3cc; --surface-2: #e4d7bb; --text: #2a2217; --muted: #57492f; --faint: #6a5d45;
+  --border: #cdbd9b; --field: #857559; --accent: #815219; --accent-ink: #fbf6ea; --danger: #9c3d28; --good: #3f6a2c; --focus: #815219;
+  --person-1: #dbb4a0; --person-2: #c6c89e; --person-3: #b3c5cd; --person-4: #dfc48b; --person-5: #d3b7c4; --person-6: #aecabd;
+  --felt: #c9d3bd; --felt-edge: #a98d63; --night: #cfd3dc;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); font: 16px/1.45 var(--ui-font); -webkit-text-size-adjust: 100%; }
+button, input, select { font: inherit; color: inherit; }
+a { color: var(--accent); }
+[hidden] { display: none !important; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; min-height: var(--tap); padding: 0 16px;
+  border: 1px solid var(--field); border-radius: var(--radius); background: var(--surface); cursor: pointer; font-weight: 600; text-decoration: none;
+}
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.danger { border-color: var(--danger); color: var(--danger); }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+.input { min-height: var(--tap); width: 100%; padding: 8px 12px; border: 1px solid var(--field); border-radius: var(--radius); background: var(--surface); font-size: 16px; }
+.screen { display: none; min-height: 100%; }
+.screen.active { display: block; }
+
+/* ===== Home ===== */
+.home { max-width: 640px; margin: 0 auto; padding: calc(24px + var(--sat)) 16px calc(32px + var(--sab)); }
+.home h1 { margin: 0 0 4px; font: 600 40px/1.1 var(--read-font); letter-spacing: .01em; }
+.home .tag { margin: 0 0 18px; color: var(--muted); font: italic 18px/1.4 var(--read-font); }
+.home p { margin: 0 0 12px; }
+.card { margin: 16px 0; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.card h2 { margin: 0 0 10px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.field { display: grid; gap: 6px; margin: 0 0 14px; }
+.field > label, .field > .label { font-weight: 600; }
+.field .help { color: var(--muted); font-size: 14px; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg .btn { flex: 1 1 auto; }
+.seg .btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.how li { margin: 0 0 6px; }
+.note { color: var(--muted); font-size: 14px; }
+.err { color: var(--danger); }
+
+/* ===== Game ===== */
+#screen-game.active { display: flex; flex-direction: column; height: 100%; height: 100dvh; }
+.topbar { flex: none; display: flex; align-items: center; gap: 10px; padding: calc(8px + var(--sat)) 12px 8px; border-bottom: 1px solid var(--border); }
+.topbar .title { font: 600 18px/1.1 var(--read-font); white-space: nowrap; }
+.topbar .phase { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 14px; }
+.topbar .btn { padding: 0 10px; }
+.topbar .sp { flex: 1; }
+.wrap { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; max-width: 760px; width: 100%; margin: 0 auto; }
+.table-area { flex: none; padding: 10px 12px 20px; transition: background .6s; }
+.table { position: relative; width: 100%; max-width: 560px; height: 300px; margin: 0 auto; }
+.felt { position: absolute; left: 14%; right: 14%; top: 17%; bottom: 17%; border-radius: 50%; background: var(--felt); box-shadow: 0 0 0 6px var(--felt-edge), 0 10px 26px rgba(0, 0, 0, .35); transition: background .6s; }
+.mid { position: absolute; left: 22%; right: 22%; top: 26%; bottom: 26%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; padding: 4px; }
+.mid-k { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.mid-t { font: 600 17px/1.2 var(--read-font); }
+.mid-s { font-size: 13px; color: var(--muted); }
+.mid .btn { min-height: var(--tap); }
+#screen-game[data-phase="night"] .table-area { background: var(--night); }
+#screen-game[data-phase="night"] .felt { background: #141b22; }
+:root[data-theme="parchment"] #screen-game[data-phase="night"] .felt { background: #8e98a8; }
+.seat {
+  position: absolute; width: 68px; margin: -37px 0 0 -34px; padding: 2px 0 0; display: grid; justify-items: center; gap: 1px;
+  border: 0; background: transparent; cursor: pointer; border-radius: 10px; min-height: 74px;
+}
+.seat-face { position: relative; width: 46px; height: 46px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 2px var(--border); background: var(--surface-2); }
+.seat-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 1.2; }
+.seat-tag { font-size: 10px; line-height: 1.15; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+.seat-tag[data-role="knife"] { color: var(--danger); }
+.seat-tag[data-role="clean"], .seat-tag[data-role="town"], .seat-tag[data-role="witness"], .seat-tag[data-role="watch"] { color: var(--good); }
+.seat[data-you="1"] .seat-name { font-weight: 700; }
+.seat[data-sel="1"] .seat-face { box-shadow: 0 0 0 3px var(--accent); }
+.seat[data-speaking="1"] .seat-face { box-shadow: 0 0 0 3px var(--focus); }
+.seat[data-mark="sus"] .seat-face { box-shadow: 0 0 0 3px var(--danger); }
+.seat[data-mark="trust"] .seat-face { box-shadow: 0 0 0 3px var(--good); }
+.seat[data-sel="1"][data-mark] .seat-face { outline: 2px solid var(--accent); outline-offset: 3px; }
+.seat[data-out="1"] { opacity: .45; }
+.seat[data-out="1"] .seat-face { filter: grayscale(1); }
+.seat[data-out="1"] .seat-name { text-decoration: line-through; }
+.seat-votes { position: absolute; top: -4px; right: 4px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--danger); color: #1b0f0a; font-size: 12px; font-weight: 700; line-height: 20px; text-align: center; }
+.face { display: block; width: 100%; height: 100%; }
+.face .face-bg { fill: var(--person-1); }
+.face[data-hue="2"] .face-bg { fill: var(--person-2); }
+.face[data-hue="3"] .face-bg { fill: var(--person-3); }
+.face[data-hue="4"] .face-bg { fill: var(--person-4); }
+.face[data-hue="5"] .face-bg { fill: var(--person-5); }
+.face[data-hue="6"] .face-bg { fill: var(--person-6); }
+.sheet { flex: none; margin: 0 12px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.sheet-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; }
+.sheet-name { font-weight: 700; }
+.sheet-role { color: var(--muted); font-size: 14px; }
+.sheet-look { margin: 2px 0 6px; color: var(--muted); font: italic 14px/1.35 var(--read-font); }
+.sheet-acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.sheet-acts .btn { padding: 0 12px; }
+.sheet-acts .btn[aria-pressed="true"] { background: var(--surface-2); border-color: var(--accent); }
+.log-wrap { flex: 1 1 auto; min-height: 90px; overflow-y: auto; padding: 8px 12px; overscroll-behavior: contain; }
+.log { display: grid; gap: 8px; }
+.say { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 8px; align-items: start; }
+.say-face { width: 34px; height: 34px; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 1px var(--border); }
+.say-who { font-size: 13px; font-weight: 700; }
+.say-who .role { margin-left: 6px; font-weight: 600; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.say-text { margin: 0; font: 17px/1.45 var(--read-font); overflow-wrap: anywhere; }
+.say[data-you="1"] .say-text { font-style: italic; }
+.say[data-kind="vote"] .say-text { font-size: 15px; }
+.say[data-kind="whisper"] .say-text { color: var(--muted); }
+.sys { margin: 4px 0; padding: 8px 10px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 0 var(--radius) var(--radius) 0; font-size: 15px; }
+.sys[data-kind="death"], .sys[data-kind="banish"] { border-left-color: var(--danger); }
+.sys[data-kind="private"] { border-left-color: var(--good); }
+.sys[data-kind="day"] { border: 0; background: transparent; padding: 6px 0 0; text-align: center; color: var(--muted); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
+.sys[data-kind="notice"] { border-left-color: var(--field); color: var(--muted); }
+.busy { display: flex; align-items: center; gap: 8px; padding: 2px 12px; min-height: 24px; color: var(--muted); font-size: 14px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.composer { flex: none; display: grid; gap: 6px; padding: 8px 12px calc(10px + var(--sab)); border-top: 1px solid var(--border); background: var(--bg); }
+.composer .line { display: flex; gap: 6px; }
+.composer .line .input { flex: 1 1 auto; min-width: 0; }
+.composer .acts { display: flex; flex-wrap: wrap; gap: 6px; }
+.composer .acts .btn { flex: 1 1 auto; }
+.cost { color: var(--faint); font-size: 12px; text-align: center; }
+dialog { max-width: min(520px, calc(100vw - 24px)); padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); }
+dialog::backdrop { background: rgba(0, 0, 0, .55); }
+dialog h2 { margin: 0 0 8px; font: 600 24px/1.2 var(--read-font); }
+dialog .role-name { font: 600 30px/1.1 var(--read-font); color: var(--accent); }
+dialog .role-name[data-role="knife"] { color: var(--danger); }
+dialog p { margin: 0 0 10px; }
+dialog .row { justify-content: flex-end; margin-top: 12px; }
+.roles { display: grid; gap: 4px; margin: 8px 0; padding: 0; list-style: none; }
+.roles li { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-bottom: 1px solid var(--border); }
+@media (prefers-reduced-motion: no-preference) {
+  .dot { animation: pulse 1s ease-in-out infinite; }
+  .seat[data-speaking="1"] .seat-face { animation: ring 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .3; } }
+  @keyframes ring { 50% { box-shadow: 0 0 0 5px var(--focus); } }
+}
+@media (max-width: 420px) {
+  .table { height: 270px; }
+  .seat { width: 60px; margin-left: -30px; }
+  .seat-face { width: 42px; height: 42px; }
+  .mid-t { font-size: 15px; }
+}
+@media (max-height: 640px) {
+  .table { height: 232px; }
+  .seat { min-height: 62px; margin-top: -31px; }
+  .seat-face { width: 36px; height: 36px; }
+  .sheet-look { display: none; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <section id="screen-home" class="screen active" aria-labelledby="home-title">
+    <div class="home">
+      <h1 id="home-title" tabindex="-1">Last Call</h1>
+      <p class="tag">The river is over the road and the bridge is shut. Nobody leaves the Low Water tonight, and somebody at this table is not who they say.</p>
+      <div class="row" id="home-continue-row" hidden>
+        <button type="button" class="btn primary" id="btn-continue">Continue</button>
+        <span class="note" id="home-continue-note"></span>
+      </div>
+      <div class="card">
+        <h2>New table</h2>
+        <div class="field">
+          <label for="f-name">Your name at the table</label>
+          <input class="input" id="f-name" maxlength="20" autocomplete="off" placeholder="Stranger">
+        </div>
+        <div class="field">
+          <span class="label" id="l-size">Seats</span>
+          <div class="seg" role="group" aria-labelledby="l-size" id="f-size">
+            <button type="button" class="btn" data-v="6" aria-pressed="false">6 · one Knife</button>
+            <button type="button" class="btn" data-v="8" aria-pressed="true">8 · two Knives</button>
+            <button type="button" class="btn" data-v="10" aria-pressed="false">10 · three Knives</button>
+          </div>
+        </div>
+        <div class="field">
+          <span class="label" id="l-role">Your role</span>
+          <div class="seg" role="group" aria-labelledby="l-role" id="f-role">
+            <button type="button" class="btn" data-v="any" aria-pressed="true">Deal me in</button>
+            <button type="button" class="btn" data-v="town" aria-pressed="false">Town</button>
+            <button type="button" class="btn" data-v="knife" aria-pressed="false">Knife</button>
+            <button type="button" class="btn" data-v="witness" aria-pressed="false">Witness</button>
+          </div>
+        </div>
+        <div class="field">
+          <span class="label" id="l-mode">Who plays the others</span>
+          <div class="seg" role="group" aria-labelledby="l-mode" id="f-mode">
+            <button type="button" class="btn" data-v="claude" aria-pressed="true">Claude</button>
+            <button type="button" class="btn" data-v="demo" aria-pressed="false">Offline demo (scripted)</button>
+          </div>
+          <span class="help" id="mode-help"></span>
+        </div>
+        <div id="claude-fields">
+          <div class="field">
+            <label for="f-key">Anthropic API key</label>
+            <input class="input" id="f-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
+            <span class="help" id="key-help">Sent only to api.anthropic.com from this page. Kept for this tab; the town game's remembered key is used if there is one.</span>
+          </div>
+          <div class="field">
+            <label for="f-model">Model</label>
+            <select class="input" id="f-model">
+              <option value="claude-opus-5-5">Claude Opus 5.5 (default)</option>
+              <option value="claude-fable-5-2">Claude Fable 5.2 (sharpest, slowest, most expensive)</option>
+              <option value="claude-sonnet-5-5">Claude Sonnet 5.5 (faster, cheaper)</option>
+              <option value="claude-haiku-5-5">Claude Haiku 5.5 (fastest, cheapest)</option>
+            </select>
+            <span class="help">Each seat is its own call and knows only what that person knows. A whole game is roughly 60 to 120 short calls.</span>
+          </div>
+        </div>
+        <p class="err" id="home-err" role="alert" hidden></p>
+        <div class="row"><button type="button" class="btn primary" id="btn-new">Sit down</button></div>
+      </div>
+      <div class="card how">
+        <h2>How it plays</h2>
+        <ul>
+          <li><b>Knives</b> know each other. Each night they take one person out of the game.</li>
+          <li><b>Town</b> is everyone else. One of them is the <b>Witness</b>, who learns each night whether one person is a Knife. At eight seats or more one is the <b>Watch</b>, who guards one person each night.</li>
+          <li>Each day the table talks, then votes. Most votes is put out and their role is shown; a tie puts out nobody.</li>
+          <li>Town wins when every Knife is out. The Knives win when they are at least as many as everyone else.</li>
+          <li>Tap a face to mark them, accuse them, vouch for them, vote for them. Say anything you like in the box: they answer.</li>
+        </ul>
+        <p class="note">The code deals the roles, counts the votes and decides who is out. The people only talk, lie and vote. <a href="index.html">Back to the town game</a>.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-game" class="screen" aria-labelledby="game-title" data-phase="role">
+    <header class="topbar">
+      <span class="title" id="game-title" tabindex="-1">Last Call</span>
+      <span class="phase" id="tb-phase"></span>
+      <span class="sp"></span>
+      <button type="button" class="btn ghost" id="btn-roles">Roles</button>
+      <button type="button" class="btn ghost" id="btn-quit">Leave</button>
+    </header>
+    <div class="wrap">
+      <div class="table-area">
+        <div class="table" id="table" role="group" aria-label="The table">
+          <div class="felt" aria-hidden="true"></div>
+          <div class="mid" id="mid" aria-live="polite"></div>
+        </div>
+      </div>
+      <div class="sheet" id="sheet" hidden></div>
+      <div class="log-wrap" id="log-wrap"><div class="log" id="log" role="log" aria-live="polite"></div></div>
+      <div class="busy" id="busy" role="status" hidden><span class="dot" aria-hidden="true"></span><span id="busy-text"></span></div>
+      <div class="composer" id="composer">
+        <div class="line" id="say-line">
+          <label class="visually-hidden" for="say">What you say to the table</label>
+          <input class="input" id="say" maxlength="400" autocomplete="off" enterkeyhint="send" placeholder="Say something to the table">
+          <button type="button" class="btn primary" id="btn-say">Say</button>
+        </div>
+        <div class="acts" id="acts"></div>
+        <div class="cost" id="cost"></div>
+      </div>
+    </div>
+  </section>
+
+  <dialog id="dlg" aria-labelledby="dlg-title"></dialog>
+</div>
+
+<script type="application/json" id="cast">[{"id":"npc_loretta","name":"Loretta Gaddis","age":60,"pronouns":"she","role":"owner and bartender of the Low Water","look":"Rail-thin woman of sixty with frosted hair, reading glasses on a beaded chain and a bar towel over one shoulder.","voice":"Flat and unhurried; calls everybody 'hon', answers a question she doesn't like by asking what you're drinking, and never says a name out loud if she can point instead.","personality":["unflappable","loyal"]},{"id":"npc_royce","name":"Royce Pittman","age":56,"pronouns":"he","role":"owner of Pittman's Gas and Service and the swing vote on the town council","look":"Big, soft-bellied man in his fifties in a feed-store cap and a short-sleeved dress shirt, with a pen behind each ear.","voice":"Folksy and slippery; dodges a straight answer, now and then with a story about his daddy; once in a while hedges with 'now, I'm not saying'; laughs to fill a silence.","personality":["genial","cowardly"]},{"id":"npc_vada","name":"Vada Sturdivant","age":80,"pronouns":"she","role":"widow who owns Sturdivant House and the bottomland downstream","look":"Small, straight-backed woman of eighty in a cardigan and pearls, with garden dirt under her nails and a cane she points with more than she leans on.","voice":"Crisp and formal, with an old schoolteacher's diction; calls grown men 'son', corrects your grammar mid-sentence, and answers questions about money by asking who your people are.","personality":["imperious","sentimental"]},{"id":"npc_carter","name":"Carter Sturdivant","age":45,"pronouns":"he","role":"head of Sturdivant Land and Timber, who holds half the town's paper","look":"Trim, tanned man of forty-five in a quarter-zip pullover and pressed khakis, turning a truck key fob over and over in his fingers.","voice":"Fast and friendly, like a salesman closing; uses your first name too soon and too often, talks about 'the future of this town', and states every sum to the dollar.","personality":["ambitious","smooth"]},{"id":"npc_jolene","name":"Jolene Overstreet","age":57,"pronouns":"she","role":"mayor and town clerk","look":"Heavy-set woman in her fifties in a cardigan over a church T-shirt, with a lanyard of keys and a phone she keeps checking for a signal it never finds.","voice":"Brisk and procedural; cites ordinances by number, says 'that's a council matter' to shut a subject, and drops to a whisper to say anything kind.","personality":["officious","frightened"]},{"id":"npc_hollis","name":"Hollis Byrd","age":65,"pronouns":"he","role":"owner of Byrd's Pawn and a member of the town council","look":"Stooped, pot-bellied man of sixty-five in suspenders and a fishing vest, with a jeweler's loupe on a cord and a toothpick that never leaves his mouth.","voice":"Slow and sideways, never a straight yes or no; calls everything 'merchandise', prices things before you ask, and says 'I don't ask where, I ask how much.'","personality":["sociable","greedy"]},{"id":"npc_wade","name":"Wade Purvis","age":57,"pronouns":"he","role":"owner of Purvis Landing and boss of the Night Run","look":"Lean, sunburnt man in his fifties with a gray ponytail, a faded camouflage cap and the tip of one finger missing.","voice":"Quiet and dry; lets you talk yourself out, answers in river terms like stage, chop and slack water, and never says the word police, only 'the law'.","personality":["patient","ruthless"]},{"id":"npc_colt","name":"Colt Purvis","age":22,"pronouns":"he","role":"deckhand on the Night Run","look":"Wiry kid of twenty-two in a sleeveless shirt and white rubber boots, with a fresh tattoo still peeling on his forearm.","voice":"Fast and jumpy; talks over you, calls men 'bro' and women 'ma'am', brags about money he doesn't have, and laughs at things that aren't funny.","personality":["reckless","boastful"]},{"id":"npc_marcus","name":"Marcus Bell","age":50,"pronouns":"he","role":"chief of police","look":"Tall, heavy-shouldered man of fifty in a pressed uniform shirt gone tight at the buttons, with a shaved head and a limp he hides badly.","voice":"Courteous and relentless; says 'sir' and 'ma'am', asks the same question three different ways, and writes your answers in a pocket notebook while you watch him do it.","personality":["methodical","stubborn"]},{"id":"npc_travis","name":"Travis Cagle","age":28,"pronouns":"he","role":"night-shift police officer","look":"Thick-necked man of twenty-eight in a uniform with the sleeves rolled, a dip of tobacco in his lip and a new watch too nice for his pay.","voice":"Loud and buddy-buddy, all 'my man' and 'hoss'; talks about his boat, laughs before his own punchlines, and goes quiet the second anyone mentions money.","personality":["vain","jumpy"]},{"id":"npc_ray","name":"Ray Dees","age":65,"pronouns":"he","role":"pastor of Riverside Baptist Church","look":"Round-faced man of sixty-five in a short-sleeved white shirt and clip-on tie, with a hearing aid and a pocket full of peppermints.","voice":"Slow and warm, with a preacher's rhythm even at the gas pump; sometimes answers a hard question with a Bible story, and somehow gets the answer out of you instead.","personality":["kind","nosy"]},{"id":"npc_june","name":"June Satterfield","age":60,"pronouns":"she","role":"retired nurse who patches people up at her kitchen table","look":"Stout woman of sixty in scrub pants and a sweatshirt from a hospital that closed, with her gray hair in a clip and a canvas bag that rattles.","voice":"Blunt and clinical; asks what you took and how much before she asks your name, swears mildly, and never tells anyone not to worry.","personality":["unshockable","tired"]},{"id":"npc_dewayne","name":"Dewayne Mangum","age":40,"pronouns":"he","role":"mechanic in the service bays at Pittman's","look":"Short, broad man of forty with grease worked into every knuckle, safety glasses pushed up on a bald head and a shop rag in his back pocket.","voice":"Few words, all of them about engines; says 'mm-hm' for yes and 'well' for no, and talks to the truck he's working on more than to you.","personality":["careful","honest"]},{"id":"npc_tammy","name":"Tammy Lott","age":42,"pronouns":"she","role":"cook at the Low Water","look":"Hollow-eyed woman of forty-two in a hairnet and a stained Low Water T-shirt, with her daughter's name tattooed fresh on the inside of her wrist.","voice":"Hoarse and short; says exactly what she thinks in as few words as possible, swears at the grill, and goes very calm and polite when she is angriest.","personality":["grieving","relentless"]},{"id":"npc_mavis","name":"Mavis Mangum","age":41,"pronouns":"she","role":"night manager at the Riverview Motor Court","look":"Small, sharp-faced woman of forty-one with dyed black hair scraped into a clip, a motel key ring on a coiled cord around her wrist and an unlit cigarette behind one ear.","voice":"Clipped and sour; tells you what a thing will cost her before she says yes or no, calls people mister or miss like a complaint, and jingles her keys when she wants you gone.","personality":["bitter","shrewd"]},{"id":"npc_darlene","name":"Darlene Pittman","age":54,"pronouns":"she","role":"Royce's wife, who keeps the books at Pittman's","look":"Tall, careful woman in her fifties with a short silver bob, a blouse buttoned to the collar and a pencil she taps against her teeth while she adds.","voice":"Polite and exact; answers questions about Royce with figures instead of feelings, slips into talking about him in the past tense, and excuses herself to get back to the books.","personality":["proud","watchful"]},{"id":"npc_nadine","name":"Nadine Dees","age":63,"pronouns":"she","role":"church secretary and pianist at Riverside Baptist","look":"Plump, bright-eyed woman of sixty-three in a holiday sweater whatever the season, with reading glasses pushed up into her curls.","voice":"Chirpy and thorough; reads records aloud in full, including the parts you did not ask for, and says bless you when she means go away.","personality":["fussy","kind"]},{"id":"npc_odessa","name":"Odessa Fairley","age":66,"pronouns":"she","role":"housekeeper and companion to Vada Sturdivant","look":"Tall, gray-haired woman of sixty-six in a starched apron over a church dress, with a small silver cross at her throat and shoes that make no sound.","voice":"Soft and exact; says Miss Vada says when she means herself, and hums a hymn under her breath when she disapproves of what you just said.","personality":["discreet","stubborn"]},{"id":"npc_lyman","name":"Lyman Coker","age":70,"pronouns":"he","role":"night bartender at the Low Water","look":"Gaunt man of seventy in a pearl-snap shirt, with an oxygen tube looped over his ears and a ledger of bar tabs in his shirt pocket.","voice":"Gloomy and courteous; expects the worst of everyone and thanks you, sincerely, when you prove him right.","personality":["gloomy","honest"]},{"id":"npc_elbert","name":"Elbert Gentry","age":88,"pronouns":"he","role":"the oldest man in town and on the town council, whose granddaddy ran the last ferry","look":"Bent, bright-eyed man of eighty-eight in suspenders and a cap from the 1982 bass tournament, with a cane carved from a cypress knee.","voice":"Tells you the year of everything, and corrects other people's stories about the river with the date it really happened and who drowned.","personality":["sly","garrulous"]},{"id":"npc_pearl","name":"Pearl Gentry","age":79,"pronouns":"she","role":"columnist for the county weekly","look":"Tiny woman of seventy-nine in a lavender pantsuit, with a steno pad in her purse and a pencil stuck through her white bun.","voice":"Talks in newspaper headlines, asks for the spelling of your name before she asks anything else, and writes your answers down whether you like it or not.","personality":["nosy","fair"]},{"id":"npc_glenda","name":"Glenda Pryor","age":40,"pronouns":"she","role":"police dispatcher and clerk at Town Hall","look":"Broad, freckled woman of forty with a dispatch headset pushed back in her red hair and a cardigan pocket full of pens.","voice":"Talks in radio shorthand out of habit, ten-four and what is your twenty, and repeats the last thing you said back to you as a question.","personality":["curious","loyal"]},{"id":"npc_nikki","name":"Nikki Ballard","age":31,"pronouns":"she","role":"day-shift police officer","look":"Compact, sunburned woman of thirty-one with a tight braid, a vest one size too big and mirrored sunglasses she takes off to look at you.","voice":"Brisk and dry; asks for your ID before small talk, answers a joke with the single word noted, and never fills a silence.","personality":["disciplined","ambitious"]},{"id":"npc_virgil","name":"Virgil Odom","age":72,"pronouns":"he","role":"retired state bridge inspector who fishes the pier","look":"Lean, stooped man of seventy-two in a faded state highway cap, with a rusty tape measure clipped to his belt and a bucket of cut bait.","voice":"Speaks in load ratings and rust, ends an opinion with that is not my opinion, that is steel, and taps whatever he leans on to listen to it.","personality":["precise","lonely"]},{"id":"npc_annette","name":"Annette Overstreet","age":34,"pronouns":"she","role":"seventh-grade teacher at the county middle school","look":"Slight woman of thirty-four with short dark hair, chalk dust on one sleeve and a tote bag of ungraded papers she carries everywhere.","voice":"Patient and precise; explains things in numbered steps whether you asked or not, and checks with make sense? before she lets you go.","personality":["patient","principled"]},{"id":"npc_gerald","name":"Gerald Overstreet","age":61,"pronouns":"he","role":"Jolene's husband, retired from the paper mill","look":"Big, slow man of sixty-one in house slippers and a mill union jacket, with a police scanner clipped to his belt and turned up loud.","voice":"Starts half of what he says with scanner says, repeats every call he heard that day, and calls his wife the mayor even at supper.","personality":["gossipy","gentle"]},{"id":"npc_lamar","name":"Lamar Haskins","age":58,"pronouns":"he","role":"farmer and council member who leases Sturdivant land","look":"Thick, weathered man of fifty-eight in a seed company cap and mud-caked boots, with a farmer's tan that stops at his sleeves.","voice":"Slow and careful; talks in acres, bushels and inches of rain, and checks the sky before he answers anything hard.","personality":["practical","worried"]},{"id":"npc_trent","name":"Trent Haskins","age":24,"pronouns":"he","role":"Lamar's son, who drives the farm's grain truck","look":"Broad, easygoing man of twenty-four in a sleeveless camo shirt and a feed-store cap turned backward, with a sunburned neck and a cooler always in reach.","voice":"Easy and friendly; calls everybody cuz, is always halfway out the door on some errand, and laughs off a question with gotta run.","personality":["easygoing","reckless"]},{"id":"npc_leon","name":"Leon Varner","age":47,"pronouns":"he","role":"repo man who buys bad debts for a title-loan outfit","look":"Heavy man of forty-seven in a golf shirt and wraparound sunglasses, with a clipboard under one arm and a tow truck he never turns off.","voice":"Polite and slow; calls you friend and works the late fees into every other sentence, the way another man would mention the weather.","personality":["patient","merciless"]},{"id":"npc_curtis","name":"Curtis Pruett","age":52,"pronouns":"he","role":"insurance man who runs the card game at the Low Water","look":"Dapper man of fifty-two in a short-sleeved dress shirt and a bolo tie, with a pinky ring and a deck of cards he shuffles one-handed.","voice":"Puts odds on everything, offers to settle any argument with a bet, and never says a number without saying what it pays.","personality":["charming","calculating"]},{"id":"npc_boyd","name":"Boyd Teague","age":50,"pronouns":"he","role":"stranger who has had Room 9 at the motor court a week","look":"Big, quiet man of fifty in a pressed denim shirt, with a healed scar through one eyebrow and knuckles like walnuts.","voice":"Says very little, all of it polite, and always uses a person's full name, first and last, as if he were reading it off a list.","personality":["patient","vindictive"]},{"id":"npc_jodie","name":"Jodie Strayhorn","age":29,"pronouns":"she","role":"new waitress at the Low Water","look":"Wiry woman of twenty-nine with bleached hair growing out dark, a Low Water apron and a fading bruise she covers with makeup.","voice":"Quick and bright with the customers, then flat and careful the second anyone asks where she is from, and she changes the subject to the specials.","personality":["guarded","resourceful"]},{"id":"npc_lorna","name":"Lorna Purvis","age":55,"pronouns":"she","role":"Wade's wife, who runs the bait shop at Purvis Landing","look":"Round, cheerful woman of fifty-five in rubber clogs, with a fishing-lure earring in one ear and a tub of crickets on the counter beside her.","voice":"Bait-shop chatter about what is biting and where, and the moment you ask about Wade, a bright you would have to ask him.","personality":["cheerful","loyal"]},{"id":"npc_brianna","name":"Brianna Tolliver","age":23,"pronouns":"she","role":"housekeeper at the Riverview Motor Court","look":"Pale, thin young woman of twenty-three in a motel smock, with chipped nail polish and a hospital bracelet she has not cut off.","voice":"Soft and quick; apologizes before she says anything, sorry, sorry, and says thank you twice for anything at all.","personality":["shy","grateful"]},{"id":"npc_shayla","name":"Shayla Rawls","age":25,"pronouns":"she","role":"hairdresser who works out of her trailer at Riverbend","look":"Pretty, round-faced woman of twenty-five in a hairdresser's smock, with a vape pen in one hand and two phones in the other.","voice":"Sweet and sticky; calls you sugar and asks three personal questions for every one you answer.","personality":["nosy","greedy"]},{"id":"npc_dwight","name":"Dwight Spann","age":49,"pronouns":"he","role":"timber foreman for Sturdivant Land and Timber","look":"Rangy man of forty-nine in a hi-vis vest over a flannel shirt, with a can of survey paint in his hand and sunflower-seed shells on his boots.","voice":"Few words and a lot of spat sunflower seeds; never says Carter, only Mr. Sturdivant, and answers anything else with that is above my pay.","personality":["dutiful","hard"]},{"id":"npc_burl","name":"Burl Satterfield","age":66,"pronouns":"he","role":"June's husband, who fixes outboard motors","look":"Wide, red-faced man of sixty-six in bib overalls, with a lineman's scarred hands and a bent outboard propeller he files smooth while he talks.","voice":"Talks too loud after forty years around power lines, says what's that? and then answers what he thought you said.","personality":["cheerful","stubborn"]}]</script>
+<script>
+'use strict';
+/* Last Call: a hidden-role game at the Low Water. The code owns the roles,
+   the nights, the votes and who wins; the people at the table only talk,
+   lie and vote. With a key each seat is one Claude call that is told only
+   what that person knows (its own role, its own private knowledge and the
+   public record); without one a scripted table plays (the offline demo),
+   which is also what a seat falls back to when a call fails. One file, no
+   build, no network but the Anthropic API. */
+const Game = (() => {
+  const ENDPOINT = 'https://api.anthropic.com/v1/messages';
+  const API_VERSION = '2026-10-21';
+  const SAVE_KEY = 'novatria.lastcall';
+  const SET_KEY = 'novatria.lastcall.settings';
+  const TOWN_KEY = 'novatria.apiKey';
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const MODELS = ['claude-opus-5-5', 'claude-fable-5-2', 'claude-sonnet-5-5', 'claude-haiku-5-5'];
+  // Per million tokens, in and out (the cache read at a tenth of the input price, a write at one and a quarter).
+  const PRICES = { 'claude-opus-5-5': [4, 20], 'claude-fable-5-2': [8, 40], 'claude-sonnet-5-5': [2, 10], 'claude-haiku-5-5': [0.1, 0.5] };
+  const MAX_BEATS = 5;
+  const SIZES = { 6: { knife: 1, witness: 1, watch: 0 }, 8: { knife: 2, witness: 1, watch: 1 }, 10: { knife: 3, witness: 1, watch: 1 } };
+  const ROLE = {
+    town: { name: 'Town', blurb: 'You have no power but your judgement and your vote. Find the Knives before they are as many as the rest of you.' },
+    witness: { name: 'Witness', blurb: 'You are Town. Each night you learn whether one person is a Knife. What you know makes you worth silencing: choose when to say it.' },
+    watch: { name: 'Watch', blurb: 'You are Town. Each night you guard one person, yourself included, and whoever you guard survives the night. Never the same person two nights running.' },
+    knife: { name: 'Knife', blurb: 'Each night you and yours take one person out of the game. By day, be one of them. You win when the Knives are as many as everyone else.' }
+  };
+
+  // ----- helpers -----
+  const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+  const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
+  const $ = (sel, root) => (root || document).querySelector(sel);
+  const $$ = (sel, root) => [...(root || document).querySelectorAll(sel)];
+  const capFirst = t => { t = String(t || ''); return t.charAt(0).toUpperCase() + t.slice(1); };
+  const andList = a => (a.length <= 1 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`);
+  const cleanText = (t, n) => String(t === null || t === undefined ? '' : t).replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n || 400);
+  function appendKids(node, kid) {
+    if (kid === null || kid === undefined || kid === false) return;
+    if (Array.isArray(kid)) { kid.forEach(k => appendKids(node, k)); return; }
+    node.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+  }
+  function make(ns, tag, attrs, kids) {
+    const node = ns ? document.createElementNS(ns, tag) : document.createElement(tag);
+    if (attrs) {
+      for (const k of Object.keys(attrs)) {
+        const v = attrs[k];
+        if (v === null || v === undefined || v === false) continue;
+        if (k === 'class' && !ns) node.className = v;
+        else if (k === 'dataset') Object.assign(node.dataset, v);
+        else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2), v);
+        else if (!ns && (k === 'value' || k === 'disabled' || k === 'hidden')) node[k] = v;
+        else node.setAttribute(k, v === true ? '' : String(v));
+      }
+    }
+    for (const kid of kids) appendKids(node, kid);
+    return node;
+  }
+  function el(tag, attrs) { return make(null, tag, attrs, [].slice.call(arguments, 2)); }
+  function sv(tag, attrs) { return make(SVG_NS, tag, attrs, [].slice.call(arguments, 2)); }
+  const store = {
+    get(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { window.localStorage.setItem(k, v); return true; } catch (e) { return false; } },
+    del(k) { try { window.localStorage.removeItem(k); } catch (e) { /* off */ } }
+  };
+  const session = {
+    get(k) { try { return window.sessionStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { window.sessionStorage.setItem(k, v); } catch (e) { /* off */ } }
+  };
+  // A seeded generator kept in the game (mulberry32), so a game replays from its seed.
+  function rnd(s) {
+    s.rng = (s.rng + 0x6D2B79F5) | 0;
+    let t = s.rng;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  const pick = (s, list) => list[Math.floor(rnd(s) * list.length)];
+  function shuffle(s, list) { const a = list.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd(s) * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  function hash(text, salt) { let h = 2166136261 ^ (salt | 0); const t = String(text || ''); for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619) >>> 0; return h >>> 0; }
+
+  // ----- the cast (the town's adults, from the Low Water story pack) -----
+  const CAST = (() => { try { return JSON.parse(document.getElementById('cast').textContent).filter(isObj); } catch (e) { return []; } })();
+  const castOf = id => CAST.find(c => c.id === id) || null;
+
+  // ----- faces (as the town game draws them) -----
+  const FACE_SKIN = ['#f0d2b6', '#e3b891', '#cf9c72', '#b47b52', '#8c5a3a', '#684029'];
+  const FACE_HAIR = { black: '#1e1916', dark: '#3a2a20', brown: '#614229', red: '#8c4124', blonde: '#c8a45e', grey: '#9b9a97', white: '#d8d5cf' };
+  const FACE_SHIRT = ['#6f7f8c', '#8a6a52', '#59705c', '#8c7a4d', '#7a5d74', '#4f6b78', '#93644f', '#5f6a48'];
+  const HAIR_NOUN = '(?:hair|ponytail|braids?|plaits?|bun|curls|perm|bob|crew cut|buzz cut|beard|mustache|moustache|goatee|stubble|whiskers|sideburns|fringe|bangs|mane)';
+  const FACE_COLOURS = [['white', 'white|snow-white|snowy'], ['grey', 'gr[ae]y|gr[ae]ying|silver|silvering|frosted|salt-and-pepper|iron-gr[ae]y|steel-gr[ae]y'], ['red', 'red|auburn|ginger|copper|strawberry'],
+    ['blonde', 'blond|blonde|bleached|sandy|yellow|fair|dishwater'], ['black', 'black|jet-black|jet|raven'], ['dark', 'dark|dark-brown'], ['brown', 'brown|chestnut|mousy']];
+  const faceCache = new Map();
+  function faceTraits(n) {
+    const key = `${n.id}|${n.age}|${n.pronouns}|${n.look || ''}`;
+    if (faceCache.has(key)) return faceCache.get(key);
+    const look = ` ${String(n.look || '').toLowerCase()} `;
+    const age = Number.isInteger(n.age) ? n.age : null;
+    const choose = (list, salt) => list[hash(n.id, salt) % list.length];
+    const has = re => re.test(look);
+    let hair = null;
+    for (const [name, words] of FACE_COLOURS) {
+      if (new RegExp(`\\b(?:${words})(?:[- ](?:\\w+[- ]){0,2})?${HAIR_NOUN}\\b`).test(look) || new RegExp(`\\b${HAIR_NOUN} (?:gone|going|turned|turning|dyed) (?:${words})\\b`).test(look) || new RegExp(`\\b(?:${words})-(?:haired|stubbled|bearded|whiskered|headed)\\b`).test(look)) { hair = name; break; }
+    }
+    if (!hair) hair = age !== null && age >= 64 ? choose(['grey', 'grey', 'white'], 11) : age !== null && age >= 50 ? choose(['grey', 'dark', 'brown', 'grey'], 11) : choose(['dark', 'brown', 'black', 'dark', 'blonde', 'brown', 'red', 'black'], 11);
+    const she = n.pronouns === 'she';
+    const he = n.pronouns === 'he';
+    let style = has(/\b(bald|balding|shaved head|shaven head)\b/) ? 'bald' : has(/\b(ponytail|braids?|plaits?)\b/) ? 'pony' : has(/\b(bun|pinned up|updo|beehive)\b/) ? 'bun' : has(/\b(curls|curly|perm|permed|afro)\b/) ? 'curly'
+      : has(/\b(crew cut|buzz cut|buzzed|cropped|close-cropped)\b/) ? 'buzz' : has(/\b(long hair|long \w+ hair)\b/) ? 'long' : has(/\b(bob|bobbed|shoulder-length)\b/) ? 'bob' : null;
+    if (!style) style = she ? choose(['long', 'bob', 'pony', 'bun', 'long', 'curly'], 23) : he ? (age !== null && age >= 58 ? choose(['short', 'bald', 'buzz', 'short'], 23) : choose(['short', 'short', 'buzz', 'short'], 23)) : choose(['short', 'bob'], 23);
+    const skin = has(/\b(black (?:man|woman|lady|fellow)|dark-skinned|brown-skinned)\b/) ? choose([4, 5, 4], 31) : has(/\b(pale|pasty|freckled?|freckles|pink-faced)\b/) ? 0 : has(/\b(tan|tanned|sunburn\w*|weathered|leathery|ruddy|red-faced)\b/) ? 2 : choose([0, 1, 1, 2, 2, 3, 4, 1], 31);
+    const f = { skin: FACE_SKIN[skin], hair: FACE_HAIR[hair] || FACE_HAIR.dark, style, hat: has(/\b(cap|ball cap|hat|stetson|beanie|visor|bandana)\b/), glasses: has(/\b(glasses|spectacles|bifocals)\b/),
+      beard: !she && has(/\b(beard|bearded|goatee|whiskers|stubble|stubbled)\b/), moustache: !she && has(/\b(mustache|moustache)\b/), shirt: choose(FACE_SHIRT, 47), old: age !== null && age >= 55, hue: (hash(n.id, 0) % 6) + 1 };
+    faceCache.set(key, f);
+    return f;
+  }
+  /* mood: 'even', 'warm', 'cold' or 'asleep' (the night: eyes shut). */
+  function faceNode(n, mood) {
+    const f = faceTraits(n);
+    const m = mood || 'even';
+    const ink = '#2a201a';
+    const shade = 'rgba(40, 20, 10, .22)';
+    const kids = [];
+    const add = (tag, attrs) => kids.push(sv(tag, attrs));
+    add('rect', { class: 'face-bg', x: 0, y: 0, width: 48, height: 48 });
+    if (f.style === 'long') add('path', { d: 'M12.5 21 C11 7 37 7 35.5 21 L37 39 L11 39 Z', fill: f.hair });
+    else if (f.style === 'bob') add('path', { d: 'M13 21 C11.5 7.5 36.5 7.5 35 21 L35.5 30.5 L12.5 30.5 Z', fill: f.hair });
+    else if (f.style === 'pony') add('path', { d: 'M32 12 C40 14 40.5 27 36.5 33 C36.5 26 35.5 20 31.5 16.5 Z', fill: f.hair });
+    else if (f.style === 'bun') add('circle', { cx: 24, cy: 7.6, r: 4, fill: f.hair });
+    else if (f.style === 'curly') for (const [cx, cy] of [[13.5, 19], [34.5, 19], [13, 24.5], [35, 24.5]]) add('circle', { cx, cy, r: 3.6, fill: f.hair });
+    add('path', { d: 'M5 48 C5 38.5 13.5 34.5 24 34.5 C34.5 34.5 43 38.5 43 48 Z', fill: f.shirt });
+    add('path', { d: 'M20 30 H28 V35.5 C28 38 20 38 20 35.5 Z', fill: f.skin });
+    add('path', { d: 'M20 31.5 H28 V33.5 C26 35 22 35 20 33.5 Z', fill: shade });
+    add('circle', { cx: 14.6, cy: 22.5, r: 2, fill: f.skin });
+    add('circle', { cx: 33.4, cy: 22.5, r: 2, fill: f.skin });
+    add('ellipse', { cx: 24, cy: 21.5, rx: 9.4, ry: 11.2, fill: f.skin });
+    if (f.style === 'bald') { if (f.old) { add('path', { d: 'M14.6 20 C14 17.5 15 15.5 16 14.5 C15.6 17 15.6 19 15.8 21 Z', fill: f.hair }); add('path', { d: 'M33.4 20 C34 17.5 33 15.5 32 14.5 C32.4 17 32.4 19 32.2 21 Z', fill: f.hair }); } }
+    else if (f.style === 'buzz') add('path', { d: 'M14.8 19 C14.5 9.5 33.5 9.5 33.2 19 C31 13.5 17 13.5 14.8 19 Z', fill: f.hair, opacity: .8 });
+    else if (f.style === 'curly') for (const [cx, cy] of [[16, 14.5], [19.8, 11.6], [24, 10.6], [28.2, 11.6], [32, 14.5]]) add('circle', { cx, cy, r: 3.7, fill: f.hair });
+    else add('path', { d: f.style === 'short' ? 'M14.4 20.5 C13 8.5 35 8.5 33.6 20.5 C32 14.5 27 12.8 22 13.6 C18.5 14.2 15.8 16.5 14.4 20.5 Z' : 'M14.4 21 C12.6 8 35.4 8 33.6 21 C32.5 15.5 28 13 24 13.4 C20 13 15.5 15.5 14.4 21 Z', fill: f.hair });
+    if (f.hat) { add('path', { d: 'M13.6 16.5 C13.5 6.5 34.5 6.5 34.4 16.5 Z', fill: f.shirt }); add('path', { d: 'M12 16.2 H39.5 C40.5 16.2 40.5 18.6 39.5 18.6 H12 Z', fill: f.shirt }); }
+    if (f.beard) add('path', { d: 'M15.4 24 C16 33.5 20 35.6 24 35.6 C28 35.6 32 33.5 32.6 24 C30.5 28 27.5 28.6 24 28.6 C20.5 28.6 17.5 28 15.4 24 Z', fill: f.hair, opacity: .92 });
+    if (f.moustache || f.beard) add('path', { d: 'M20 27.2 C21.5 25.8 23 26 24 26.6 C25 26 26.5 25.8 28 27.2 C26.5 27.8 25 27.6 24 27.4 C23 27.6 21.5 27.8 20 27.2 Z', fill: f.hair });
+    if (f.old) { add('path', { d: 'M18 24.2 Q19.6 25 21.2 24.4', stroke: shade, 'stroke-width': .7, fill: 'none' }); add('path', { d: 'M26.8 24.4 Q28.4 25 30 24.2', stroke: shade, 'stroke-width': .7, fill: 'none' }); }
+    if (m === 'asleep') { add('path', { d: 'M18.6 21.8 H21.8', stroke: ink, 'stroke-width': 1.1, 'stroke-linecap': 'round' }); add('path', { d: 'M26.2 21.8 H29.4', stroke: ink, 'stroke-width': 1.1, 'stroke-linecap': 'round' }); }
+    else if (m === 'warm') { add('path', { d: 'M18.6 21.9 Q20.2 20.3 21.8 21.9', stroke: ink, 'stroke-width': 1.1, fill: 'none', 'stroke-linecap': 'round' }); add('path', { d: 'M26.2 21.9 Q27.8 20.3 29.4 21.9', stroke: ink, 'stroke-width': 1.1, fill: 'none', 'stroke-linecap': 'round' }); }
+    else { add('circle', { cx: 20.2, cy: 21.6, r: 1.15, fill: ink }); add('circle', { cx: 27.8, cy: 21.6, r: 1.15, fill: ink }); }
+    const brow = m === 'cold' ? ['M18 18.2 L22 19.4', 'M30 18.2 L26 19.4'] : ['M18.2 18.6 H22', 'M26 18.6 H29.8'];
+    for (const dd of brow) add('path', { d: dd, stroke: f.style === 'bald' && !f.old ? ink : f.hair, 'stroke-width': 1, fill: 'none', 'stroke-linecap': 'round', opacity: .9 });
+    if (f.glasses) { add('circle', { cx: 20.2, cy: 21.8, r: 3.1, stroke: ink, 'stroke-width': .8, fill: 'rgba(255,255,255,.12)' }); add('circle', { cx: 27.8, cy: 21.8, r: 3.1, stroke: ink, 'stroke-width': .8, fill: 'rgba(255,255,255,.12)' }); add('path', { d: 'M23.3 21.6 H24.7', stroke: ink, 'stroke-width': .8 }); }
+    if (!f.beard) add('path', { d: m === 'warm' ? 'M20.4 27.4 Q24 31 27.6 27.4' : m === 'cold' ? 'M21 29.2 Q24 27.4 27 29.2' : 'M21 28.4 Q24 29.2 27 28.4', stroke: ink, 'stroke-width': 1.05, fill: 'none', 'stroke-linecap': 'round' });
+    return sv('svg', { class: 'face', viewBox: '0 0 48 48', 'aria-hidden': 'true', focusable: 'false', dataset: { hue: String(f.hue), mood: m } }, kids);
+  }
+  // The player's own face: a plain one of their own (never one of the town's).
+  const YOU_FACE = { id: 'you', age: 34, pronouns: 'they', look: 'short dark hair' };
+
+  // ----- the rules (the code's alone) -----
+  let state = null;
+  const P = id => (state ? state.players.find(p => p.id === id) : null) || null;
+  const alive = () => state.players.filter(p => p.alive);
+  const you = () => state.players.find(p => p.you);
+  const isKnife = p => p.role === 'knife';
+  const firstOf = p => p.first;
+  /* Who has won, from who is still in: 'town' when no Knife is left,
+     'knives' when they are at least as many as everyone else, else null. */
+  function winner(players) {
+    const live = players.filter(p => p.alive);
+    const k = live.filter(isKnife).length;
+    if (k === 0) return 'town';
+    if (k >= live.length - k) return 'knives';
+    return null;
+  }
+  /* Deal a table: the player and size - 1 of the town, the roles by size
+     (SIZES), the player's as asked when it can be given. Seeded. */
+  function deal(opts) {
+    const size = SIZES[opts.size] ? opts.size : 8;
+    const s = { v: 1, seed: (opts.seed >>> 0) || 1, rng: (opts.seed >>> 0) || 1, size, mode: opts.mode === 'claude' ? 'claude' : 'demo', model: MODELS.includes(opts.model) ? opts.model : MODELS[0],
+      day: 1, phase: 'role', beat: 0, log: [], heat: {}, night: null, last: null, winner: null, usage: { calls: 0, cost: 0, failed: 0 }, pending: [] };
+    const name = cleanText(opts.name, 20) || 'Stranger';
+    const taken = name.toLowerCase().split(/\s+/)[0];
+    const pool = shuffle(s, CAST.filter(c => c.name.split(/\s+/)[0].toLowerCase() !== taken)).slice(0, size - 1);
+    const roles = [];
+    for (const r of ['knife', 'witness', 'watch']) for (let i = 0; i < SIZES[size][r]; i++) roles.push(r);
+    while (roles.length < size) roles.push('town');
+    let order = shuffle(s, roles);
+    const want = ['town', 'knife', 'witness', 'watch'].includes(opts.role) && roles.includes(opts.role) ? opts.role : null;
+    if (want) { const at = order.indexOf(want); [order[0], order[at]] = [order[at], order[0]]; }
+    const mem = () => ({ sus: {}, note: '', suspect: null, trust: null, checks: [], lastGuard: null, claimed: false, accusedBy: null, spoke: 0 });
+    s.players = [{ id: 'you', name, first: name.split(/\s+/)[0], you: true, role: order[0], alive: true, out: null, mark: null, mem: mem() }]
+      .concat(pool.map((c, i) => ({ id: c.id, name: c.name, first: c.name.split(/\s+/)[0], you: false, role: order[i + 1], alive: true, out: null, mark: null, mem: mem() })));
+    for (const p of s.players) if (!p.you) for (const q of s.players) if (q !== p) p.mem.sus[q.id] = Math.round(rnd(s) * 10) / 10;
+    return s;
+  }
+  // What the player knows of someone's role: their own, a fellow Knife, a Witness's findings, anyone out; else null.
+  function known(p) {
+    const me = you();
+    // Out of the game, the player sees every role (they can no longer use it).
+    if (!p.alive || state.phase === 'over' || p.you || !me.alive) return p.role;
+    if (isKnife(me) && isKnife(p)) return 'knife';
+    const c = me.mem.checks.find(x => x.id === p.id);
+    return c ? (c.knife ? 'knife' : 'clean') : null;
+  }
+  const roleWord = r => (r === 'clean' ? 'Not a Knife' : ROLE[r] ? ROLE[r].name : '');
+  function putOut(p, how) { p.alive = false; p.out = { how, day: state.day }; }
+
+  // ----- the public record -----
+  function say(who, text, kind) { const e = { t: 'say', who, text: cleanText(text, 600), day: state.day, kind: kind || 'talk' }; state.log.push(e); UI.logEntry(e); return e; }
+  /* A line of the game's own. rec: the same line as the record gives it to a seat (the player by name, never "You"). */
+  function sys(text, kind, priv, rec) { const e = { t: 'sys', text, day: state.day, kind: kind || 'sys', priv: priv === true }; if (rec) e.rec = rec; state.log.push(e); UI.logEntry(e); return e; }
+  /* The record as a seat is given it: everything public, in order (never a
+     private line, never a whisper among the Knives). */
+  function recordText(upToDay) {
+    const out = [];
+    for (const e of state.log) {
+      if (e.priv || e.kind === 'whisper' || e.kind === 'notice') continue;
+      if (upToDay !== undefined && e.day > upToDay) continue;
+      if (e.t === 'sys') out.push(e.kind === 'day' ? `\n== ${e.text.toUpperCase()} ==` : (e.rec || e.text));
+      else { const p = P(e.who); out.push(`${p ? p.first : e.who}${e.kind === 'vote' ? ' (voting)' : ''}: "${e.text}"`); }
+    }
+    return out.join('\n').trim();
+  }
+
+  // ----- reading a line (who it is about, and how) -----
+  const VOUCH_RE = /\b(trust|vouch|clean|innocent|believe (?:him|her|them|you)|not (?:a |the )?knife|isn'?t (?:a |the )?knife|with (?:him|her|them) on)\b/i;
+  const ACCUSE_RE = /\b(knife|lying|liar|lied|lies|suspect|suspicious|don'?t trust|do not trust|not buying|hiding|vote (?:for|out)?|put (?:him|her|them) out|it'?s (?:you|him|her|them)|it was (?:you|him|her|them)|guilty|shifty|off about)\b/i;
+  function mentioned(text, speakerId) {
+    const t = String(text || '');
+    const hits = [];
+    for (const p of state.players) {
+      if (p.id === speakerId) continue;
+      const m = new RegExp(`\\b${p.first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').exec(t);
+      if (m) hits.push({ p, at: m.index });
+    }
+    return hits.sort((a, b) => a.at - b.at).map(h => h.p);
+  }
+  /* { aim: a player or null, stance: 'accuse' | 'vouch' | 'question' | 'other' } from the words. */
+  function readLine(text, speakerId) {
+    const who = mentioned(text, speakerId);
+    if (!who.length) return { aim: null, stance: 'other' };
+    const stance = VOUCH_RE.test(text) && !/\b(don'?t|do not|can'?t|cannot|never) (trust|believe|vouch)/i.test(text) ? 'vouch' : ACCUSE_RE.test(text) ? 'accuse' : /\?/.test(text) ? 'question' : 'other';
+    return { aim: who[0], stance };
+  }
+  /* What a line said aloud does to the table (the heat, the scripted seats'
+     suspicions, who is owed an answer). */
+  function heard(speaker, aim, stance) {
+    if (!aim || !aim.alive || aim === speaker) return;
+    if (stance === 'accuse') {
+      state.heat[aim.id] = (state.heat[aim.id] || 0) + 1;
+      for (const l of alive()) {
+        if (l.you || l === speaker) continue;
+        if (l === aim) { l.mem.sus[speaker.id] = (l.mem.sus[speaker.id] || 0) + 2; l.mem.accusedBy = speaker.id; }
+        else if (!isKnife(l)) l.mem.sus[aim.id] = (l.mem.sus[aim.id] || 0) + ((l.mem.sus[speaker.id] || 0) > 3 ? 0.3 : 1);
+      }
+    } else if (stance === 'vouch') {
+      for (const l of alive()) if (!l.you && l !== speaker && l !== aim && !isKnife(l)) l.mem.sus[aim.id] = (l.mem.sus[aim.id] || 0) - 0.5;
+    }
+    if (!aim.you && (stance === 'accuse' || stance === 'question') && !state.pending.includes(aim.id)) state.pending.push(aim.id);
+  }
+
+  // ----- the scripted table (the offline demo, and a seat whose call failed) -----
+  const TICS = ['Look,', 'Listen,', 'Well,', "I'll say it plain:", 'Honestly?', 'Now hold on.', 'Tell you what.', 'Hm.'];
+  const Bots = {
+    top(p, filter) {
+      let best = null;
+      for (const q of alive()) {
+        if (q === p || (filter && !filter(q))) continue;
+        const v = (p.mem.sus[q.id] || 0) + (state.heat[q.id] || 0) * (isKnife(p) ? 1 : 0.25);
+        if (!best || v > best.v) best = { q, v };
+      }
+      return best;
+    },
+    // Who a scripted seat wants out: a Witness the Knife they found; a Knife whoever of the Town is hottest; Town their worst suspicion.
+    target(p) {
+      if (p.role === 'witness') { const c = p.mem.checks.find(x => x.knife && P(x.id).alive); if (c) return P(c.id); }
+      const clean = new Set(p.mem.checks.filter(x => !x.knife).map(x => x.id));
+      const b = isKnife(p) ? Bots.top(p, q => !isKnife(q)) : Bots.top(p, q => !clean.has(q.id));
+      return b ? b.q : null;
+    },
+    say(p) {
+      const tic = TICS[hash(p.id, state.log.length) % TICS.length];
+      const t = Bots.target(p);
+      const found = p.role === 'witness' ? p.mem.checks.find(x => x.knife && P(x.id).alive) : null;
+      if (found && !p.mem.claimed) {
+        p.mem.claimed = true;
+        return { text: `${tic} I'm the Witness. I looked at ${P(found.id).first} in the night. ${P(found.id).first} is a Knife.`, aim: P(found.id), stance: 'accuse', weight: 4 };
+      }
+      const by = p.mem.accusedBy ? P(p.mem.accusedBy) : null;
+      if (by && by.alive) {
+        p.mem.accusedBy = null;
+        if (!t || t === by) return { text: pick(state, [`It isn't me, ${by.first}. You're very sure, for somebody guessing.`, `${by.first}, you're wrong about me, and I'd like to know why you want me gone.`, `Easy thing to say, ${by.first}. I've done nothing but sit here.`]), aim: by, stance: 'accuse' };
+        return { text: pick(state, [`It isn't me, ${by.first}. If you want a name, look at ${t.first}.`, `${by.first}, you're wrong about me. ${t.first} is the one I'd watch.`, `Easy thing to say, ${by.first}. I've done nothing but sit here. Ask ${t.first} where they were.`]), aim: t, stance: 'accuse' };
+      }
+      if (t && ((p.mem.sus[t.id] || 0) + (state.heat[t.id] || 0) >= 1.6 || rnd(state) < 0.5)) {
+        const votedFor = state.lastVotes && state.lastVotes[t.id] ? P(state.lastVotes[t.id]) : null;
+        const why = votedFor && !votedFor.alive && !isKnife(votedFor) ? `${t.first} voted to put ${votedFor.first} out, and ${votedFor.first} was Town.` : pick(state, [`${t.first} has said the least and watched the most.`, `${t.first} was quick to point at somebody else.`, `Something in how ${t.first} tells it doesn't sit right.`, `${t.first} keeps changing who it is.`]);
+        // A reason the table has heard today is not said again word for word.
+        if (state.log.some(e => e.t === 'say' && e.day === state.day && e.text.includes(why))) return { text: pick(state, [`I'm with that. ${t.first}.`, `Same here: ${t.first}, until somebody gives me a reason not to.`, `${t.first}, what do you say to that?`]), aim: t, stance: 'accuse' };
+        return { text: `${tic} ${why} My vote's on ${t.first} unless I hear better.`, aim: t, stance: 'accuse' };
+      }
+      const quiet = alive().filter(q => q !== p).sort((a, b) => (a.mem.spoke || 0) - (b.mem.spoke || 0))[0];
+      return { text: pick(state, [`${quiet.first}, you've been quiet. Who do you make it?`, `${quiet.first}, say something. Who is it?`, `I want to hear from ${quiet.first} before anybody votes.`]), aim: quiet, stance: 'question' };
+    },
+    vote(p) {
+      const t = Bots.target(p) || pick(state, alive().filter(q => q !== p));
+      return { vote: t, text: pick(state, [`${t.first}.`, `I'm voting ${t.first}.`, `${t.first}. I've said why.`, `It's ${t.first} for me.`]) };
+    },
+    // Who the Knives take: someone who has claimed to be the Witness, else whoever suspects a Knife hardest, else anyone.
+    kill() {
+      const knives = alive().filter(isKnife);
+      const prey = alive().filter(q => !isKnife(q));
+      if (!prey.length) return null;
+      const claimed = prey.find(q => q.mem.claimed);
+      if (claimed) return claimed;
+      let best = null;
+      for (const q of prey) { const v = q.you ? 1 : Math.max(...knives.map(k => q.mem.sus[k.id] || 0)); if (!best || v > best.v) best = { q, v }; }
+      return best && best.v > 1.5 ? best.q : pick(state, prey);
+    },
+    check(p) {
+      const done = new Set(p.mem.checks.map(x => x.id));
+      const open = alive().filter(q => q !== p && !done.has(q.id));
+      if (!open.length) return null;
+      const s = p.mem.suspect ? P(p.mem.suspect) : null;
+      if (s && open.includes(s)) return s;
+      return open.sort((a, b) => (p.mem.sus[b.id] || 0) - (p.mem.sus[a.id] || 0))[0];
+    },
+    guard(p) {
+      const open = alive().filter(q => q.id !== p.mem.lastGuard);
+      const claimed = open.find(q => q.mem.claimed && !isKnife(q));
+      if (claimed) return claimed;
+      const t = p.mem.trust ? P(p.mem.trust) : null;
+      if (t && open.includes(t)) return t;
+      return open.sort((a, b) => (p.mem.sus[a.id] || 0) - (p.mem.sus[b.id] || 0))[0] || null;
+    }
+  };
+
+  // ----- Claude at each seat -----
+  const nullable = t => ({ anyOf: [{ type: t }, { type: 'null' }] });
+  const SCHEMAS = {
+    say: { type: 'object', additionalProperties: false, required: ['say', 'about', 'stance', 'suspect', 'trust', 'note'], properties: {
+      say: { type: 'string', description: 'What you say aloud, in your own voice: one to three sentences of spoken words only.' },
+      about: Object.assign({ description: 'The first name of the one person your words are aimed at or about, or null.' }, nullable('string')),
+      stance: { type: 'string', enum: ['accuse', 'vouch', 'question', 'defend', 'claim', 'other'] },
+      suspect: Object.assign({ description: 'The first name of who you most want put out next (your real aim, not necessarily what you said), or null.' }, nullable('string')),
+      trust: Object.assign({ description: 'The first name of who you most believe is on your side, or null.' }, nullable('string')),
+      note: { type: 'string', description: 'A private memo to yourself for later, under 40 words: your reads and your plan.' } } },
+    vote: { type: 'object', additionalProperties: false, required: ['vote', 'say', 'note'], properties: {
+      vote: { type: 'string', description: 'The first name of the one person you vote to put out. Someone still in, not yourself.' },
+      say: { type: 'string', description: 'One short sentence said aloud as you vote.' }, note: { type: 'string', description: 'A private memo to yourself, under 40 words.' } } },
+    kill: { type: 'object', additionalProperties: false, required: ['take', 'note'], properties: {
+      take: { type: 'string', description: 'The first name of the one person the Knives take tonight. Someone still in who is not a Knife.' }, note: { type: 'string', description: 'A private memo to yourself, under 40 words.' } } },
+    whisper: { type: 'object', additionalProperties: false, required: ['take', 'say'], properties: {
+      take: { type: 'string', description: 'The first name of who you would take tonight. Someone still in who is not a Knife.' }, say: { type: 'string', description: 'One or two sentences whispered to your fellow Knife: who and why.' } } }
+  };
+  const Prompts = {
+    system() {
+      const n = state.players.length;
+      const c = SIZES[state.size];
+      const seats = state.players.map(p => {
+        if (p.you) return `- ${p.name}: a stranger who came in off the highway tonight. Nobody here knows them.`;
+        const k = castOf(p.id) || {};
+        return `- ${p.name} (${k.age}, ${k.role}). Voice: ${k.voice} Manner: ${(k.personality || []).join(', ')}.`;
+      }).join('\n');
+      return [
+        'You are playing one seat at a table in "Last Call", a hidden-role game of deduction and lying. It is set in the Low Water, a bar in Lockett\'s Ferry, a small river town. The river is over the road, the bridge is shut, and nobody leaves until it drops.',
+        '',
+        'THE GAME',
+        `- ${n} people sat down. ${c.knife === 1 ? 'One of them is secretly a Knife' : `${capFirst(['', 'one', 'two', 'three'][c.knife])} of them are secretly Knives, who know each other`}. Everyone else is Town. One of the Town is the Witness${c.watch ? ', and one is the Watch' : ''}.`,
+        `- Each night the Knives take one person out of the game. The Witness learns whether one person of their choosing is a Knife.${c.watch ? ' The Watch guards one person (never the same one two nights running); a guarded person survives the night.' : ''}`,
+        '- Each day everyone still in talks, then votes. Whoever has the most votes is put out; a tie puts nobody out. The role of anyone put out, by vote or in the night, is shown to all.',
+        '- Town wins when every Knife is out. The Knives win when they are at least as many as everyone else still in.',
+        '',
+        'HOW TO PLAY YOUR SEAT',
+        '- You are one person at this table. You know only the public record, your own role, and what your private notes below say. Play to win for your side, and play it as this person would.',
+        '- If you are Town: work out who is lying. Reason from the votes, who accused whom, who defended whom, who went in the night and what that person had been saying, and what has been claimed. Hold a view and say why; change it when the evidence changes. Do not follow the table without a reason of your own.',
+        '- If you are a Knife: never admit it. Keep a story and stick to it. Put doubt on Town players with reasons that sound real. Do not defend a fellow Knife so hard that it marks you. You may claim a role you do not hold.',
+        '- If you are the Witness: what you know wins games and gets you taken in the night. Decide when to say it.',
+        '- Anyone can lie about their role, the stranger included. Weigh every claim.',
+        '',
+        'HOW TO SPEAK',
+        '- Spoken words only, in this person\'s own voice: one to three short sentences. No narration, no stage directions, no asterisks, no name before your words.',
+        '- Move the game: an accusation with its reason, a defence, a question put to one person by first name, a claim, a read on a vote. Do not repeat what was just said, and do not explain the rules.',
+        '',
+        'THE TABLE',
+        seats
+      ].join('\n');
+    },
+    // What only this seat knows.
+    secret(p) {
+      const lines = [`YOUR SEAT: ${p.name}.`];
+      if (isKnife(p)) {
+        const mates = state.players.filter(q => isKnife(q) && q !== p);
+        lines.push(`YOUR SECRET ROLE: Knife.${mates.length ? ` Your fellow ${mates.length > 1 ? 'Knives' : 'Knife'}: ${andList(mates.map(q => `${q.name}${q.alive ? '' : ' (out)'}`))}.` : ' You are the only Knife.'}`);
+        const taken = state.log.filter(e => e.kind === 'death' && e.victim).map(e => P(e.victim).first);
+        if (taken.length) lines.push(`The Knives took: ${taken.join(', ')}.`);
+      } else if (p.role === 'witness') {
+        lines.push('YOUR SECRET ROLE: Witness (Town).');
+        lines.push(p.mem.checks.length ? `What you have learned in the night: ${p.mem.checks.map(c => `${P(c.id).name} is ${c.knife ? 'a Knife' : 'not a Knife'} (night ${c.night})`).join('; ')}.` : 'You have not looked at anyone yet.');
+      } else if (p.role === 'watch') {
+        lines.push('YOUR SECRET ROLE: Watch (Town).');
+        if (p.mem.lastGuard) lines.push(`Last night you guarded ${P(p.mem.lastGuard).name}.`);
+      } else lines.push('YOUR SECRET ROLE: Town. You have no power but your judgement and your vote.');
+      if (p.mem.note) lines.push(`YOUR OWN PRIVATE NOTES FROM EARLIER: ${p.mem.note}`);
+      return lines.join('\n');
+    },
+    stillIn() { return `STILL IN: ${alive().map(q => q.first).join(', ')}.`; },
+    /* The user content of a call for a seat: the record up to yesterday (a
+       cache breakpoint: every seat's call today shares it), then today's
+       record with this seat's secret and its task. */
+    blocks(p, task) {
+      const before = recordText(state.day - 1);
+      const today = recordText().slice(before.length).trim();
+      const out = [];
+      if (before) out.push({ type: 'text', text: `THE RECORD SO FAR\n${before}`, cache_control: { type: 'ephemeral' } });
+      out.push({ type: 'text', text: `${before ? 'TODAY SO FAR' : 'THE RECORD SO FAR'}\n${today || '(nothing yet)'}\n\n${Prompts.stillIn()}\n\n${Prompts.secret(p)}\n\n${task}` });
+      return out;
+    },
+    task: {
+      say(p, why) { return `NOW: day ${state.day}, the table is talking (round ${state.beat + 1} of ${MAX_BEATS} before the vote).${why ? ` ${why}` : ''} It is your turn to speak.`; },
+      vote(p) { return `NOW: day ${state.day}, the vote. Everyone votes at once, so you do not know how the others vote. Name the one person still in that you vote to put out (not yourself), and one short sentence you say as you do.`; },
+      kill(p) { return `NOW: night ${state.day}. You decide for the Knives who is taken tonight. Choose the one person still in, not a Knife, whose going helps the Knives most.`; },
+      whisper(p, mate) { return `NOW: night ${state.day}. ${mate.name} is your fellow Knife and decides tonight. Whisper to them who you would take, and why, in one or two sentences.`; }
+    }
+  };
+  const settings = { key: '', model: MODELS[0], name: '' };
+  function apiKey() { return settings.key || session.get(TOWN_KEY) || store.get(TOWN_KEY) || ''; }
+  function addUsage(u, model) {
+    const pr = PRICES[model] || PRICES[MODELS[0]];
+    const inp = (u.input_tokens | 0) + (u.cache_creation_input_tokens | 0) * 1.25 + (u.cache_read_input_tokens | 0) * 0.1;
+    state.usage.calls += 1;
+    state.usage.cost += (inp * pr[0] + (u.output_tokens | 0) * pr[1]) / 1e6;
+  }
+  /* One call for one seat. Returns the parsed JSON, or throws { type }:
+     'no_key', 'auth', 'refusal', 'bad_json', 'http', 'network'. No sampling
+     parameters, no tools, no prefill: the reply's shape comes from
+     output_config.format. */
+  async function callClaude(p, kind, task) {
+    const key = apiKey();
+    if (!key) throw Object.assign(new Error('no API key'), { type: 'no_key' });
+    const body = {
+      model: state.model, max_tokens: 3000,
+      system: [{ type: 'text', text: Prompts.system(), cache_control: { type: 'ephemeral' } }],
+      messages: [{ role: 'user', content: Prompts.blocks(p, task) }],
+      output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMAS[kind] } }
+    };
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 90000);
+    let res;
+    try {
+      res = await fetch(ENDPOINT, { method: 'POST', signal: ctl.signal, body: JSON.stringify(body),
+        headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': API_VERSION, 'anthropic-dangerous-direct-browser-access': 'true' } });
+    } catch (e) { throw Object.assign(new Error('could not reach the API'), { type: 'network' }); } finally { clearTimeout(timer); }
+    let data = null;
+    try { data = await res.json(); } catch (e) { data = null; }
+    if (!res.ok) throw Object.assign(new Error((data && data.error && data.error.message) || `HTTP ${res.status}`), { type: res.status === 401 || res.status === 403 ? 'auth' : 'http', status: res.status });
+    if (isObj(data) && isObj(data.usage)) addUsage(data.usage, state.model);
+    if (!isObj(data) || data.stop_reason === 'refusal') throw Object.assign(new Error('the model declined'), { type: 'refusal' });
+    const text = (Array.isArray(data.content) ? data.content : []).filter(b => isObj(b) && b.type === 'text').map(b => b.text).join('');
+    try { const out = JSON.parse(text); if (!isObj(out)) throw new Error('not an object'); return out; } catch (e) { throw Object.assign(new Error('the reply was not the JSON asked for'), { type: 'bad_json' }); }
+  }
+  // A name a seat gave, as a player still in (by first or full name), or null.
+  function named(name, opts) {
+    const t = cleanText(name, 60).toLowerCase();
+    if (!t) return null;
+    const pool = opts && opts.any ? state.players : alive();
+    return pool.find(q => q.name.toLowerCase() === t) || pool.find(q => q.first.toLowerCase() === t) || pool.find(q => t.split(/\s+/)[0] === q.first.toLowerCase()) || null;
+  }
+  let failNoted = false;
+  function failed(err) {
+    state.usage.failed += 1;
+    if (failNoted) return;
+    failNoted = true;
+    const why = err && err.type === 'no_key' ? 'There is no API key, so the table is playing from its script.' : err && err.type === 'auth' ? 'The API key was refused, so the table is playing from its script. Leave, check the key, and sit down again.'
+      : `A call to Claude failed (${cleanText((err && err.message) || 'unknown', 120)}), so that seat played from its script. The game goes on.`;
+    sys(why, 'notice', true);
+  }
+  const useClaude = () => state.mode === 'claude' && !App.fast;
+  /* What each seat does, by Claude when it can and by the script when it
+     cannot (the offline demo; a failed call; a skipped ending). */
+  const Seat = {
+    async say(p, why) {
+      if (useClaude()) {
+        try {
+          const r = await callClaude(p, 'say', Prompts.task.say(p, why));
+          const text = cleanText(r.say, 600);
+          if (!text) throw Object.assign(new Error('an empty line'), { type: 'bad_json' });
+          p.mem.note = cleanText(r.note, 300);
+          const s = named(r.suspect); const t = named(r.trust);
+          if (s && s !== p) { p.mem.suspect = s.id; p.mem.sus[s.id] = Math.max(p.mem.sus[s.id] || 0, 3); }
+          if (t && t !== p) p.mem.trust = t.id;
+          const aim = named(r.about, { any: true });
+          const stance = ['accuse', 'vouch', 'question'].includes(r.stance) ? r.stance : 'other';
+          if (r.stance === 'claim' && /witness/i.test(text)) p.mem.claimed = true;
+          return { text, aim: aim && aim !== p ? aim : readLine(text, p.id).aim, stance: aim ? stance : readLine(text, p.id).stance };
+        } catch (e) { failed(e); }
+      }
+      return Bots.say(p);
+    },
+    async vote(p) {
+      if (useClaude()) {
+        try {
+          const r = await callClaude(p, 'vote', Prompts.task.vote(p));
+          const t = named(r.vote);
+          if (!t || t === p) throw Object.assign(new Error('no valid vote'), { type: 'bad_json' });
+          if (r.note) p.mem.note = cleanText(r.note, 300);
+          return { vote: t, text: cleanText(r.say, 200) || `${t.first}.` };
+        } catch (e) { failed(e); }
+      }
+      return Bots.vote(p);
+    },
+    async kill() {
+      const lead = alive().find(q => isKnife(q) && !q.you);
+      if (lead && useClaude()) {
+        try {
+          const r = await callClaude(lead, 'kill', Prompts.task.kill(lead));
+          const t = named(r.take);
+          if (!t || isKnife(t)) throw Object.assign(new Error('no valid choice'), { type: 'bad_json' });
+          if (r.note) lead.mem.note = cleanText(r.note, 300);
+          return t;
+        } catch (e) { failed(e); }
+      }
+      return Bots.kill();
+    },
+    async whisper(mate) {
+      if (useClaude()) {
+        try {
+          const r = await callClaude(mate, 'whisper', Prompts.task.whisper(mate, you()));
+          const t = named(r.take);
+          if (!t || isKnife(t)) throw Object.assign(new Error('no valid choice'), { type: 'bad_json' });
+          return { take: t, text: cleanText(r.say, 300) || `${t.first}.` };
+        } catch (e) { failed(e); }
+      }
+      const t = Bots.kill();
+      return { take: t, text: t ? pick(state, [`${t.first}. They're the one who'll work it out.`, `I'd take ${t.first} tonight. Too sharp by half.`, `${t.first}, before they talk the rest round.`]) : '' };
+    }
+  };
+
+  // ----- the game's flow -----
+  let busy = false;
+  const wait = ms => (App.speed > 0 && !App.fast ? new Promise(r => setTimeout(r, ms * App.speed)) : Promise.resolve());
+  function save() { if (state) store.set(SAVE_KEY, JSON.stringify(state)); }
+  async function locked(fn) {
+    if (busy) return;
+    busy = true;
+    UI.render();
+    try { await fn(); } catch (e) { console.error(e); sys(`Something went wrong (${cleanText(e && e.message, 120)}). The table is as it was.`, 'notice', true); } finally { busy = false; UI.setBusy(''); if (state) { save(); UI.render(); } }
+  }
+  function finish() {
+    const w = winner(state.players);
+    if (!w) return false;
+    state.winner = w;
+    state.phase = 'over';
+    const knives = state.players.filter(isKnife).map(p => p.name);
+    sys(w === 'town' ? `Town wins. Every Knife is out: ${andList(knives)}.` : `The Knives win: ${andList(knives)}. There are as many of them left as everyone else.`, 'end');
+    UI.rebuildLog();
+    return true;
+  }
+  function startNight() {
+    state.phase = 'night';
+    state.beat = 0;
+    state.pending = [];
+    state.night = { whisper: null };
+    sys(`Night ${state.day}`, 'day');
+    UI.sel = null;
+  }
+  /* The night resolved: the Knives' choice (the player's, when they are a
+     Knife still in), the Witness's look, the Watch's guard, then the
+     morning. pickId: the player's own night choice, or null. */
+  async function resolveNight(pickId) {
+    const me = you();
+    UI.setBusy('The night passes…');
+    const chosen = pickId ? P(pickId) : null;
+    let victim = me.alive && isKnife(me) ? chosen : await Seat.kill();
+    await wait(500);
+    for (const w of alive().filter(p => p.role === 'witness')) {
+      const t = w.you ? chosen : Bots.check(w);
+      if (!t) continue;
+      w.mem.checks.push({ id: t.id, knife: isKnife(t), night: state.day });
+      if (w.you) sys(`You watched ${t.name} in the night. ${t.first} is ${isKnife(t) ? 'a Knife' : 'not a Knife'}.`, 'private', true);
+      else if (isKnife(t)) w.mem.sus[t.id] = 99; else w.mem.sus[t.id] = -99;
+    }
+    let guarded = null;
+    for (const w of alive().filter(p => p.role === 'watch')) {
+      const t = w.you ? chosen : Bots.guard(w);
+      if (!t) continue;
+      w.mem.lastGuard = t.id;
+      guarded = t;
+      if (w.you) sys(`You kept watch over ${t.you ? 'yourself' : t.name}.`, 'private', true);
+    }
+    if (victim && !victim.alive) victim = null;
+    const saved = !!victim && guarded === victim;
+    state.phase = 'talk';
+    sys(`Day ${state.day}`, 'day');
+    if (victim && !saved) {
+      putOut(victim, 'night');
+      const was = victim.role === 'town' ? 'Town' : `the ${ROLE[victim.role].name}`;
+      const e = sys(`Morning. ${victim.you ? 'You were' : `${victim.name} was`} taken in the night. ${victim.you ? 'You were' : `${victim.first} was`} ${was}.`, 'death', false, `Morning. ${victim.name} was taken in the night. ${victim.first} was ${was}.`);
+      e.victim = victim.id;
+      // Whoever the one taken had been pressing looks worse for it.
+      if (!victim.you && victim.mem.suspect && P(victim.mem.suspect)) for (const l of alive()) if (!l.you && !isKnife(l)) l.mem.sus[victim.mem.suspect] = (l.mem.sus[victim.mem.suspect] || 0) + 1;
+    } else sys(saved ? 'Morning. Someone came for one of you in the night and was turned away. Everyone is still here.' : 'Morning. Everyone is still here.', 'sys');
+    state.last = { victim: victim && !saved ? victim.id : null, saved };
+    if (finish()) return;
+    if (!me.alive && victim === me) sys('You are out, and you can see every role now. Watch it play out, or skip to the end.', 'notice', true);
+  }
+  // Who speaks this round: whoever is owed an answer first, then those who have said least.
+  function speakers() {
+    const live = alive().filter(p => !p.you);
+    const n = Math.min(live.length, live.length <= 4 ? 2 : 3);
+    const out = [];
+    for (const id of state.pending) { const p = P(id); if (p && p.alive && !p.you && !out.includes(p) && out.length < n) out.push(p); }
+    state.pending = [];
+    const rest = shuffle(state, live.filter(p => !out.includes(p))).sort((a, b) => (a.mem.spoke || 0) - (b.mem.spoke || 0));
+    while (out.length < n && rest.length) out.push(rest.shift());
+    return out;
+  }
+  /* One round of talk: the player's line (if any), then two or three of
+     the table, each hearing what came before. After the last round the
+     vote is called. */
+  async function runBeat(text) {
+    const me = you();
+    const line = cleanText(text, 400);
+    if (line && me.alive) {
+      say('you', line);
+      const r = readLine(line, 'you');
+      heard(me, r.aim, r.stance);
+      if (/\b(i am|i'm|im) (the )?witness\b/i.test(line)) me.mem.claimed = true;
+    }
+    for (const p of speakers()) {
+      if (!p.alive || state.phase !== 'talk') continue;
+      UI.speaking(p.id);
+      UI.setBusy(`${p.first} is thinking…`);
+      await wait(350);
+      const last = state.log[state.log.length - 1];
+      const why = p.mem.accusedBy && P(p.mem.accusedBy) ? `${P(p.mem.accusedBy).first} has just pointed at you.` : last && last.t === 'say' && last.who !== p.id && mentioned(last.text, last.who).includes(p) ? `${P(last.who).first} just spoke to you.` : '';
+      const r = await Seat.say(p, why);
+      p.mem.accusedBy = null;
+      p.mem.spoke = (p.mem.spoke || 0) + 1;
+      say(p.id, r.text);
+      heard(p, r.aim, r.stance);
+      if (r.weight && r.aim) { state.heat[r.aim.id] = (state.heat[r.aim.id] || 0) + r.weight; for (const l of alive()) if (!l.you && !isKnife(l) && l !== p) l.mem.sus[r.aim.id] = (l.mem.sus[r.aim.id] || 0) + r.weight; }
+      UI.speaking(null);
+      await wait(250);
+    }
+    state.beat += 1;
+    if (state.beat >= MAX_BEATS && state.phase === 'talk') { sys('That is enough talk. The table votes.', 'sys'); state.phase = 'vote'; UI.sel = null; }
+  }
+  /* The vote: everyone still in votes at once, the votes are shown one by
+     one, the most is put out (a tie puts out nobody), and night falls. */
+  async function runVote(pickId) {
+    const me = you();
+    UI.setBusy('The table is voting…');
+    const voters = alive();
+    const results = await Promise.all(voters.map(p => (p.you ? Promise.resolve({ vote: P(pickId), text: '' }) : Seat.vote(p))));
+    const tally = {};
+    const votes = {};
+    UI.tally = tally;
+    for (let i = 0; i < voters.length; i++) {
+      const p = voters[i];
+      const t = results[i].vote && results[i].vote.alive && results[i].vote !== p ? results[i].vote : pick(state, voters.filter(q => q !== p));
+      votes[p.id] = t.id;
+      tally[t.id] = (tally[t.id] || 0) + 1;
+      UI.speaking(p.id);
+      const e = say(p.id, p.you ? `I vote ${t.first}.` : `${results[i].text}`, 'vote');
+      e.vote = t.id;
+      UI.renderTable();
+      await wait(450);
+    }
+    UI.speaking(null);
+    state.lastVotes = votes;
+    for (const p of voters) if (!p.you) for (const q of voters) if (votes[q.id] === p.id && q !== p) p.mem.sus[q.id] = (p.mem.sus[q.id] || 0) + 1.5;
+    const top = Math.max(...Object.values(tally));
+    const tied = Object.keys(tally).filter(id => tally[id] === top);
+    const count = voters.map(p => `${p.first} voted ${P(votes[p.id]).first}`).join('; ');
+    if (tied.length > 1) sys(`The vote: ${count}. A tie between ${andList(tied.map(id => P(id).first))} (${top} each), so nobody is put out.`, 'sys');
+    else {
+      const out = P(tied[0]);
+      putOut(out, 'vote');
+      const was = out.role === 'town' ? 'Town' : out.role === 'knife' ? 'a Knife' : `the ${ROLE[out.role].name}`;
+      sys(`The vote: ${count}. ${out.you ? 'You are' : `${out.name} is`} put out with ${top} vote${top === 1 ? '' : 's'}. ${out.you ? 'You were' : `${out.first} was`} ${was}.`, 'banish', false, `The vote: ${count}. ${out.name} is put out with ${top} vote${top === 1 ? '' : 's'}. ${out.first} was ${was}.`);
+      // The scripted seats read the vote: who put out a Knife, who put out one of their own.
+      for (const l of alive()) {
+        if (l.you || isKnife(l)) continue;
+        for (const v of voters) { if (v === l || !v.alive) continue; const on = votes[v.id] === out.id; l.mem.sus[v.id] = (l.mem.sus[v.id] || 0) + (isKnife(out) ? (on ? -1 : 0.7) : (on ? 0.6 : 0)); }
+      }
+      state.heat = {};
+      if (out.you && !finishCheckOnly()) sys('You are out, and you can see every role now. Watch it play out, or skip to the end.', 'notice', true);
+    }
+    await wait(600);
+    UI.tally = null;
+    if (finish()) return;
+    state.day += 1;
+    startNight();
+    // A night with nothing for the player to do while they are out moves on by itself in a skipped ending.
+    void me;
+  }
+  function finishCheckOnly() { return !!winner(state.players); }
+
+  // ----- the page -----
+  const UI = {
+    sel: null, tally: null, speakingId: null, logCount: 0,
+    show(name) { for (const s of $$('.screen')) s.classList.toggle('active', s.id === `screen-${name}`); const h = $(name === 'home' ? '#home-title' : '#game-title'); if (h) h.focus({ preventScroll: true }); },
+    setBusy(text) { const b = $('#busy'); b.hidden = !text; $('#busy-text').textContent = text || ''; },
+    speaking(id) { UI.speakingId = id; for (const s of $$('.seat')) s.dataset.speaking = s.dataset.id === id ? '1' : '0'; },
+    roleTag(p) { const k = known(p); return k ? el('span', { class: 'seat-tag', dataset: { role: k } }, roleWord(k)) : el('span', { class: 'seat-tag' }, p.alive ? '' : 'Out'); },
+    logNode(e) {
+      if (e.t === 'sys') return el('p', { class: 'sys', dataset: { kind: e.kind } }, e.text);
+      const p = P(e.who);
+      const k = p && state.phase === 'over' ? p.role : null;
+      return el('div', { class: 'say', dataset: { you: p && p.you ? '1' : '0', kind: e.kind, who: e.who } },
+        el('span', { class: 'say-face' }, faceNode(p && !p.you ? castOf(p.id) : YOU_FACE)),
+        el('div', null, el('span', { class: 'say-who' }, p ? p.name : e.who, e.kind === 'whisper' ? el('span', { class: 'role' }, 'whispers') : null, k ? el('span', { class: 'role' }, roleWord(k)) : null), el('p', { class: 'say-text' }, e.text)));
+    },
+    logEntry(e) { const log = $('#log'); if (!log) return; log.append(UI.logNode(e)); UI.logCount += 1; const w = $('#log-wrap'); w.scrollTop = w.scrollHeight; },
+    rebuildLog() { const log = $('#log'); log.replaceChildren(...state.log.map(UI.logNode)); const w = $('#log-wrap'); w.scrollTop = w.scrollHeight; },
+    renderTable() {
+      const table = $('#table');
+      for (const s of $$('.seat', table)) s.remove();
+      const n = state.players.length;
+      const me = you();
+      const night = state.phase === 'night';
+      state.players.forEach((p, i) => {
+        const a = Math.PI / 2 + (2 * Math.PI * i) / n; // the player at the foot of the table, the rest round it
+        const x = 50 + 43 * Math.cos(a);
+        const y = 50 + 40 * Math.sin(a);
+        const k = known(p);
+        const mood = !p.alive ? 'even' : night && !p.you && !(isKnife(me) && isKnife(p)) ? 'asleep' : p.mark === 'sus' ? 'cold' : p.mark === 'trust' ? 'warm' : 'even';
+        const votes = UI.tally && UI.tally[p.id] ? UI.tally[p.id] : 0;
+        const label = `${p.name}${p.you ? ' (you)' : ''}${p.alive ? '' : ', out'}${k ? `, ${roleWord(k)}` : ''}${votes ? `, ${votes} vote${votes === 1 ? '' : 's'}` : ''}`;
+        const seat = el('button', { type: 'button', class: 'seat', 'aria-label': label, 'aria-pressed': String(UI.sel === p.id),
+          dataset: { id: p.id, you: p.you ? '1' : '0', out: p.alive ? '0' : '1', sel: UI.sel === p.id ? '1' : '0', speaking: UI.speakingId === p.id ? '1' : '0' }, onclick: () => UI.pickSeat(p.id) },
+        el('span', { class: 'seat-face' }, faceNode(p.you ? YOU_FACE : castOf(p.id), mood)),
+        el('span', { class: 'seat-name' }, p.you ? 'You' : p.first), UI.roleTag(p),
+        votes ? el('span', { class: 'seat-votes', 'aria-hidden': 'true' }, String(votes)) : null);
+        if (p.mark && p.alive) seat.dataset.mark = p.mark;
+        seat.style.left = `${x}%`;
+        seat.style.top = `${y}%`;
+        table.append(seat);
+      });
+    },
+    // What the player can do at night, if anything: { verb, hint, ok(p) }.
+    nightJob() {
+      const me = you();
+      if (!me.alive) return null;
+      if (isKnife(me)) return { verb: 'Take', hint: 'Tap who the Knives take tonight.', ok: p => p.alive && !isKnife(p) };
+      if (me.role === 'witness') { const done = new Set(me.mem.checks.map(c => c.id)); return { verb: 'Watch', hint: 'Tap who you watch tonight.', ok: p => p.alive && !p.you && !done.has(p.id) }; }
+      if (me.role === 'watch') return { verb: 'Guard', hint: 'Tap who you guard tonight (yourself if you like).', ok: p => p.alive && p.id !== me.mem.lastGuard };
+      return null;
+    },
+    pickSeat(id) { if (busy) return; UI.sel = UI.sel === id ? null : id; UI.render(); },
+    renderMid() {
+      const mid = $('#mid');
+      const me = you();
+      const sel = UI.sel ? P(UI.sel) : null;
+      const kids = [];
+      const go = (label, fn, cls) => el('button', { type: 'button', class: `btn ${cls || 'primary'}`, id: 'mid-go', disabled: busy, onclick: () => { if (!busy) fn(); } }, label);
+      if (state.phase === 'role') {
+        kids.push(el('span', { class: 'mid-k' }, 'You are'), el('span', { class: 'mid-t' }, ROLE[me.role].name), go('Begin', () => App.begin()));
+      } else if (state.phase === 'night') {
+        const job = UI.nightJob();
+        kids.push(el('span', { class: 'mid-k' }, `Night ${state.day}`));
+        if (job) {
+          const ok = sel && job.ok(sel);
+          kids.push(el('span', { class: 'mid-t' }, ok ? `${job.verb} ${sel.you ? 'yourself' : sel.first}?` : job.hint));
+          if (ok) kids.push(go(`${job.verb} ${sel.you ? 'yourself' : sel.first}`, () => App.night(sel.id)));
+          else if (!alive().some(job.ok)) kids.push(go('Sleep', () => App.night(null)));
+        } else kids.push(el('span', { class: 'mid-t' }, me.alive ? 'The lights go down.' : 'The lights go down without you.'), go(me.alive ? 'Sleep' : 'Next', () => App.night(null)));
+      } else if (state.phase === 'talk') {
+        kids.push(el('span', { class: 'mid-k' }, `Day ${state.day}`), el('span', { class: 'mid-t' }, `Round ${Math.min(state.beat + 1, MAX_BEATS)} of ${MAX_BEATS}`), el('span', { class: 'mid-s' }, `${alive().length} still in`));
+      } else if (state.phase === 'vote') {
+        kids.push(el('span', { class: 'mid-k' }, `Day ${state.day} · the vote`));
+        if (!me.alive) kids.push(el('span', { class: 'mid-t' }, 'They vote without you.'), go('Count the votes', () => App.vote(null)));
+        else if (sel && sel.alive && !sel.you) kids.push(el('span', { class: 'mid-t' }, `Put ${sel.first} out?`), go(`Vote ${sel.first}`, () => App.vote(sel.id)));
+        else kids.push(el('span', { class: 'mid-t' }, 'Tap who you vote to put out.'));
+      } else if (state.phase === 'over') {
+        kids.push(el('span', { class: 'mid-k' }, 'It is over'), el('span', { class: 'mid-t' }, state.winner === 'town' ? 'Town wins' : 'The Knives win'),
+          el('span', { class: 'mid-s' }, (state.winner === 'knives') === isKnife(me) ? 'Your side won.' : 'Your side lost.'), go('New table', () => App.quit()));
+      }
+      mid.replaceChildren(...kids);
+    },
+    renderSheet() {
+      const sheet = $('#sheet');
+      const p = UI.sel ? P(UI.sel) : null;
+      const talk = state.phase === 'talk' && you().alive;
+      if (!p) { sheet.hidden = true; sheet.replaceChildren(); return; }
+      const c = p.you ? null : castOf(p.id);
+      const k = known(p);
+      const fill = text => { const i = $('#say'); i.value = text; i.focus(); };
+      const mark = (m, label) => el('button', { type: 'button', class: 'btn', 'aria-pressed': String(p.mark === m), dataset: { mark: m }, onclick: () => { p.mark = p.mark === m ? null : m; save(); UI.render(); } }, label);
+      sheet.hidden = false;
+      sheet.replaceChildren(
+        el('div', { class: 'sheet-head' }, el('span', { class: 'sheet-name' }, p.you ? `${p.name} (you)` : p.name), el('span', { class: 'sheet-role' }, [c ? `${c.age}, ${c.role}` : '', !p.alive ? `out ${p.out.how === 'vote' ? 'by the vote' : 'in the night'}, day ${p.out.day}` : '', k ? roleWord(k) : ''].filter(Boolean).join(' · '))),
+        c ? el('p', { class: 'sheet-look' }, c.look) : null,
+        p.alive && !p.you ? el('div', { class: 'sheet-acts', role: 'group', 'aria-label': `About ${p.first}` },
+          mark('sus', 'Mark: suspect'), mark('trust', 'Mark: trust'),
+          talk ? [el('button', { type: 'button', class: 'btn', dataset: { act: 'accuse' }, onclick: () => fill(`I think it's ${p.first}. `) }, 'Accuse'),
+            el('button', { type: 'button', class: 'btn', dataset: { act: 'vouch' }, onclick: () => fill(`I trust ${p.first}. `) }, 'Vouch'),
+            el('button', { type: 'button', class: 'btn', dataset: { act: 'ask' }, onclick: () => fill(`${p.first}, who do you think it is?`) }, 'Ask')] : null) : null);
+    },
+    renderComposer() {
+      const me = you();
+      const talk = state.phase === 'talk';
+      $('#say-line').hidden = !(talk && me.alive);
+      $('#say').disabled = busy;
+      $('#btn-say').disabled = busy;
+      const acts = [];
+      const b = (id, label, fn, cls) => el('button', { type: 'button', class: `btn ${cls || ''}`, id, disabled: busy, onclick: () => { if (!busy) fn(); } }, label);
+      if (talk && me.alive) { acts.push(b('btn-pass', 'Let them talk', () => App.talk('')), b('btn-vote', 'Call the vote', () => App.callVote())); }
+      if (talk && !me.alive) { acts.push(b('btn-pass', 'Watch them talk', () => App.talk('')), b('btn-vote', 'Go to the vote', () => App.callVote())); }
+      if (!me.alive && state.phase !== 'over') acts.push(b('btn-skip', 'Skip to the end', () => App.skip()));
+      $('#acts').replaceChildren(...acts);
+      const u = state.usage;
+      $('#cost').textContent = state.mode === 'claude' ? `${state.model} · ${u.calls} call${u.calls === 1 ? '' : 's'} · about $${u.cost.toFixed(u.cost < 1 ? 3 : 2)}${u.failed ? ` · ${u.failed} played from the script` : ''}` : 'Offline demo: a scripted table. Sit down with a key for the real thing.';
+    },
+    render() {
+      if (!state) return;
+      $('#screen-game').dataset.phase = state.phase;
+      const me = you();
+      $('#tb-phase').textContent = `${ROLE[me.role].name}${me.alive ? '' : ' (out)'} · ${state.phase === 'night' ? `Night ${state.day}` : state.phase === 'over' ? 'Over' : `Day ${state.day}`}`;
+      UI.renderTable();
+      UI.renderMid();
+      UI.renderSheet();
+      UI.renderComposer();
+    },
+    dialog(title, body, buttons) {
+      const d = $('#dlg');
+      d.replaceChildren(el('h2', { id: 'dlg-title' }, title), body, el('div', { class: 'row' }, buttons.map(([label, fn, cls]) => el('button', { type: 'button', class: `btn ${cls || ''}`, onclick: () => { d.close(); if (fn) fn(); } }, label))));
+      if (!d.open) d.showModal();
+    },
+    roleCard() {
+      const me = you();
+      const mates = state.players.filter(p => isKnife(p) && !p.you);
+      UI.dialog('Your role', el('div', null,
+        el('p', { class: 'role-name', dataset: { role: me.role } }, ROLE[me.role].name), el('p', null, ROLE[me.role].blurb),
+        isKnife(me) && mates.length ? el('p', null, `Your fellow ${mates.length > 1 ? 'Knives' : 'Knife'}: `, el('b', null, andList(mates.map(p => p.name))), '.') : null,
+        el('p', { class: 'note' }, `${state.players.length} at the table: ${SIZES[state.size].knife} ${SIZES[state.size].knife === 1 ? 'Knife' : 'Knives'}, a Witness${SIZES[state.size].watch ? ', a Watch' : ''}, the rest Town.`)), [['Close', null, 'primary']]);
+    },
+    home() {
+      const saved = App.saved();
+      $('#home-continue-row').hidden = !saved;
+      if (saved) { const me = saved.players.find(p => p.you); $('#home-continue-note').textContent = `${me.name}, ${ROLE[me.role].name} · ${saved.phase === 'night' ? 'Night' : 'Day'} ${saved.day} · ${saved.players.filter(p => p.alive).length} still in`; }
+      const mode = $('#f-mode [aria-pressed="true"]').dataset.v;
+      $('#claude-fields').hidden = mode !== 'claude';
+      const townKey = !!(session.get(TOWN_KEY) || store.get(TOWN_KEY));
+      $('#mode-help').textContent = mode === 'claude' ? 'Every other seat is Claude, in that person\'s voice, knowing only what they would know.' : 'No key and no calls: the others follow a simple script. Good for learning the game; they are not clever.';
+      $('#f-key').placeholder = townKey ? 'Using the town game\'s key (type here to use another)' : 'sk-ant-…';
+    }
+  };
+
+  // ----- what the buttons do -----
+  const App = {
+    speed: 1, fast: false,
+    saved() { try { const s = JSON.parse(store.get(SAVE_KEY) || 'null'); return isObj(s) && s.v === 1 && Array.isArray(s.players) && s.phase !== 'over' && s.players.every(p => p.you || castOf(p.id)) ? s : null; } catch (e) { return null; } },
+    /* Sit down: { seed, size (6, 8 or 10), role ('any', 'town', 'knife', 'witness', 'watch'), mode ('claude' or 'demo'), name, model }. */
+    newGame(opts) {
+      opts = opts || {};
+      failNoted = false;
+      App.fast = false;
+      state = deal({ seed: opts.seed === undefined ? (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0 : opts.seed, size: opts.size || 8, role: opts.role, mode: opts.mode, name: opts.name, model: opts.model || settings.model });
+      UI.sel = null; UI.tally = null; UI.speakingId = null;
+      UI.show('game');
+      UI.rebuildLog();
+      sys(`The Low Water, after the river came up. ${state.players.length} of you, the doors shut, and ${SIZES[state.size].knife === 1 ? 'one Knife' : `${['', 'one', 'two', 'three'][SIZES[state.size].knife]} Knives`} among you.`, 'sys');
+      save();
+      UI.render();
+      UI.roleCard();
+      return state;
+    },
+    resume() { const s = App.saved(); if (!s) return false; state = s; failNoted = false; App.fast = false; UI.sel = null; UI.tally = null; UI.show('game'); UI.rebuildLog(); UI.render(); return true; },
+    begin() { return locked(async () => { startNight(); await App.nightOpen(); }); },
+    // A Knife's night starts with what their fellow Knife would do.
+    async nightOpen() {
+      const me = you();
+      const mate = me.alive && isKnife(me) ? alive().find(p => isKnife(p) && !p.you) : null;
+      if (!mate) return;
+      UI.setBusy(`${mate.first} leans in…`);
+      const w = await Seat.whisper(mate);
+      if (w.text) { const e = say(mate.id, w.text, 'whisper'); e.priv = true; }
+    },
+    night(pickId) { return locked(async () => { if (state.phase !== 'night') return; UI.sel = null; await resolveNight(pickId); }); },
+    talk(text) { return locked(async () => { if (state.phase !== 'talk') return; await runBeat(text); }); },
+    callVote() { if (busy || state.phase !== 'talk') return; state.phase = 'vote'; UI.sel = null; sys(you().alive ? 'You call the vote.' : 'The table calls the vote.', 'sys', false, you().alive ? `${you().first} calls the vote.` : null); save(); UI.render(); },
+    vote(pickId) {
+      return locked(async () => {
+        if (state.phase !== 'vote') return;
+        const me = you();
+        if (me.alive && !(P(pickId) && P(pickId).alive && pickId !== 'you')) return;
+        UI.sel = null;
+        await runVote(pickId);
+        if (state.phase === 'night') await App.nightOpen();
+      });
+    },
+    // The player is out: the rest is played by the script at once, with no calls, to its end.
+    skip() {
+      return locked(async () => {
+        if (you().alive) return;
+        App.fast = true;
+        for (let i = 0; i < 60 && state.phase !== 'over'; i++) {
+          if (state.phase === 'night') await resolveNight(null);
+          else if (state.phase === 'talk') { await runBeat(''); if (state.phase === 'talk') { state.phase = 'vote'; } }
+          else if (state.phase === 'vote') await runVote(null);
+          else break;
+        }
+        App.fast = false;
+        UI.rebuildLog();
+      });
+    },
+    quit() { if (state && state.phase === 'over') store.del(SAVE_KEY); state = null; UI.show('home'); UI.home(); },
+    showRoles() {
+      if (!state) return;
+      UI.dialog('Who is who', el('div', null, el('ul', { class: 'roles' }, state.players.map(p => { const k = known(p); return el('li', null, el('span', null, p.you ? `${p.name} (you)` : p.name, p.alive ? '' : ' · out'), el('b', null, k ? roleWord(k) : '?')); })),
+        el('p', { class: 'note' }, 'Only what you know: your own role, anyone put out, and what your role has shown you.')), [['Your role', () => UI.roleCard()], ['Close', null, 'primary']]);
+    },
+    init() {
+      try { const s = JSON.parse(store.get(SET_KEY) || 'null'); if (isObj(s)) { if (MODELS.includes(s.model)) settings.model = s.model; if (typeof s.name === 'string') settings.name = cleanText(s.name, 20); } } catch (e) { /* defaults */ }
+      $('#f-model').value = settings.model;
+      $('#f-name').value = settings.name;
+      for (const g of ['#f-size', '#f-role', '#f-mode']) $(g).addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; for (const x of $$('button', $(g))) x.setAttribute('aria-pressed', String(x === b)); UI.home(); });
+      $('#btn-new').addEventListener('click', () => {
+        const mode = $('#f-mode [aria-pressed="true"]').dataset.v;
+        const typed = $('#f-key').value.trim();
+        if (typed) settings.key = typed;
+        const err = $('#home-err');
+        if (mode === 'claude' && !apiKey()) { err.hidden = false; err.textContent = 'Paste an Anthropic API key to play with Claude, or pick the offline demo.'; $('#f-key').focus(); return; }
+        if (mode === 'claude' && /\s/.test(apiKey())) { err.hidden = false; err.textContent = 'That key has a space or a line break in it. Paste it again.'; $('#f-key').focus(); return; }
+        err.hidden = true;
+        settings.model = $('#f-model').value;
+        settings.name = cleanText($('#f-name').value, 20);
+        store.set(SET_KEY, JSON.stringify({ model: settings.model, name: settings.name }));
+        App.newGame({ size: Number($('#f-size [aria-pressed="true"]').dataset.v), role: $('#f-role [aria-pressed="true"]').dataset.v, mode, name: settings.name, model: settings.model });
+      });
+      $('#btn-continue').addEventListener('click', () => App.resume());
+      $('#btn-quit').addEventListener('click', () => { if (busy) return; if (!state || state.phase === 'over') { App.quit(); return; } UI.dialog('Leave the table?', el('p', null, 'The game is kept: Continue on the first screen picks it up where you left it.'), [['Stay', null], ['Leave', () => App.quit(), 'primary']]); });
+      $('#btn-roles').addEventListener('click', () => App.showRoles());
+      const send = () => { const i = $('#say'); const t = i.value.trim(); if (!t || busy) return; i.value = ''; App.talk(t); };
+      $('#btn-say').addEventListener('click', send);
+      $('#say').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); send(); } });
+      UI.home();
+    }
+  };
+
+  const api = { App, UI, Bots, Prompts, Rules: { deal, winner, SIZES, ROLE, MAX_BEATS, readLine: (t, id) => { const r = readLine(t, id); return { aim: r.aim ? r.aim.id : null, stance: r.stance }; } }, CAST, faceTraits, faceNode, recordText, get state() { return state; }, get busy() { return busy; } };
+  return api;
+})();
+window.Game = Game; // the one global (the tests drive the game through it)
+Game.App.init();
+</script>
+</body>
+</html>

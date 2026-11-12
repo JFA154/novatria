@@ -1897,6 +1897,46 @@ node tests/guide-doc.cjs --check  # exits 1 when it is out of date or an example
 
 A game already in progress keeps the town it started with.
 
+## Last Call (`lastcall.html`)
+
+A second game beside this one, on a page of its own: a hidden-role game of
+lying and deduction at the Low Water, with the town's own adults at the
+table (the title screen links to it; it is one self-contained file too).
+The river is up, the bridge is shut, and some of the people locked in are
+**Knives**. Each night the Knives take one person out of the game; each day
+the table talks and then votes one person out, whose role is shown. Town
+wins when every Knife is out; the Knives win when they are as many as
+everyone else. One of the Town is the **Witness**, who learns each night
+whether one person is a Knife; at eight seats or more one is the **Watch**,
+who guards one person a night.
+
+- **Seats**: 6 (one Knife), 8 (two, and a Watch) or 10 (three). You can ask
+  for a role or be dealt one. If you are a Knife your fellow Knife whispers
+  who they would take, and you choose.
+- **The table**: everyone's face round it, yours at the foot. Tap a face to
+  mark them (suspect or trust, a ring only you see), to accuse, vouch or
+  ask (it fills the box; you can change the words), to pick them at night
+  or to vote for them. Say anything in the box and two or three of them
+  answer; **Let them talk** hears a round without you; **Call the vote**
+  ends the talk (it is called for you after five rounds).
+- **Who plays the others**: with an Anthropic API key, Claude does, one call
+  for each seat each time it speaks, votes or chooses in the night. A seat
+  is told the public record, its own role and its own private knowledge and
+  nothing else, so a Town seat has to work it out as you do and a Knife has
+  to lie. The code deals the roles, counts the votes and decides who is out
+  and who has won; nothing a model says can change that. The key the town
+  game remembers is used if there is one; a key typed here is kept for the
+  tab only and is never saved with the game. The line under the box shows
+  the model, the calls so far and what they have cost; a game is roughly 60
+  to 120 short calls. The model is Claude Opus 5.5 unless you pick another.
+- **Offline demo**: no key and no calls; the others follow a simple script
+  (they point at whoever has been pointed at, defend themselves, read the
+  last vote). It teaches the game; it does not play it well. A seat whose
+  call fails plays from the same script for that turn, and one line says so.
+- **Out of the game** you see every role and can watch the rest, or **Skip
+  to the end** (played by the script at once, with no calls). A table you
+  leave is kept: **Continue** on its first screen picks it up.
+
 ## Running the tests
 
 ```
@@ -1936,6 +1976,9 @@ fails it with a message saying so; the CI checkout fetches it all).
 - `wave22-appointments`, `wave25-arrivals` and `wave26-objectives` for
   meetings kept, narrated arrivals and the Objectives tab (main's own wave
   26, built alongside the relationship branch's);
+- `lastcall` for Last Call (`lastcall.html`): the deal, the rules, a whole
+  scripted game, the Claude path against a stand-in API (the request, what
+  each seat is told, a failed call), the player out, a reload, phone widths;
 - `wave38-date` for the faces, the strip of who is here, the date table,
   Deal again and the one-tap flirt; `wave39-table-talk` for words said with
   a bet being answered before the cards;
