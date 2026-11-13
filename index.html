@@ -417,6 +417,7 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
           <li><b>The mission</b>, each morning: play for the <b>pot</b> ($500 into it) or for the <b>Shield</b>. One of those who went for the Shield gets it, in secret, and cannot be murdered that night.</li>
           <li><b>Recruiting</b>: when a Traitor is banished, the Traitors left may ask one Faithful to join them instead of murdering. With one Traitor left it is join, or be murdered. It could be you they ask.</li>
           <li><b>The end game</b>: with four or fewer left there are no more nights and nothing more is shown. After each vote everyone says <b>end it</b> or <b>banish again</b>. When all say end, it ends: one Traitor still in and the Traitors take the pot; none, and the Faithful share it.</li>
+          <li><b>Fifty people</b> might sit down, each with their own way of playing, of typing and of talking; a handful of them are at your table tonight, and the same person is the same person next time. Tap a face to see what they are like.</li>
           <li>Only those still in at the end get anything. The Faithful also win outright if every Traitor is banished before the end game; the Traitors, if they are ever as many as everyone else.</li>
           <li><b>Other tables</b> (under The deck): <b>Wild cards</b> adds a Witness and a few cards shuffled in, different every night: the <b>Watch</b> guards a door, the <b>Bouncer</b> throws one person out, the <b>Listener</b> hears how many Traitors sit beside them, two <b>Old Friends</b> know each other, the <b>Hothead</b> takes someone along, the <b>Drunk</b> only thinks they are the Witness, the <b>Turncoat</b> joins the Traitors if they come calling, and the <b>Fool</b> wins alone by being banished. You are shown the deck when you sit down.</li>
           <li>The wild cards table also sets one <b>house rule</b> for the night (a note left by the dead, a tie that banishes both, a secret ballot, the lights out on who the dead were, someone the house vouches for), and gives you a <b>side bet</b> of your own to play for. <b>Classic</b> and <b>Plain</b> are the older fixed decks.</li>
@@ -647,7 +648,20 @@ const Game = (() => {
       "npc_brianna": "Soft and quick; a little apologetic.",
       "npc_shayla": "Sweet and warm, with an edge under it.",
       "npc_dwight": "Few words; will not be drawn on what he dislikes.",
-      "npc_burl": "Loud; now and then answers a slightly different question from the one asked."
+      "npc_burl": "Loud; now and then answers a slightly different question from the one asked.",
+      "lc_alma": "Gentle and exact; says a hard thing kindly.",
+      "lc_otis": "Slow and amused; in no hurry.",
+      "lc_ines": "Quick and precise; a little impatient.",
+      "lc_ruben": "Warm and direct; says it to your face.",
+      "lc_cora": "Dry and quick; underplays everything.",
+      "lc_dale": "Reasonable and even; calms a row down.",
+      "lc_priya": "Bright and brisk; gets to the point.",
+      "lc_enzo": "Fast and teasing; hard to pin down.",
+      "lc_hattie": "Tart and certain; finishes the argument.",
+      "lc_malik": "Calm and deliberate; weighs each word.",
+      "lc_greta": "Cool and clipped; unimpressed.",
+      "lc_wes": "Easy and unbothered; shrugs things off.",
+      "lc_yolanda": "Firm and plain; has heard it all."
   };
   /* How a seat plays this game. Two real games set this, from either side.
      First: "there is no spontaneity like humans. all ais are playing the
@@ -658,18 +672,92 @@ const Game = (() => {
      script for a silly one: everyone at the table plays to win, listens,
      and has a reason for what they think. They differ in how they go
      about it. (At most one is the keeper of the votes.) */
-  const STYLES = [
-    { id: 'gut', text: 'You trust your read of people more than the arithmetic. You make up your mind early, and you change it when someone gives you a good reason.' },
-    { id: 'grudge', text: 'You take it personally when someone points at you, and you look twice as hard at them afterwards.' },
-    { id: 'sheep', text: 'You would rather build on a good point than start a fight, and you are slow to be the first to name a name.' },
-    { id: 'paranoid', text: 'You are wary. You notice who is too smooth or too quick to agree, and you say so.' },
-    { id: 'joker', text: 'You keep it light. You make your point with a dig as often as not, and you are still playing to win.' },
-    { id: 'quiet', text: 'You say little and listen a lot. When you speak it is short and it counts.' },
-    { id: 'sure', text: 'You are confident. You commit to a read early and argue for it, and it takes something real to move you.' },
-    { id: 'soft', text: 'You dislike a pile-on. You want a reason before the table gangs up on anyone, and you ask for it.' },
-    { id: 'stirrer', text: 'You push. You put people on the spot and watch how they take it.' },
-    { id: 'bored', text: 'You have no patience for waffle. You want names and reasons, and you call out anyone who dodges.' },
-    { id: 'tracker', text: 'You keep track of who voted for whom and who stood up for whom, and you bring it up when it matters.' }
+  /* The bank: fifty people, each their own (the owner: "What if, we have
+     different personalities bank, like let's say 50, and the game randomly
+     chooses 8 for my game or however much i have"). Until this, a
+     temperament and a way of typing were dealt afresh to whoever sat down,
+     so the same name was a different person every night and there was
+     nobody to get to know. Now a person is the same person each time they
+     sit: what they are like at the table (tag, shown to the player on
+     their seat), how they go about winning (play, given to that seat and
+     to nobody else), how much they talk (chat), how they type (their own
+     habit, or their second when someone at this table already has it),
+     how readily they play for the Shield, and how readily they would join
+     the Traitors if asked. Every one of them is a sharp player: these are
+     leans, never a script and never a way of playing badly.
+     id: [tag, chat, type, second type, shield, join, play]. */
+  const PERSONAS = (() => {
+    const bank = {
+      npc_loretta: ['Watches the smooth ones', 0.75, 'terse', 'lower', 0.3, 0.35, 'You are wary of anyone who is too smooth or too quick to agree, and you say so. You do not rush: you let people talk and you remember what they said.'],
+      npc_royce: ['Goes along, then turns', 1.15, 'loose', 'lol', 0.55, 0.7, 'You would rather agree than argue, and you are slow to be the first to name a name. But when the table has it wrong you say so, late and plainly.'],
+      npc_vada: ['Holds people to their word', 0.9, 'proper', 'loose', 0.25, 0.3, 'You hold people to exactly what they said. When a story changes you notice, and you ask about the change.'],
+      npc_carter: ['Runs the table', 1.7, 'fast', 'proper', 0.35, 0.8, 'You like to run the table: you propose who to look at and try to bring people with you. You change course when the room turns against a read.'],
+      npc_jolene: ['One name at a time', 1, 'proper', 'lower', 0.5, 0.4, 'You want the table to deal with one name at a time and finish it. You get short with people who change the subject.'],
+      npc_hollis: ['Sits on the fence', 0.6, 'dots', 'lower', 0.6, 0.75, 'You weigh a thing a long time before committing, and you say what it would take to convince you. Once you commit, you stay.'],
+      npc_wade: ['Says little, means it', 0.4, 'terse', 'lower', 0.2, 0.5, 'You say little and listen a lot. When you speak it is short and it counts.'],
+      npc_colt: ['First to point', 1.7, 'fast', 'lol', 0.65, 0.7, 'You jump in early with a name and a reason, and you would rather be wrong out loud than sit quiet. You drop a read fast when it stops making sense.'],
+      npc_marcus: ['Keeps asking', 1.15, 'proper', 'terse', 0.3, 0.25, 'You put one question to one person and come back to it until it is answered. A dodge counts against them.'],
+      npc_travis: ['Takes it personally', 1.4, 'caps', 'swears', 0.6, 0.65, 'You take it personally when someone points at you, and you look twice as hard at them afterwards.'],
+      npc_ray: ['Wants a reason first', 0.9, 'exact', 'loose', 0.3, 0.3, 'You dislike a pile-on. You want a reason before the table gangs up on anyone, and you ask for it.'],
+      npc_june: ['No patience for waffle', 1, 'terse', 'swears', 0.35, 0.4, 'You have no patience for waffle. You want names and reasons, and you call out anyone who dodges.'],
+      npc_dewayne: ['Goes by the votes', 0.45, 'lower', 'terse', 0.3, 0.35, 'You go by what people did, not what they said: who voted for whom, and who was spared. You bring it up when it matters.'],
+      npc_tammy: ['Does not let go', 0.9, 'swears', 'terse', 0.25, 0.2, 'Once you have a name you do not let go of it easily, and you say so each time it comes up. It takes something real to move you.'],
+      npc_mavis: ['Trusts nobody', 0.75, 'lower', 'terse', 0.7, 0.6, 'You assume everyone is working an angle, whoever is being nice to you most of all. You say who gains from what has just happened.'],
+      npc_darlene: ['Keeps count', 0.75, 'exact', 'proper', 0.4, 0.3, 'You keep track of who voted for whom and who stood up for whom, and you bring it up when it matters.'],
+      npc_nadine: ['Thinks out loud', 1.4, 'emph', 'loose', 0.5, 0.5, 'You think out loud: you say your read as it forms, and you say when it changes. Nobody has to guess where you stand.'],
+      npc_odessa: ['Quietly sure', 0.6, 'dots', 'proper', 0.3, 0.25, 'You make up your mind quietly and early, and you tell the table once. You do not chase people to agree with you.'],
+      npc_lyman: ['Doubts himself aloud', 0.6, 'dots', 'lower', 0.45, 0.45, 'You doubt your own reads and say so, which makes people tell you theirs. You go with the best reason you have heard, and you name whose it was.'],
+      npc_elbert: ['Corrects the record', 1.4, 'caps', 'proper', 0.4, 0.5, 'You remember who said what and in what order, and you correct anyone who gets it wrong. Someone who misremembers in their own favour goes on your list.'],
+      npc_pearl: ['Puts people on the spot', 1.15, 'caps', 'proper', 0.35, 0.45, 'You push. You put people on the spot and watch how they take it.'],
+      npc_glenda: ['Checks today against yesterday', 1, 'terse', 'fast', 0.4, 0.4, 'You compare what someone says today with what they did yesterday, and you ask about the gap.'],
+      npc_nikki: ['Cold when accused', 0.6, 'terse', 'proper', 0.25, 0.3, 'You do not get rattled. Pointed at, you answer once, flatly, and turn it back with a question of your own.'],
+      npc_virgil: ['States it as fact', 0.9, 'proper', 'terse', 0.3, 0.35, 'You are confident. You commit to a read early and argue for it, and it takes something real to move you.'],
+      npc_annette: ['Works it through', 1, 'exact', 'proper', 0.45, 0.3, 'You work it through in order: who it cannot be, then who is left. You say where you have got to, in a line.'],
+      npc_gerald: ['Late to it, then firm', 0.75, 'loose', 'dots', 0.5, 0.55, 'You are slow to form a read and you say you have not got one yet. When you get there you do not wobble.'],
+      npc_lamar: ['Careful with a vote', 0.6, 'exact', 'lower', 0.5, 0.4, 'You treat a vote as a serious thing and you will not cast one on a feeling. You ask what the case is, and you vote on the best one.'],
+      npc_trent: ['Keeps it light', 1.4, 'lol', 'fast', 0.6, 0.7, 'You keep it light. You make your point with a dig as often as not, and you are still playing to win.'],
+      npc_leon: ['Patient, then pounces', 0.6, 'lower', 'proper', 0.3, 0.6, 'You let someone talk themselves into a corner, and then you say, calmly, what they have just done.'],
+      npc_curtis: ['Plays the odds', 1.15, 'abbr', 'lower', 0.65, 0.8, 'You think in odds: who is most likely, not who is certain. You say how sure you are, and you take the better bet without fuss.'],
+      npc_boyd: ['Watches who is spared', 0.4, 'terse', 'proper', 0.2, 0.5, 'You watch who the Traitors leave alone and who they remove, and you ask why that one. You say it rarely and plainly.'],
+      npc_jodie: ['Reads the room', 1, 'abbr', 'lower', 0.55, 0.65, 'You trust your read of people more than the arithmetic. You make up your mind early, and you change it when someone gives you a good reason.'],
+      npc_lorna: ['Stands by her people', 1.4, 'emph', 'lol', 0.5, 0.6, 'You are loyal to whoever stood up for you, and you defend them a beat longer than most would. Cross you and that is over.'],
+      npc_brianna: ['Slow to accuse', 0.45, 'emph', 'dots', 0.7, 0.75, 'You hate accusing someone and being wrong, so you ask questions first. When you do name someone, you have thought about it.'],
+      npc_shayla: ['Stirs it', 1.4, 'emph', 'lol', 0.55, 0.7, 'You like to set two people against each other and see what comes out. You point out who has not been asked anything yet.'],
+      npc_dwight: ['Votes on a feeling', 0.45, 'terse', 'lower', 0.3, 0.45, 'You do not explain much. You go on a feeling about someone, you say it in a few words, and you vote that way unless you are given a reason not to.'],
+      npc_burl: ['Loud and stubborn', 1.7, 'caps', 'loose', 0.45, 0.5, 'You say what you think loudly, and you say it again. You come round only when most of the table has.'],
+      lc_alma: ['Kind, and not fooled', 0.75, 'proper', 'dots', 0.4, 0.3, 'You are kind to everyone and you believe almost nobody. You ask the gentle question that is hard to answer.'],
+      lc_otis: ['Lets them talk', 0.6, 'lower', 'dots', 0.3, 0.55, 'You think people give themselves away if you let them talk. You speak up when someone has said too much, and you say which part.'],
+      lc_ines: ['Changes her mind fast', 1.4, 'fast', 'lower', 0.5, 0.6, 'You update fast: a new fact and you have a new read, and you say so without embarrassment. You have no time for people defending yesterday.'],
+      lc_ruben: ['Says it to your face', 1.15, 'loose', 'swears', 0.35, 0.45, 'If you suspect someone you tell them directly, and you watch what they do with it. You respect a straight answer and you say so.'],
+      lc_cora: ['Contrary', 1, 'abbr', 'lower', 0.45, 0.5, 'When the whole table agrees you get suspicious of the agreement. You argue the other side to see if the case holds.'],
+      lc_dale: ['Peacemaker', 0.9, 'loose', 'proper', 0.5, 0.4, 'You cool things down when two people are going at each other, and you ask each of them for the one thing they are sure of.'],
+      lc_priya: ['Tests a claim', 1.15, 'fast', 'proper', 0.4, 0.35, 'When someone claims something you test it: you ask what would have to be true, and whether it is. You take no claim on trust.'],
+      lc_enzo: ['Needles people', 1.7, 'lol', 'swears', 0.6, 0.75, 'You needle people to see who snaps. You back off the ones who laugh and you press the ones who go stiff.'],
+      lc_hattie: ['Decides early', 0.9, 'caps', 'proper', 0.25, 0.2, 'You decide early and you see no reason to pretend otherwise. You tell the table who, and you ask what they are waiting for.'],
+      lc_malik: ['Stands up for the quiet', 0.75, 'exact', 'lower', 0.35, 0.3, 'You notice when the table picks on whoever is easiest, and you stand up for them until someone gives a reason. You ask the loud ones to account for themselves.'],
+      lc_greta: ['Suspects the helpful', 0.75, 'terse', 'proper', 0.4, 0.5, 'You are most suspicious of whoever is being most helpful. You ask what they get out of steering the table.'],
+      lc_wes: ['Hard to rattle', 1, 'abbr', 'fast', 0.65, 0.7, 'Nothing much rattles you, and you find it funny when it rattles others. You vote with whoever made the best case, and you say who that was.'],
+      lc_yolanda: ['Remembers a slight', 1.15, 'swears', 'loose', 0.45, 0.4, 'You remember who came after you and who voted against you, and you bring it up. You forgive it only when they turn out to have been right.']
+    };
+    const out = {};
+    for (const id of Object.keys(bank)) { const [tag, chat, type, type2, shield, join, play] = bank[id]; out[id] = { tag, chat, type, type2, shield, join, play }; }
+    return out;
+  })();
+  // Thirteen who are only ever at this table (the other thirty-seven have the names and faces of the town game's adults).
+  const EXTRA_CAST = [
+    { id: 'lc_alma', name: 'Alma Whitlock', age: 68, pronouns: 'she', look: 'Small woman of sixty-eight with white curls and glasses.' },
+    { id: 'lc_otis', name: 'Otis Barlow', age: 59, pronouns: 'he', look: 'Heavy man of fifty-nine with a grey beard and a flat cap.' },
+    { id: 'lc_ines', name: 'Ines Carrow', age: 33, pronouns: 'she', look: 'Lean woman of thirty-three with long black hair.' },
+    { id: 'lc_ruben', name: 'Ruben Salas', age: 41, pronouns: 'he', look: 'Stocky, tanned man of forty-one with a dark mustache and a crew cut.' },
+    { id: 'lc_cora', name: 'Cora Lindqvist', age: 27, pronouns: 'she', look: 'Pale young woman of twenty-seven with blonde hair in a bun.' },
+    { id: 'lc_dale', name: 'Dale Hargrove', age: 52, pronouns: 'he', look: 'Tall, balding man of fifty-two with glasses.' },
+    { id: 'lc_priya', name: 'Priya Nair', age: 36, pronouns: 'she', look: 'Slim, brown-skinned woman of thirty-six with dark hair in a ponytail.' },
+    { id: 'lc_enzo', name: 'Enzo Marchetti', age: 30, pronouns: 'he', look: 'Wiry man of thirty with curly black hair and stubble.' },
+    { id: 'lc_hattie', name: 'Hattie Crane', age: 74, pronouns: 'she', look: 'Thin woman of seventy-four with grey hair in a bun and glasses.' },
+    { id: 'lc_malik', name: 'Malik Dorsey', age: 45, pronouns: 'he', look: 'Broad, dark-skinned man of forty-five with a shaved head and a beard.' },
+    { id: 'lc_greta', name: 'Greta Voss', age: 49, pronouns: 'she', look: 'Tall, freckled woman of forty-nine with a red bob.' },
+    { id: 'lc_wes', name: 'Wes Tillery', age: 24, pronouns: 'he', look: 'Lanky young man of twenty-four with sandy hair and a ball cap.' },
+    { id: 'lc_yolanda', name: 'Yolanda Pike', age: 57, pronouns: 'she', look: 'Stout, brown-skinned woman of fifty-seven with grey curls.' }
   ];
   /* How much to say on a turn, picked each time. Not every message is a
      move: about one in five, when nobody is owed an answer, is only a
@@ -696,7 +784,10 @@ const Game = (() => {
     { id: 'loose', lower: 'first', text: 'Lowercase, a comma here and there, never a full stop at the end.' },
     { id: 'swears', lower: true, text: 'Lowercase, and you swear a fair bit.' },
     { id: 'dots', lower: true, text: 'Lowercase, and you trail off with ... when you are not sure.' },
-    { id: 'fast', lower: true, text: 'You type fast and do not fix it: "u" for you, "rn", "tbh", the odd typo.' }
+    { id: 'fast', lower: true, text: 'You type fast and do not fix it: "u" for you, "rn", "tbh", the odd typo.' },
+    { id: 'abbr', lower: true, text: 'Lowercase, spelled properly, with the odd "idk", "ngl" or "imo".' },
+    { id: 'emph', lower: true, text: 'Lowercase, and you stretch a word when you mean it: "sooo", "nooo", "whaaat".' },
+    { id: 'exact', text: 'A capital to start and no full stop to finish, every word spelled out, no abbreviations.' }
   ];
   function typed(p, text) {
     let x = String(text || '').replace(/\s*[—–]\s*/g, ', ').replace(/;/g, ',').trim();
@@ -725,7 +816,7 @@ const Game = (() => {
   }
 
   // ----- the cast (the town's adults, from the Low Water story pack) -----
-  const CAST = (() => { try { return JSON.parse(document.getElementById('cast').textContent).filter(isObj); } catch (e) { return []; } })();
+  const CAST = (() => { try { return JSON.parse(document.getElementById('cast').textContent).filter(isObj); } catch (e) { return []; } })().concat(EXTRA_CAST).filter(c => PERSONAS[c.id]);
   const castOf = id => CAST.find(c => c.id === id) || null;
 
   // ----- faces (as the town game draws them) -----
@@ -892,14 +983,18 @@ const Game = (() => {
     s.players = [{ id: 'you', name, first: name.split(/\s+/)[0], you: true, role: order[0], alive: true, out: null, mark: null, mem: mem() }]
       .concat(pool.map((c, i) => ({ id: c.id, name: c.name, first: c.name.split(/\s+/)[0], you: false, role: order[i + 1], alive: true, out: null, mark: null, mem: mem() })));
     for (const p of s.players) if (!p.you) for (const q of s.players) if (q !== p) p.mem.sus[q.id] = Math.round(rnd(s) * 10) / 10;
-    // How each seat plays (after everything else is dealt, so a seed's table and roles are what they were): at most one keeps track.
-    const pool2 = shuffle(s, STYLES.filter(x => x.id !== 'tracker'));
-    const tracker = 1 + Math.floor(rnd(s) * (size - 1));
-    s.players.forEach((p, i) => { if (!p.you) p.style = i === tracker ? 'tracker' : pool2[i % pool2.length].id; });
-    // How much each of them talks (some never shut up, some lurk) and how each types: dealt last of all.
-    const chat = shuffle(s, [1.7, 1.4, 1.15, 1, 0.9, 0.75, 0.6, 0.45, 0.4]);
-    const types = shuffle(s, TYPES);
-    s.players.forEach((p, i) => { if (p.you) return; p.chat = p.style === 'quiet' ? Math.min(0.5, chat[(i - 1) % chat.length]) : chat[(i - 1) % chat.length]; p.type = types[(i - 1) % types.length].id; });
+    /* Who each of them is comes with them, from the bank: how much they
+       talk (some never shut up, some lurk) and how they type. No two at a
+       table type alike: whoever sits down after someone with their habit
+       has their second, or the first one free. */
+    const hands = new Set();
+    for (const p of s.players) {
+      if (p.you) continue;
+      const who = PERSONAS[p.id];
+      p.chat = who.chat;
+      p.type = [who.type, who.type2].concat(TYPES.map(t => t.id)).find(t => !hands.has(t)) || who.type;
+      hands.add(p.type);
+    }
     // Old Friends are sure of each other.
     for (const p of s.players) if (p.role === 'friend') for (const q of s.players) if (q !== p && q.role === 'friend') p.mem.sus[q.id] = -99;
     // The house rule: the one asked for, or one drawn by a house deal. The house vouches for someone who is not a Traitor.
@@ -1132,9 +1227,9 @@ const Game = (() => {
        while they are in it; a Faithful ends it only with nobody left they
        suspect enough. */
     // What a seat plays for at the mission: a Traitor has less use for a Shield.
-    mission(p) { return rnd(state) < (isKnife(p) ? 0.2 : 0.4) ? 'shield' : 'pot'; },
+    mission(p) { const w = PERSONAS[p.id]; return rnd(state) < (w ? w.shield : 0.4) * (isKnife(p) ? 0.5 : 1) ? 'shield' : 'pot'; },
     recruit() { const prey = alive().filter(q => !isKnife(q)); return prey.length ? pick(state, prey) : null; },
-    joins(p, ultimatum) { return rnd(state) < (ultimatum ? 0.9 : 0.65); },
+    joins(p, ultimatum) { const w = PERSONAS[p.id]; return rnd(state) < Math.min(0.97, (w ? w.join : 0.6) + (ultimatum ? 0.3 : 0)); },
     endVote(p) {
       if (isKnife(p)) return { end: true, text: 'End it.' };
       const t = Bots.target(p);
@@ -1345,8 +1440,8 @@ const Game = (() => {
         lines.push(`YOUR SECRET ROLE: Old Friend (Faithful).${mate ? ` Your old friend is ${mate.name}${mate.alive ? '' : ' (out)'}: you know for certain that ${mate.first} is not a Traitor, and ${mate.first} knows the same of you.` : ''}`);
       } else if (p.role === 'turncoat') lines.push('YOUR SECRET ROLE: Turncoat. You are a Faithful and you want the Traitors out, unless the Traitors come for you in the night: then you are not taken, you become a Traitor, and you win with them. Nobody knows what you are.');
       else lines.push('YOUR SECRET ROLE: Faithful. You have no power but your judgement and your vote.');
-      const style = STYLES.find(x => x.id === p.style);
-      if (style) lines.push(`YOUR TEMPERAMENT: ${style.text}`);
+      // Their own way of going about it, the same every night they sit down (the bank).
+      if (PERSONAS[p.id]) lines.push(`YOUR TEMPERAMENT: ${PERSONAS[p.id].play}`);
       const ty = TYPES.find(x => x.id === p.type);
       lines.push(`HOW YOU TYPE: ${ty ? ty.text : 'Plainly, and short.'}${TABLE_VOICE[p.id] ? ` Your manner: ${TABLE_VOICE[p.id]}` : ''}`);
       // A slight feeling, some mornings, for some of them: somewhere to start when there is nothing else to go on.
@@ -2535,7 +2630,7 @@ const Game = (() => {
       const mark = (m, label) => el('button', { type: 'button', class: 'btn', 'aria-pressed': String(p.mark === m), dataset: { mark: m }, onclick: () => { p.mark = p.mark === m ? null : m; save(); UI.render(); } }, label);
       sheet.hidden = false;
       sheet.replaceChildren(...[
-        el('div', { class: 'sheet-head' }, el('span', { class: 'sheet-name' }, p.you ? `${p.name} (you)` : p.name), el('span', { class: 'sheet-role' }, [c ? String(c.age) : '', !p.alive ? `out ${p.out.how === 'vote' ? 'by the vote' : p.out.how === 'shot' ? 'with the Hothead' : p.out.how === 'thrown' ? 'by the Bouncer' : 'in the night'}, day ${p.out.day}` : '', k ? roleWord(k) : ''].filter(Boolean).join(' · '))),
+        el('div', { class: 'sheet-head' }, el('span', { class: 'sheet-name' }, p.you ? `${p.name} (you)` : p.name), el('span', { class: 'sheet-role' }, [c ? String(c.age) : '', p.alive && PERSONAS[p.id] ? PERSONAS[p.id].tag : '', !p.alive ? `out ${p.out.how === 'vote' ? 'by the vote' : p.out.how === 'shot' ? 'with the Hothead' : p.out.how === 'thrown' ? 'by the Bouncer' : 'in the night'}, day ${p.out.day}` : '', k ? roleWord(k) : ''].filter(Boolean).join(' · '))),
         p.alive && !p.you ? el('div', { class: 'sheet-acts', role: 'group', 'aria-label': `Your mark on ${p.first}` }, mark('sus', 'Suspect'), mark('trust', 'Trust')) : null].filter(Boolean));
     },
     /* Who a quick reply goes to: whoever the player chose to answer, else
@@ -2859,7 +2954,7 @@ const Game = (() => {
     }
   };
 
-  const api = { App, UI, Bots, Seat, Prompts, Ledger, STYLES, LENGTHS, clip, TYPES, typed, BETS, Rules: { deal, winner, SIZES, WILD, ROLE, CARD, HOUSE, RULES, beside: id => beside(P(id)).map(q => q.id), readLine: (t, id) => { const r = readLine(t, id); return { aim: r.aim ? r.aim.id : null, stance: r.stance }; } }, CAST, faceTraits, faceNode, recordText, get state() { return state; }, get busy() { return busy; },
+  const api = { App, UI, Bots, Seat, Prompts, Ledger, PERSONAS, LENGTHS, clip, TYPES, typed, BETS, Rules: { deal, winner, SIZES, WILD, ROLE, CARD, HOUSE, RULES, beside: id => beside(P(id)).map(q => q.id), readLine: (t, id) => { const r = readLine(t, id); return { aim: r.aim ? r.aim.id : null, stance: r.stance }; } }, CAST, faceTraits, faceNode, recordText, get state() { return state; }, get busy() { return busy; },
     // Whether a live table is talking on its own just now.
     get talking() { return talking; },
     // What the table is waiting on the player for in the middle of a step ('line', 'seat'), or null.

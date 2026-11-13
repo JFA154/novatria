@@ -562,7 +562,7 @@ s.test('they play like people who are trying to win, and write like people in a 
   assert.doesNotMatch(sys, /Reason from the votes|one to three short sentences|Hold a view and say why/, 'the instructions that made them all careful and long are gone');
   assert.doesNotMatch(sys, /impulsive|often wrong|lean into it even when it is not the clever move|Never weigh the evidence|Lie plainly/, 'and so are the ones that made them play the fool');
   assert.doesNotMatch(sys, /Voice:|Manner:|\(\d\d\)/, 'nobody is a character sheet to the others: a name, no more');
-  const tempers = await page.evaluate(() => Game.STYLES.map(x => x.text).join(' '));
+  const tempers = await page.evaluate(() => Object.values(Game.PERSONAS).map(x => x.play).join(' '));
   assert.doesNotMatch(tempers, /often wrong|get details wrong|do not care|without a reason|whatever happens|probably right/, 'no temperament is a way of playing badly');
   // Each turn: a temperament, a way of typing, and how much to send.
   const ways = new Set();
@@ -585,11 +585,11 @@ s.test('they play like people who are trying to win, and write like people in a 
   assert.ok([...lengths].every(l => /^(just a reaction: six words at most\. Not a move and not an argument: a groan, a laugh, a dig, "ugh", "ok that was weird", "can we just vote"\.|a few words: ten at most\. A fragment is fine\.|one sentence: twenty words at most\.|two short sentences: thirty-four words at most\.)$/.test(l)), [...lengths].join(' | '));
   const hunch = talk.filter(b => /^A HUNCH: you have a slight feeling about \w+, nothing solid\. It is somewhere to start; drop it the moment the table gives you something better\.$/m.test(userOf(b)));
   assert.ok(hunch.length < talk.length, 'a hunch is for a few of them, not the way the whole table thinks');
-  const dealt = await page.evaluate(() => ({ styles: Game.state.players.filter(p => !p.you).map(p => p.style), known: Game.STYLES.map(x => x.id), types: Game.state.players.filter(p => !p.you).map(p => p.type), hands: Game.TYPES.map(x => x.id), chat: Game.state.players.filter(p => !p.you).map(p => p.chat) }));
-  assert.ok(dealt.styles.every(x => dealt.known.includes(x)));
-  assert.equal(dealt.styles.filter(x => x === 'tracker').length, 1, 'one of them keeps track of the votes, and only one');
+  const dealt = await page.evaluate(() => ({ ways: Game.state.players.filter(p => !p.you).map(p => Game.PERSONAS[p.id].play), types: Game.state.players.filter(p => !p.you).map(p => p.type), hands: Game.TYPES.map(x => x.id), chat: Game.state.players.filter(p => !p.you).map(p => [p.chat, Game.PERSONAS[p.id].chat]) }));
+  assert.equal(new Set(dealt.ways).size, 7, 'each of the seven has a way of playing of their own');
+  assert.deepEqual([...ways].filter(w => !dealt.ways.includes(w)), [], 'and it is what that seat is given');
   assert.ok(dealt.types.every(x => dealt.hands.includes(x)) && new Set(dealt.types).size === 7, 'no two of the seven type alike: ' + dealt.types.join(','));
-  assert.ok(Math.max(...dealt.chat) >= 2 * Math.min(...dealt.chat), 'some talk a lot and some lurk: ' + dealt.chat.join(','));
+  assert.ok(dealt.chat.every(c => c[0] === c[1]), 'and each talks as much as they always do');
   // What comes back is put in that seat's hand: lower case for most, the last full stop dropped, no dashes.
   const hand = await page.evaluate(() => [
     Game.typed({ type: 'lower' }, 'It is You, Leon. I am Sure.'),
@@ -1542,6 +1542,60 @@ s.test('with Claude at a house table: the rules every seat is given name tonight
   assert.equal(roles.cards.length, roles.n);
   assert.match(roles.text, /Tonight's deck2 Traitors, a Witness, .*the rest Faithful\./);
   assert.match(roles.text, /House rule: /);
+});
+
+/* ----- The bank (the owner: "What if, we have different personalities bank,
+   like let's say 50, and the game randomly chooses 8 for my game or however
+   much i have"). Fifty people, each the same person every night they sit
+   down, and a table drawn from them. ----- */
+s.test('the bank: fifty people, each with a way of playing, of typing and of talking that is theirs every night; a table is drawn from them at random, no two at it type alike, and the player is shown what each is like', async h => {
+  const page = await open(h);
+  const bank = await page.evaluate(() => {
+    const P = Game.PERSONAS; const ids = Object.keys(P); const R = Game.Rules;
+    for (const c of Game.CAST) Game.faceNode(c);
+    const types = Game.TYPES.map(t => t.id);
+    const res = { n: ids.length, cast: Game.CAST.length, same: Game.CAST.every(c => !!P[c.id]), firsts: new Set(Game.CAST.map(c => c.name.split(' ')[0])).size, tags: new Set(ids.map(i => P[i].tag)).size, plays: new Set(ids.map(i => P[i].play)).size,
+      bad: ids.filter(i => { const w = P[i]; return !(w.tag.length >= 4 && w.tag.length <= 32 && /\b[Yy]ou\b/.test(w.play) && /\.$/.test(w.play) && w.play.length <= 220 && types.includes(w.type) && types.includes(w.type2) && w.type !== w.type2 && w.chat >= 0.4 && w.chat <= 1.7 && w.shield > 0 && w.shield < 1 && w.join > 0 && w.join < 1); }),
+      chat: [Math.min(...ids.map(i => P[i].chat)), Math.max(...ids.map(i => P[i].chat))], all: ids.map(i => P[i].play).join(' '), young: Game.CAST.filter(c => !(c.age >= 21)).length };
+    // Drawn at random: over many nights everyone gets a seat, and two nights rarely have the same table.
+    const seen = new Set(); const tables = new Set(); let alike = 0; let moved = 0; let other = 0;
+    for (let seed = 1; seed <= 300; seed++) {
+      const g = R.deal({ seed, size: 8, deck: 'faithful' });
+      const seats = g.players.filter(p => !p.you);
+      seats.forEach(p => seen.add(p.id));
+      tables.add(seats.map(p => p.id).sort().join());
+      if (new Set(seats.map(p => p.type)).size !== 7) alike += 1;
+      // (Their own habit, or their second when it was taken; rarely a third.)
+      moved += seats.filter(p => p.type !== P[p.id].type).length;
+      other += seats.filter(p => p.type !== P[p.id].type && p.type !== P[p.id].type2).length;
+      if (!seats.every(p => p.chat === P[p.id].chat)) alike += 100;
+    }
+    res.seen = seen.size; res.tables = tables.size; res.alike = alike; res.kept = 1 - moved / (300 * 7); res.own = 1 - other / (300 * 7);
+    res.sizes = [6, 8, 10].map(size => R.deal({ seed: 4, size, deck: 'faithful' }).players.length - 1);
+    return res;
+  });
+  assert.deepEqual([bank.n, bank.cast, bank.same, bank.firsts, bank.tags, bank.plays, bank.young], [50, 50, true, 50, 50, 50, 0], 'fifty people, no two alike, and nobody without a face or a name of their own');
+  assert.deepEqual(bank.bad, []);
+  assert.ok(bank.chat[1] >= 4 * bank.chat[0], 'some never shut up and some lurk');
+  assert.doesNotMatch(bank.all, /often wrong|get details wrong|do not care|without a reason|whatever happens|probably right|always|never speak/i, 'nobody\'s way of playing is a way of playing badly, or a script');
+  assert.deepEqual([bank.seen, bank.alike, bank.sizes], [50, 0, [5, 7, 9]], 'everyone gets a seat sooner or later; no two at a table type alike');
+  assert.ok(bank.tables >= 295, 'and hardly any two nights have the same table: ' + bank.tables);
+  assert.ok(bank.kept >= 0.6 && bank.own >= 0.85, 'a person types in their own habit, or their second when someone at the table has the first: ' + bank.kept.toFixed(2) + ', ' + bank.own.toFixed(2));
+  // The same person at two different tables is the same person: told the same way of playing, and shown the same to the player.
+  const who = await page.evaluate(() => { const R = Game.Rules; const a = R.deal({ seed: 3, size: 8, deck: 'faithful' }).players.filter(p => !p.you).map(p => p.id); for (let seed = 4; seed < 400; seed++) { const b = R.deal({ seed, size: 8, deck: 'faithful' }).players.filter(p => !p.you).map(p => p.id); const both = a.find(id => b.includes(id)); if (both) return { id: both, seed }; } return null; });
+  const at = async seed => {
+    await sit(page, { seed, deck: 'faithful', role: 'town' });
+    await begin(page);
+    await page.click(`.seat[data-id="${who.id}"]`);
+    return page.evaluate(id => { const p = Game.state.players.find(q => q.id === id); return { sheet: document.querySelector('#sheet .sheet-role').textContent, way: /^YOUR TEMPERAMENT: (.+)$/m.exec(Game.Prompts.secret(p))[1], tag: Game.PERSONAS[id].tag, play: Game.PERSONAS[id].play, sys: Game.Prompts.system() }; }, who.id);
+  };
+  const one = await at(3);
+  const two = await at(who.seed);
+  assert.equal(one.way, one.play);
+  assert.equal(two.way, one.way, 'the same way of playing at both tables');
+  assert.match(one.sheet, new RegExp(`^\\d\\d · ${one.tag.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), 'and the player is shown what they are like, on their seat');
+  assert.equal(two.sheet, one.sheet);
+  assert.ok(!one.sys.includes(one.tag) && !one.sys.includes(one.play), 'the others are told nothing of it: to them a seat is still a name');
 });
 
 /* ----- The Traitors' table (the owner, of the house deal: "No make it more

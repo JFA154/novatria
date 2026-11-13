@@ -2039,10 +2039,25 @@ are this game's own.
   of them talks (each is dealt that: some never stop, some lurk). Nobody
   speaks twice running, and two who have gone at each other three times
   are cut in on.
-- **They write like people in a group chat**: each seat is dealt a way of
-  typing for the game (all lowercase, capitals and full stops like a text
+- **The bank: fifty people, and whoever sits down tonight** (the owner:
+  "What if, we have different personalities bank, like let's say 50, and
+  the game randomly chooses 8 for my game or however much i have"). There
+  are fifty people who might be at the table (the town game's thirty-seven
+  adults, by name and face, and thirteen who are only ever here), and each
+  is the same person every night they sit down: their own way of going
+  about winning, how much they talk, their own way of typing and manner,
+  how readily they play for the Shield, and how readily they would join
+  the Traitors if asked. A table is drawn from them at random (five, seven
+  or nine, with two or three you have sat with before), so the mix is new
+  each night and the people are not. Tap a face and their seat says what
+  they are like ("Watches the smooth ones", "First to point", "Sits on the
+  fence"); the others at the table are told nothing of it.
+- **They write like people in a group chat**: each of them has a way of
+  typing (all lowercase, capitals and full stops like a text
   to the boss, as few words as possible, CAPS on the one word, trailing
-  off, swearing, fast and unfixed) and told to write the way people really
+  off, swearing, fast and unfixed, the odd "idk", a stretched word, every
+  word spelled out; no two at a table type alike, so now and then someone
+  has their second habit) and is told to write the way people really
   type, never the way a book or an assistant does: fragments, no names in
   every line, nothing that sounds written. Lower case and the dropped last
   full stop are also done to what comes back, so the table reads as eight
@@ -2050,12 +2065,12 @@ are this game's own.
   a reaction ("ugh", "can we just vote"); a seat may send a second short
   message straight after its first.
 - **They play like people who want to win**: nobody at the table is a
-  detective giving a summing-up, and nobody is a fool. Each seat is dealt a
-  temperament for the game (trusts a read of people, takes an accusation
-  personally, builds on a point sooner than start a fight, wary, keeps it
-  light, quiet, confident, dislikes a pile-on, pushes, no patience for
-  waffle; one, and only one, keeps track of the votes). It is a lean on a
-  sharp player, never a script. A few have a slight hunch in the morning,
+  detective giving a summing-up, and nobody is a fool. Each has their own
+  temperament, from the bank (trusts a read of people, takes an accusation
+  personally, goes along and then turns, holds people to their word, keeps
+  it light, says little, decides early, dislikes a pile-on, pushes, goes
+  by the votes, and forty more). It is a lean on a sharp player, never a
+  script. A few have a slight hunch in the morning,
   to be dropped when the table gives them something better. Each is told
   every turn how much to send, and a seat that goes on anyway is cut off.
 - **They carry things**: each seat is told what it is carrying into the
@@ -2136,7 +2151,7 @@ from `file://`, with the network blocked. Playwright is preinstalled in the
 build environment. Elsewhere, install it outside this folder (as the CI
 workflow does) and point `NODE_PATH` at it, because
 `tests/constraints.test.cjs` checks there is no `package.json` here. There is
-nothing else to install. The whole run is about 851 tests and takes fifteen to
+nothing else to install. The whole run is about 852 tests and takes fifteen to
 twenty minutes. `tests/wave30-rel-people.test.cjs` builds its older save from
 commit `56e69f5`'s `index.html`, so it needs the git history (a shallow clone
 fails it with a message saying so; the CI checkout fetches it all).
@@ -2164,7 +2179,7 @@ fails it with a message saying so; the CI checkout fetches it all).
   Fool and the Hothead, the Traitors' table (the deal and the words every
   seat is given, the mission and the Shield, recruiting from either side,
   the end game both ways and the pot, a table of it with Claude, a small
-  phone), the house deal (every deal legal over 240 seeds a
+  phone), the bank of fifty people, the house deal (every deal legal over 240 seeds a
   size, many different decks, a card asked for dealt in), the Drunk, the
   Bouncer, the Turncoat, the Listener and the Old Friends, each house rule,
   the side bets, the tab and the regulars, Deal again, a house table with
