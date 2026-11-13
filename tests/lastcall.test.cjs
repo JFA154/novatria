@@ -999,6 +999,9 @@ s.test('the seats are told the table is all there is: nothing about where anyone
   await begin(page);
   await page.click('#mid-go');
   await settle(page);
+  // (The first night is drawn by lot, with no call to a seat: the first a seat is asked for is something to say.)
+  assert.equal(bodies.filter(b => !/^You are the host/.test(b.body.system[0].text)).length, 0);
+  await pass(page);
   const seat = bodies.find(b => !/^You are the host/.test(b.body.system[0].text));
   const sys = seat.body.system[0].text;
   assert.match(sys, /\(Joe is one of the people at the table, the same as anyone: there is nothing more to know about them than how they play\.\)$/m);
@@ -1544,6 +1547,51 @@ s.test('with Claude at a house table: the rules every seat is given name tonight
   assert.match(roles.text, /House rule: /);
 });
 
+s.test('the player is never murdered on the first night: it is drawn by lot among the others at every table, and from the second night the Traitors are given the names in no order, as each seat is at the vote', async h => {
+  const page = await open(h);
+  const out = await page.evaluate(async () => {
+    Game.App.speed = 0; Game.App.quiet = true;
+    const res = { dead: 0, games: 0, victims: new Set(), first: 0, lists: 0, orders: new Set(), votes: new Set(), bad: [] };
+    const tick = setInterval(() => { const w = Game.UI.wait; if (w && w.kind === 'pick') w.resolve(w.options[0][1]); }, 2);
+    for (let seed = 1; seed <= 60; seed++) {
+      const deck = ['faithful', 'house', 'classic', 'plain'][seed % 4];
+      Game.App.newGame({ seed, size: [6, 8, 10][seed % 3], mode: 'demo', name: 'Joe', live: false, deck, role: 'town', rule: 'none', bet: 'none' });
+      document.querySelector('#dlg').close();
+      await Game.App.begin();
+      await Game.App.night(null);
+      const g = Game.state; const me = g.players[0];
+      res.games += 1;
+      if (!me.alive) res.dead += 1;
+      const v = g.players.find(p => !p.alive && p.out.how === 'night');
+      if (v) res.victims.add(g.players.indexOf(v));
+      // The second night, as a Traitor seat would be asked (the player still in): the names it may choose from.
+      if (g.phase !== 'talk' || !me.alive) continue;
+      g.day = 2;
+      const k = g.players.find(p => p.role === 'knife' && p.alive);
+      const m = /Those you can choose, in no particular order: ([^.]+)\./.exec(Game.Prompts.task.kill(k));
+      const want = g.players.filter(p => p.alive && p.role !== 'knife').map(p => p.first).sort().join();
+      if (!m || m[1].split(', ').sort().join() !== want) res.bad.push(seed);
+      else { res.lists += 1; if (m[1].split(', ')[0] === 'Joe') res.first += 1; res.orders.add(m[1].split(', ').indexOf('Joe')); }
+      const f = g.players.find(p => p.role !== 'knife' && p.alive && !p.you);
+      const vm = /^Those you can vote for, in no particular order \(the order of a list of names means nothing\): ([^.]+)\.\n/.exec(Game.Prompts.task.vote(f));
+      if (!vm || vm[1].split(', ').includes(f.first) || vm[1].split(', ').length !== g.players.filter(p => p.alive).length - 1) res.bad.push('v' + seed); else res.votes.add(vm[1].split(', ').indexOf('Joe'));
+      g.day = 1;
+    }
+    clearInterval(tick);
+    return { dead: res.dead, games: res.games, victims: res.victims.size, first: res.first, lists: res.lists, orders: res.orders.size, votes: res.votes.size, bad: res.bad };
+  });
+  assert.deepEqual([out.games, out.dead], [60, 0], 'sixty first nights, and the player came in to breakfast after every one');
+  assert.ok(out.victims >= 5, 'the lot falls all round the table: ' + out.victims);
+  assert.deepEqual(out.bad, [], 'the names are everyone who can be chosen, and nobody else');
+  assert.ok(out.lists >= 40 && out.first <= out.lists / 3 && out.orders >= 4 && out.votes >= 4, `the player's name is not at the head of the list: first in ${out.first} of ${out.lists}`);
+  // The player as a Traitor still chooses on the first night themselves; and the scripted table's own choice, later, can fall on the player.
+  await sit(page, { seed: 21, deck: 'faithful', role: 'knife' });
+  await begin(page);
+  assert.equal(await page.evaluate(() => document.querySelector('#mid .mid-t').textContent), 'Tap who the Traitors murder tonight.');
+  const later = await page.evaluate(() => { Game.App.newGame({ seed: 5, size: 8, mode: 'demo', name: 'Joe', live: false, deck: 'faithful', role: 'town' }); document.querySelector('#dlg').close(); const g = Game.state; g.day = 2; for (const p of g.players) if (!p.you && p.role !== 'knife') p.alive = false; return Game.Bots.kill().id; });
+  assert.equal(later, 'you');
+});
+
 /* ----- The bank (the owner: "What if, we have different personalities bank,
    like let's say 50, and the game randomly chooses 8 for my game or however
    much i have"). Fifty people, each the same person every night they sit
@@ -1851,14 +1899,15 @@ s.test('with Claude at the Traitors\' table: every seat is given the game in its
   const bodies = [];
   const page = await open(h, { route: standIn(bodies) });
   await page.evaluate(() => sessionStorage.setItem('novatria.apiKey', 'sk-ant-test-key'));
-  // (The stand-in has the Traitors murder the player on the first night, and the table banish the first seat: a Faithful, at this seed.)
+  // (The stand-in has the table banish the first name still in, the player's: a Faithful.)
   const seed = await seedFor(page, { size: 6, deck: 'faithful', role: 'town' }, { me: 'town', seat1: 'town' });
   await sit(page, { seed, size: 6, mode: 'claude', deck: 'faithful', role: 'town' });
   await begin(page);
   await page.click('#mid-go');
   await settle(page);
   let g = await st(page);
-  assert.deepEqual([g.phase, g.me.alive, g.players.filter(p => p.alive).length], ['talk', false, 5]);
+  assert.deepEqual([g.phase, g.me.alive, g.players.filter(p => p.alive).length], ['talk', true, 5], 'the first night is drawn by lot and never falls on the player');
+  assert.equal(bodies.filter(b => b.body.output_config.format.schema.required.includes('take')).length, 0, 'and no seat is asked to choose it');
   await pass(page);
   const userOf = b => b.body.messages[0].content.map(c => c.text).join('\n');
   const talk = bodies.filter(b => b.body.output_config.format.schema.required.includes('stance'));
@@ -1870,9 +1919,10 @@ s.test('with Claude at the Traitors\' table: every seat is given the game in its
   assert.doesNotMatch(sys, /Witness|Knife|Knives|\bTown\b/);
   assert.ok(talk.every(b => /\nTODAY'S MISSION: you played for the (pot|Shield)\./.test(userOf(b))), 'each seat knows what it played for');
   assert.match(userOf(talk[0]), /^The mission: \d played for the pot, which stands at \$[\d,]+\. /m);
-  assert.match(userOf(talk[0]), /^Breakfast\. Joe \w* ?was murdered in the night\. Joe was a Faithful\.$/m);
-  // The vote leaves four: the end game, a call for each of them.
+  assert.match(userOf(talk[0]), /^Breakfast\. \w+ \w+ was murdered in the night\. \w+ was a Faithful\.$/m);
+  // The vote (the stand-in has every seat vote for the first name still in, the player's) leaves four: the end game, a call for each of them.
   await page.click('#btn-vote');
+  await page.click(`.seat[data-id="${g.players.find(p => p.alive && p.id !== 'you').id}"]`);
   await page.click('#mid-go');
   await settle(page);
   g = await st(page);

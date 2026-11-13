@@ -1929,6 +1929,15 @@ are this game's own.
   nobody has any power but their judgement and their vote. You can ask to
   be a Faithful or a Traitor, or be dealt in. If you are a Traitor your
   fellow Traitor whispers who they would murder, and you choose.
+  - **You are safe on the first night** (the owner, after three games
+    with Claude at the seats: "Got killed the very first night 3 out of 3
+    times"). A seat asked to choose a victim before anything had been said
+    had only the order of the names to go on, and the player's is first in
+    every list. So the first night's murder is drawn by lot, with no call
+    to a seat, and never falls on the player (unless the player is the
+    Traitor choosing). From the second night the Traitors choose, and both
+    then and at the vote the names are given to each seat in an order of
+    its own, with a line saying the order means nothing.
   - **Breakfast**: everyone still in comes in, one at a time, and whoever
     was murdered does not.
   - **The mission**, each morning while five or more are in: everyone, in
@@ -2151,7 +2160,7 @@ from `file://`, with the network blocked. Playwright is preinstalled in the
 build environment. Elsewhere, install it outside this folder (as the CI
 workflow does) and point `NODE_PATH` at it, because
 `tests/constraints.test.cjs` checks there is no `package.json` here. There is
-nothing else to install. The whole run is about 852 tests and takes fifteen to
+nothing else to install. The whole run is about 853 tests and takes fifteen to
 twenty minutes. `tests/wave30-rel-people.test.cjs` builds its older save from
 commit `56e69f5`'s `index.html`, so it needs the git history (a shallow clone
 fails it with a message saying so; the CI checkout fetches it all).

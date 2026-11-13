@@ -411,7 +411,7 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
       <div class="card how">
         <h2>How it plays</h2>
         <ul>
-          <li>The <b>Traitors</b> know each other. Each night they murder one person, who does not come in to breakfast.</li>
+          <li>The <b>Traitors</b> know each other. Each night they murder one person, who does not come in to breakfast. The first night's murder is drawn by lot, and never falls on you: you get at least one day at the table.</li>
           <li>The <b>Faithful</b> are everyone else, and have nothing but their judgement and their vote.</li>
           <li>Each day the <b>Round Table</b> talks, then votes. Most votes is <b>banished</b> and what they were is shown; a tie banishes nobody.</li>
           <li><b>The mission</b>, each morning: play for the <b>pot</b> ($500 into it) or for the <b>Shield</b>. One of those who went for the Shield gets it, in secret, and cannot be murdered that night.</li>
@@ -1199,7 +1199,10 @@ const Game = (() => {
     // Who the Traitors take: someone who has claimed to be the Witness, else whoever suspects a Traitor hardest, else anyone.
     kill() {
       const knives = alive().filter(isKnife);
-      const prey = alive().filter(q => !isKnife(q));
+      /* (Never the player on the first night. The owner, after three
+         games with Claude at the seats: "Got killed the very first night
+         3 out of 3 times". Out before a word is said is no game at all.) */
+      const prey = alive().filter(q => !isKnife(q) && !(q.you && state.day === 1));
       if (!prey.length) return null;
       const claimed = prey.find(q => q.mem.claimed);
       if (claimed) return claimed;
@@ -1477,8 +1480,8 @@ const Game = (() => {
     },
     task: {
       say(p, x) { x = x || {}; return `NOW: day ${state.day}, the chat is going.${state.clock <= 3 ? ' It is getting late: the vote is close.' : ''}${x.why ? ` ${x.why}` : ''} You are about to send a message.\nLENGTH THIS TURN: ${(x.len || LENGTHS[2]).text}`; },
-      vote(p) { return `NOW: day ${state.day}, the vote. Everyone votes at once, so you do not know how the others vote. Name the one person still in that you vote to banish (not yourself). Vote for the one you really think it is, from what was said and done today (as a Traitor: whoever it suits your side to lose). Send a few words as you do, eight at most.`; },
-      kill(p) { return `NOW: night ${state.day}. You decide for the Traitors who is murdered tonight. Choose the one person still in, not a Traitor, whose going helps the Traitors most.`; },
+      vote(p) { return `Those you can vote for, in no particular order (the order of a list of names means nothing): ${alive().filter(q => q !== p).sort((a, b) => hash(a.id, state.seed + state.day * 13 + hash(p.id, 5)) - hash(b.id, state.seed + state.day * 13 + hash(p.id, 5))).map(q => q.first).join(', ')}.\nNOW: day ${state.day}, the vote. Everyone votes at once, so you do not know how the othersvote. Name the one person still in that you vote to banish (not yourself). Vote for the one you really think it is, from what was said and done today (as a Traitor: whoever it suits your side to lose). Send a few words as you do, eight at most.`; },
+      kill(p) { return `NOW: night ${state.day}. You decide for the Traitors who is murdered tonight. Choose the one person still in, not a Traitor, whose going helps the Traitors most: go on what has happened at the table (who is on to you, who the table listens to, who is pushing whom), never on whose name comes first. Those you can choose, in no particular order: ${alive().filter(q => !isKnife(q)).sort((a, b) => hash(a.id, state.seed + state.day * 7 + hash(p.id, 3)) - hash(b.id, state.seed + state.day * 7 + hash(p.id, 3))).map(q => q.first).join(', ')}.`; },
       whisper(p, mate) { return `NOW: night ${state.day}. ${mate.name} is your fellow Traitor and decides tonight. Whisper to them who you would murder, and why, in one or two sentences.`; },
       end(p) { return `NOW: the end game. ${alive().length} of you are left: ${alive().map(q => q.first).join(', ')}. Everyone votes at once: END THE GAME, or BANISH AGAIN. If every one of you votes to end it, it ends there: with even one Traitor still in, the Traitors take the pot; with none, the Faithful share it. Otherwise the Round Table sits again and one more of you is banished, and what they were is not shown. Vote to end it only if you believe no Traitor is left (as a Traitor, you want it ended while you are still in). Send a few words as you vote, eight at most.`; },
       note(p) { return `NOW: night ${state.day}. The Traitors have just murdered you: you are out of the game. By the house rule you leave a note, which the table finds in the morning. Write it: what you most want them to know. One or two short sentences, twenty-five words at most.`; },
@@ -1591,7 +1594,12 @@ const Game = (() => {
     },
     async kill() {
       const lead = alive().find(q => isKnife(q) && !q.you);
-      if (lead && useClaude()) {
+      /* The first night is drawn by lot, and never falls on the player:
+         nothing has been said yet, so a seat asked to choose has only the
+         order of the names to go on, and the player's is first in every
+         list and the one name the rules mention. From the second night
+         the Traitors choose, from names given in no order. */
+      if (lead && useClaude() && state.day > 1) {
         try {
           const r = await callClaude(lead, 'kill', Prompts.task.kill(lead));
           const t = named(r.take);
