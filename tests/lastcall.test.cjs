@@ -1637,6 +1637,88 @@ s.test('the player is never murdered on the first night: it is drawn by lot amon
   assert.deepEqual(why.shown.slice().sort(), why.kept.map(x => `Why the Traitors chose them: ${x[1]}`).sort());
 });
 
+s.test('a player who says nothing is noticed: after a few messages someone puts it to them, then a second seat calls them on it, the table carries it into the next day and holds it against them; a player who talks is left alone', async h => {
+  const page = await open(h);
+  const lines = () => page.evaluate(() => Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk' && e.day === Game.state.day).map(e => [e.who, e.text, !!e.toYou]));
+  const SOFT = /^(Joe, you're quiet\. Who is it\?|Joe\? You've said nothing\. What do you think\?|Not a word from Joe yet\. Well\?)$/i;
+  const HARD = /^(Joe hasn't said a word\. That's somebody keeping their head down|Still nothing from Joe\. I don't like it|Joe, say something or I'm voting for you)\.?$/i;
+  await sit(page, { seed: 21, deck: 'faithful', role: 'town' });
+  await begin(page);
+  await page.click('#mid-go');
+  await settle(page);
+  // Silent: the first three messages are the table's own; the fourth is put to the player.
+  await pass(page);
+  let l = await lines();
+  assert.ok(l.length === 3 && l.every(x => !SOFT.test(x[1]) && !HARD.test(x[1])), 'nothing yet: ' + JSON.stringify(l));
+  await pass(page);
+  l = await lines();
+  assert.match(l[3][1], SOFT, 'the quiet one is asked');
+  assert.equal(l[3][2], true, 'and it is marked as said to them');
+  let x = await page.evaluate(() => ({ asks: Game.state.asks.map(a => [a.who, a.kind]), nudge: Game.state.nudge, heat: Game.state.heat.you || 0 }));
+  assert.ok(x.asks.some(a => a[0] === l[3][0] && a[1] === 'asks') && x.nudge.n === 1, 'it waits above the box like any question: ' + JSON.stringify(x));
+  // Still nothing: by the ninth message a second seat calls them on it, and that is an accusation.
+  await pass(page);
+  await pass(page);
+  l = await lines();
+  const hard = l.filter(z => HARD.test(z[1]));
+  assert.equal(hard.length, 1, JSON.stringify(l));
+  assert.notEqual(hard[0][0], l[3][0], 'a different seat');
+  x = await page.evaluate(() => ({ kinds: Game.state.asks.map(a => a.kind), nudge: Game.state.nudge.n, heat: Game.state.heat.you || 0, again: Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk' && e.toYou).length }));
+  assert.ok(x.kinds.includes('accuses') && x.nudge === 2 && x.heat >= 1, JSON.stringify(x));
+  // The vote: the silence is counted, and the next day it is the first thing said and what every seat carries.
+  const sus0 = await page.evaluate(() => Game.state.players.filter(p => p.alive && !p.you && p.role !== 'knife').map(p => p.mem.sus.you || 0));
+  await page.evaluate(() => { const t = Game.state.players.find(p => p.alive && !p.you && p.role === 'town'); Game.Bots.vote = p => ({ vote: p === t ? Game.state.players.find(q => q.alive && q !== p && !q.you) : t, text: 'Them.' }); Game.Bots.kill = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town')[0]; Game.tmp = t.id; });
+  await page.click('#btn-vote');
+  await page.click(`.seat[data-id="${await page.evaluate(() => Game.tmp)}"]`);
+  await page.click('#mid-go');
+  await settle(page);
+  x = await page.evaluate(() => ({ quiet: Game.state.quiet, sus: Game.state.players.filter(p => p.alive && !p.you && p.role !== 'knife').map(p => p.mem.sus.you || 0) }));
+  assert.equal(x.quiet, 1);
+  assert.ok(x.sus.every((v, i) => v >= 1), 'the scripted Faithful hold a silent day against them: ' + x.sus);
+  assert.ok(sus0.length >= x.sus.length);
+  await page.click('#mid-go');
+  await settle(page);
+  const carried = await page.evaluate(() => Game.Prompts.carrying(Game.state.players.find(p => p.alive && !p.you)).join(' '));
+  assert.match(carried, /Joe did not say a word yesterday, and has said nothing yet today\./);
+  await pass(page);
+  l = await lines();
+  assert.ok(l.slice(0, 3).some(z => HARD.test(z[1])), 'silent yesterday too: called on it at once: ' + JSON.stringify(l));
+  // Speaking ends it: nothing more about silence, and the seats carry nothing.
+  await page.fill('#say', 'Fine. I think it is whoever went for the Shield.');
+  await page.click('#btn-say');
+  await settle(page);
+  const after = (await lines()).length;
+  await pass(page);
+  l = await lines();
+  assert.ok(l.slice(after).every(z => !SOFT.test(z[1]) && !HARD.test(z[1])), JSON.stringify(l.slice(after)));
+  assert.doesNotMatch(await page.evaluate(() => Game.Prompts.carrying(Game.state.players.find(p => p.alive && !p.you)).join(' ')), /did not say a word/);
+  // A player who talks from the start is never asked why they are quiet.
+  await sit(page, { seed: 21, deck: 'faithful', role: 'town' });
+  await begin(page);
+  await page.click('#mid-go');
+  await settle(page);
+  await page.fill('#say', 'Morning. Who went for the Shield?');
+  await page.click('#btn-say');
+  await settle(page);
+  await pass(page); await pass(page); await pass(page);
+  l = await lines();
+  assert.ok(l.length >= 9 && l.every(z => !SOFT.test(z[1]) && !HARD.test(z[1])), JSON.stringify(l));
+  assert.equal(await page.evaluate(() => Game.state.nudge || null), null);
+  // With Claude at the seats: the one who speaks next is told of the silence and to put it to the player, and what it sends is said to the player whoever it named.
+  const bodies = [];
+  const cl = await open(h, { route: standIn(bodies) });
+  await cl.evaluate(() => sessionStorage.setItem('novatria.apiKey', 'sk-ant-test-key'));
+  await sit(cl, { seed: 21, deck: 'faithful', role: 'town', mode: 'claude' });
+  await begin(cl);
+  await cl.click('#mid-go');
+  await settle(cl);
+  await pass(cl); await pass(cl);
+  const told = bodies.map(b => b.body.messages[0].content.map(c => c.text).join('\n')).filter(u => /Joe has not said a word today\. Put it to Joe: ask what they think, or who they would vote for\./.test(u));
+  assert.equal(told.length, 1, 'one seat is told, once');
+  const said = await cl.evaluate(() => { const e = Game.state.log.filter(z => z.t === 'say' && z.kind === 'talk')[3]; return { toYou: !!e.toYou, asks: Game.state.asks.length }; });
+  assert.ok(said.toYou && said.asks >= 1, JSON.stringify(said));
+});
+
 /* ----- The bank (the owner: "What if, we have different personalities bank,
    like let's say 50, and the game randomly chooses 8 for my game or however
    much i have"). Fifty people, each the same person every night they sit

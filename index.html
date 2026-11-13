@@ -425,6 +425,7 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
           <li>The house keeps <b>your tab</b>: nights played and won, your streak, what you have taken from the pot, the cards you have held and the bets you have won. The people you have sat with remember the last time.</li>
           <li>Whoever is banished gets their last words before their role is shown. Listen to them.</li>
           <li>The table talks on by itself: say something whenever you like. Tap a face, or what someone said, to aim at them; the quick replies say it in one tap (It's you. Liar. Why? I'm with you. Not me.), or type your own.</li>
+          <li>Keeping quiet is not a hiding place: say nothing and someone will ask you, then call you on it, and the table holds a silent day against you.</li>
           <li>The talk ends when you call the vote, when most of the table says it is ready to, or when it gets late.</li>
         </ul>
         <p class="note">The code deals the roles, counts the votes and decides who is out. The people only talk, lie and vote.</p>
@@ -1158,6 +1159,12 @@ const Game = (() => {
        answer), len (how much to say) }. */
     say(p, x) {
       x = x || {};
+      // The player has said nothing: asked, the first time; called on it, after that.
+      if (x.nudge) {
+        const me = you();
+        return x.nudge === 'hard' ? { text: pick(state, [`${me.first} hasn't said a word. That's somebody keeping their head down.`, `Still nothing from ${me.first}. I don't like it.`, `${me.first}, say something or I'm voting for you.`]), aim: me, stance: 'accuse', ready: false }
+          : { text: pick(state, [`${me.first}, you're quiet. Who is it?`, `${me.first}? You've said nothing. What do you think?`, `Not a word from ${me.first} yet. Well?`]), aim: me, stance: 'question', ready: false };
+      }
       const ready = (p.mem.today || 0) >= 2;
       if (x.answering) { const r = Bots.line(p); const me = you(); return Object.assign(r, { ready }, r.aim === me || /\byou\b/i.test(r.text.split(/[.?!]/)[0]) ? null : { text: `${pick(state, [`Could be, ${me.first}.`, `I hear you, ${me.first}.`, `Fair, ${me.first}.`, `Maybe, ${me.first}.`])} ${r.text}` }); }
       if (x.morning) { const lines = [`not ${x.morning}`, 'oh no', 'damn', `${x.morning}?? really`, 'well that is bad', 'great. just great']; return { text: lines[(hash(x.morning, state.day) + (x.nth | 0)) % lines.length], aim: null, stance: 'other', ready: false }; }
@@ -1425,6 +1432,9 @@ const Game = (() => {
       if (g && P(g.by) && P(g.by).alive && state.day - g.day <= 1) out.push(`${P(g.by).first} came after you ${when(g.day)}.`);
       const b = p.mem.backed;
       if (b && P(b.by) && P(b.by).alive && state.day - b.day <= 1) out.push(`${P(b.by).first} stood up for you ${when(b.day)}.`);
+      // The player's silence is something the whole table carries.
+      const me = you();
+      if (state.quiet && me.alive && !p.you && !me.mem.today) out.push(`${me.first} did not say a word yesterday${state.quiet > 1 ? ', or the day before' : ''}, and has said nothing yet today.`);
       return out;
     },
     // What only this seat knows.
@@ -2091,6 +2101,7 @@ const Game = (() => {
     const line = cleanText(text, 400);
     if (!line || !me.alive) return false;
     say('you', line);
+    me.mem.today = (me.mem.today || 0) + 1;
     const r = meta && P(meta.aim) ? { aim: P(meta.aim), stance: meta.stance } : readLine(line, 'you');
     heard(me, r.aim, r.stance);
     /* What the player was asked is answered by this line: the one they
@@ -2150,6 +2161,24 @@ const Game = (() => {
       const a = draw(seats); const rest = seats.filter(p => p !== a);
       return [a].concat(rest.length ? [draw(rest)] : []).map((p, i) => ({ p, why, answering: false, morning: v.first, nth: i, len: pick(state, LENGTHS.slice(0, 3)) }));
     }
+    /* A player who says nothing is noticed (the owner: "I tried to not talk
+       and no one talked to me for 2 nights"). At a real table the quiet one
+       is the first to be asked. After a few messages with not a word from
+       the player someone puts it to them; if they still say nothing, a
+       second seat says what it makes of the silence, and that is an
+       accusation like any other. Sooner, and harder from the start, when
+       they said nothing yesterday either. */
+    const nudged = state.nudge && state.nudge.day === state.day ? state.nudge.n : 0;
+    const mute = state.quiet || 0;
+    if (me.alive && !me.mem.today && nudged < 2 && state.said >= (nudged ? 8 : mute ? 1 : 3)) {
+      const p = draw(seats);
+      const hard = nudged > 0 || mute > 0;
+      state.nudge = { day: state.day, n: nudged + 1 };
+      state.pending = state.pending.filter(id => id !== p.id);
+      const why = hard ? `${me.first} has still not said a word${mute ? (mute > 1 ? ', today or for days' : ', today or yesterday') : ' today'}. Say to ${me.first} what you make of that silence: people with something to hide keep their heads down.`
+        : `${me.first} has not said a word today. Put it to ${me.first}: ask what they think, or who they would vote for.`;
+      return [{ p, why, answering: false, nudge: hard ? 'hard' : 'soft', len: pickLength(state, true) }];
+    }
     // Whoever has been accused or asked answers, unless two of them have been at it long enough.
     const spat = state.spat && state.spat.n >= 3 ? state.spat.pair : [];
     state.pending = state.pending.filter(id => P(id) && P(id).alive && !P(id).you);
@@ -2169,6 +2198,8 @@ const Game = (() => {
   }
   // A seat's message lands: in the story, in what the table makes of it, and in what is waiting on the player.
   function land(x, r) {
+    // (What a seat says about the player's silence is said to the player, whatever it was marked as.)
+    if (x.nudge) { r.aim = you(); r.stance = x.nudge === 'hard' ? 'accuse' : r.stance === 'accuse' ? 'accuse' : 'question'; }
     const p = x.p;
     const me = you();
     const was = x.was || {};
@@ -2289,6 +2320,11 @@ const Game = (() => {
      one, the most is put out (a tie banishes nobody), and night falls. */
   async function runVote(pickId) {
     UI.setBusy('The table is voting…');
+    // How many days running the player has said nothing (the table carries it into tomorrow; the scripted seats hold it against them).
+    if (you().alive) {
+      state.quiet = you().mem.today ? 0 : (state.quiet || 0) + 1;
+      if (state.quiet) for (const l of alive()) if (!l.you && !isKnife(l)) l.mem.sus.you = (l.mem.sus.you || 0) + 1;
+    }
     UI.emotes = {};
     UI.sel = null;
     // The talk is over: nothing is waiting on the player any more.

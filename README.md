@@ -2117,6 +2117,14 @@ are this game's own.
   shown (you too: the table waits for yours). When it is over, **The
   reveal** shows every role, how each went, how each voted and what each
   was privately thinking.
+- **Saying nothing is noticed** (the owner: "I tried to not talk and no
+  one talked to me for 2 nights"). After three messages with not a word
+  from you, whoever speaks next is told so and puts it to you; if you are
+  still silent by the ninth, a second seat says what it makes of the
+  silence, which is an accusation like any other. A day you said nothing
+  is carried by every seat into the next, when you are called on it at
+  once, and the scripted Faithful hold each silent day against you at the
+  vote. Say anything and it stops.
 - **Waiting on you**: anything put to you, a question or an accusation, is
   marked "to you" in the story, puts a mark on that person's seat, and is
   listed above the box until you deal with it. Tap one to aim the quick
@@ -2169,7 +2177,7 @@ from `file://`, with the network blocked. Playwright is preinstalled in the
 build environment. Elsewhere, install it outside this folder (as the CI
 workflow does) and point `NODE_PATH` at it, because
 `tests/constraints.test.cjs` checks there is no `package.json` here. There is
-nothing else to install. The whole run is about 853 tests and takes fifteen to
+nothing else to install. The whole run is about 854 tests and takes fifteen to
 twenty minutes. `tests/wave30-rel-people.test.cjs` builds its older save from
 commit `56e69f5`'s `index.html`, so it needs the git history (a shallow clone
 fails it with a message saying so; the CI checkout fetches it all).
