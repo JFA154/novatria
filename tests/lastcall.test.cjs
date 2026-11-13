@@ -1590,6 +1590,51 @@ s.test('the player is never murdered on the first night: it is drawn by lot amon
   assert.equal(await page.evaluate(() => document.querySelector('#mid .mid-t').textContent), 'Tap who the Traitors murder tonight.');
   const later = await page.evaluate(() => { Game.App.newGame({ seed: 5, size: 8, mode: 'demo', name: 'Joe', live: false, deck: 'faithful', role: 'town' }); document.querySelector('#dlg').close(); const g = Game.state; g.day = 2; for (const p of g.players) if (!p.you && p.role !== 'knife') p.alive = false; return Game.Bots.kill().id; });
   assert.equal(later, 'you');
+  /* And after the first night a murder is never chance (the owner: "later
+     killings aren't random"): whoever is most on to a Traitor, the player
+     when it is the player who keeps pointing at one, and with nobody on to
+     them whoever the table has heard most; the same choice every time it
+     is asked, and the reveal says why. */
+  const why = await page.evaluate(async () => {
+    const fresh = () => { Game.App.newGame({ seed: 9, size: 8, mode: 'demo', name: 'Joe', live: false, deck: 'faithful', role: 'town' }); document.querySelector('#dlg').close(); const g = Game.state; g.day = 2; for (const p of g.players) if (!p.you) for (const k of Object.keys(p.mem.sus)) p.mem.sus[k] = 0; return g; };
+    const res = {};
+    let g = fresh();
+    const k = g.players.find(p => p.role === 'knife'); const f = g.players.filter(p => p.role === 'town' && !p.you);
+    // Nobody is on to anyone: the one the table has heard most.
+    for (let i = 0; i < 3; i++) g.log.push({ t: 'say', who: f[2].id, text: 'and another thing', day: 1, kind: 'talk' });
+    res.loud = [Game.Bots.kill().id === f[2].id, Game.Bots.kill().id === f[2].id, g.why.text];
+    // One of them is on to a Traitor.
+    f[1].mem.sus[k.id] = 4;
+    res.onTo = [Game.Bots.kill().id === f[1].id, g.why.text === `Was on to ${k.first}.`];
+    // The player has pointed at a Traitor three times, and is the one most on to them.
+    g.pressed = { [k.id]: 3 };
+    res.you = [Game.Bots.kill().id, g.why.text === `Was on to ${k.first}.`];
+    // Pointing at someone is what counts it, through the game's own reading of what was said.
+    g = fresh(); g.phase = 'talk';
+    const k2 = g.players.find(p => p.role === 'knife');
+    await Game.App.talk(`It's you, ${k2.first}.`, { aim: k2.id, stance: 'accuse' });
+    res.pressed = g.pressed[k2.id];
+    // A whole scripted night two: the reason is kept with the one murdered, and the reveal says it.
+    g = fresh(); g.day = 1;
+    const tick = setInterval(() => { const w = Game.UI.wait; if (w) { if (w.kind === 'pick') w.resolve(w.options[0][1]); else if (w.kind === 'line') w.resolve(''); } }, 2);
+    await Game.App.begin(); await Game.App.night(null);
+    Game.Bots.vote = p => { const live = Game.state.players.filter(q => q.alive); return { vote: live[(live.indexOf(p) + 1) % live.length], text: 'Them.' }; };
+    Game.App.callVote(); await Game.App.vote(Game.state.players.find(p => p.alive && !p.you).id);
+    if (Game.state.phase === 'night') await Game.App.night(null);
+    clearInterval(tick);
+    const dead = Game.state.players.filter(p => p.out && p.out.how === 'night').sort((x, y) => x.out.day - y.out.day);
+    res.kept = dead.map(p => [p.out.day, p.out.why]);
+    Game.state.phase = 'over'; Game.state.winner = 'knives'; Game.UI.reveal();
+    res.shown = [...document.querySelectorAll('dialog .reveal-why')].map(n => n.textContent);
+    return res;
+  });
+  assert.deepEqual(why.loud, [true, true, 'Nobody was on to the Traitors, so they took the voice the table heard most.']);
+  assert.deepEqual(why.onTo, [true, true]);
+  assert.deepEqual(why.you, ['you', true]);
+  assert.equal(why.pressed, 1);
+  assert.equal(why.kept[0][1], 'Drawn by lot: nothing had been said yet.');
+  assert.ok(why.kept.length >= 2 && why.kept.slice(1).every(x => /^(Was on to \w+\.|Said they were the Witness\.|Nobody was on to the Traitors, so they took the voice the table heard most\.)$/.test(x[1])), JSON.stringify(why.kept));
+  assert.deepEqual(why.shown.slice().sort(), why.kept.map(x => `Why the Traitors chose them: ${x[1]}`).sort());
 });
 
 /* ----- The bank (the owner: "What if, we have different personalities bank,

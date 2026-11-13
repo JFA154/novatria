@@ -1938,6 +1938,15 @@ are this game's own.
     Traitor choosing). From the second night the Traitors choose, and both
     then and at the vote the names are given to each seat in an order of
     its own, with a line saying the order means nothing.
+  - **After that a murder is never chance** (the owner: "the player
+    shouldn't be killed night one, and later killings aren't random").
+    With Claude, the Traitor who decides also says why, in a line. The
+    scripted table (the offline demo, or a seat whose call failed) goes
+    for whoever said they were the Witness, else whoever is most on to a
+    Traitor (for you, that is how often you have pointed at one), else
+    whoever the table has heard most from: the same choice every time,
+    with no dice. **The reveal** says, under everyone murdered, why the
+    Traitors chose them.
   - **Breakfast**: everyone still in comes in, one at a time, and whoever
     was murdered does not.
   - **The mission**, each morning while five or more are in: everyone, in

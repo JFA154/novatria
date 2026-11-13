@@ -216,7 +216,8 @@ a { color: var(--accent); }
 .reveal-row { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; align-items: start; }
 .reveal-row p { margin: 0; }
 .reveal-name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-weight: 700; }
-.reveal-fate { color: var(--muted); font-size: 14px; }
+.reveal-fate, .reveal-why { color: var(--muted); font-size: 14px; }
+.reveal-why { color: var(--danger); }
 .reveal-note { font: italic 15px/1.35 var(--read-font); }
 .seat-tag[data-role="fool"], .seat-tag[data-role="turncoat"], .seat-tag[data-role="drunk"] { color: var(--accent); }
 .seat-tag[data-role="hothead"], .seat-tag[data-role="bouncer"], .seat-tag[data-role="listener"], .seat-tag[data-role="friend"] { color: var(--good); }
@@ -411,7 +412,7 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
       <div class="card how">
         <h2>How it plays</h2>
         <ul>
-          <li>The <b>Traitors</b> know each other. Each night they murder one person, who does not come in to breakfast. The first night's murder is drawn by lot, and never falls on you: you get at least one day at the table.</li>
+          <li>The <b>Traitors</b> know each other. Each night they murder one person, who does not come in to breakfast. The first night's murder is drawn by lot, and never falls on you: you get at least one day at the table. After that it is never chance: they go for whoever is on to them, or whoever the table listens to, and the reveal says why each one went.</li>
           <li>The <b>Faithful</b> are everyone else, and have nothing but their judgement and their vote.</li>
           <li>Each day the <b>Round Table</b> talks, then votes. Most votes is <b>banished</b> and what they were is shown; a tie banishes nobody.</li>
           <li><b>The mission</b>, each morning: play for the <b>pot</b> ($500 into it) or for the <b>Shield</b>. One of those who went for the Shield gets it, in secret, and cannot be murdered that night.</li>
@@ -1116,6 +1117,8 @@ const Game = (() => {
     if (!aim || !aim.alive || aim === speaker) return;
     // (Not on the player's own seat: what is put to them is listed above the box.)
     if (!aim.you) UI.emote(aim.id, stance === 'accuse' ? '!' : stance === 'question' ? '?' : stance === 'vouch' ? '+' : '');
+    // (How often the player has pointed at each of them: a Traitor pointed at knows who is on to them.)
+    if (stance === 'accuse' && speaker.you) { state.pressed = state.pressed || {}; state.pressed[aim.id] = (state.pressed[aim.id] || 0) + 1; }
     if (stance === 'accuse') {
       state.heat[aim.id] = (state.heat[aim.id] || 0) + 1;
       for (const l of alive()) {
@@ -1204,11 +1207,24 @@ const Game = (() => {
          3 out of 3 times". Out before a word is said is no game at all.) */
       const prey = alive().filter(q => !isKnife(q) && !(q.you && state.day === 1));
       if (!prey.length) return null;
+      /* Why this one, kept for the reveal (the owner: "the player shouldn't
+         be killed night one, and later killings aren't random"). The first
+         night there is nothing to go on, so it is a lot. After that a
+         murder is always for a reason: whoever said they were the Witness;
+         else whoever is most on to a Traitor (a seat's own suspicion; for
+         the player, how often they have pointed at one); else, with nobody
+         on to them, whoever the table has heard most from. */
+      const why = (q, text) => { state.why = { id: q.id, night: state.day, text }; return q; };
+      if (state.day === 1) return why(pick(state, prey), 'Drawn by lot: nothing had been said yet.');
       const claimed = prey.find(q => q.mem.claimed);
-      if (claimed) return claimed;
+      if (claimed) return why(claimed, 'Said they were the Witness.');
+      const onTo = (q, k) => (q.you ? ((state.pressed && state.pressed[k.id]) || 0) * 1.5 : q.mem.sus[k.id] || 0);
       let best = null;
-      for (const q of prey) { const v = q.you ? 1 : Math.max(...knives.map(k => q.mem.sus[k.id] || 0)); if (!best || v > best.v) best = { q, v }; }
-      return best && best.v > 1.5 ? best.q : pick(state, prey);
+      for (const q of prey) for (const k of knives) { const v = onTo(q, k); if (!best || v > best.v) best = { q, v, k }; }
+      if (best && best.v > 1.5) return why(best.q, `Was on to ${best.k.first}.`);
+      const said = q => state.log.filter(e => e.t === 'say' && e.kind === 'talk' && e.who === q.id).length;
+      const loud = prey.slice().sort((a, b) => said(b) - said(a))[0];
+      return why(loud, 'Nobody was on to the Traitors, so they took the voice the table heard most.');
     },
     // What someone says as they are put out.
     lastWords(p) {
@@ -1313,7 +1329,7 @@ const Game = (() => {
       vote: { type: 'string', description: 'The first name of the one person you vote to banish. Someone still in, not yourself.' },
       say: { type: 'string', description: 'A few words sent as you vote.' }, note: { type: 'string', description: 'A private memo to yourself, under 40 words.' } } },
     kill: { type: 'object', additionalProperties: false, required: ['take', 'note'], properties: {
-      take: { type: 'string', description: 'The first name of the one person the Traitors murder tonight. Someone still in who is not a Traitor.' }, note: { type: 'string', description: 'A private memo to yourself, under 40 words.' } } },
+      take: { type: 'string', description: 'The first name of the one person the Traitors murder tonight. Someone still in who is not a Traitor.' }, note: { type: 'string', description: 'Why this one, in a plain sentence under 25 words. It is shown to everyone when the game is over, and to nobody before.' } } },
     end: { type: 'object', additionalProperties: false, required: ['end', 'say'], properties: {
       end: { type: 'boolean', description: 'True to vote to end the game now; false to vote to banish again.' }, say: { type: 'string', description: 'A few words sent as you vote, eight at most.' } } },
     last: { type: 'object', additionalProperties: false, required: ['say'], properties: { say: { type: 'string', description: 'Your last words to the table before you are banished: one to three sentences, spoken, in your own voice.' } } },
@@ -1605,6 +1621,8 @@ const Game = (() => {
           const t = named(r.take);
           if (!t || isKnife(t)) throw Object.assign(new Error('no valid choice'), { type: 'bad_json' });
           if (r.note) lead.mem.note = cleanText(r.note, 300);
+          // (Why, in the Traitor's own words, for the reveal.)
+          state.why = { id: t.id, night: state.day, text: cleanText(r.note, 200) };
           return t;
         } catch (e) { failed(e); }
       }
@@ -1980,6 +1998,7 @@ const Game = (() => {
     if (taken && taken.alive) {
       const dark = state.rule === 'dark';
       putOut(taken, 'night');
+      if (state.why && state.why.id === taken.id && state.why.night === state.day && state.why.text) taken.out.why = state.why.text;
       if (dark) taken.out.hidden = true;
       UI.gone(taken.id);
       await hostLine('death', dark ? { name: taken.name, role: 'town', hide: true } : taken);
@@ -2765,6 +2784,7 @@ const Game = (() => {
           el('span', { class: 'say-face' }, faceNode(p.you ? YOU_FACE : castOf(p.id))),
           el('div', null, el('p', { class: 'reveal-name' }, p.you ? `${p.name} (you)` : p.name, el('span', { class: 'seat-tag', dataset: { role: p.role } }, ROLE[p.role].name), p.was === 'turncoat' ? el('span', { class: 'seat-tag' }, 'was the Turncoat') : p.was === 'recruit' ? el('span', { class: 'seat-tag' }, `recruited, night ${p.turned}`) : null),
             el('p', { class: 'reveal-fate' }, [capFirst(fate(p)), v.length ? `voted ${v.join(', ')}` : ''].filter(Boolean).join(' · ')),
+            p.out && p.out.why ? el('p', { class: 'reveal-why' }, 'Why the Traitors chose them: ', p.out.why) : null,
             th ? el('p', { class: 'reveal-note' }, `\u201C${th}\u201D`) : null));
       })), [['Deal again', () => App.again()], ['Close', null, 'primary']]);
     },
