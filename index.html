@@ -843,6 +843,17 @@ const Game = (() => {
     return `${(at > cut.length * 0.5 ? cut.slice(0, at) : cut).replace(/[,;:—-]+$/, '').trim()}…`;
   }
 
+  /* A name at the start of a message is dropped when it is the name of
+     whoever is being answered (a tuned model only): "cora you didnt
+     answer", said to Cora who has just spoken, is "you didnt answer". */
+  function unlead(p, text, to) {
+    if (!tune().lead || !to || to === p) return text;
+    const m = new RegExp(`^${to.first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[,:]?\\s+(?=\\S+\\s+\\S)`, 'i').exec(text);
+    if (!m) return text;
+    const rest = text.slice(m[0].length);
+    return p.type === 'proper' || p.type === 'exact' ? capFirst(rest) : rest;
+  }
+
   // ----- the cast (the town's adults, from the Low Water story pack) -----
   const CAST = (() => { try { return JSON.parse(document.getElementById('cast').textContent).filter(isObj); } catch (e) { return []; } })().concat(EXTRA_CAST).filter(c => PERSONAS[c.id]);
   const castOf = id => CAST.find(c => c.id === id) || null;
@@ -1506,6 +1517,7 @@ const Game = (() => {
         '- Not every message is a move. People also groan, laugh, take the piss, complain that it is dragging, or agree in one word. When LENGTH THIS TURN says just a reaction, that is all you send.',
         '- One thought a message, with its reason in a few words when you have one ("you jumped on her way too fast"). Never a list of reasons, never the day summed up, never the rules explained, never someone\'s own words said back to them, nothing you have already said today said again.',
         '- Talk about the game and nothing else: this table, tonight, who is lying. Nothing about a town, anybody\'s work, family, money or past, the weather, or any life outside this room: none of it exists here.',
+        ...(tune().system || []),
         '',
         `PLAYING: ${state.players.map(p => p.first).join(', ')}. (${me.first} is one of the people at the table, the same as anyone: there is nothing more to know about them than how they play.)`
       ].filter(x => x !== null).join('\n');
@@ -1601,6 +1613,17 @@ const Game = (() => {
       return lines.join('\n');
     },
     stillIn() { return `STILL IN: ${alive().map(q => q.first).join(', ')}.`; },
+    /* What a tuned model is told last of all, after LENGTH THIS TURN
+       (kind: 'say', 'vote', 'aside', 'after'): what the seat has itself
+       said today, so that it is not said again, then the checks for that
+       kind of message. Nothing, for a model with no tuning. */
+    tail(p, kind) {
+      const t = tune();
+      const out = [];
+      if (t.own && kind === 'say') { const mine = state.log.filter(e => e.t === 'say' && e.kind === 'talk' && e.day === state.day && e.who === p.id).map(e => `"${e.text}"`); if (mine.length) out.push(`WHAT YOU HAVE ALREADY SAID TODAY: ${mine.join(' / ')}`); }
+      if (t.check && t.check[kind]) out.push(t.check[kind]);
+      return out.length ? `\n${out.join('\n')}` : '';
+    },
     /* The user content of a call for a seat: the record up to yesterday (a
        cache breakpoint: every seat's call today shares it), then today's
        record with this seat's secret and its task. */
@@ -1613,8 +1636,8 @@ const Game = (() => {
       return out;
     },
     task: {
-      say(p, x) { x = x || {}; return `NOW: day ${state.day}, the chat is going.${state.clock <= 3 ? ' It is getting late: the vote is close.' : ''}${x.why ? ` ${x.why}` : ''} You are about to send a message.\nLENGTH THIS TURN: ${(x.len || LENGTHS[2]).text}`; },
-      vote(p) { return `Those you can vote for, in no particular order (the order of a list of names means nothing): ${alive().filter(q => q !== p).sort((a, b) => hash(a.id, state.seed + state.day * 13 + hash(p.id, 5)) - hash(b.id, state.seed + state.day * 13 + hash(p.id, 5))).map(q => q.first).join(', ')}.\nNOW: day ${state.day}, the vote. Everyone votes at once, so you do not know how the othersvote. Name the one person still in that you vote to banish (not yourself). Vote for the one you really think it is, from what was said and done today (as a Traitor: whoever it suits your side to lose). Send a few words as you do, eight at most.`; },
+      say(p, x) { x = x || {}; return `NOW: day ${state.day}, the chat is going.${state.clock <= 3 ? ' It is getting late: the vote is close.' : ''}${x.why ? ` ${x.why}` : ''} You are about to send a message.\nLENGTH THIS TURN: ${(x.len || LENGTHS[2]).text}${Prompts.tail(p, 'say')}`; },
+      vote(p) { return `Those you can vote for, in no particular order (the order of a list of names means nothing): ${alive().filter(q => q !== p).sort((a, b) => hash(a.id, state.seed + state.day * 13 + hash(p.id, 5)) - hash(b.id, state.seed + state.day * 13 + hash(p.id, 5))).map(q => q.first).join(', ')}.\nNOW: day ${state.day}, the vote. Everyone votes at once, so you do not know how the othersvote. Name the one person still in that you vote to banish (not yourself). Vote for the one you really think it is, from what was said and done today (as a Traitor: whoever it suits your side to lose). Send a few words as you do, eight at most.${Prompts.tail(p, 'vote')}`; },
       kill(p) { return `NOW: night ${state.day}. You decide for the Traitors who is murdered tonight. Choose the one person still in, not a Traitor, whose going helps the Traitors most: go on what has happened at the table (who is on to you, who the table listens to, who is pushing whom), never on whose name comes first. Those you can choose, in no particular order: ${alive().filter(q => !isKnife(q)).sort((a, b) => hash(a.id, state.seed + state.day * 7 + hash(p.id, 3)) - hash(b.id, state.seed + state.day * 7 + hash(p.id, 3))).map(q => q.first).join(', ')}.`; },
       whisper(p, mate) { return `NOW: night ${state.day}. ${mate.name} is your fellow Traitor and decides tonight. Whisper to them who you would murder, and why, in one or two sentences.`; },
       end(p) { return `NOW: the end game. ${alive().length} of you are left: ${alive().map(q => q.first).join(', ')}. Everyone votes at once: END THE GAME, or BANISH AGAIN. If every one of you votes to end it, it ends there: with even one Traitor still in, the Traitors take the pot; with none, the Faithful share it. Otherwise the Round Table sits again and one more of you is banished, and what they were is not shown. Vote to end it only if you believe no Traitor is left (as a Traitor, you want it ended while you are still in). Send a few words as you vote, eight at most.`; },
@@ -1623,12 +1646,12 @@ const Game = (() => {
       aside(p, x) {
         const q = x.to;
         const so = (x.lines || []).map(l => `${l.who === p.id ? 'You' : q.first}: "${l.text}"`).join('\n');
-        return `NOW: day ${state.day}, before the Round Table. Everyone has gone off in twos for a word in private, and you are alone with ${q.first} (${x.took === 'you' ? 'you took them aside' : 'they took you aside'}). Nobody else can hear this, though the whole table saw the two of you go.${so ? `\nBetween the two of you so far:\n${so}\nAnswer ${q.first}, privately.` : `\nSay what you wanted to say to ${q.first}, privately.`} This is where people say who they really think it is, ask for a vote or for trust, find out what the other knows, or test them. You can make a promise, and you can lie; so can they. Either of you may repeat any of it at the table.\nLENGTH THIS TURN: ${(x.len || LENGTHS[2]).text}`;
+        return `NOW: day ${state.day}, before the Round Table. Everyone has gone off in twos for a word in private, and you are alone with ${q.first} (${x.took === 'you' ? 'you took them aside' : 'they took you aside'}). Nobody else can hear this, though the whole table saw the two of you go.${so ? `\nBetween the two of you so far:\n${so}\nAnswer ${q.first}, privately.` : `\nSay what you wanted to say to ${q.first}, privately.`} This is where people say who they really think it is, ask for a vote or for trust, find out what the other knows, or test them. You can make a promise, and you can lie; so can they. Either of you may repeat any of it at the table.\nLENGTH THIS TURN: ${(x.len || LENGTHS[2]).text}${Prompts.tail(p, 'aside')}`;
       },
       after(p, x) {
         x = x || {};
         const ties = between(p);
-        return `NOW: THE GAME IS OVER, and every card has been turned. Nobody is playing any more: there is nothing left to hide and no reason to lie, and what the rules above say about keeping your role to yourself no longer holds. Everyone, in or out of the game, is still in the chat, the way friends are when a game ends: crowing, groaning, laughing, owning up, having it out over that one vote.\nHOW IT REALLY WAS: ${truthText()}\nBETWEEN YOU AND ${you().first.toUpperCase()}: ${ties.join(' ')}\n${x.why || 'Say what comes out of you now that you know: about your own night, or to whoever fooled you, wronged you or was wronged by you.'} One message, as yourself.\nLENGTH THIS TURN: ${(x.len || LENGTHS[2]).text}`;
+        return `NOW: THE GAME IS OVER, and every card has been turned. Nobody is playing any more: there is nothing left to hide and no reason to lie, and what the rules above say about keeping your role to yourself no longer holds. Everyone, in or out of the game, is still in the chat, the way friends are when a game ends: crowing, groaning, laughing, owning up, having it out over that one vote.\nHOW IT REALLY WAS: ${truthText()}\nBETWEEN YOU AND ${you().first.toUpperCase()}: ${ties.join(' ')}\n${x.why || 'Say what comes out of you now that you know: about your own night, or to whoever fooled you, wronged you or was wronged by you.'} One message, as yourself.\nLENGTH THIS TURN: ${(x.len || LENGTHS[2]).text}${Prompts.tail(p, 'after')}`;
       },
       shot(p, how) { return `NOW: you are the Hothead and you are out of the game (${how}). Name the one person still in that you take with you, the one whose going helps the Faithful most, and one short sentence you say as you do it.`; }
     },
@@ -1641,6 +1664,19 @@ const Game = (() => {
         'Say only what the facts give you. You may add physical colour from inside the room (the lights, the table, a chair, a door), but nothing that points at who did it, no role that is not given, nobody\'s thoughts, and nothing about a town or anyone\'s life outside this room. Do not address the players and do not explain the rules.'].join('\n');
     }
   };
+  /* Tuning by model: how hard a model is asked to think, and what a
+     smaller one is told on top of what every seat is told. tune(): the
+     entry for this table's model ({} for a model with none).
+     effort: output_config.effort for its calls ('low' when not given).
+     system: lines added to HOW TO WRITE. check: what is put at the very
+     end of what a seat is asked for, after LENGTH THIS TURN, by the kind
+     of message ({ say, vote, aside, after }). own: the seat is given back
+     what it has itself said today. lead: a name at the start of a message
+     is dropped when that person is the one being answered. redo: a draft
+     that runs past its length is sent back once. serial: of two who
+     speak at once, the second waits for the first. */
+  const TUNE = {};
+  const tune = () => (state && TUNE[state.model]) || {};
   const settings = { key: '', model: MODELS[0], name: '' };
   function apiKey() { return settings.key || session.get(TOWN_KEY) || store.get(TOWN_KEY) || ''; }
   function addUsage(u, model) {
@@ -1661,7 +1697,7 @@ const Game = (() => {
       model: state.model, max_tokens: 3000,
       system: [{ type: 'text', text: p ? Prompts.system() : Prompts.hostSystem(), cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: p ? Prompts.blocks(p, task) : [{ type: 'text', text: task }] }],
-      output_config: { effort: 'low', format: { type: 'json_schema', schema: SCHEMAS[kind] } }
+      output_config: { effort: tune().effort || 'low', format: { type: 'json_schema', schema: SCHEMAS[kind] } }
     };
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 90000);
@@ -1695,6 +1731,21 @@ const Game = (() => {
     sys(why, 'notice', true);
   }
   const useClaude = () => state.mode === 'claude' && !App.fast;
+  /* A draft that runs past its length is sent back once (a tuned model
+     only: tune().redo), with the draft and its count, to be said again
+     within the length; what comes back is used when it is shorter. So a
+     small model's message is its own, whole, and not one cut off in the
+     middle. r: the reply; max: the words asked for. */
+  const wordCount = t => cleanText(t, 2000).split(/\s+/).filter(Boolean).length;
+  async function tight(p, kind, task, r, max) {
+    const n = wordCount(r.say);
+    if (!tune().redo || n <= Math.ceil(max * 1.5)) return r;
+    try {
+      const again = await callClaude(p, kind, `${task}\nYOUR DRAFT RAN LONG. You wrote ${n} words: "${cleanText(r.say, 600)}"\nThe length is ${max} words at most. Send the same point again within it: keep one reason, drop the rest, and do not start with a name.`);
+      if (typeof again.say === 'string' && again.say.trim() && wordCount(again.say) < n) return Object.assign({}, r, again);
+    } catch (e) { /* the first draft stands, cut to length */ }
+    return r;
+  }
   /* What each seat does, by Claude when it can and by the script when it
      cannot (the offline demo; a failed call; a skipped ending). */
   const Seat = {
@@ -1706,9 +1757,13 @@ const Game = (() => {
       if (!x.len) x.len = pickLength(state, !!x.answering);
       if (useClaude()) {
         try {
-          const r = await callClaude(p, 'say', Prompts.task.say(p, x));
-          const text = typed(p, clip(r.say, x.len.max));
-          if (!text) throw Object.assign(new Error('an empty line'), { type: 'bad_json' });
+          const task = Prompts.task.say(p, x);
+          const r = await tight(p, 'say', task, await callClaude(p, 'say', task), x.len.max);
+          const raw = typed(p, clip(r.say, x.len.max));
+          if (!raw) throw Object.assign(new Error('an empty line'), { type: 'bad_json' });
+          // (Who is being answered: the player, when their words are being taken up; else whoever spoke last.)
+          const before = state.log.filter(e => e.t === 'say' && e.kind === 'talk' && e.day === state.day).pop();
+          const text = unlead(p, raw, x.answering ? you() : before ? P(before.who) : null);
           p.mem.note = cleanText(r.note, 300);
           p.mem.feel = cleanText(r.feel, 140);
           const s = named(r.suspect); const t = named(r.trust);
@@ -1718,7 +1773,7 @@ const Game = (() => {
           const stance = ['accuse', 'vouch', 'question'].includes(r.stance) ? r.stance : 'other';
           if (r.stance === 'claim' && /witness/i.test(text)) p.mem.claimed = true;
           const more = x.len.id !== 'react' && typeof r.more === 'string' ? typed(p, clip(r.more, 6)) : '';
-          return { text, more: more && more.toLowerCase() !== text.toLowerCase() ? more : '', ready: r.ready === true, aim: aim && aim !== p ? aim : readLine(text, p.id).aim, stance: aim ? stance : readLine(text, p.id).stance };
+          return { text, more: more && more.toLowerCase() !== text.toLowerCase() ? more : '', ready: r.ready === true, aim: aim && aim !== p ? aim : readLine(raw, p.id).aim, stance: aim ? stance : readLine(raw, p.id).stance };
         } catch (e) { failed(e); }
       }
       const b = Bots.say(p, x);
@@ -1727,7 +1782,8 @@ const Game = (() => {
     async vote(p) {
       if (useClaude()) {
         try {
-          const r = await callClaude(p, 'vote', Prompts.task.vote(p));
+          const task = Prompts.task.vote(p);
+          const r = await tight(p, 'vote', task, await callClaude(p, 'vote', task), 6);
           const t = named(r.vote);
           if (!t || t === p) throw Object.assign(new Error('no valid vote'), { type: 'bad_json' });
           if (r.note) p.mem.note = cleanText(r.note, 300);
@@ -1806,8 +1862,9 @@ const Game = (() => {
     async aside(p, x) {
       if (useClaude()) {
         try {
-          const r = await callClaude(p, 'aside', Prompts.task.aside(p, x));
-          const text = typed(p, clip(r.say, x.len.max));
+          const task = Prompts.task.aside(p, x);
+          const r = await tight(p, 'aside', task, await callClaude(p, 'aside', task), x.len.max);
+          const text = unlead(p, typed(p, clip(r.say, x.len.max)), x.to);
           if (!text) throw Object.assign(new Error('an empty line'), { type: 'bad_json' });
           p.mem.note = cleanText(r.note, 300);
           p.mem.feel = cleanText(r.feel, 140);
@@ -1823,7 +1880,7 @@ const Game = (() => {
        is turned. x: { why (what it is answering), answering, len }. */
     async after(p, x) {
       if (useClaude()) {
-        try { const r = await callClaude(p, 'after', Prompts.task.after(p, x)); const text = typed(p, clip(r.say, x.len.max)); if (text) return { text }; } catch (e) { failed(e); }
+        try { const r = await callClaude(p, 'after', Prompts.task.after(p, x)); const text = unlead(p, typed(p, clip(r.say, x.len.max)), x.answering ? you() : null); if (text) return { text }; } catch (e) { failed(e); }
       }
       return { text: typed(p, Bots.after(p, x)) };
     },
@@ -2704,9 +2761,14 @@ const Game = (() => {
     for (const x of picks) x.was = { accusedBy: x.p.mem.accusedBy, askedBy: x.p.mem.askedBy };
     UI.typing(ids);
     await wait(useClaude() ? 200 : 800 + Math.random() * 900);
-    const got = await Promise.all(picks.map(x => Seat.say(x.p, x)));
+    /* (A tuned model that is to speak second of two waits for the first:
+       two small models asked at once, neither seeing the other's, send
+       the same message.) */
+    const serial = !!tune().serial && picks.length > 1 && useClaude();
+    const got = serial ? [] : await Promise.all(picks.map(x => Seat.say(x.p, x)));
     let n = 0;
     for (let i = 0; i < picks.length && on(); i++) {
+      if (serial) { got[i] = await Seat.say(picks[i].p, picks[i]); if (!on()) break; }
       // Not before the last message has had time to be read.
       const lag = readUntil - Date.now();
       if (lag > 0 && App.speed > 0 && !App.fast) await nap(lag);
@@ -3538,7 +3600,7 @@ const Game = (() => {
     }
   };
 
-  const api = { App, UI, Bots, Seat, Prompts, Ledger, PERSONAS, LENGTHS, clip, TYPES, typed, BETS, Rules: { deal, winner, SIZES, WILD, ROLE, CARD, HOUSE, RULES, beside: id => beside(P(id)).map(q => q.id), readLine: (t, id) => { const r = readLine(t, id); return { aim: r.aim ? r.aim.id : null, stance: r.stance }; } }, CAST, faceTraits, faceNode, recordText, get state() { return state; }, get busy() { return busy; },
+  const api = { App, UI, Bots, Seat, Prompts, Ledger, Tune: TUNE, PERSONAS, LENGTHS, clip, TYPES, typed, BETS, Rules: { deal, winner, SIZES, WILD, ROLE, CARD, HOUSE, RULES, beside: id => beside(P(id)).map(q => q.id), readLine: (t, id) => { const r = readLine(t, id); return { aim: r.aim ? r.aim.id : null, stance: r.stance }; } }, CAST, faceTraits, faceNode, recordText, get state() { return state; }, get busy() { return busy; },
     // Whether a live table is talking on its own just now.
     get talking() { return talking; },
     // Whether the table is talking afterwards just now (the whole night), and what an answer to the house came to.
