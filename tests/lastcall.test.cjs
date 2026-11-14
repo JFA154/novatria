@@ -2562,7 +2562,7 @@ s.test('with Claude, afterwards each seat is told the game is over, how it reall
     assert.match(t, new RegExp(`HOW IT REALLY WAS: ${g.winner === 'town' ? 'The Faithful won' : 'The Traitors won'}\\. Joe was a Faithful, `));
     for (const [name, role] of g.players) assert.match(t, new RegExp(`${name} was ${role === 'knife' ? 'a Traitor' : role === 'witness' ? 'the Witness' : 'a Faithful'}, (in at the end|banished, day \\d|murdered in the night, day \\d)`));
     assert.match(t, /\nBETWEEN YOU AND JOE: (Neither you nor Joe was a Traitor|You were a Traitor and Joe was not)\./);
-    assert.match(t, /Say what comes out of you now that you know.* One message, as yourself, typed the way you type\.\nLENGTH THIS TURN: /);
+    assert.match(t, /Say what comes out of you now that you know.* One message, as yourself\.\nLENGTH THIS TURN: /);
   }
   const theirs = first.find(b => new RegExp(`YOUR SEAT: ${x.first} `).test(text(b)));
   if (theirs) assert.match(text(theirs), /On day 1 the two of you had a word in private\. Joe said: "I trust you\." You said: "[^"]+"/, 'a word in private is part of what is between them');
