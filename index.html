@@ -1465,6 +1465,17 @@ const Game = (() => {
     whisper: { type: 'object', additionalProperties: false, required: ['take', 'say'], properties: {
       take: { type: 'string', description: 'The first name of who you would murder tonight. Someone still in who is not a Traitor.' }, say: { type: 'string', description: 'One or two sentences whispered to your fellow Traitor: who and why.' } } }
   };
+  /* A tuned model's message, its point first (tune().plan): the same
+     fields, in the order they are best written in. What is asked for
+     first is written first, so the message is written from a point and
+     not the point made up after it. */
+  SCHEMAS.sayPlan = { type: 'object', additionalProperties: false, required: ['point', 'about', 'stance', 'say', 'more', 'ready', 'suspect', 'trust', 'feel', 'note'], properties: Object.assign({
+    point: { type: 'string', description: 'Private, and written before the message: the one thing this message will do (answer, press, back someone up, share something, react), and the fact in the record it rests on. Under 25 words.' } },
+  ...['about', 'stance', 'say', 'more', 'ready', 'suspect', 'trust', 'feel', 'note'].map(k => ({ [k]: SCHEMAS.say.properties[k] }))) };
+  // A seat's read of the table and its plan for the day, thought through before the talk (tune().brief).
+  SCHEMAS.brief = { type: 'object', additionalProperties: false, required: ['read', 'plan'], properties: {
+    read: { type: 'string', description: 'Private: who you suspect and who you trust, each with the one fact in the record it rests on. Under 60 words.' },
+    plan: { type: 'string', description: 'Private: what you will do at the table today: who to press and on what, what to bring up, what to keep back, how you will vote unless something changes. Under 50 words.' } } };
   const Prompts = {
     system() {
       const n = state.players.length;
@@ -1612,6 +1623,8 @@ const Game = (() => {
       if (carry.length) lines.push(`WHAT YOU ARE CARRYING: ${carry.join(' ')}`);
       if (p.mem.feel) lines.push(`HOW YOU FEEL: ${p.mem.feel}`);
       if (p.mem.note) lines.push(`YOUR OWN PRIVATE NOTES FROM EARLIER: ${p.mem.note}`);
+      // (A tuned model's morning read, thought through before the talk: tune().brief.)
+      if (p.mem.brief && p.mem.brief.day === state.day) lines.push(`YOUR READ THIS MORNING: ${p.mem.brief.read}\nYOUR PLAN FOR TODAY: ${p.mem.brief.plan}\n(You thought this through before the talk. Play it in your own words, a piece at a time, and change course when the table gives you a reason.)`);
       /* The last time this person sat with the player (the house keeps it
          from night to night): said on the first day only, as something
          friends bring up, never as evidence. */
@@ -1645,6 +1658,36 @@ const Game = (() => {
       const silent = seats.filter(q => q !== p && !count(q));
       if (today.length) facts.push(`Said so far today: ${seats.filter(q => count(q)).map(q => `${q === p ? 'you' : q.first} ${count(q)}`).join(', ')}${silent.length ? `. Nothing yet from ${andList(silent.map(q => q.first))}` : ''}.`);
       if (facts.length) out.push(`FACTS EVERYONE CAN SEE (they are in the record: never ask anyone for them, and never get them wrong):\n${facts.map(f => `- ${f}`).join('\n')}`);
+      const t = tune();
+      /* The record, person by person (tune().file): who each has pointed
+         at and stood up for, how each has voted, who each went off with
+         today. A small model reasons from a line a person better than
+         from a long chat. */
+      if (t.file) {
+        const said = (q, st) => [...new Set(state.log.filter(e => e.t === 'say' && e.who === q.id && e.stance === st && e.aim && P(e.aim) && e.aim !== q.id).map(e => (e.aim === p.id ? 'you' : name(e.aim))))].slice(-3);
+        const rows = seats.map(q => {
+          const parts = [];
+          const at = said(q, 'accuse'); const up = said(q, 'vouch');
+          if (at.length) parts.push(`pointed at ${andList(at)}`);
+          if (up.length) parts.push(`stood up for ${andList(up)}`);
+          const votes = state.votesLog.filter(w => !w.secret && w.votes[q.id] && P(w.votes[q.id])).map(w => `${w.votes[q.id] === p.id ? 'you' : name(w.votes[q.id])} (day ${w.day})`);
+          if (votes.length) parts.push(`voted for ${votes.join(', ')}`);
+          const two = twos.find(a => a.a === q.id || a.b === q.id);
+          if (two) parts.push(`went off with ${(two.a === q.id ? two.b : two.a) === p.id ? 'you' : name(two.a === q.id ? two.b : two.a)} this morning`);
+          return `- ${q === p ? `You (${q.first})` : q.first}: ${parts.join('; ') || 'nothing on the record yet'}.`;
+        });
+        out.push(`THE RECORD, PERSON BY PERSON (worked out from the chat and the votes; all of it is public):\n${rows.join('\n')}`);
+      }
+      /* Asked, and not answered (tune().asked): anyone who has been asked
+         or pressed twice since they last spoke. The next to speak is told
+         not to ask a third time; the one asked is told to answer. */
+      if (t.asked) for (const q of seats) {
+        let last = -1;
+        today.forEach((e, i) => { if (e.who === q.id) last = i; });
+        const n = today.slice(last + 1).filter(e => e.aim === q.id && (e.stance === 'question' || e.stance === 'accuse')).length;
+        if (n < 2) continue;
+        out.push(q === p ? `YOU HAVE BEEN ASKED OR PRESSED ${n} TIMES since you last spoke, and have not answered. Answer it now, plainly.` : `${q.first.toUpperCase()} HAS BEEN ASKED OR PRESSED ${n} TIMES since they last spoke, and has not answered. Everyone can see that: do not ask again. Say what you make of the silence in a few words, or leave ${q.first} and turn to something else.`);
+      }
       // Three messages running at one person: the table is stuck.
       let stuck = null;
       let run = 0;
@@ -1714,6 +1757,7 @@ const Game = (() => {
         const ties = between(p);
         return `NOW: THE GAME IS OVER, and every card has been turned. Nobody is playing any more: there is nothing left to hide and no reason to lie, and what the rules above say about keeping your role to yourself no longer holds. Everyone, in or out of the game, is still in the chat, the way friends are when a game ends: crowing, groaning, laughing, owning up, having it out over that one vote.\nHOW IT REALLY WAS: ${truthText()}\nBETWEEN YOU AND ${you().first.toUpperCase()}: ${ties.join(' ')}\n${x.why || 'Say what comes out of you now that you know: about your own night, or to whoever fooled you, wronged you or was wronged by you.'} One message, as yourself.\nLENGTH THIS TURN: ${(x.len || LENGTHS[2]).text}${Prompts.tail(p, 'after')}`;
       },
+      brief() { return `NOW: day ${state.day}, just before the Round Table sits. Nobody is waiting on you: take the time to think it through, privately. Go back over the record: who pushed whom, who voted how, who was murdered and who gained by it, who went off with whom, what you were told in private. Then write your read of the table and your plan for today. Nothing you write here is sent to anyone.`; },
       shot(p, how) { return `NOW: you are the Hothead and you are out of the game (${how}). Name the one person still in that you take with you, the one whose going helps the Faithful most, and one short sentence you say as you do it.`; }
     },
     /* The host: the house's own voice for a moment of the game. It is told
@@ -1735,7 +1779,12 @@ const Game = (() => {
      what it has itself said today. lead: a name at the start of a message
      is dropped when that person is the one being answered. digest: the
      day's public facts in a few lines, and something new to bring up
-     when the table is stuck on one person. facts: who the
+     when the table is stuck on one person; with file, the record person
+     by person as well; with asked, who has been asked twice and has not
+     answered. plan: its point is asked for before its message. effortBy:
+     an effort for one kind of call ({ say: 'high' }). brief: each seat's
+     read of the table and plan for the day, thought through once each
+     morning by another model ({ model, effort }). facts: who the
      seat is and what day it is, said again at the end. redo: a draft
      that runs past its length, or says what the table has already heard
      today, is sent back once. serial: of two who
@@ -1780,15 +1829,24 @@ const Game = (() => {
      'no_key', 'auth', 'refusal', 'bad_json', 'http', 'network'. No sampling
      parameters, no tools, no prefill: the reply's shape comes from
      output_config.format. */
-  async function callClaude(p, kind, task) {
+  async function callClaude(p, kind, task, o) {
     const key = apiKey();
     if (!key) throw Object.assign(new Error('no API key'), { type: 'no_key' });
     // A seat's call (p), or the host's (p null: its own short system prompt and the public facts of the moment).
+    /* (o: a call that is not the table's ordinary one. model: another
+       model than the table's, for a tuned model's morning read; effort:
+       how hard it is asked to think. A tuned model can also be asked for
+       more thought for one kind of call, tune().effortBy, and for its
+       point before its message, tune().plan.) */
+    const t = tune();
+    const model = (o && o.model) || state.model;
+    const effort = (o && o.effort) || (t.effortBy && t.effortBy[kind]) || t.effort || 'low';
+    const schema = kind === 'say' && t.plan ? SCHEMAS.sayPlan : SCHEMAS[kind];
     const body = {
-      model: state.model, max_tokens: 3000,
+      model, max_tokens: 3000,
       system: [{ type: 'text', text: p ? Prompts.system() : Prompts.hostSystem(), cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: p ? Prompts.blocks(p, task) : [{ type: 'text', text: task }] }],
-      output_config: { effort: tune().effort || 'low', format: { type: 'json_schema', schema: SCHEMAS[kind] } }
+      output_config: { effort, format: { type: 'json_schema', schema } }
     };
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), 90000);
@@ -1800,7 +1858,7 @@ const Game = (() => {
     let data = null;
     try { data = await res.json(); } catch (e) { data = null; }
     if (!res.ok) throw Object.assign(new Error((data && data.error && data.error.message) || `HTTP ${res.status}`), { type: res.status === 401 || res.status === 403 ? 'auth' : 'http', status: res.status });
-    if (isObj(data) && isObj(data.usage)) addUsage(data.usage, state.model);
+    if (isObj(data) && isObj(data.usage)) addUsage(data.usage, model);
     if (!isObj(data) || data.stop_reason === 'refusal') throw Object.assign(new Error('the model declined'), { type: 'refusal' });
     const text = (Array.isArray(data.content) ? data.content : []).filter(b => isObj(b) && b.type === 'text').map(b => b.text).join('');
     try { const out = JSON.parse(text); if (!isObj(out)) throw new Error('not an object'); return out; } catch (e) { throw Object.assign(new Error('the reply was not the JSON asked for'), { type: 'bad_json' }); }
@@ -2379,6 +2437,26 @@ const Game = (() => {
     UI.setBusy('');
     UI.stage(null);
   }
+  /* A tuned model's morning read (tune().brief: { model, effort }): before
+     the Round Table each seat still in thinks the table through once, by
+     a stronger model than the one that does its talking, and is given
+     back what it wrote as its read and its plan for the day. The talk is
+     the small model's; the thinking under it is not. A read that fails
+     is done without. */
+  async function morningReads() {
+    const b = tune().brief;
+    if (!b || !useClaude() || state.phase !== 'talk' || state.winner) return;
+    UI.setBusy('The table gathers its thoughts…');
+    await Promise.all(alive().filter(p => !p.you).map(async p => {
+      try {
+        const r = await callClaude(p, 'brief', Prompts.task.brief(), { model: MODELS.includes(b.model) ? b.model : state.model, effort: b.effort || 'low' });
+        const read = cleanText(r.read, 500); const plan = cleanText(r.plan, 400);
+        if (read || plan) p.mem.brief = { day: state.day, read, plan };
+      } catch (e) { /* this seat goes in without one */ }
+    }));
+    UI.setBusy('');
+    UI.renderCost();
+  }
   /* The house asks (the whole night): one question a night from the second
      night on, and once more before the end game's first vote, answered by
      naming someone, heard by nobody. It changes nothing in the game: the
@@ -2697,6 +2775,8 @@ const Game = (() => {
     if (me.alive && ((turned && turned.you) || (joined && joined.you)) && !App.quiet) UI.roleCard();
     // A word in private, before the Round Table (the whole night).
     await privateWords();
+    // A tuned model's read of the table, thought through before the talk.
+    await morningReads();
   }
   /* The day's talk. (The owner, after real games: "how can it feel like 8
      humans are talking? rather than ai and game".) It is not rounds. The

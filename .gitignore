@@ -6,3 +6,6 @@ test-results/
 
 # Agent worktrees and local Claude state
 .claude/
+
+# What the Last Call tuning harness writes (tests/lastcall-tune.cjs)
+tests/tune-out/

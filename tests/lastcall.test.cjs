@@ -110,6 +110,7 @@ function standIn(bodies, opts) {
         : need.includes('take') && need.includes('say') ? { take: other, say: `Take ${other}. Too sharp by half.` }
           : need.includes('take') ? { take: other, note: `took ${other}` }
             : need.includes('end') ? { end: !!(opts && opts.end), say: 'Not yet, I am not sure.' }
+            : need.includes('read') ? { read: 'Nobody yet, on nothing.', plan: 'Watch who votes with whom.' }
             : need.length === 1 ? { say: 'You will all be sorry by morning.' }
               : { say: opts && opts.say ? opts.say(user, other) : `${other}, You were too quiet.`, more: opts && opts.more ? 'Just saying, that is all I mean here' : null, about: other, stance: 'accuse', ready: !!(opts && opts.ready), suspect: other, trust: null, feel: `sore at ${other}`, note: `pressing ${other}` };
     return route.fulfill({ status: 200, headers: Object.assign({ 'content-type': 'application/json' }, cors), body: JSON.stringify({ id: 'msg_x', type: 'message', role: 'assistant', model: body.model, stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(out) }], usage: { input_tokens: 1000, output_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } }) });
@@ -2724,6 +2725,62 @@ s.test('the smallest model is tuned, and the others are left as they were: it is
   assert.ok(seats2.every(b => !/YOU ARE |BEFORE YOU SEND|FACTS EVERYONE CAN SEE|WHAT YOU HAVE ALREADY SAID/.test(text(b)) && /LENGTH THIS TURN: [^\n]+$/.test(text(b))), 'what it is asked for ends where it did');
   assert.doesNotMatch(text(seats2[1]), /you never said a name today/i, 'and the two who answer at once do not see each other\'s');
   assert.ok((await page2.evaluate(() => Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk' && e.who !== 'you').map(e => e.text))).every(t => /^joe /i.test(t)), 'nor is a name dropped');
+});
+
+s.test('what a tuned model can be given beyond what it has, each left off until it is measured: its point asked for before its message, the record person by person, who has been asked twice and has not answered, more thought for one kind of call, and a read of the table each morning by a stronger model', async h => {
+  const bodies = [];
+  const page = await open(h, { route: standIn(bodies) });
+  assert.deepEqual(await page.evaluate(() => ['plan', 'file', 'asked', 'brief', 'effortBy'].filter(k => k in Game.Tune['claude-haiku-5-5'])), [], 'none of them is in what the smallest model is given today');
+  await page.evaluate(() => {
+    Object.assign(Game.Tune['claude-haiku-5-5'], { plan: true, file: true, asked: true, effortBy: { vote: 'low' }, brief: { model: 'claude-opus-5-5', effort: 'low' } });
+    sessionStorage.setItem('novatria.apiKey', 'sk-ant-test-key'); Game.App.speed = 0; Game.App.quiet = true;
+    Game.App.newGame({ seed: 11, size: 8, mode: 'claude', model: 'claude-haiku-5-5', name: 'Joe', live: false, deck: 'plain', role: 'town' });
+  });
+  await page.click('dialog .btn.primary');
+  await begin(page);
+  await page.click('#mid-go');
+  await settle(page);
+  const text = b => b.body.messages[0].content.map(c => c.text).join('\n');
+  // The morning read: one call for each seat still in, by the other model, and nobody else's.
+  const reads = bodies.filter(b => b.body.output_config.format.schema.required.join() === 'read,plan');
+  const live = await page.evaluate(() => Game.state.players.filter(p => p.alive && !p.you).map(p => p.first));
+  assert.deepEqual(reads.map(b => /YOUR SEAT: (\S+)/.exec(text(b))[1]).sort(), live.slice().sort());
+  assert.ok(reads.every(b => b.body.model === 'claude-opus-5-5' && b.body.output_config.effort === 'low' && /NOW: day 1, just before the Round Table sits\. Nobody is waiting on you: take the time to think it through, privately\./.test(text(b)) && /Nothing you write here is sent to anyone\.$/.test(text(b))));
+  assert.deepEqual(await page.evaluate(() => Game.state.players.filter(p => p.alive && !p.you).map(p => [p.mem.brief.day, p.mem.brief.read, p.mem.brief.plan])), live.map(() => [1, 'Nobody yet, on nothing.', 'Watch who votes with whom.']));
+  assert.equal(await page.evaluate(() => Game.state.usage.calls), bodies.length, 'and each is counted in the cost');
+  // At the table: the point first, the read given back, the record person by person.
+  const n0 = bodies.length;
+  await page.fill('#say', 'Who is it then?');
+  await page.click('#btn-say');
+  await settle(page);
+  const talk = bodies.slice(n0).filter(b => !/^You are the host/.test(b.body.system[0].text));
+  assert.ok(talk.length >= 3 && talk.every(b => b.body.model === 'claude-haiku-5-5' && b.body.output_config.effort === 'medium'));
+  assert.ok(talk.every(b => { const sc = b.body.output_config.format.schema; return sc.required[0] === 'point' && Object.keys(sc.properties).join() === 'point,about,stance,say,more,ready,suspect,trust,feel,note'; }), 'its point is asked for before its message');
+  assert.ok(talk.every(b => text(b).includes('YOUR READ THIS MORNING: Nobody yet, on nothing.\nYOUR PLAN FOR TODAY: Watch who votes with whom.\n(You thought this through before the talk.')));
+  const last = text(talk[talk.length - 1]);
+  const me = /YOUR SEAT: (\S+)/.exec(last)[1];
+  assert.match(last, new RegExp(`\\nTHE RECORD, PERSON BY PERSON \\(worked out from the chat and the votes; all of it is public\\):\\n(?:- [^\\n]+\\n)*- You \\(${me}\\): [^\\n]+\\.\\n`));
+  assert.match(last, /\n- \w+: pointed at Joe\.\n/, 'who has pointed at whom');
+  // Asked twice and not answered: the next to speak is told not to ask a third time, and the one asked is told to answer.
+  const asked = await page.evaluate(() => {
+    const g = Game.state; const [a, b, c] = g.players.filter(p => p.alive && !p.you);
+    const put = (who, aim, stance) => g.log.push({ t: 'say', who: who.id, text: 'well?', day: g.day, kind: 'talk', aim: aim.id, stance });
+    put(a, b, 'question'); put(c, b, 'accuse');
+    const out = { B: b.first, other: Game.Prompts.digest(c, {}).join('\n'), self: Game.Prompts.digest(b, {}).join('\n') };
+    g.log.push({ t: 'say', who: b.id, text: 'fine, here', day: g.day, kind: 'talk' });
+    out.after = Game.Prompts.digest(c, {}).join('\n');
+    return out;
+  });
+  assert.ok(asked.other.includes(`${asked.B.toUpperCase()} HAS BEEN ASKED OR PRESSED 2 TIMES since they last spoke, and has not answered. Everyone can see that: do not ask again.`));
+  assert.ok(asked.self.includes('YOU HAVE BEEN ASKED OR PRESSED 2 TIMES since you last spoke, and have not answered. Answer it now, plainly.'));
+  assert.ok(!asked.after.includes(`${asked.B.toUpperCase()} HAS BEEN ASKED OR PRESSED`), 'and once they have spoken, it is gone');
+  // More thought, or less, for one kind of call.
+  await page.click('#btn-vote');
+  await page.click(`.seat[data-id="${await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you).id)}"]`);
+  await page.click('#mid-go');
+  await settle(page);
+  const votes = bodies.filter(b => b.body.output_config.format.schema.required.includes('vote'));
+  assert.ok(votes.length >= 5 && votes.every(b => b.body.output_config.effort === 'low'));
 });
 
 s.test('one self-contained file: no innerHTML, no markup from strings, one fetch (to the API), nothing loaded from elsewhere', async () => {

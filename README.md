@@ -2252,6 +2252,28 @@ are this game's own.
   and Sonnet 5.5 beat it 3 to 1 (two tables). A night on tuned Haiku is
   about three cents; a first day alone is about 20 cents on Sonnet and 37
   on Opus.
+- **More to measure** (the owner: "how can you tune haiku even more",
+  then "do it"). What tuned Haiku still lacks is in the thinking, not the
+  writing: it loses who said what, and does not build a case over several
+  messages. Five more things a tuned model can be given are in the page,
+  each off until tables it was not tuned on come out better with it:
+  its point asked for before its message (`plan`); the record person by
+  person, who has pointed at and stood up for whom, how each voted, who
+  went off with whom (`file`); who has been asked or pressed twice since
+  they last spoke and has not answered, so the next to speak does not ask
+  a third time and the one asked is told to answer (`asked`); more thought
+  for one kind of call (`effortBy`); and a read of the table and a plan
+  for the day, thought through once each morning for each seat by a
+  stronger model than the one that does the talking (`brief`), which is
+  the one that costs: a call a seat a day on that model.
+  `tests/lastcall-tune.cjs` is the measuring: it plays the same scripted
+  nights against the live API through the page's buttons with any of
+  these laid over the shipped tuning, scores how the seats write, and has
+  a stronger model judge one day's transcript against another blind, each
+  pair in both orders. It needs a key in `LASTCALL_API_KEY` and spends
+  real money (about three cents a night on Haiku, forty a first day on
+  Opus, twenty a judging). These five have not been measured: the key
+  the first round was run on has been revoked.
 - **Offline demo**: no key and no calls; the others follow a simple script
   (they point at whoever has been pointed at, defend themselves, read the
   last vote) and the host reads from a short list. It teaches the game; it
@@ -2324,7 +2346,9 @@ fails it with a message saying so; the CI checkout fetches it all).
   the scripted table and with Claude, a live table, a small phone; the
   tests before those sit down at a quick game), and the smallest model's
   tuning (what it is told last, a draft sent back, a name dropped, two
-  waiting their turn, and the default model told none of it);
+  waiting their turn, and the default model told none of it; and what is
+  there to be measured and is off: the point first, the record person by
+  person, asked and not answered, the morning read);
 - `wave38-date` for the faces, the strip of who is here, the date table,
   Deal again and the one-tap flirt; `wave39-table-talk` for words said with
   a bet being answered before the cards;
@@ -2342,6 +2366,10 @@ fails it with a message saying so; the CI checkout fetches it all).
   `relationships` for its permanent checks (the minor rule and coercion, the
   anchors, the fallbacks, a fuzz of the wire); `relationships-examples` for
   the design's worked examples played through.
+- `tests/lastcall-tune.cjs` is not a test file: it is the measuring behind
+  Last Call's tuning by model, against the live API (`LASTCALL_API_KEY`;
+  `play`, `judge` and `scores`; its header has the whole of it). What it
+  writes goes in `tests/tune-out/`, which is not kept.
 - `tests/probe-grammar.cjs` is not a test file: it sends the bookkeeper's
   and the parser's schemas to the live API (`PROBE_DRY=1` builds the
   requests and stops before the network; `PROBE_MODELS=a,b` picks the
