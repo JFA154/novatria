@@ -163,6 +163,17 @@ a { color: var(--accent); }
 .say[data-kind="vote"] .say-head { display: inline; margin-right: 5px; }
 .say[data-kind="vote"] .say-face { width: 20px; height: 20px; margin-left: 6px; }
 .say[data-kind="whisper"] .say-text { background: transparent; box-shadow: inset 0 0 0 1px var(--field); color: var(--muted); }
+/* A word in private: outlined, the colour of what only the player is told. */
+.say[data-kind="aside"] .say-text, .say[data-you="1"][data-kind="aside"] .say-text { background: transparent; box-shadow: inset 0 0 0 1px var(--good); color: inherit; }
+.say[data-kind="aside"] .say-text .role { color: var(--good); }
+.seat[data-away="1"] { opacity: .3; }
+.links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.links line { stroke: var(--good); stroke-width: 2; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-dasharray: 2 6; opacity: .85; }
+.reveal-more { padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.reveal-more:last-child { padding: 8px 0 0; border-top: 1px solid var(--border); border-bottom: 0; }
+.reveal-more p { margin: 0 0 6px; font-size: 14px; line-height: 1.35; }
+.reveal-more .deck-head { margin: 0 0 6px; }
+.house-truth { color: var(--muted); }
 /* Who is typing: their faces and three dots, under the last message. */
 .typing { display: flex; align-items: center; gap: 4px; min-height: 30px; margin-top: 6px; }
 .typing .say-face { width: 22px; height: 22px; }
@@ -299,7 +310,7 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
 @media (max-width: 700px), (max-height: 700px) {
   #screen-game[data-table="strip"] .table-area { padding: 6px 4px 5px; border-bottom: 1px solid var(--border); }
   #screen-game[data-table="strip"] .table { display: grid; grid-template-columns: repeat(var(--cols, var(--others, 7)), minmax(0, 1fr)); gap: 2px 0; height: auto; }
-  #screen-game[data-table="strip"] .felt, #screen-game[data-table="strip"] .arrows, #screen-game[data-table="strip"] .seat[data-you="1"] { display: none; }
+  #screen-game[data-table="strip"] .felt, #screen-game[data-table="strip"] .arrows, #screen-game[data-table="strip"] .links, #screen-game[data-table="strip"] .seat[data-you="1"] { display: none; }
   #screen-game[data-table="strip"] .seat { position: relative; left: auto; top: auto; width: auto; min-width: 0; min-height: 48px; margin: 0; padding: 3px 0 0; align-content: start; }
   #screen-game[data-table="strip"] .seat-face { width: 34px; height: 34px; }
   #screen-game[data-table="strip"] .seat-name { font-size: 11px; }
@@ -310,6 +321,10 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
   #screen-game[data-table="strip"] .mid-k { display: none; }
   #screen-game[data-table="strip"] .mid-s { flex: 1 1 auto; min-width: 0; line-height: 1.25; }
   #screen-game[data-table="strip"] .mid .btn { flex: none; }
+  /* (A word in private, and afterwards: the line in the middle of the table is one line of the strip.) */
+  #screen-game[data-table="strip"] .mid-t { flex: 1 1 auto; min-width: 0; font-size: 14px; line-height: 1.25; }
+  #screen-game[data-table="strip"] .mid-row { flex: none; flex-wrap: nowrap; gap: 6px; }
+  #screen-game[data-table="strip"] .mid-row .btn { padding: 0 10px; }
 }
 @media (max-width: 403px) {
   #screen-game[data-table="strip"] .table[data-n="10"] { --cols: 5; }
@@ -389,6 +404,14 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
           </div>
           <span class="help" id="pace-help"></span>
         </div>
+        <div class="field">
+          <span class="label" id="l-night">The night</span>
+          <div class="seg" role="group" aria-labelledby="l-night" id="f-night">
+            <button type="button" class="btn" data-v="full" aria-pressed="true">The whole night</button>
+            <button type="button" class="btn" data-v="quick" aria-pressed="false">A quick game</button>
+          </div>
+          <span class="help" id="night-help"></span>
+        </div>
         <div id="claude-fields">
           <div class="field">
             <label for="f-key">Anthropic API key</label>
@@ -403,7 +426,7 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
               <option value="claude-sonnet-5-5">Claude Sonnet 5.5 (faster, cheaper)</option>
               <option value="claude-haiku-5-5">Claude Haiku 5.5 (fastest, cheapest)</option>
             </select>
-            <span class="help">Each seat is its own call and knows only what that person knows. A whole game is roughly 100 to 200 short calls.</span>
+            <span class="help">Each seat is its own call and knows only what that person knows. A whole game is roughly 100 to 200 short calls; the whole night adds twenty or thirty.</span>
           </div>
         </div>
         <p class="err" id="home-err" role="alert" hidden></p>
@@ -424,6 +447,9 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
           <li>The wild cards table also sets one <b>house rule</b> for the night (a note left by the dead, a tie that banishes both, a secret ballot, the lights out on who the dead were, someone the house vouches for), and gives you a <b>side bet</b> of your own to play for. <b>Classic</b> and <b>Plain</b> are the older fixed decks.</li>
           <li>The house keeps <b>your tab</b>: nights played and won, your streak, what you have taken from the pot, the cards you have held and the bets you have won. The people you have sat with remember the last time.</li>
           <li>Whoever is banished gets their last words before their role is shown. Listen to them.</li>
+          <li><b>A word in private</b>, before each Round Table: tap someone to take them aside, or wait and see who comes over. Up to three things said, each answered, and nobody else hears. Everyone sees who went off with whom, the others pair off too, and anything said in private can be repeated at the table, truly or not.</li>
+          <li><b>The house asks</b> you one thing each night, and nobody hears your answer: who is a Traitor, who you trust, who will not come in to breakfast. It changes nothing. The reveal holds each answer against how it really was.</li>
+          <li><b>Afterwards</b>, when the cards are turned and you have read the reveal, nobody leaves: the table says what it makes of it now that it knows, and you can answer back. The reveal also shows what the others said to each other in private. (<b>A quick game</b>, under The night, has none of these three.)</li>
           <li>The table talks on by itself: say something whenever you like. Tap a face, or what someone said, to aim at them; the quick replies say it in one tap (It's you. Liar. Why? I'm with you. Not me.), or type your own.</li>
           <li>Keeping quiet is not a hiding place: say nothing and someone will ask you, then call you on it, and the table holds a silent day against you.</li>
           <li>The talk ends when you call the vote, when most of the table says it is ready to, or when it gets late.</li>
@@ -944,7 +970,9 @@ const Game = (() => {
       day: 1, phase: 'role', live: opts.live !== false, clock: 0, said: 0, bonus: 0, ready: [], yours: null, spat: null, log: [], heat: {}, night: null, last: null, winner: null, usage: { calls: 0, cost: 0, failed: 0 }, pending: [], votesLog: [], asks: [], askSeq: 0,
       deck, wild: deck === 'house' || (deck === 'classic' && size > 6), cards: {}, rule: null, vouched: null, bet: null, betWon: null, saves: 0, thrown: [], history: {}, tallied: false,
       // The Traitors' game (deck 'faithful'): the prize pot, who holds the Shield and for which night, whether the Traitors may recruit, the end game, the player's share.
-      format: deck === 'faithful', pot: 0, shield: null, recruit: false, blocked: null, endgame: false, share: 0 };
+      format: deck === 'faithful', pot: 0, shield: null, recruit: false, blocked: null, endgame: false, share: 0,
+      // The whole night (opts.full, unless the table is set for a quick game): who went off with whom before each Round Table and what was said, what the player told the house each night, and the table staying on when the cards are turned.
+      full: opts.full !== false, asides: [], house: [], after: null };
     // (A second generator, off the same seed, for what is drawn beside the table itself: the regulars, the house rule, the side bet. The table's own draws are what they were.)
     const side = { rng: hash('the house', s.seed) || 1 };
     const name = cleanText(opts.name, 20) || 'Riley';
@@ -1008,7 +1036,7 @@ const Game = (() => {
     // The player's side bet: one of those their role can play for.
     const bets = BETS.filter(b => b.id === opts.bet || (opts.bet === undefined && deck !== 'faithful' && b.for(face(s.players[0]))));
     s.bet = bets.length ? pick(side, bets).id : null;
-    s.opts = { size, role: opts.role, mode: s.mode, model: s.model, name, deck, live: s.live, rule: opts.rule };
+    s.opts = { size, role: opts.role, mode: s.mode, model: s.model, name, deck, live: s.live, rule: opts.rule, full: s.full };
     return s;
   }
   // What the player knows of someone's role: their own, a fellow Traitor, a Witness's findings, anyone out; else null.
@@ -1076,7 +1104,7 @@ const Game = (() => {
   const betOf = id => BETS.find(b => b.id === id) || null;
 
   // ----- the public record -----
-  function say(who, text, kind) { const e = { t: 'say', who, text: cleanText(text, 600), day: state.day, kind: kind || 'talk' }; state.log.push(e); UI.logEntry(e); return e; }
+  function say(who, text, kind, more) { const e = Object.assign({ t: 'say', who, text: cleanText(text, 600), day: state.day, kind: kind || 'talk' }, more || null); state.log.push(e); UI.logEntry(e); return e; }
   /* A line of the game's own. rec: the same line as the record gives it to a seat (the player by name, never "You"). */
   function sys(text, kind, priv, rec) { const e = { t: 'sys', text, day: state.day, kind: kind || 'sys', priv: priv === true }; if (rec) e.rec = rec; state.log.push(e); UI.logEntry(e); return e; }
   /* The record as a seat is given it: everything public, in order (never a
@@ -1134,6 +1162,9 @@ const Game = (() => {
     if (!aim.you && stance === 'question') aim.mem.askedBy = speaker.id;
     if (!aim.you && (stance === 'accuse' || stance === 'question') && !state.pending.includes(aim.id)) state.pending.push(aim.id);
   }
+
+  // Who someone went off with for a word in private this morning (the whole night), if anyone.
+  const palOf = p => { const a = (state.asides || []).find(x => x.day === state.day && (x.a === p.id || x.b === p.id)); const q = a ? P(a.a === p.id ? a.b : a.a) : null; return q && q.alive ? q : null; };
 
   // ----- the scripted table (the offline demo, and a seat whose call failed) -----
   const REACTS = ['ugh', 'lol', 'ok that was weird', 'hm', 'wait what', 'can we just vote', 'no way', 'this is going nowhere', 'here we go', 'oh come on'];
@@ -1194,7 +1225,9 @@ const Game = (() => {
       }
       if (t && ((p.mem.sus[t.id] || 0) + (state.heat[t.id] || 0) >= 1.6 || rnd(state) < 0.5)) {
         const votedFor = state.lastVotes && state.lastVotes[t.id] ? P(state.lastVotes[t.id]) : null;
-        const why = votedFor && !votedFor.alive && !isKnife(votedFor) ? `${t.first} voted ${votedFor.first} out. ${votedFor.first} was a Faithful.` : pick(state, [`${t.first}'s too quiet.`, `${t.first} pointed awful fast.`, `Something's off with ${t.first}.`, `${t.first} keeps changing their mind.`, `It's ${t.first}. I can feel it.`]);
+        // (The whole night: who they went off with this morning is something to point at.)
+        const pal = palOf(t);
+        const why = votedFor && !votedFor.alive && !isKnife(votedFor) ? `${t.first} voted ${votedFor.first} out. ${votedFor.first} was a Faithful.` : pick(state, [`${t.first}'s too quiet.`, `${t.first} pointed awful fast.`, `Something's off with ${t.first}.`, `${t.first} keeps changing their mind.`, `It's ${t.first}. I can feel it.`].concat(pal && pal !== p ? [`${t.first} and ${pal.first} went off together this morning. Why?`] : []));
         // A reason the table has heard today is not said again word for word.
         if (state.log.some(e => e.t === 'say' && e.day === state.day && e.text.includes(why))) return { text: pick(state, [`Yep. ${t.first}.`, `Same. ${t.first}.`, `${t.first}, well?`, `I'm with that.`]), aim: t, stance: 'accuse' };
         return { text: rnd(state) < 0.35 ? `${tic} ${why}` : why, aim: t, stance: 'accuse' };
@@ -1287,6 +1320,66 @@ const Game = (() => {
       const t = Bots.target(p);
       return t ? pick(state, [`Watch ${t.first}.`, `It's ${t.first}. I'd bet on it.`, `Ask ${t.first} why I'm gone.`]) : 'I had nothing. Sorry.';
     },
+    /* A word in private (the whole night), from a scripted seat. x: { to
+       (who it is alone with), lines (what has been said between the two so
+       far: [{ who, text }]) }. With nothing said yet it opens; otherwise it
+       answers the last thing said to it. A Faithful seat says who it really
+       has in mind; a Traitor names whoever of the Faithful is hottest.
+       Drawn by a generator of its own, so the table's draws are untouched. */
+    aside(p, x) {
+      const q = x.to;
+      const lines = x.lines || [];
+      const g = { rng: hash(`in private ${p.id}`, state.seed + state.day * 31 + lines.length) || 1 };
+      const t0 = Bots.target(p);
+      const t = t0 && t0 !== q ? t0 : null;
+      const last = lines.filter(l => l.who === q.id).pop();
+      if (last) {
+        const r = readAside(last.text, q.id, p);
+        const alt = t && t !== r.who ? t.first : null;
+        if (r.kind === 'you') return pick(g, ['you brought me over here for that? it is not me', 'no. and I will remember you asked', `wrong${alt ? `. look at ${alt}` : ''}`]);
+        if (r.kind === 'name') return isKnife(p) && isKnife(r.who) ? pick(g, [`${r.who.first}? I don't see it${alt ? `. I'd look at ${alt}` : ''}`, 'hm. not sure about that one']) : pick(g, [`ok. I'll watch ${r.who.first}`, `could be. ${alt ? `I had ${alt}, but ` : ''}I'll look at ${r.who.first}`, `${r.who.first}. fine, I'm with you on that`]);
+        if (r.kind === 'clear') return pick(g, [`maybe. I'm not as sure of ${r.who.first} as you are`, `ok. I'll leave ${r.who.first} alone for now`]);
+        if (r.kind === 'with') return pick(g, ['good. same here', 'then we vote together. deal', "ok. I'll hold you to that"]);
+        if (r.kind === 'ask') return t ? pick(g, [`between us? ${t.first}`, `${t.first}. don't say I said it`, `I keep coming back to ${t.first}`]) : pick(g, ['honestly no idea yet', 'nothing solid. you?']);
+        return pick(g, ['ok', "let's see how the table goes", 'hm. fine']);
+      }
+      if (q.you && state.day === 1 && state.history && state.history[p.id]) return pick(g, ["you again. I haven't forgotten the last time", "funny seeing you here. let's do better than last time"]);
+      if (isKnife(p) && isKnife(q)) return pick(g, ["careful. don't look at me too much at the table", t ? `we push ${t.first} today` : 'keep your head down today']);
+      if (t) return pick(g, [`between us, I think it's ${t.first}. you with me?`, `watch ${t.first} today`, `I'm voting ${t.first} unless something changes. you?`]);
+      return pick(g, ["I've got nothing yet. you?", 'who are you looking at?', 'stick with me today']);
+    },
+    /* Afterwards (the whole night): the cards are turned, and a scripted
+       seat says what it makes of how it really was, from what is between it
+       and the player. x.answering: the player has just said something. */
+    after(p, x) {
+      const me = you();
+      const M = me.first;
+      const g = { rng: hash(`afterwards ${p.id}`, state.seed + state.log.length) || 1 };
+      const kp = isKnife(p);
+      const km = isKnife(me);
+      if (x && x.answering) return pick(g, kp && !km ? ['all part of the job', 'you would have done the same', `ha. good game ${M}`] : ['fair enough', `good game ${M}`, 'next time I am watching you from the first minute', 'yeah ok. that one hurt']);
+      const went = votedOut;
+      const word = wordsWith(p).length > 0;
+      if (kp && km) return pick(g, state.winner === 'knives' ? [`we actually did it ${M}`, 'nobody had a clue. beautiful'] : ['so close', `we nearly had them ${M}`]);
+      if (km) {
+        if (went(p, me)) return pick(g, [`I KNEW it was you ${M}`, 'called it. took the rest of you long enough']);
+        if (word) return pick(g, [`${M} you took me aside and lied to my face`, `everything you told me in private ${M}. all of it. wow`]);
+        return pick(g, [`${M}?? I never once looked at you`, `ok ${M} that was good. I hate it`]);
+      }
+      if (kp) {
+        if (went(me, p)) return pick(g, [`you had me ${M}. fair play`, `took you long enough ${M}`]);
+        if (me.out && me.out.how === 'night') return pick(g, [`sorry about the murder ${M}. you were getting close`, `nothing personal ${M}. you had to go`]);
+        if (word) return pick(g, [`sorry ${M}. I meant none of what I said to you in private`, `${M} I can't believe you bought that`]);
+        if (p.out && p.out.how === 'vote') return pick(g, ['so close', 'who was it that gave me away']);
+        return pick(g, state.winner === 'knives' ? [`you never looked at me once ${M}`, 'easiest night of my life'] : ['we nearly had you all', 'one more night and it was ours']);
+      }
+      // (A word in private, and then the vote: the one who went back on it knows it.)
+      if (went(p, me) && word) return pick(g, [`sorry ${M}. I know what I said to you in private`, `${M} I took your word and then I voted you out. sorry`]);
+      if (went(p, me)) return pick(g, [`sorry ${M}. I had you wrong`, `ok I owe ${M} a drink`]);
+      if (went(me, p)) return pick(g, [`told you it wasn't me ${M}`, `${M} I said it wasn't me. I SAID`]);
+      if (p.out && p.out.how === 'night') return pick(g, ['so that is why I never made breakfast', 'murdered in my sleep. typical']);
+      return pick(g, state.winner === 'town' ? ['we got them. good table', 'told you all'] : ['how did we miss that', 'we had every chance. ugh']);
+    },
     // The house's own lines for a moment (the offline demo; a host call that failed).
     host(kind, x) {
       const first = x && x.name ? x.name.split(' ')[0] : '';
@@ -1343,6 +1436,13 @@ const Game = (() => {
     shot: { type: 'object', additionalProperties: false, required: ['take', 'say'], properties: {
       take: { type: 'string', description: 'The first name of the one person still in that you take with you.' }, say: { type: 'string', description: 'One short sentence said as you do it.' } } },
     host: { type: 'object', additionalProperties: false, required: ['say'], properties: { say: { type: 'string', description: 'The narration: one sentence.' } } },
+    aside: { type: 'object', additionalProperties: false, required: ['say', 'suspect', 'trust', 'feel', 'note'], properties: {
+      say: { type: 'string', description: 'What you say to them in private: just the words, within LENGTH THIS TURN.' },
+      suspect: Object.assign({ description: 'The first name of who you most want banished next (your real aim, not necessarily what you said), or null.' }, nullable('string')),
+      trust: Object.assign({ description: 'The first name of who you most believe is on your side, or null.' }, nullable('string')),
+      feel: { type: 'string', description: 'Private: how you feel about these people right now, under 15 words.' },
+      note: { type: 'string', description: 'A private memo to yourself for later, under 40 words: your reads, your plan, and anything you promised or were promised just now.' } } },
+    after: { type: 'object', additionalProperties: false, required: ['say'], properties: { say: { type: 'string', description: 'The message you send now that the game is over and everything is known: just the words, within LENGTH THIS TURN.' } } },
     whisper: { type: 'object', additionalProperties: false, required: ['take', 'say'], properties: {
       take: { type: 'string', description: 'The first name of who you would murder tonight. Someone still in who is not a Traitor.' }, say: { type: 'string', description: 'One or two sentences whispered to your fellow Traitor: who and why.' } } }
   };
@@ -1364,6 +1464,7 @@ const Game = (() => {
         `- Each night the Traitors murder one person.${plain ? ' Whoever it is does not come in to breakfast.' : ` The Witness learns whether one person of their choosing is a Traitor.${wild.watch ? ' The Watch guards one person (never the same one two nights running); a guarded person survives the night.' : ''}`}`,
         fmt ? '- Each day starts with a mission: everyone, in secret, plays either for the pot (each who does adds $500 to it) or for the Shield. One of those who played for the Shield wins it, in secret, and whoever holds the Shield cannot be murdered that night. The table is told how many played for each and never who. Anyone can say they hold the Shield, truly or not.' : null,
         `- Each day everyone still in talks, then votes. Whoever has the most votes is banished; ${state.rule === 'both' ? 'a tie between two banishes both of them, and a tie between three or more banishes nobody' : 'a tie banishes nobody'}. ${state.rule === 'dark' ? 'The role of anyone banished is shown to all; the role of anyone murdered in the night is not shown until the game is over.' : 'The role of anyone banished or murdered is shown to all.'}`,
+        state.full ? '- Before each day\'s talk everyone goes off in twos for a word in private: a private message between two people. The table is told who went off with whom, and never what was said.' : null,
         fmt ? '- The Faithful win at once if every Traitor is banished before the end game. Otherwise it is settled in the end game, below: there is no winning on numbers.' : '- The Faithful win when every Traitor is out. The Traitors win when they are at least as many as everyone else still in.',
         fmt ? '- When a Traitor is banished, the Traitors still in may, on a later night, recruit instead of murdering: they ask one Faithful, in secret, to join them. A yes makes that person a Traitor from then on. (With only one Traitor left it is an ultimatum: join, or be murdered.) So a night when nobody is murdered may mean a Shield was held, or that there is a new Traitor.' : null,
         fmt ? '- The end game: once four or fewer are left there are no more nights, and what the banished were is no longer shown. After each vote everyone still in votes to end the game or to banish again. When all of them vote to end it (or only two are left) it is over: with even one Traitor still in, the Traitors win; with none, the Faithful win.' : null,
@@ -1390,6 +1491,7 @@ const Game = (() => {
         wild.fool ? '- If you are the Fool: get yourself banished without it showing that you want it. Be a little too evasive, a little too slow to deny. If they see what you are doing they will never vote for you.' : null,
         '- Anyone can lie about their role. Weigh every claim.',
         '- The table is all there is. The only evidence in this game is what happens at it: what people say, who they accuse and who they defend, how they vote, who is murdered in the night and what they turned out to be, and what people claim to be. Everyone\'s eyes are shut at night, so nobody saw or heard anything and nobody has an alibi. Nobody can see anybody, either: no faces, no looks, no sweating, no body language. Where anyone was, where they were going, what they do for a living, who they are to each other and how they came to be here tell you nothing: never ask about them, never bring them up, and never make up something seen, heard or found.',
+        state.full ? '- A word in private is part of the game. Who went off with whom is in the record, and it is evidence the way a vote is: who keeps choosing whom, who came back agreeing. What was said to you in private is in your notes below and nobody else has it: keep it, act on it, or tell the table, truly or not. When someone tells the table what they were told in private, the table has only their word for it; a promise made in private is worth what the person is worth.' : null,
         '- One question at a time. If someone has just been asked something and has not yet had the chance to answer, do not put another question to them: say what you make of things instead.',
         '- When you have heard enough to vote, say so in the chat ("can we just vote") and mark yourself ready. When most are ready the vote is called.',
         '',
@@ -1481,6 +1583,12 @@ const Game = (() => {
       const mi = p.mem.mission;
       if (state.format && mi && mi.day === state.day) lines.push(`TODAY'S MISSION: you played for the ${mi.pick === 'shield' ? 'Shield' : 'pot'}.${mi.shield ? ' You won the Shield: the Traitors cannot murder you tonight. Nobody knows you hold it unless you say so.' : mi.pick === 'shield' ? ' Someone else got it.' : ''}`);
       if (p.mem.refused && !isKnife(p)) lines.push(`On night ${p.mem.refused} the Traitors asked you, in secret, to join them, and you refused. You do not know who they are.`);
+      // The whole night: what was said between this seat and whoever it went off with, this morning and the one before.
+      for (const a of (state.asides || [])) {
+        if (a.open || (a.a !== p.id && a.b !== p.id) || a.day < state.day - 1) continue;
+        const q = P(a.a === p.id ? a.b : a.a);
+        if (q) lines.push(`IN PRIVATE, ${a.day === state.day ? 'THIS MORNING' : 'YESTERDAY MORNING'}: you and ${q.first} had a word alone (${a.a === p.id ? 'you took them aside' : 'they came to you'}).${a.lines.length ? ` ${a.lines.map(l => `${l.who === p.id ? 'You' : q.first} said: "${l.text}"`).join(' ')}` : ' Neither of you said much.'} Nobody else heard it.`);
+      }
       if (carry.length) lines.push(`WHAT YOU ARE CARRYING: ${carry.join(' ')}`);
       if (p.mem.feel) lines.push(`HOW YOU FEEL: ${p.mem.feel}`);
       if (p.mem.note) lines.push(`YOUR OWN PRIVATE NOTES FROM EARLIER: ${p.mem.note}`);
@@ -1512,6 +1620,16 @@ const Game = (() => {
       end(p) { return `NOW: the end game. ${alive().length} of you are left: ${alive().map(q => q.first).join(', ')}. Everyone votes at once: END THE GAME, or BANISH AGAIN. If every one of you votes to end it, it ends there: with even one Traitor still in, the Traitors take the pot; with none, the Faithful share it. Otherwise the Round Table sits again and one more of you is banished, and what they were is not shown. Vote to end it only if you believe no Traitor is left (as a Traitor, you want it ended while you are still in). Send a few words as you vote, eight at most.`; },
       note(p) { return `NOW: night ${state.day}. The Traitors have just murdered you: you are out of the game. By the house rule you leave a note, which the table finds in the morning. Write it: what you most want them to know. One or two short sentences, twenty-five words at most.`; },
       last(p, votes) { return `NOW: day ${state.day}. The table has banished you (${votes}). Your role is about to be shown to everyone. Say your last words to the table, as you would: angry, smug, hurt, funny. One or two short sentences, twenty-five words at most.`; },
+      aside(p, x) {
+        const q = x.to;
+        const so = (x.lines || []).map(l => `${l.who === p.id ? 'You' : q.first}: "${l.text}"`).join('\n');
+        return `NOW: day ${state.day}, before the Round Table. Everyone has gone off in twos for a word in private, and you are alone with ${q.first} (${x.took === 'you' ? 'you took them aside' : 'they took you aside'}). Nobody else can hear this, though the whole table saw the two of you go.${so ? `\nBetween the two of you so far:\n${so}\nAnswer ${q.first}, privately.` : `\nSay what you wanted to say to ${q.first}, privately.`} This is where people say who they really think it is, ask for a vote or for trust, find out what the other knows, or test them. You can make a promise, and you can lie; so can they. Either of you may repeat any of it at the table.\nLENGTH THIS TURN: ${(x.len || LENGTHS[2]).text}`;
+      },
+      after(p, x) {
+        x = x || {};
+        const ties = between(p);
+        return `NOW: THE GAME IS OVER, and every card has been turned. Nobody is playing any more: there is nothing left to hide and no reason to lie, and what the rules above say about keeping your role to yourself no longer holds. Everyone, in or out of the game, is still in the chat, the way friends are when a game ends: crowing, groaning, laughing, owning up, having it out over that one vote.\nHOW IT REALLY WAS: ${truthText()}\nBETWEEN YOU AND ${you().first.toUpperCase()}: ${ties.join(' ')}\n${x.why || 'Say what comes out of you now that you know: about your own night, or to whoever fooled you, wronged you or was wronged by you.'} One message, as yourself, typed the way you type.\nLENGTH THIS TURN: ${(x.len || LENGTHS[2]).text}`;
+      },
       shot(p, how) { return `NOW: you are the Hothead and you are out of the game (${how}). Name the one person still in that you take with you, the one whose going helps the Faithful most, and one short sentence you say as you do it.`; }
     },
     /* The host: the house's own voice for a moment of the game. It is told
@@ -1682,6 +1800,33 @@ const Game = (() => {
       const t = Bots.shot(p);
       return { take: t, text: t ? pick(state, [`${t.first} comes with me.`, `If I'm going, so is ${t.first}.`, `Not alone, I'm not. ${t.first}.`]) : '' };
     },
+    /* A word in private (the whole night): one thing said by a seat to
+       whoever it is alone with. x: { to, took ('you': this seat took them
+       aside; 'them': they took it aside), lines (so far), len }. */
+    async aside(p, x) {
+      if (useClaude()) {
+        try {
+          const r = await callClaude(p, 'aside', Prompts.task.aside(p, x));
+          const text = typed(p, clip(r.say, x.len.max));
+          if (!text) throw Object.assign(new Error('an empty line'), { type: 'bad_json' });
+          p.mem.note = cleanText(r.note, 300);
+          p.mem.feel = cleanText(r.feel, 140);
+          const s = named(r.suspect); const t = named(r.trust);
+          if (s && s !== p) { p.mem.suspect = s.id; p.mem.sus[s.id] = Math.max(p.mem.sus[s.id] || 0, 3); }
+          if (t && t !== p) p.mem.trust = t.id;
+          return { text };
+        } catch (e) { failed(e); }
+      }
+      return { text: typed(p, Bots.aside(p, x)) };
+    },
+    /* Afterwards (the whole night): one message from a seat once every card
+       is turned. x: { why (what it is answering), answering, len }. */
+    async after(p, x) {
+      if (useClaude()) {
+        try { const r = await callClaude(p, 'after', Prompts.task.after(p, x)); const text = typed(p, clip(r.say, x.len.max)); if (text) return { text }; } catch (e) { failed(e); }
+      }
+      return { text: typed(p, Bots.after(p, x)) };
+    },
     /* The host's line for a moment: kind and the public facts of it. */
     async host(kind, x) {
       if (useClaude()) {
@@ -1843,6 +1988,17 @@ const Game = (() => {
        be told it ({P}: the player, whatever they are called next time):
        which sides the two were on and how it ended, and the vote between
        them that stung (never under a secret ballot, where nobody knows). */
+    /* What was said afterwards goes into what that seat remembers of the
+       last time, once for each kind (key: 'said', what it said when the
+       cards were turned; 'heard', what the player said to it). */
+    after(id, key, text) {
+      const l = Ledger.read();
+      const s = l.seats[id];
+      if (!isObj(s) || typeof s.last !== 'string' || s[key]) return;
+      s.last = `${s.last} ${cleanText(text, 160)}`;
+      s[key] = true;
+      Ledger.write(l);
+    },
     memory(p) {
       const me = you();
       const w = state.winner;
@@ -1857,6 +2013,8 @@ const Game = (() => {
       const hit = (by, on) => state.votesLog.some(v => !v.secret && v.votes[by.id] === on.id && on.out && on.out.how === 'vote' && on.out.day === v.day);
       if (hit(me, p)) out.push(p.role === 'fool' ? '{P} was one of the ones who voted for you.' : isKnife(p) ? '{P} banished you, and had you right.' : '{P} voted to banish you, and you were no Traitor.');
       else if (hit(p, me)) out.push(isKnife(me) ? 'You banished {P}, and you had it right.' : 'You voted to banish {P}, and {P} was no Traitor.');
+      // (The whole night: a word in private that came to a vote.)
+      if (wordsWith(p).length) out.push(hit(me, p) ? 'The two of you had a word in private, and {P} still voted you out.' : hit(p, me) ? 'The two of you had a word in private, and you still voted {P} out.' : 'The two of you had a word in private.');
       return out.join(' ');
     }
   };
@@ -1904,6 +2062,298 @@ const Game = (() => {
     sys(`${p.you ? 'You take' : `${p.first} takes`} ${t.you ? 'you' : t.name} along. ${t.you ? 'You were' : `${t.first} was`} ${wasOf(t)}.`, 'death', false, `${p.name} was the Hothead and takes ${t.name} out too. ${t.first} was ${wasOf(t)}.`);
     if (t.you && !winner(state.players)) sys('You are out, and you can see every role now. Watch it play out, or skip to the end.', 'notice', true);
   }
+  // ----- the whole night: a word in private, the house's question, and afterwards -----
+  /* (The owner, of the game as it stood: "Quick game wise, it's good now.
+     But how can we make it more like an experience, rather than a quick
+     game", and then, of what was offered, "Do 1-2-5": a word in private
+     before each Round Table, the table staying on when the cards are
+     turned, and a question from the house each night that the reveal
+     holds against how it really was. A table set for a quick game has
+     none of the three.) */
+  const ASIDE_LINES = 3;
+  const AFTER_FIRST = 5;
+  const AFTER_LINES = 4;
+  const ASIDE_CHIPS = [['Who is it?', 'Who do you think it is?'], ['I trust you.', 'I trust you.'], ['Vote with me.', 'Vote with me today.'], ["It's you.", "I think it's you."]];
+  // How someone went, in a few words (the reveal, and what a seat is told afterwards).
+  const fateOf = p => (p.alive ? 'in at the end' : p.out.how === 'vote' ? `banished, day ${p.out.day}` : p.out.how === 'shot' ? `taken by the Hothead, day ${p.out.day}` : p.out.how === 'thrown' ? `thrown out by the Bouncer, day ${p.out.day}` : `murdered in the night, day ${p.out.day}`);
+  // Whether one's vote was on the other the day the table banished them (never under a secret ballot, where nobody knows).
+  const votedOut = (by, on) => state.votesLog.some(v => !v.secret && v.votes[by.id] === on.id && !!on.out && on.out.how === 'vote' && on.out.day === v.day);
+  // The words the player and a seat have had in private.
+  const wordsWith = p => (state.asides || []).filter(a => (a.a === p.id && a.b === 'you') || (a.a === 'you' && a.b === p.id));
+  /* What a line said in private is, to the one it is said to (p): 'you' (it
+     points at them), 'name' (it points at someone else: who), 'clear' (it
+     speaks up for someone else), 'with' (trust, or a vote together), 'ask'
+     (a question), else 'other'. */
+  function readAside(text, speakerId, p) {
+    const t = String(text || '');
+    const who = mentioned(t, speakerId).filter(q => q !== p)[0] || null;
+    const neg = /\b(don'?t|do not|can'?t|cannot|never) (trust|believe|vouch)/i.test(t);
+    const warm = !neg && (VOUCH_RE.test(t) || /\b(vote|stick|side|stay) with (me|you)\b|\btogether\b|\bdeal\b|\bpromise\b/i.test(t));
+    if (who) return { kind: warm ? 'clear' : 'name', who };
+    if (neg || /\b(it'?s|it is|it was) you\b|\byou'?re (lying|a traitor|the traitor)|\byou are (lying|a traitor|the traitor)|\bliar\b/i.test(t)) return { kind: 'you', who: null };
+    return { kind: warm ? 'with' : /\?/.test(t) ? 'ask' : 'other', who: null };
+  }
+  /* What the player says to a seat in private does to it (the scripted
+     seats' suspicions; a Claude seat has the words themselves). Naming
+     someone to a Faithful turns them that way; naming a Traitor to a
+     Traitor tells them who is on to them. */
+  function asideHeard(p, text) {
+    const r = readAside(text, 'you', p);
+    const bump = (id, n) => { p.mem.sus[id] = (p.mem.sus[id] || 0) + n; };
+    if (r.kind === 'you') bump('you', 1);
+    else if (r.kind === 'name' && !isKnife(p)) bump(r.who.id, 1.5);
+    else if (r.kind === 'name' && isKnife(r.who)) { state.pressed = state.pressed || {}; state.pressed[r.who.id] = (state.pressed[r.who.id] || 0) + 1; }
+    else if (r.kind === 'clear' && !isKnife(p)) bump(r.who.id, -0.5);
+    else if (r.kind === 'with' && !isKnife(p)) bump('you', -1);
+  }
+  // And what one seat says to another in private: a name passed on is a little suspicion passed on.
+  function asideTold(a, b, text) {
+    const r = readAside(text, a.id, b);
+    if (isKnife(b) || !r.who) return;
+    b.mem.sus[r.who.id] = (b.mem.sus[r.who.id] || 0) + (r.kind === 'name' ? 0.5 : -0.3);
+  }
+  /* Who goes off with whom: the seats in a shuffled order, each with the
+     one they trust or suspect most when that one is free (more often than
+     not), else anyone. { pairs: [[a, b], ...], alone: whoever is left }. */
+  function pairOff(seats, g) {
+    const left = shuffle(g, seats);
+    const pairs = [];
+    while (left.length > 1) {
+      const a = left.shift();
+      const want = [a.mem.trust, a.mem.suspect].map(id => left.find(q => q.id === id)).find(Boolean);
+      const b = want && rnd(g) < 0.7 ? want : left[Math.floor(rnd(g) * left.length)];
+      left.splice(left.indexOf(b), 1);
+      pairs.push([a, b]);
+    }
+    return { pairs, alone: left[0] || null };
+  }
+  /* Who comes over to a player who waits: their fellow Traitor, someone
+     who trusts or suspects them or is carrying something of theirs from
+     the table, or, on the first day, someone who remembers the last time. */
+  function seeker(g) {
+    const me = you();
+    const has = p => (isKnife(me) && isKnife(p)) || p.mem.trust === 'you' || p.mem.suspect === 'you' || (p.mem.grudge && p.mem.grudge.by === 'you') || (p.mem.backed && p.mem.backed.by === 'you') || (state.day === 1 && !!state.history[p.id]);
+    const c = alive().filter(p => !p.you && has(p));
+    return c.length ? c[Math.floor(rnd(g) * c.length)] : null;
+  }
+  /* A word in private, before the Round Table (not in the end game, nor
+     with fewer than four in). The player takes someone aside, or waits and
+     sees who comes over; the others pair off. The table is told who went
+     with whom and never what was said. The player has up to three lines
+     with theirs, each answered; in each other pair one says one thing to
+     the other. Out of the game, the player hears all of it. */
+  async function privateWords() {
+    const me = you();
+    if (!state.full || state.endgame || App.fast || state.phase !== 'talk' || alive().length < 4) return;
+    const g = { rng: hash('a word in private', state.seed + state.day * 31) || 1 };
+    const seats = alive().filter(p => !p.you);
+    let mine = null;
+    let came = false;
+    if (me.alive) {
+      await UI.stage(`Day ${state.day}`, 'Before the Round Table.', 'People go off in twos.', 800);
+      mine = P(await UI.askSeat('Who do you take aside?', q => q.alive && !q.you, { k: 'A word in private', verb: 'Take', tail: ' aside', none: 'Wait and see' }));
+      if (!mine) { mine = seeker(g); came = !!mine; }
+    }
+    const off = pairOff(seats.filter(p => p !== mine), g);
+    // (Whoever is left over when the others have paired comes to a player who is on their own.)
+    if (me.alive && !mine && off.alone) { mine = off.alone; off.alone = null; came = true; }
+    const own = mine ? { day: state.day, a: came ? mine.id : 'you', b: came ? 'you' : mine.id, lines: [], open: true } : null;
+    const recs = off.pairs.map(([a, b]) => ({ day: state.day, a: a.id, b: b.id, lines: [], open: true }));
+    state.asides.push(...(own ? [own] : []), ...recs);
+    const twos = pub => (mine ? [`${pub ? me.first : 'you'} and ${mine.first}`] : []).concat(off.pairs.map(([a, b]) => `${a.first} and ${b.first}`));
+    const left = pub => (off.alone ? ` ${off.alone.first} was left at the table.` : me.alive && !mine ? ` ${pub ? `${me.first} was` : 'You were'} left at the table.` : '');
+    const line = pub => `A word in private before the Round Table: ${twos(pub).join('; ')}.${left(pub)}`;
+    sys(line(false), 'sys', false, line(true));
+    // (A line between each two, across the table, while they go.)
+    UI.links = [own].concat(recs).filter(Boolean).map(r => [r.a, r.b]);
+    UI.renderTable();
+    await UI.stage(`Day ${state.day}`, 'A word in private.', !me.alive ? 'They go off in twos.' : !mine ? 'Nobody comes over.' : came ? `${mine.first} comes over to you.` : `You and ${mine.first}.`, 1100);
+    // The others' words, all at once, while the player has theirs.
+    const jobs = off.pairs.map(([a, b], i) => Seat.aside(a, { to: b, took: 'you', lines: [], len: LENGTHS[2] }).then(r => { recs[i].lines.push({ who: a.id, text: r.text }); asideTold(a, b, r.text); }));
+    if (mine) {
+      UI.links = [];
+      UI.asideId = mine.id;
+      UI.stage(null);
+      UI.render();
+      sys(came ? `${mine.first} comes over for a word. Nobody else can hear.` : `You take ${mine.first} aside. Nobody else can hear.`, 'private', true);
+      const put = (who, text) => { own.lines.push({ who: who.id, text }); say(who.id, text, 'aside', { priv: true, to: who.you ? mine.id : 'you' }); };
+      const answer = async () => {
+        UI.typing([mine.id]);
+        UI.setBusy('');
+        const r = await Seat.aside(mine, { to: me, took: came ? 'you' : 'them', lines: own.lines, len: LENGTHS[3] });
+        UI.typing([]);
+        put(mine, r.text);
+        UI.renderCost();
+      };
+      if (came) await answer();
+      for (let i = 0; i < ASIDE_LINES; i++) {
+        const t = await UI.askLine(`Say something to ${mine.first}`, { k: 'In private', head: `Alone with ${mine.first}`, none: i || came ? 'Back to the table' : 'Say nothing', chips: ASIDE_CHIPS, strip: true });
+        if (!t) break;
+        put(me, t);
+        asideHeard(mine, t);
+        await answer();
+      }
+      UI.asideId = null;
+      UI.renderTable();
+      UI.setBusy('The others come back…');
+    }
+    await Promise.all(jobs);
+    for (const r of [own].concat(recs)) if (r) delete r.open;
+    // Out of the game, the player hears all of it.
+    if (!me.alive) for (const r of recs) for (const l of r.lines) say(l.who, l.text, 'aside', { priv: true, to: l.who === r.a ? r.b : r.a });
+    if (mine) sys('Back at the table.', 'private', true);
+    UI.links = [];
+    UI.renderTable();
+    UI.setBusy('');
+    UI.stage(null);
+  }
+  /* The house asks (the whole night): one question a night from the second
+     night on, and once more before the end game's first vote, answered by
+     naming someone, heard by nobody. It changes nothing in the game: the
+     reveal holds each answer against how it really was. */
+  const HOUSE_ASKS = [
+    { id: 'traitor', text: 'Who is a Traitor?', for: me => !isKnife(me), end: true },
+    { id: 'trust', text: 'Who do you trust most?', for: me => !isKnife(me) },
+    { id: 'gone', text: 'Who does not come in to breakfast?', for: me => !isKnife(me) },
+    { id: 'onto', text: 'Who is closest to catching you?', for: me => isKnife(me) },
+    { id: 'next', text: 'Who does the table banish next?', for: me => isKnife(me) },
+    { id: 'fooled', text: 'Who believes you most?', for: me => isKnife(me), end: true }
+  ];
+  async function houseAsks(end) {
+    const me = you();
+    if (!state.full || !me.alive || App.fast || (!end && state.day < 2)) return;
+    const list = HOUSE_ASKS.filter(q => q.for(me) && (!end || q.end));
+    const q = list[state.house.length % list.length];
+    const id = await UI.askSeat(q.text, p => p.alive && !p.you && !(isKnife(me) && isKnife(p)), { k: 'The house asks', verb: 'Say', none: 'Say nothing' });
+    if (!P(id)) return;
+    state.house.push({ night: state.day, q: q.id, a: id, end: !!end });
+    sys(`The house asks: ${q.text} You say ${P(id).first}. Nobody else hears it.`, 'private', true);
+  }
+  // An answer given to the house, held against how it really was (the reveal).
+  function houseVerdict(h) {
+    const p = P(h.a);
+    if (!p) return '';
+    const N = p.first;
+    // (A recruit, or a Turncoat who went over, was no Traitor before the night they turned.)
+    const then = p.was && p.turned >= h.night ? 'later' : isKnife(p) ? 'yes' : 'no';
+    if (h.q === 'traitor') return then === 'yes' ? `${N} was a Traitor. You had it.` : then === 'later' ? `${N} was no Traitor yet, and was one by the end.` : `${N} was ${wasOf(p)}.`;
+    if (h.q === 'trust') return then === 'yes' ? `${N} was a Traitor.` : then === 'later' ? `${N} was with you then, and a Traitor by the end.` : p.role === 'fool' ? `${N} was the Fool.` : `${N} was no Traitor. Well placed.`;
+    if (h.q === 'gone') { const v = state.players.find(x => x.out && x.out.how === 'night' && x.out.day === h.night); return !v ? 'Everyone came in to breakfast.' : v === p ? `${N} did not. You called it.` : `It was ${v.you ? 'you' : v.first}.`; }
+    if (h.q === 'next') { const v = state.players.filter(x => x.out && x.out.how === 'vote' && x.out.day === h.night); return !v.length ? 'Nobody was banished that day.' : v.includes(p) ? `They banished ${N}. You called it.` : `They banished ${andList(v.map(x => (x.you ? 'you' : x.first)))}.`; }
+    const n = state.votesLog.filter(v => !v.secret && v.day >= h.night && v.votes[p.id] === 'you').length;
+    return n ? `${N} voted to banish you ${n === 1 ? 'once' : `${n} times`} after that.` : `${N} never voted for you after that.`;
+  }
+  // How it really was, a line for each (what a seat is told once the game is over).
+  function truthText() {
+    const w = state.winner;
+    return `${w === 'fool' ? 'The Fool won, alone.' : w === 'town' ? 'The Faithful won.' : 'The Traitors won.'} ${state.players.map(q => `${q.first} was ${wasOf(q)}, ${fateOf(q)}${q.out && q.out.why ? ` (why the Traitors chose them: ${q.out.why})` : ''}`).join('. ')}.`;
+  }
+  /* What is between a seat and the player, now that it is over: the sides
+     they were on, who stood up for or went after whom at the table, the
+     votes between them, a murder, and their words in private. */
+  function between(p) {
+    const me = you();
+    const M = me.first;
+    const out = [];
+    const kp = isKnife(p);
+    const km = isKnife(me);
+    out.push(kp && km ? `You and ${M} were Traitors together.` : km ? `${M} was a Traitor and you were not.` : kp ? `You were a Traitor and ${M} was not.` : `Neither you nor ${M} was a Traitor.`);
+    const said = (a, b, st) => state.log.filter(e => e.t === 'say' && e.who === a.id && e.aim === b.id && e.stance === st).length;
+    const times = n => (n > 1 ? ` ${n} times` : '');
+    for (const [a, b, st, text] of [[p, me, 'vouch', `You stood up for ${M} at the table`], [p, me, 'accuse', `You went after ${M} at the table`], [me, p, 'vouch', `${M} stood up for you at the table`], [me, p, 'accuse', `${M} went after you at the table`]]) { const n = said(a, b, st); if (n) out.push(`${text}${times(n)}.`); }
+    for (const v of state.votesLog) {
+      if (v.secret) continue;
+      if (v.votes[p.id] === 'you') out.push(`On day ${v.day} you voted to banish ${M}${me.out && me.out.how === 'vote' && me.out.day === v.day ? ', and they went' : ''}.`);
+      if (v.votes.you === p.id) out.push(`On day ${v.day} ${M} voted to banish you${p.out && p.out.how === 'vote' && p.out.day === v.day ? ', and you went' : ''}.`);
+    }
+    if (kp && me.out && me.out.how === 'night') out.push(`The Traitors murdered ${M} on night ${me.out.day}${me.out.why ? ` (${me.out.why})` : ''}.`);
+    if (km && p.out && p.out.how === 'night') out.push(`${M} and the Traitors murdered you on night ${p.out.day}.`);
+    for (const a of wordsWith(p)) out.push(`On day ${a.day} the two of you had a word in private.${a.lines.length ? ` ${a.lines.map(l => `${l.who === p.id ? 'You' : M} said: "${l.text}"`).join(' ')}` : ''}`);
+    return out;
+  }
+  /* Afterwards (the whole night): the cards are turned and nobody has left.
+     Whoever has most to say about it says so (the Traitors, whoever the
+     votes fell between, whoever had a word in private with the player,
+     whoever was murdered: five at most, two at once to start), and the
+     player can answer back, four lines, each answered: by whoever it was
+     said to, or by two of the table. Then the lights come up. */
+  const afterOpen = () => !!state && state.phase === 'over' && !!state.after && !state.after.done;
+  let aftersOn = false;
+  let aftersRun = 0;
+  function afterCast() {
+    const me = you();
+    const score = p => (isKnife(p) ? 3 : 0) + (votedOut(p, me) || votedOut(me, p) ? 2 : 0) + (wordsWith(p).length ? 2 : 0) + (p.out && p.out.how === 'night' ? 1 : 0) + (p.alive ? 1 : 0) + (hash(p.id, state.seed) % 100) / 100;
+    return state.players.filter(p => !p.you).sort((a, b) => score(b) - score(a)).map(p => p.id);
+  }
+  function afterNext() {
+    const a = state.after;
+    const me = you();
+    const y = a.yours;
+    if (y) {
+      a.yours = null;
+      const to = y.to ? P(y.to) : null;
+      const why = p => `${me.first} has just said, to ${to === p ? 'you' : 'everyone'}: "${y.text}" Answer ${me.first}, straight: there is nothing to hide now.`;
+      // Said to everyone: two of those who have said least since the cards were turned, and not whoever spoke last.
+      const two = afterCast().filter(id => id !== a.last).sort((p, q) => (a.count[p] || 0) - (a.count[q] || 0)).slice(0, 2).map(P);
+      return (to ? [to] : two).map(p => ({ p, why: why(p), answering: true, len: LENGTHS[2] }));
+    }
+    return a.queue.splice(0, a.said ? 1 : 2).map(P).filter(Boolean).map(p => ({ p, why: '', answering: false, len: LENGTHS[1 + (hash(p.id, state.seed) % 3)] }));
+  }
+  async function runAfters() {
+    if (aftersOn || !afterOpen()) return;
+    const st = state;
+    const a = st.after;
+    const run = ++aftersRun;
+    const on = () => state === st && run === aftersRun && afterOpen();
+    aftersOn = true;
+    try {
+      await wait(700);
+      while (on()) {
+        const picks = afterNext();
+        if (!picks.length) break;
+        const ids = picks.map(x => x.p.id);
+        UI.typing(ids);
+        await wait(useClaude() ? 200 : 700 + Math.random() * 800);
+        const got = await Promise.all(picks.map(x => Seat.after(x.p, x)));
+        for (let i = 0; i < picks.length && on(); i++) {
+          const lag = readUntil - Date.now();
+          if (lag > 0 && App.speed > 0) await nap(lag);
+          if (!on()) break;
+          UI.typing(ids.slice(i + 1));
+          const p = picks[i].p;
+          say(p.id, got[i].text, 'after');
+          a.count[p.id] = (a.count[p.id] || 0) + 1;
+          a.said += 1;
+          a.last = p.id;
+          // (What they said when they knew goes home with them: the next time they sit down with the player, it is part of the last time.)
+          if (a.count[p.id] === 1) Ledger.after(p.id, 'said', `When the cards were turned you said: "${got[i].text}"`);
+          UI.renderCost();
+          save();
+          readUntil = Date.now() + Math.min(2600, 800 + got[i].text.length * 28) * App.speed;
+        }
+      }
+      // The player has had their say: that was the night.
+      if (on() && a.lines >= AFTER_LINES && !a.yours) { a.done = true; sys('The house lights come up, and the chairs go on the tables. That was the night.', 'host'); }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      if (run === aftersRun) { aftersOn = false; UI.typing([]); if (state === st) { save(); UI.render(); } }
+    }
+  }
+  // The player says something afterwards: to whoever they name or have picked, else to everyone.
+  function afterSay(text) {
+    const a = state.after;
+    const line = cleanText(text, 400);
+    if (!line || !afterOpen() || a.lines >= AFTER_LINES) return false;
+    say('you', line, 'after');
+    a.lines += 1;
+    const sel = UI.sel ? P(UI.sel) : null;
+    const to = mentioned(line, 'you')[0] || (sel && !sel.you ? sel : null);
+    a.yours = { text: line, to: to ? to.id : null };
+    if (to) Ledger.after(to.id, 'heard', `And {P} said to you: "${line}"`);
+    return true;
+  }
+
   function startNight() {
     state.phase = 'night';
     state.pending = [];
@@ -1922,6 +2372,9 @@ const Game = (() => {
     const chosen = pickId ? P(pickId) : null;
     // The night, told as the host tells it at a table: the lights down, each role in its turn.
     await UI.stage(`Night ${state.day}`, 'The lights go down.', '', 800);
+    // The house asks (the whole night): one question, heard by nobody.
+    await houseAsks();
+    UI.setBusy('The night passes…');
     const mine = me.alive && isKnife(me);
     const taking = mine ? Promise.resolve(chosen) : Seat.kill();
     await UI.stage(`Night ${state.day}`, alive().filter(isKnife).length > 1 ? 'The Traitors meet.' : 'The Traitor is awake.', 'Somebody is chosen.', 900);
@@ -2070,6 +2523,8 @@ const Game = (() => {
     if (!me.alive && gone.includes(me)) sys('You are out, and you can see every role now. Watch it play out, or skip to the end.', 'notice', true);
     await mission();
     if (me.alive && ((turned && turned.you) || (joined && joined.you)) && !App.quiet) UI.roleCard();
+    // A word in private, before the Round Table (the whole night).
+    await privateWords();
   }
   /* The day's talk. (The owner, after real games: "how can it feel like 8
      humans are talking? rather than ai and game".) It is not rounds. The
@@ -2100,9 +2555,11 @@ const Game = (() => {
     const me = you();
     const line = cleanText(text, 400);
     if (!line || !me.alive) return false;
-    say('you', line);
+    const mine = say('you', line);
     me.mem.today = (me.mem.today || 0) + 1;
     const r = meta && P(meta.aim) ? { aim: P(meta.aim), stance: meta.stance } : readLine(line, 'you');
+    // (Who it was aimed at, and how, is kept with the line: afterwards, each seat is told what was between it and the player.)
+    if (r.aim) { mine.aim = r.aim.id; mine.stance = r.stance; }
     heard(me, r.aim, r.stance);
     /* What the player was asked is answered by this line: the one they
        chose to answer, anyone they name, or the only one waiting. */
@@ -2209,6 +2666,7 @@ const Game = (() => {
     p.mem.spoke = (p.mem.spoke || 0) + 1;
     p.mem.today = (p.mem.today || 0) + 1;
     const said = say(p.id, r.text);
+    if (r.aim) { said.aim = r.aim.id; said.stance = r.stance; }
     heard(p, r.aim, r.stance);
     // Two of them going at each other are counted, so that somebody cuts in.
     const pair = r.aim && !r.aim.you && r.aim.alive && (r.stance === 'accuse' || r.stance === 'question') ? [p.id, r.aim.id].sort() : null;
@@ -2315,7 +2773,7 @@ const Game = (() => {
       if (run === tableRun) { talking = false; UI.typing([]); if (state === st) { save(); UI.render(); } }
     }
   }
-  function stopTable() { tableRun += 1; talking = false; UI.typing([]); }
+  function stopTable() { tableRun += 1; talking = false; aftersRun += 1; aftersOn = false; UI.typing([]); }
   /* The vote: everyone still in votes at once, the votes are shown one by
      one, the most is put out (a tie banishes nobody), and night falls. */
   async function runVote(pickId) {
@@ -2395,7 +2853,7 @@ const Game = (() => {
        game or to banish again; until they all say end, the Round Table
        sits again. */
     if (state.format && (state.endgame || alive().length <= 4)) {
-      if (!state.endgame) { state.endgame = true; sys(`The end game. ${capFirst(['', 'one', 'two', 'three', 'four'][alive().length] || 'few')} of you are left: there are no more nights, and what the banished were is not shown until it is over.`, 'sys'); }
+      if (!state.endgame) { state.endgame = true; sys(`The end game. ${capFirst(['', 'one', 'two', 'three', 'four'][alive().length] || 'few')} of you are left: there are no more nights, and what the banished were is not shown until it is over.`, 'sys'); if (alive().length > 2) await houseAsks(true); }
       if (await endVote()) return;
       state.day += 1;
       state.phase = 'talk';
@@ -2462,6 +2920,8 @@ const Game = (() => {
   // ----- the page -----
   const UI = {
     sel: null, tally: null, speakingId: null, logCount: 0, emotes: {}, arrows: [], over: null, wait: null, revealed: false, answering: null, typingIds: [], stuck: true,
+    // The whole night: the twos who have gone off for a word in private (lines drawn between their seats), who the player is alone with, and what a dialog does when it is closed.
+    links: [], asideId: null, onClose: null,
     /* The chat follows its newest message while the player is at the bottom of it (stuck), and stays put when they have scrolled up to read. It also follows when its own room changes: what is waiting on the player opening above the box must not hide the newest message. */
     stick() { const w = $('#log-wrap'); if (w) { w.scrollTop = w.scrollHeight; UI.stuckAt = w.scrollTop; } },
     // The newest line in the story is said to the player: marked as it lands.
@@ -2536,11 +2996,13 @@ const Game = (() => {
     // A seat going out of the game: a beat of attention on it.
     gone(id) { UI.renderTable(); const s = $(`.seat[data-id="${CSS.escape(id)}"]`); if (s) s.classList.add('going'); },
     /* A question only the player can answer in the middle of a step: a line to say (resolves to the text, '' for nothing)... */
-    askLine(title) { return new Promise(resolve => { UI.wait = { kind: 'line', title, resolve: v => { UI.wait = null; UI.render(); resolve(cleanText(v, 400)); } }; UI.setBusy(''); UI.render(); const i = $('#say'); if (i) i.focus(); }); },
+    /* (o: more about it. k: the small caption; head: the line in the middle of the table; none: what the button that says nothing is called; chips: quick replies, [[label, text], ...]; strip: a phone keeps the table folded, so the chat has the room.) */
+    askLine(title, o) { return new Promise(resolve => { UI.wait = Object.assign({ kind: 'line', title, resolve: v => { UI.wait = null; UI.render(); resolve(cleanText(v, 400)); } }, o || null); UI.setBusy(''); UI.render(); const i = $('#say'); const touch = !!(o && o.chips) && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches; if (i && !touch) i.focus(); }); },
     /* ...or a seat to pick (resolves to its id). ok(p): who can be picked. */
     /* ...or one of two answers (the mission, an offer in the night, the end game): resolves to the value of the one pressed. options: [[label, value], ...]; k: the small caption. */
     askPick(title, options, k) { return new Promise(resolve => { UI.wait = { kind: 'pick', title, k: k || 'Your choice', options, resolve: v => { UI.wait = null; UI.render(); resolve(v); } }; UI.sel = null; UI.setBusy(''); UI.render(); }); },
-    askSeat(title, ok) { return new Promise(resolve => { UI.wait = { kind: 'seat', title, ok, resolve: id => { UI.wait = null; UI.sel = null; UI.render(); resolve(id); } }; UI.sel = null; UI.setBusy(''); UI.render(); }); },
+    /* (o: more about it. k: the small caption; verb and tail: the button's words round the name; none: a button that picks nobody, resolving to null.) */
+    askSeat(title, ok, o) { return new Promise(resolve => { UI.wait = Object.assign({ kind: 'seat', title, ok, resolve: id => { UI.wait = null; UI.sel = null; UI.render(); resolve(id); } }, o || null); UI.sel = null; UI.setBusy(''); UI.render(); }); },
     show(name) { for (const s of $$('.screen')) s.classList.toggle('active', s.id === `screen-${name}`); const h = $(name === 'home' ? '#home-title' : '#game-title'); if (h) h.focus({ preventScroll: true }); },
     setBusy(text) { const b = $('#busy'); b.hidden = !text; $('#busy-text').textContent = text || ''; },
     speaking(id) { UI.speakingId = id; for (const s of $$('.seat')) s.dataset.speaking = s.dataset.id === id ? '1' : '0'; },
@@ -2559,7 +3021,7 @@ const Game = (() => {
         onclick: other ? () => { const q = state ? P(e.who) : null; if (q && q.alive && state.phase === 'talk') UI.pickSeat(q.id); } : null },
       el('span', { class: 'say-face' }, run ? null : faceNode(other ? castOf(p.id) : YOU_FACE)),
       el('p', { class: 'say-text' }, el('span', { class: 'say-head' }, el('b', { class: 'say-who' }, p ? (p.you ? 'You' : p.first) : e.who),
-        e.kind === 'whisper' ? el('span', { class: 'role' }, 'whispers') : null, k ? el('span', { class: 'role' }, roleWord(k)) : null, e.toYou ? el('span', { class: 'role to-you' }, 'to you') : null), ' ', el('span', { class: 'say-words' }, e.text)));
+        e.kind === 'whisper' ? el('span', { class: 'role' }, 'whispers') : null, e.kind === 'aside' ? el('span', { class: 'role' }, e.to && e.to !== 'you' && P(e.to) ? `to ${P(e.to).first}, in private` : 'in private') : null, k ? el('span', { class: 'role' }, roleWord(k)) : null, e.toYou ? el('span', { class: 'role to-you' }, 'to you') : null), ' ', el('span', { class: 'say-words' }, e.text)));
     },
     // (The story follows the newest line only while the player is at the bottom of it, or has just spoken.)
     logEntry(e) { const log = $('#log'); if (!log) return; log.append(UI.logNode(e, state.log[state.log.length - 2])); UI.logCount += 1; if (UI.stuck || e.who === 'you') { UI.stuck = true; UI.stick(); } },
@@ -2582,7 +3044,7 @@ const Game = (() => {
         const votes = UI.tally && UI.tally[p.id] ? UI.tally[p.id] : 0;
         const label = `${p.name}${p.you ? ' (you)' : ''}${p.alive ? '' : ', out'}${k ? `, ${roleWord(k)}` : ''}${votes ? `, ${votes} vote${votes === 1 ? '' : 's'}` : ''}`;
         const seat = el('button', { type: 'button', class: 'seat', 'aria-label': label, 'aria-pressed': String(UI.sel === p.id),
-          dataset: { id: p.id, you: p.you ? '1' : '0', out: p.alive ? '0' : '1', sel: UI.sel === p.id ? '1' : '0', speaking: UI.speakingId === p.id ? '1' : '0', typing: UI.typingIds.includes(p.id) ? '1' : '0' }, onclick: () => UI.pickSeat(p.id) },
+          dataset: { id: p.id, you: p.you ? '1' : '0', out: p.alive ? '0' : '1', sel: UI.sel === p.id ? '1' : '0', speaking: UI.speakingId === p.id ? '1' : '0', typing: UI.typingIds.includes(p.id) ? '1' : '0', away: UI.asideId && !p.you && p.id !== UI.asideId ? '1' : '0' }, onclick: () => UI.pickSeat(p.id) },
         el('span', { class: 'seat-face' }, faceNode(p.you ? YOU_FACE : castOf(p.id), mood)),
         el('span', { class: 'seat-name' }, p.you ? 'You' : p.first), UI.roleTag(p),
         votes ? el('span', { class: 'seat-votes', 'aria-hidden': 'true' }, String(votes)) : null,
@@ -2598,8 +3060,12 @@ const Game = (() => {
       // The votes as they are shown: a line from each voter to whoever they point at.
       const old = $('.arrows', table);
       if (old) old.remove();
+      const at = id => { const s = $(`.seat[data-id="${CSS.escape(id)}"]`, table); return s ? [Number(s.dataset.x), Number(s.dataset.y)] : null; };
+      // Who has gone off with whom for a word in private: a line between the two seats.
+      const oldLinks = $('.links', table);
+      if (oldLinks) oldLinks.remove();
+      if (UI.links.length) table.append(sv('svg', { class: 'links', viewBox: '0 0 100 100', preserveAspectRatio: 'none', 'aria-hidden': 'true' }, UI.links.map(([a, b]) => { const p1 = at(a); const p2 = at(b); return p1 && p2 ? sv('line', { x1: p1[0], y1: p1[1], x2: p2[0], y2: p2[1] }) : null; })));
       if (UI.arrows.length) {
-        const at = id => { const s = $(`.seat[data-id="${CSS.escape(id)}"]`, table); return s ? [Number(s.dataset.x), Number(s.dataset.y)] : null; };
         const lines = UI.arrows.map(([a, b], i) => {
           const p1 = at(a); const p2 = at(b);
           if (!p1 || !p2) return null;
@@ -2626,7 +3092,8 @@ const Game = (() => {
     renderMid() {
       const mid = $('#mid');
       // While the table talks the screen is the chat's: on a phone the table folds to a strip (the stylesheet's business). Anything staged in the middle, or a seat to choose, has the round table.
-      $('#screen-game').dataset.table = state.phase === 'talk' && !UI.over && !UI.wait ? 'strip' : 'round';
+      // (So it does for a word in private, and afterwards, when the cards are turned and the table talks on.)
+      $('#screen-game').dataset.table = (UI.wait && UI.wait.strip) || ((state.phase === 'talk' || afterOpen()) && !UI.over && !UI.wait) ? 'strip' : 'round';
       const me = you();
       const sel = UI.sel ? P(UI.sel) : null;
       const kids = [];
@@ -2639,8 +3106,9 @@ const Game = (() => {
             el('div', { class: 'row mid-row' }, w.options.map(([label, v], i) => el('button', { type: 'button', class: `btn${i ? '' : ' primary'}`, id: `pick-${i}`, onclick: () => w.resolve(v) }, label))));
           return;
         }
-        kids.push(el('span', { class: 'mid-k' }, w.kind === 'seat' ? 'Your choice' : 'The table waits'), el('span', { class: 'mid-t' }, w.kind === 'seat' && sel && w.ok(sel) ? `${sel.first}?` : w.title));
-        if (w.kind === 'seat' && sel && w.ok(sel)) kids.push(el('button', { type: 'button', class: 'btn primary', id: 'mid-go', onclick: () => w.resolve(sel.id) }, `Take ${sel.first}`));
+        kids.push(el('span', { class: 'mid-k' }, w.k || (w.kind === 'seat' ? 'Your choice' : 'The table waits')), el('span', { class: 'mid-t' }, w.kind === 'seat' && sel && w.ok(sel) ? `${sel.first}?` : w.head || w.title));
+        if (w.kind === 'seat' && sel && w.ok(sel)) kids.push(el('button', { type: 'button', class: 'btn primary', id: 'mid-go', onclick: () => w.resolve(sel.id) }, `${w.verb || 'Take'} ${sel.first}${w.tail || ''}`));
+        else if (w.kind === 'seat' && w.none) kids.push(el('button', { type: 'button', class: 'btn', id: 'mid-none', onclick: () => w.resolve(null) }, w.none));
         mid.replaceChildren(...kids);
         return;
       }
@@ -2652,6 +3120,8 @@ const Game = (() => {
         mid.replaceChildren(...kids.filter(Boolean));
         return;
       }
+      // Alone with someone, while they answer.
+      if (UI.asideId && P(UI.asideId)) { mid.replaceChildren(el('span', { class: 'mid-k' }, 'In private'), el('span', { class: 'mid-t' }, `Alone with ${P(UI.asideId).first}`)); return; }
       if (state.phase === 'role') {
         kids.push(el('span', { class: 'mid-k' }, 'You are'), el('span', { class: 'mid-t' }, ROLE[face(me)].name), go('Begin', () => App.begin()));
       } else if (state.phase === 'night') {
@@ -2720,12 +3190,20 @@ const Game = (() => {
         chip("It's you.", `It's you, ${T}.`, { aim: tgt.id, stance: 'accuse' }), chip('Liar.', `${T}, you're lying.`, { aim: tgt.id, stance: 'accuse' }), chip('Why?', `Why, ${T}?`, { aim: tgt.id, stance: 'question' }),
         chip("I'm with you.", `I'm with ${T}.`, { aim: tgt.id, stance: 'vouch' }), chip('Not me.', `Not me, ${T}.`, { aim: tgt.id, stance: 'other' })];
     },
+    // Afterwards (the whole night): one tap says it, to whoever is picked or to everyone.
+    afterChips() {
+      const s = UI.sel ? P(UI.sel) : null;
+      const T = s && !s.you ? s.first : null;
+      const chip = (label, text) => el('button', { type: 'button', class: 'chip', dataset: { chip: label }, onclick: () => App.talk(text) }, label);
+      return T ? [el('span', { class: 'chips-to' }, `To ${T}:`), chip('Good game.', `Good game, ${T}.`), chip('I knew it.', `I knew it, ${T}.`), chip('Sorry.', `Sorry, ${T}.`), chip('You lied to me.', `You lied to my face, ${T}.`)]
+        : [chip('Good game.', 'Good game.'), chip('I knew it.', 'I knew it.'), chip('I had no idea.', 'I had no idea.'), chip('Sorry, everyone.', 'Sorry, everyone.')];
+    },
     // The one button beside the box. A live table: Send. A table that takes turns: Say with words in it, Pass with none.
     syncSay() {
       const b = $('#btn-say');
       const asking = !!UI.wait && UI.wait.kind === 'line';
       const empty = !$('#say').value.trim();
-      const live = !!state && state.live && state.phase === 'talk';
+      const live = !!state && ((state.live && state.phase === 'talk') || afterOpen());
       b.textContent = asking ? 'Say it' : live ? 'Send' : empty ? 'Pass' : 'Say';
       b.disabled = (busy && !asking) || (live && empty && !asking);
       b.classList.toggle('primary', asking || !empty);
@@ -2738,18 +3216,24 @@ const Game = (() => {
       const me = you();
       const talk = state.phase === 'talk';
       const asking = !!UI.wait && UI.wait.kind === 'line';
-      const can = talk && me.alive && !asking;
+      // (Nothing is said to the table while it waits on the player for something else: who to take aside, the mission, an answer for the house.)
+      const can = talk && me.alive && !UI.wait && !UI.asideId;
+      // (Alone with someone, between the player's line and the answer: the box stays where it is, shut.)
+      const privy = !!UI.asideId && !asking && !!P(UI.asideId);
       const tgt = can ? UI.target() : null;
-      $('#say-line').hidden = !(can || asking);
+      // Afterwards (the whole night) the box is open again, while the player has lines left; and a word in private has quick replies of its own.
+      const after = afterOpen() && state.after.lines < AFTER_LINES && !asking;
+      const quick = asking && UI.wait.chips ? UI.wait : null;
+      $('#say-line').hidden = !(can || asking || after || privy);
       $('#say').disabled = busy && !asking;
-      $('#say').placeholder = asking ? UI.wait.title : tgt && UI.answering ? `Answer ${tgt.first}` : 'Say something';
+      $('#say').placeholder = asking ? UI.wait.title : privy ? `${P(UI.asideId).first} is answering…` : after ? 'Say something back' : tgt && UI.answering ? `Answer ${tgt.first}` : 'Say something';
       UI.syncSay();
       const chips = $('#chips');
-      chips.hidden = !can;
-      chips.replaceChildren(...(can ? UI.chipNodes(tgt) : []));
+      chips.hidden = !(can || after || quick);
+      chips.replaceChildren(...(can ? UI.chipNodes(tgt) : quick ? quick.chips.map(([label, text]) => el('button', { type: 'button', class: 'chip', dataset: { chip: label }, onclick: () => quick.resolve(text) }, label)) : after ? UI.afterChips() : []));
       const acts = [];
       const b = (id, label, fn, cls) => el('button', { type: 'button', class: `btn ${cls || ''}`, id, disabled: busy, onclick: () => { if (!busy) fn(); } }, label);
-      if (asking) acts.push(el('button', { type: 'button', class: 'btn', id: 'btn-nothing', onclick: () => UI.wait && UI.wait.resolve('') }, 'Say nothing'));
+      if (asking) acts.push(el('button', { type: 'button', class: 'btn', id: 'btn-nothing', onclick: () => UI.wait && UI.wait.resolve('') }, UI.wait.none || 'Say nothing'));
       if (talk && !me.alive && !state.live) { acts.push(b('btn-pass', 'Watch them talk', () => App.talk('')), b('btn-vote', 'Go to the vote', () => App.callVote())); }
       if (!me.alive && state.phase !== 'over') acts.push(b('btn-skip', 'Skip to the end', () => App.skip()));
       $('#acts').hidden = !acts.length;
@@ -2760,7 +3244,7 @@ const Game = (() => {
       if (!state) return;
       $('#screen-game').dataset.phase = state.phase;
       const me = you();
-      $('#tb-phase').textContent = `${ROLE[known(me)].name}${me.alive ? '' : ' (out)'} · ${state.phase === 'night' ? `Night ${state.day}` : state.phase === 'over' ? 'Over' : `Day ${state.day}`}`;
+      $('#tb-phase').textContent = `${ROLE[known(me)].name}${me.alive ? '' : ' (out)'} · ${state.phase === 'night' ? `Night ${state.day}` : state.phase === 'over' ? (afterOpen() ? 'Afterwards' : 'Over') : `Day ${state.day}`}`;
       UI.renderTable();
       UI.renderMid();
       UI.renderSheet();
@@ -2769,6 +3253,7 @@ const Game = (() => {
     },
     dialog(title, body, buttons) {
       const d = $('#dlg');
+      UI.onClose = null;
       d.replaceChildren(el('h2', { id: 'dlg-title' }, title), body, el('div', { class: 'row' }, buttons.map(([label, fn, cls]) => el('button', { type: 'button', class: `btn ${cls || ''}`, onclick: () => { d.close(); if (fn) fn(); } }, label))));
       if (!d.open) d.showModal();
     },
@@ -2794,7 +3279,6 @@ const Game = (() => {
        note to itself; the scripted table's worst suspicion). */
     reveal() {
       if (!state || state.phase !== 'over') return;
-      const fate = p => (p.alive ? 'in at the end' : p.out.how === 'vote' ? `banished, day ${p.out.day}` : p.out.how === 'shot' ? `taken by the Hothead, day ${p.out.day}` : p.out.how === 'thrown' ? `thrown out by the Bouncer, day ${p.out.day}` : `murdered in the night, day ${p.out.day}`);
       const voted = p => state.votesLog.filter(v => v.votes[p.id]).map(v => P(v.votes[p.id]).first);
       const thought = p => {
         if (p.you) return '';
@@ -2813,16 +3297,27 @@ const Game = (() => {
         state.format ? el('p', { class: 'extra', dataset: { extra: 'pot', won: state.share ? '1' : '0' } }, el('b', null, `The pot: ${money(state.pot)}. `), state.share ? `Your share: ${money(state.share)}.` : youWon() ? 'You were not there at the end to share it.' : 'None of it is yours.') : null,
         bet ? el('p', { class: 'extra', dataset: { extra: 'bet', won: state.betWon ? '1' : '0' } }, el('b', null, state.betWon ? 'Side bet won: ' : 'Side bet lost: '), bet.text) : null,
         state.rule ? el('p', { class: 'note' }, `House rule: ${RULES[state.rule].name}.`) : null);
-      UI.dialog(state.winner === 'town' ? 'The Faithful win' : state.winner === 'fool' ? 'The Fool wins' : 'The Traitors win', el('div', { class: 'reveal' }, top, order.map(p => {
+      /* The whole night: what the player told the house each night, held
+         against how it really was; and, under the roles, what the others
+         said to each other in private. */
+      const asked = (state.house || []).filter(h => P(h.a));
+      const told = asked.length ? el('div', { class: 'reveal-more', id: 'reveal-house' }, el('h3', { class: 'deck-head' }, 'What you told the house'),
+        asked.map(h => { const q = HOUSE_ASKS.find(x => x.id === h.q); return el('p', { dataset: { q: h.q } }, el('b', null, `${h.end ? 'The end game' : `Night ${h.night}`}. ${q ? q.text : ''} `), `You said ${P(h.a).first}. `, el('span', { class: 'house-truth' }, houseVerdict(h))); })) : null;
+      const words = (state.asides || []).filter(a => a.lines.length && a.a !== 'you' && a.b !== 'you' && P(a.a) && P(a.b));
+      const whispered = words.length ? el('div', { class: 'reveal-more', id: 'reveal-asides' }, el('h3', { class: 'deck-head' }, 'What they said in private'),
+        words.map(a => el('p', null, el('b', null, `Day ${a.day}. ${P(a.lines[0].who).first} to ${P(a.lines[0].who === a.a ? a.b : a.a).first}: `), `\u201C${a.lines[0].text}\u201D`))) : null;
+      UI.dialog(state.winner === 'town' ? 'The Faithful win' : state.winner === 'fool' ? 'The Fool wins' : 'The Traitors win', el('div', { class: 'reveal' }, top, told, order.map(p => {
         const v = voted(p);
         const th = thought(p);
         return el('div', { class: 'reveal-row', dataset: { role: p.role } },
           el('span', { class: 'say-face' }, faceNode(p.you ? YOU_FACE : castOf(p.id))),
           el('div', null, el('p', { class: 'reveal-name' }, p.you ? `${p.name} (you)` : p.name, el('span', { class: 'seat-tag', dataset: { role: p.role } }, ROLE[p.role].name), p.was === 'turncoat' ? el('span', { class: 'seat-tag' }, 'was the Turncoat') : p.was === 'recruit' ? el('span', { class: 'seat-tag' }, `recruited, night ${p.turned}`) : null),
-            el('p', { class: 'reveal-fate' }, [capFirst(fate(p)), v.length ? `voted ${v.join(', ')}` : ''].filter(Boolean).join(' · ')),
+            el('p', { class: 'reveal-fate' }, [capFirst(fateOf(p)), v.length ? `voted ${v.join(', ')}` : ''].filter(Boolean).join(' · ')),
             p.out && p.out.why ? el('p', { class: 'reveal-why' }, 'Why the Traitors chose them: ', p.out.why) : null,
             th ? el('p', { class: 'reveal-note' }, `\u201C${th}\u201D`) : null));
-      })), [['Deal again', () => App.again()], ['Close', null, 'primary']]);
+      }), whispered), [['Deal again', () => App.again()], ['Close', null, 'primary']]);
+      // (The whole night: when the reveal is closed, nobody has left yet.)
+      UI.onClose = () => App.afters();
     },
     /* The tab on the first screen: what the house has kept of the nights
        played here (nothing shown until there has been one). */
@@ -2854,6 +3349,7 @@ const Game = (() => {
       const mode = $('#f-mode [aria-pressed="true"]').dataset.v;
       $('#claude-fields').hidden = mode !== 'claude';
       const townKey = !!(session.get(TOWN_KEY) || store.get(TOWN_KEY));
+      $('#night-help').textContent = $('#f-night [aria-pressed="true"]').dataset.v === 'full' ? 'A word in private before each Round Table, a question from the house each night, and nobody leaves when the cards are turned.' : 'Straight to the table: no words in private, no questions from the house, and it ends at the reveal.';
       $('#pace-help').textContent = $('#f-pace [aria-pressed="true"]').dataset.v === 'live' ? 'They talk on by themselves, like a group chat. Say something whenever you like.' : 'They wait for you: you speak or pass, then two or three of them do.';
       $('#mode-help').textContent = mode === 'claude' ? 'Every other seat is Claude, in that person\'s voice, knowing only what they would know.' : 'No key and no calls: the others follow a simple script. Good for learning the game; they are not clever.';
       $('#f-key').placeholder = townKey ? 'Using the town game\'s key (type here to use another)' : 'sk-ant-…';
@@ -2870,14 +3366,14 @@ const Game = (() => {
       failNoted = false;
       App.fast = false;
       stopTable();
-      state = deal({ live: opts.live, seed: opts.seed === undefined ? (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0 : opts.seed, size: opts.size || 8, role: opts.role, mode: opts.mode, name: opts.name, model: opts.model || settings.model, wild: opts.wild, deck: opts.deck, rule: opts.rule, bet: opts.bet, regulars: opts.regulars });
+      state = deal({ live: opts.live, seed: opts.seed === undefined ? (Date.now() ^ (Math.random() * 0x7fffffff)) >>> 0 : opts.seed, size: opts.size || 8, role: opts.role, mode: opts.mode, name: opts.name, model: opts.model || settings.model, wild: opts.wild, deck: opts.deck, rule: opts.rule, bet: opts.bet, regulars: opts.regulars, full: opts.full });
       /* What the house has kept about the player and the people sat here
          (given to that seat on the first day): the three who have sat with
          them most, so a table of old hands does not all say it at once. */
       const led = Ledger.read();
       const back = state.players.filter(p => !p.you && isObj(led.seats[p.id]) && led.seats[p.id].last).sort((a, b) => (led.seats[b.id].n | 0) - (led.seats[a.id].n | 0)).slice(0, 3);
-      for (const p of back) state.history[p.id] = { n: led.seats[p.id].n | 0, last: cleanText(led.seats[p.id].last, 300) };
-      UI.sel = null; UI.tally = null; UI.speakingId = null; UI.emotes = {}; UI.arrows = []; UI.over = null; UI.wait = null; UI.revealed = false;
+      for (const p of back) state.history[p.id] = { n: led.seats[p.id].n | 0, last: cleanText(led.seats[p.id].last, 640) };
+      UI.sel = null; UI.tally = null; UI.speakingId = null; UI.emotes = {}; UI.arrows = []; UI.over = null; UI.wait = null; UI.revealed = false; UI.links = []; UI.asideId = null;
       UI.show('game');
       UI.rebuildLog();
       if (state.format) sys(`Last call was hours ago. ${state.players.length} of you round one table, the doors shut, and ${dealtKnives() === 1 ? 'one Traitor' : `${['', 'one', 'two', 'three'][dealtKnives()]} Traitors`} among you. The rest of you are Faithful: banish them at the Round Table before they murder their way to the pot.`, 'sys');
@@ -2899,6 +3395,10 @@ const Game = (() => {
       if (!isObj(state.cards)) { state.deck = state.wild ? 'classic' : 'plain'; state.cards = {}; if (SIZES[state.size].watch) state.cards.watch = SIZES[state.size].watch; if (state.wild) Object.assign(state.cards, WILD[state.size]); state.rule = null; state.vouched = null; state.bet = null; }
       if (!Array.isArray(state.thrown)) state.thrown = [];
       if (!isObj(state.history)) state.history = {};
+      // (A table kept from before the whole night: it is the quick game it was.)
+      if (!Array.isArray(state.asides)) state.asides = [];
+      if (!Array.isArray(state.house)) state.house = [];
+      UI.links = []; UI.asideId = null;
       failNoted = false; App.fast = false; UI.sel = null; UI.tally = null; UI.emotes = {}; UI.arrows = []; UI.over = null; UI.wait = null; UI.revealed = false; UI.show('game'); UI.rebuildLog(); UI.render(); if (state.live && state.phase === 'talk') runTable(); return true; },
     begin() { return locked(async () => { startNight(); await App.nightOpen(); }); },
     // A Traitor's night starts with what their fellow Traitor would do.
@@ -2917,6 +3417,8 @@ const Game = (() => {
        the talk as it is, whoever is typing. At a table that takes turns
        the table then talks for two or three messages ('' passes). */
     talk(text, meta) {
+      // Afterwards (the whole night): what the player says is said to the table that stayed.
+      if (afterOpen()) { if (afterSay(text)) { save(); UI.renderComposer(); } runAfters(); return Promise.resolve(); }
       if (!state || state.phase !== 'talk') return Promise.resolve();
       if (state.live) {
         if (busy) return Promise.resolve();
@@ -2953,6 +3455,19 @@ const Game = (() => {
         UI.rebuildLog();
       });
     },
+    /* Afterwards (the whole night): the game is over and the reveal has
+       been read, and nobody has left. The table says what it makes of how
+       it really was, and the player can answer back. Once a game. */
+    afters() {
+      if (!state || state.phase !== 'over' || !state.full || state.after || busy) return false;
+      state.after = { queue: afterCast().slice(0, AFTER_FIRST), said: 0, lines: 0, count: {}, yours: null, last: null, done: false };
+      UI.sel = null;
+      sys('The cards are face up, and nobody has left yet.', 'sys');
+      save();
+      UI.render();
+      runAfters();
+      return true;
+    },
     quit() { stopTable(); if (state && state.phase === 'over') store.del(SAVE_KEY); state = null; UI.show('home'); UI.home(); },
     /* Deal again: another night at a table set the same way (the size,
        the deck, the role asked for, who plays the others), with a new
@@ -2979,7 +3494,7 @@ const Game = (() => {
       try { const s = JSON.parse(store.get(SET_KEY) || 'null'); if (isObj(s)) { if (MODELS.includes(s.model)) settings.model = s.model; if (typeof s.name === 'string') settings.name = cleanText(s.name, 20); } } catch (e) { /* defaults */ }
       $('#f-model').value = settings.model;
       $('#f-name').value = settings.name;
-      for (const g of ['#f-size', '#f-role', '#f-mode', '#f-deck', '#f-pace']) $(g).addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; for (const x of $$('button', $(g))) x.setAttribute('aria-pressed', String(x === b)); UI.home(); });
+      for (const g of ['#f-size', '#f-role', '#f-mode', '#f-deck', '#f-pace', '#f-night']) $(g).addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; for (const x of $$('button', $(g))) x.setAttribute('aria-pressed', String(x === b)); UI.home(); });
       $('#btn-new').addEventListener('click', () => {
         const mode = $('#f-mode [aria-pressed="true"]').dataset.v;
         const typed = $('#f-key').value.trim();
@@ -2991,11 +3506,13 @@ const Game = (() => {
         settings.model = $('#f-model').value;
         settings.name = cleanText($('#f-name').value, 20);
         store.set(SET_KEY, JSON.stringify({ model: settings.model, name: settings.name }));
-        App.newGame({ size: Number($('#f-size [aria-pressed="true"]').dataset.v), role: $('#f-role [aria-pressed="true"]').dataset.v, mode, name: settings.name, model: settings.model, deck: $('#f-deck [aria-pressed="true"]').dataset.v, live: $('#f-pace [aria-pressed="true"]').dataset.v === 'live', regulars: Ledger.regulars(Ledger.read()) });
+        App.newGame({ size: Number($('#f-size [aria-pressed="true"]').dataset.v), role: $('#f-role [aria-pressed="true"]').dataset.v, mode, name: settings.name, model: settings.model, deck: $('#f-deck [aria-pressed="true"]').dataset.v, live: $('#f-pace [aria-pressed="true"]').dataset.v === 'live', full: $('#f-night [aria-pressed="true"]').dataset.v === 'full', regulars: Ledger.regulars(Ledger.read()) });
       });
       $('#btn-continue').addEventListener('click', () => App.resume());
       $('#btn-quit').addEventListener('click', () => { if (busy) return; if (!state || state.phase === 'over') { App.quit(); return; } UI.dialog('Leave the table?', el('p', null, 'The game is kept: Continue on the first screen picks it up where you left it.'), [['Stay', null], ['Leave', () => App.quit(), 'primary']]); });
       $('#btn-roles').addEventListener('click', () => App.showRoles());
+      // (What a dialog does when it is closed, by its button or by Escape: the reveal, closed, starts what comes afterwards.)
+      $('#dlg').addEventListener('close', () => { const f = UI.onClose; UI.onClose = null; if (f) f(); });
       const send = fromButton => {
         const i = $('#say'); const t = i.value.trim();
         // Last words, when the table is waiting for them.
@@ -3021,6 +3538,8 @@ const Game = (() => {
   const api = { App, UI, Bots, Seat, Prompts, Ledger, PERSONAS, LENGTHS, clip, TYPES, typed, BETS, Rules: { deal, winner, SIZES, WILD, ROLE, CARD, HOUSE, RULES, beside: id => beside(P(id)).map(q => q.id), readLine: (t, id) => { const r = readLine(t, id); return { aim: r.aim ? r.aim.id : null, stance: r.stance }; } }, CAST, faceTraits, faceNode, recordText, get state() { return state; }, get busy() { return busy; },
     // Whether a live table is talking on its own just now.
     get talking() { return talking; },
+    // Whether the table is talking afterwards just now (the whole night), and what an answer to the house came to.
+    get aftering() { return aftersOn; }, houseVerdict, readAside: (t, by, to) => { const r = readAside(t, by, P(to)); return { kind: r.kind, who: r.who ? r.who.id : null }; },
     // What the table is waiting on the player for in the middle of a step ('line', 'seat'), or null.
     get waiting() { return UI.wait ? UI.wait.kind : null; } };
   return api;

@@ -31,7 +31,15 @@
    takes turns (live: false), where each step ends and can be waited for;
    the live table has tests of its own (who is typing, the player speaking
    meanwhile, two answering at once, the vote dropping what was being
-   typed, a reload in the middle). Run with: node tests/run.cjs lastcall */
+   typed, a reload in the middle).
+   The whole night (the owner: "how can we make it more like an experience,
+   rather than a quick game", then "Do 1-2-5") has its tests at the end: a
+   word in private before each Round Table (the scripted table and Claude),
+   the house's question each night and what the reveal makes of each
+   answer, the table staying on when the cards are turned (the scripted
+   table and Claude), a live table, and a small phone. The tests before
+   them sit down at a quick game, which has none of the three.
+   Run with: node tests/run.cjs lastcall */
 const fs = require('fs');
 const path = require('path');
 const assert = require('assert/strict');
@@ -40,7 +48,17 @@ const { suite, overflowReport, LAPTOP, PHONE } = require('./helpers.cjs');
 const FILE = path.resolve(__dirname, '..', 'index.html');
 const URL = 'file://' + FILE;
 const s = suite('lastcall');
-const open = (h, opts) => h.open(Object.assign({ url: URL, consent: false, viewport: PHONE, contextOptions: { reducedMotion: 'reduce' } }, opts || {}));
+/* Most of the tests here were written for the quick game, which is still a
+   table the first screen offers (The night: A quick game), and they sit down
+   at that: the first screen is set to it, and a table dealt without the form
+   is a quick one unless it says otherwise. The whole night (a word in
+   private, the house's question, afterwards) has tests of its own at the
+   end, which open the page with { whole: true } and get the page as it is. */
+const open = async (h, opts) => {
+  const page = await h.open(Object.assign({ url: URL, consent: false, viewport: PHONE, contextOptions: { reducedMotion: 'reduce' } }, opts || {}));
+  if (!(opts && opts.whole)) await page.evaluate(() => { document.querySelector('#f-night [data-v="quick"]').click(); const deal = Game.App.newGame; Game.App.newGame = o => deal(Object.assign({ full: false }, o)); });
+  return page;
+};
 /* Wait for the step to end, answering what the table asks the player on the way: no last words, and the first seat that can be picked (opts.words, opts.seat give other answers). */
 const settle = async (page, opts) => {
   for (let i = 0; i < 12; i++) {
@@ -53,7 +71,8 @@ const settle = async (page, opts) => {
     else {
       const id = (opts && opts.seat) || await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you).id);
       await page.click(`.seat[data-id="${id}"]`);
-      await page.click('#mid-go');
+      // (A seat that cannot be picked for this, where nobody need be: the button that picks nobody.)
+      await page.click((await page.$('#mid-go')) ? '#mid-go' : '#mid-none');
     }
   }
   throw new Error('the step never settled');
@@ -2125,6 +2144,514 @@ s.test('on a small phone the house deal fits: the tab on the first screen, the r
   await page.waitForSelector('dialog[open] .reveal-top');
   assert.ok(await fits(), 'the reveal, with how the night went above the roles');
   assert.deepEqual(await overflowReport(page, vp.width), []);
+});
+
+/* The whole night (the owner, of the game as it stood: "Quick game wise,
+   it's good now. But how can we make it more like an experience, rather
+   than a quick game", and, of what was offered, "Do 1-2-5"): a word in
+   private before each Round Table, the house's question each night, and
+   the table staying on when the cards are turned. These tests open the
+   page as it is ({ whole: true }). To have the player still at the table
+   on the second day, the scripted table is steered: it banishes and
+   murders a plain Faithful who is not the player. */
+const steer = page => page.evaluate(() => {
+  const spare = () => Game.state.players.filter(p => p.alive && !p.you && p.role === 'town');
+  Game.Bots.vote = p => { const t = spare().find(q => q !== p) || Game.state.players.find(q => q.alive && q !== p && !q.you); return { vote: t, text: 'Them.' }; };
+  Game.Bots.kill = () => spare().pop() || null;
+});
+// Sleep through a night with nothing to do in it, up to the next thing the table waits on the player for.
+const sleep = async (page, kind) => { await page.click('#mid-go'); await page.waitForFunction(k => Game.waiting === k, kind || 'seat'); };
+const midText = page => page.evaluate(() => ({ k: document.querySelector('#mid .mid-k').textContent, t: document.querySelector('#mid .mid-t').textContent, none: document.querySelector('#mid-none') ? document.querySelector('#mid-none').textContent : null }));
+
+s.test('a word in private: before each Round Table the player takes someone aside and the others pair off; the table is told who went with whom and never what was said; what the player says moves a scripted seat and stays out of the record; whoever has a reason comes over to a player who waits; out of the game the player hears all of it; and a quick game has none of it', async h => {
+  const page = await open(h, { whole: true });
+  assert.equal(await page.evaluate(() => document.querySelector('#f-night [aria-pressed="true"]').dataset.v), 'full', 'the first screen deals the whole night unless told otherwise');
+  assert.match(await page.textContent('#night-help'), /^A word in private before each Round Table/);
+  await sit(page, { seed: 21, role: 'town', deck: 'plain' });
+  assert.equal(await page.evaluate(() => Game.state.full), true);
+  await steer(page);
+  await begin(page);
+  await sleep(page);
+  // The first thing the first morning waits on: who to take aside (the house asks nothing on the first night).
+  const ask = await page.evaluate(() => ({ table: document.querySelector('#screen-game').dataset.table, line: document.querySelector('#say-line').hidden, chips: document.querySelector('#chips').hidden, asides: Game.state.asides.length, house: Game.state.house.length }));
+  assert.deepEqual(await midText(page), { k: 'A word in private', t: 'Who do you take aside?', none: 'Wait and see' });
+  assert.deepEqual(ask, { table: 'round', line: true, chips: true, asides: 0, house: 0 }, 'nothing is said to the table while it waits');
+  const who = await page.evaluate(() => { const live = Game.state.players.filter(p => p.alive && !p.you); const x = live.find(p => p.role !== 'knife'); const t = live.find(p => p !== x); return { x: x.id, X: x.first, t: t.id, T: t.first, sus: x.mem.sus[t.id] || 0, you: x.mem.sus.you || 0, live: live.map(p => p.id) }; });
+  await page.click(`.seat[data-id="${who.x}"]`);
+  assert.equal(await page.textContent('#mid-go'), `Take ${who.X} aside`);
+  await page.click('#mid-go');
+  await page.waitForFunction(() => Game.waiting === 'line');
+  const alone = await page.evaluate(() => {
+    const g = Game.state; const pub = g.log.find(e => e.t === 'sys' && /^A word in private/.test(e.text));
+    return { table: document.querySelector('#screen-game').dataset.table, head: document.querySelector('#mid .mid-t').textContent, ph: document.querySelector('#say').placeholder, chips: [...document.querySelectorAll('#chips .chip')].map(c => c.textContent), none: document.querySelector('#btn-nothing').textContent,
+      away: document.querySelectorAll('.seat[data-away="1"]').length, seats: g.players.length, pub: pub.text, rec: pub.rec, priv: pub.priv, twos: g.asides.map(a => [a.a, a.b]), told: g.log[g.log.length - 1] };
+  });
+  assert.deepEqual([alone.table, alone.head, alone.ph, alone.none], ['strip', `Alone with ${who.X}`, `Say something to ${who.X}`, 'Say nothing'], 'on a phone the table stays folded, so the chat has the room');
+  assert.deepEqual(alone.chips, ['Who is it?', 'I trust you.', 'Vote with me.', "It's you."]);
+  assert.equal(alone.away, alone.seats - 2, 'every seat but the two of them is dimmed');
+  assert.match(alone.pub, new RegExp(`^A word in private before the Round Table: you and ${who.X}; \\w+ and \\w+; \\w+ and \\w+\\.( \\w+ was left at the table\\.)?$`));
+  assert.match(alone.rec, new RegExp(`^A word in private before the Round Table: Joe and ${who.X}; `), 'the record a seat is given has the player by name');
+  assert.equal(alone.priv, false, 'who went with whom is public');
+  assert.deepEqual(alone.twos[0], ['you', who.x]);
+  const paired = alone.twos.flat().filter(id => id !== 'you');
+  assert.equal(new Set(paired).size, paired.length, 'nobody is in two places');
+  assert.ok(paired.every(id => who.live.includes(id)) && who.live.length - paired.length <= 1, 'everyone still in went with someone, but for one at most');
+  assert.deepEqual([alone.told.kind, alone.told.priv, alone.told.text], ['private', true, `You take ${who.X} aside. Nobody else can hear.`]);
+  // Three things said, each answered. Naming someone to a Faithful turns them that way; trust warms them to the player.
+  await page.fill('#say', `I think it is ${who.T}.`);
+  await page.click('#btn-say');
+  await page.waitForFunction(() => Game.waiting === 'line' && Game.state.asides[0].lines.length === 2);
+  const one = await page.evaluate(w => { const g = Game.state; const x = g.players.find(p => p.id === w.x); const two = g.log.slice(-2); return { two: two.map(e => [e.who, e.kind, e.priv, e.to]), sus: x.mem.sus[w.t], none: document.querySelector('#btn-nothing').textContent,
+    heads: [...document.querySelectorAll('.say[data-kind="aside"] .say-head')].map(n => n.textContent) }; }, who);
+  assert.deepEqual(one.two, [['you', 'aside', true, who.x], [who.x, 'aside', true, 'you']]);
+  assert.equal(one.sus, who.sus + 1.5);
+  assert.equal(one.none, 'Back to the table');
+  assert.deepEqual(one.heads, [`Youto ${who.X}, in private`, `${who.X}in private`], 'each is marked as said in private');
+  await page.click('#chips .chip[data-chip="I trust you."]');
+  await page.waitForFunction(() => Game.waiting === 'line' && Game.state.asides[0].lines.length === 4);
+  assert.equal(await page.evaluate(w => Game.state.players.find(p => p.id === w.x).mem.sus.you || 0, who), who.you - 1);
+  await page.click('#chips .chip[data-chip="Who is it?"]');
+  await page.waitForFunction(() => !Game.busy);
+  const done = await page.evaluate(w => {
+    const g = Game.state; const rec = Game.recordText(); const x = g.players.find(p => p.id === w.x);
+    const others = g.asides.slice(1); const o = g.players.find(p => p.id === others[0].a);
+    return { phase: g.phase, own: g.asides[0].lines.map(l => l.who), others: others.map(a => [a.lines.length, a.lines[0].who === a.a, 'open' in a]), leaked: g.asides.flatMap(a => a.lines).filter(l => rec.includes(`"${l.text}"`)).length, pub: rec.includes(`A word in private before the Round Table: Joe and ${x.first};`),
+      asideLogs: g.log.filter(e => e.kind === 'aside').every(e => e.priv), back: g.log[g.log.length - 1].text, secret: Game.Prompts.secret(x), other: Game.Prompts.secret(o), oName: g.players.find(p => p.id === others[0].b).first, oLine: others[0].lines[0].text,
+      table: document.querySelector('#screen-game').dataset.table, away: document.querySelectorAll('.seat[data-away="1"]').length, sys: Game.Prompts.system() };
+  }, who);
+  assert.equal(done.phase, 'talk');
+  assert.deepEqual(done.own, ['you', who.x, 'you', who.x, 'you', who.x], 'three lines, each answered, and then it is over');
+  assert.ok(done.others.length >= 2 && done.others.every(o => o[0] === 1 && o[1] === true && o[2] === false), 'in each other pair one says one thing to the other: ' + JSON.stringify(done.others));
+  assert.deepEqual([done.leaked, done.pub, done.asideLogs, done.back], [0, true, true, 'Back at the table.'], 'what was said is in nobody\'s record');
+  assert.match(done.secret, new RegExp(`IN PRIVATE, THIS MORNING: you and Joe had a word alone \\(they came to you\\)\\. Joe said: "I think it is ${who.T}\\." You said: "[^"]+" Joe said: "I trust you\\."`), 'the seat taken aside has the words');
+  assert.ok(done.other.includes(`IN PRIVATE, THIS MORNING: you and ${done.oName} had a word alone (you took them aside). You said: "${done.oLine}" Nobody else heard it.`) && !done.other.includes('Joe said:'), 'and another seat has its own, and none of the player\'s');
+  assert.deepEqual([done.table, done.away], ['strip', 0]);
+  assert.match(done.sys, /- Before each day's talk everyone goes off in twos for a word in private: a private message between two people\. The table is told who went off with whom, and never what was said\./);
+  assert.match(done.sys, /- A word in private is part of the game\. Who went off with whom is in the record, and it is evidence the way a vote is/);
+  assert.match(done.sys, /The table is all there is\. The only evidence in this game is what happens at it/, 'and the rest of what a seat is told is as it was');
+  // What a line said in private is, to the one it is said to.
+  const read = await page.evaluate(() => { const [, b, c] = Game.state.players; return [`I think it is ${c.first}.`, `${c.first} is clean, I trust them`, "I think it's you.", 'Vote with me today.', 'I trust you.', 'Who do you think it is?', 'hm', "I don't trust you"].map(t => Game.readAside(t, 'you', b.id)).map(r => r.kind + (r.who === c.id ? ':c' : '')); });
+  assert.deepEqual(read, ['name:c', 'clear:c', 'you', 'with', 'with', 'ask', 'other', 'you']);
+  // The second day: someone who trusts the player comes over when the player waits, and speaks first.
+  await page.click('#btn-vote');
+  await page.click(`.seat[data-id="${await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you && p.role === 'town').id)}"]`);
+  await page.click('#mid-go');
+  await page.waitForFunction(() => !Game.busy && Game.state.phase === 'night');
+  const keen = await page.evaluate(() => { const x = Game.state.players.find(p => p.alive && !p.you && p.role === 'witness'); x.mem.trust = 'you'; return { id: x.id, first: x.first }; });
+  await sleep(page);
+  assert.equal((await midText(page)).k, 'The house asks', 'the second night has a question from the house first');
+  await page.click('#mid-none');
+  await page.waitForFunction(() => Game.waiting === 'seat' && document.querySelector('#mid .mid-k').textContent === 'A word in private');
+  await page.click('#mid-none');
+  await page.waitForFunction(() => Game.waiting === 'line');
+  const came = await page.evaluate(() => { const g = Game.state; const a = g.asides.find(x => x.day === 2); return { a: [a.a, a.b], lines: a.lines.map(l => l.who), none: document.querySelector('#btn-nothing').textContent, said: g.log.filter(e => e.day === 2 && e.kind === 'private').map(e => e.text), rec: g.log.find(e => e.day === 2 && /^A word in private/.test(e.text)).rec }; });
+  assert.deepEqual([came.a, came.lines, came.none], [[keen.id, 'you'], [keen.id], 'Back to the table'], 'they came over, and spoke first');
+  assert.ok(came.said.includes(`${keen.first} comes over for a word. Nobody else can hear.`));
+  assert.match(came.rec, new RegExp(`Joe and ${keen.first}`));
+  await page.click('#btn-nothing');
+  await page.waitForFunction(() => !Game.busy);
+  assert.match(await page.evaluate(k => Game.Prompts.secret(Game.state.players.find(p => p.id === k.id)), keen), /IN PRIVATE, THIS MORNING: you and Joe had a word alone \(you took them aside\)\. You said: "[^"]+" Nobody else heard it\./, 'and has it as the one who went over');
+  // Out of the game, the player picks nobody and hears all of it.
+  const page2 = await open(h, { whole: true });
+  await sit(page2, { seed: 21, role: 'town', deck: 'plain' });
+  await begin(page2);
+  await page2.evaluate(() => { const me = Game.state.players[0]; me.alive = false; me.out = { how: 'vote', day: 0 }; Game.UI.render(); });
+  await page2.click('#mid-go');
+  await page2.waitForFunction(() => !Game.busy);
+  const out = await page2.evaluate(() => { const g = Game.state; return { phase: g.phase, pairs: g.asides.map(a => [a.a, a.b, a.lines.length]), shown: g.log.filter(e => e.kind === 'aside').map(e => [e.who, e.to, e.priv]), heads: [...document.querySelectorAll('.say[data-kind="aside"] .say-head')].map(n => n.textContent), pub: g.log.find(e => /^A word in private/.test(e.text)).text }; });
+  assert.equal(out.phase, 'talk');
+  assert.ok(out.pairs.length === 3 && out.pairs.every(a => a[0] !== 'you' && a[1] !== 'you' && a[2] === 1), JSON.stringify(out.pairs));
+  assert.deepEqual(out.shown, out.pairs.map(a => [a[0], a[1], true]), 'each pair\'s words are shown to a player who is out');
+  assert.ok(out.heads.every(t => /to \w+, in private$/.test(t)), JSON.stringify(out.heads));
+  assert.doesNotMatch(out.pub, /\byou\b|Joe/i);
+  // A quick game: straight to the table, and the seats are told nothing of it.
+  const page3 = await open(h);
+  await sit(page3, { seed: 21, role: 'town', deck: 'plain' });
+  await begin(page3);
+  await page3.click('#mid-go');
+  await page3.waitForFunction(() => !Game.busy);
+  const quick = await page3.evaluate(() => ({ full: Game.state.full, phase: Game.state.phase, asides: Game.state.asides.length, sys: Game.Prompts.system(), log: Game.state.log.some(e => /in private/i.test(e.text)) }));
+  assert.deepEqual([quick.full, quick.phase, quick.asides, quick.log], [false, 'talk', 0, false]);
+  assert.doesNotMatch(quick.sys, /in private|goes off in twos/i);
+});
+
+s.test('with Claude, a word in private is a call of its own: the seat is told who it is alone with, who took whom aside and what has been said between them; the others\' are one call a pair; and at the table each seat has its own words in its notes and nobody else\'s', async h => {
+  const bodies = [];
+  const page = await open(h, { whole: true, route: standIn(bodies) });
+  await page.fill('#f-key', 'sk-ant-test-key');
+  await page.fill('#f-name', 'Joe');
+  await page.click('#f-deck [data-v="plain"]');
+  await page.click('#f-role [data-v="town"]');
+  await page.click('#f-pace [data-v="turns"]');
+  await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
+  await page.click('#btn-new');
+  await page.click('dialog .btn.primary');
+  await begin(page);
+  await sleep(page);
+  const x = await page.evaluate(() => { const p = Game.state.players.find(q => q.alive && !q.you); return { id: p.id, first: p.first }; });
+  await page.click(`.seat[data-id="${x.id}"]`);
+  await page.click('#mid-go');
+  await page.waitForFunction(() => Game.waiting === 'line');
+  await page.click('#chips .chip[data-chip="Who is it?"]');
+  await page.waitForFunction(() => Game.waiting === 'line' && Game.state.asides[0].lines.length === 2);
+  await page.click('#btn-nothing');
+  await page.waitForFunction(() => !Game.busy);
+  const text = b => b.body.messages[0].content.map(c => c.text).join('\n');
+  const asides = bodies.filter(b => b.body.output_config.format.schema.required.join() === 'say,suspect,trust,feel,note');
+  const st1 = await page.evaluate(() => ({ pairs: Game.state.asides.filter(a => a.a !== 'you' && a.b !== 'you').map(a => [Game.state.players.find(p => p.id === a.a).first, Game.state.players.find(p => p.id === a.b).first, a.lines[0].text]), own: Game.state.asides[0].lines, cost: document.querySelector('#cost').textContent }));
+  assert.equal(asides.length, st1.pairs.length + 1, 'one call for each other pair, and one for each answer to the player');
+  const mine = asides.find(b => text(b).includes('alone with Joe'));
+  assert.match(text(mine), new RegExp(`YOUR SEAT: ${x.first} `));
+  assert.match(text(mine), /NOW: day 1, before the Round Table\. Everyone has gone off in twos for a word in private, and you are alone with Joe \(they took you aside\)\. Nobody else can hear this, though the whole table saw the two of you go\.\nBetween the two of you so far:\nJoe: "Who do you think it is\?"\nAnswer Joe, privately\./);
+  assert.match(text(mine), /LENGTH THIS TURN: two short sentences/);
+  assert.match(text(mine), new RegExp(`A word in private before the Round Table: Joe and ${x.first};`), 'who went with whom is in the record it is given');
+  for (const [a, b] of st1.pairs) {
+    const call = asides.find(c => new RegExp(`YOUR SEAT: ${a} `).test(text(c)));
+    assert.match(text(call), new RegExp(`you are alone with ${b} \\(you took them aside\\)\\. Nobody else can hear this, though the whole table saw the two of you go\\.\\nSay what you wanted to say to ${b}, privately\\.`));
+    assert.doesNotMatch(text(call), /Who do you think it is\?/, 'and nothing of what the player said to someone else');
+  }
+  assert.ok(asides.every(b => /- A word in private is part of the game\./.test(b.body.system[0].text) && /goes off in twos for a word in private/.test(b.body.system[0].text)));
+  assert.deepEqual(st1.own.map(l => l.who), ['you', x.id]);
+  assert.match(st1.cost, new RegExp(`· ${bodies.length} calls ·`), 'and each is counted in the cost');
+  // At the table: each seat's own words are in what it alone is told, this morning's.
+  const n0 = bodies.length;
+  await pass(page);
+  const talk = bodies.slice(n0).filter(b => !/^You are the host/.test(b.body.system[0].text));
+  assert.ok(talk.length >= 1);
+  for (const b of talk) {
+    const t = text(b);
+    const seat = /YOUR SEAT: (\S+)/.exec(t)[1];
+    assert.match(t, new RegExp(`A word in private before the Round Table: Joe and ${x.first};`));
+    if (seat === x.first) assert.ok(t.includes(`IN PRIVATE, THIS MORNING: you and Joe had a word alone (they came to you). Joe said: "Who do you think it is?" You said: "${st1.own[1].text}" Nobody else heard it.`), t.split('\n').filter(l => /^IN PRIVATE/.test(l)).join('|'));
+    else assert.doesNotMatch(t, /Joe said: "Who do you think it is\?"/, 'nobody else has what the player said in private');
+    const pair = st1.pairs.find(p => p[0] === seat || p[1] === seat);
+    if (pair) assert.ok(t.includes(`IN PRIVATE, THIS MORNING: you and ${pair[0] === seat ? pair[1] : pair[0]} had a word alone (${pair[0] === seat ? 'you took them aside' : 'they came to you'}). ${pair[0] === seat ? 'You' : pair[0]} said: "${pair[2]}" Nobody else heard it.`), t.split('\n').filter(l => /^IN PRIVATE/.test(l)).join('|'));
+    for (const p of st1.pairs) if (p[0] !== seat && p[1] !== seat) assert.ok(!t.includes(`${p[0]} said: "${p[2]}"`), 'nor what another pair said');
+  }
+});
+
+s.test('the house asks: one question a night from the second night on, answered by naming someone and heard by nobody; a Faithful and a Traitor are asked different things; it is asked once more before the end game\'s first vote; and the reveal holds each answer against how it really was', async h => {
+  const page = await open(h, { whole: true });
+  await sit(page, { seed: 21, role: 'town', deck: 'plain' });
+  await steer(page);
+  await begin(page);
+  await sleep(page);
+  assert.equal((await midText(page)).k, 'A word in private', 'the first night has no question: there is nothing to go on');
+  await settle(page);
+  await page.click('#btn-vote');
+  const banished = await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you && p.role === 'town').id);
+  await page.click(`.seat[data-id="${banished}"]`);
+  await page.click('#mid-go');
+  await page.waitForFunction(() => !Game.busy && Game.state.phase === 'night');
+  await sleep(page);
+  assert.deepEqual(await midText(page), { k: 'The house asks', t: 'Who is a Traitor?', none: 'Say nothing' });
+  const a = await page.evaluate(() => { const p = Game.state.players.find(q => q.alive && !q.you && q.role === 'knife'); return { id: p.id, first: p.first }; });
+  await page.click(`.seat[data-id="${a.id}"]`);
+  assert.deepEqual([(await midText(page)).t, await page.textContent('#mid-go')], [`${a.first}?`, `Say ${a.first}`]);
+  await page.click('#mid-go');
+  await settle(page);
+  const two = await page.evaluate(() => { const g = Game.state; const e = g.log.find(x => /^The house asks/.test(x.text)); return { house: g.house, line: [e.text, e.kind, e.priv], rec: /house asks/i.test(Game.recordText()), day: g.day, phase: g.phase }; });
+  assert.deepEqual(two.house, [{ night: 2, q: 'traitor', a: a.id, end: false }]);
+  assert.deepEqual(two.line, [`The house asks: Who is a Traitor? You say ${a.first}. Nobody else hears it.`, 'private', true]);
+  assert.equal(two.rec, false, 'nobody else hears it: it is in no seat\'s record');
+  // The next night's is the next question; saying nothing keeps nothing, and the same one is asked again.
+  await page.click('#btn-vote');
+  await page.click(`.seat[data-id="${await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you).id)}"]`);
+  await page.click('#mid-go');
+  await settle(page);
+  const g3 = await st(page);
+  if (g3.phase === 'night' && g3.me.alive) {
+    await sleep(page);
+    assert.equal((await midText(page)).t, 'Who do you trust most?');
+    await page.click('#mid-none');
+    await page.waitForFunction(() => !Game.busy || Game.waiting !== 'seat' || document.querySelector('#mid .mid-k').textContent !== 'The house asks');
+    assert.equal(await page.evaluate(() => Game.state.house.length), 1);
+  }
+  // Each answer, held against how it really was.
+  const v = await page.evaluate(ids => {
+    const g = Game.state; const K = g.players.find(p => p.role === 'knife'); const T = g.players.find(p => p.id === ids.banished); const V = g.players.find(p => p.out && p.out.how === 'night' && p.out.day === 1);
+    const ask = (q, p, night) => Game.houseVerdict({ night: night === undefined ? 2 : night, q, a: p.id });
+    const out = { names: [K.first, T.first, V.first], traitor: [ask('traitor', K), ask('traitor', T)], trust: [ask('trust', K), ask('trust', T)], gone: [ask('gone', V, 1), ask('gone', K, 1), ask('gone', K, 40)], next: [ask('next', T, 1), ask('next', K, 1), ask('next', K, 40)], onto: [ask('onto', K, 2)] };
+    g.votesLog.push({ day: 30, votes: { [K.id]: 'you' } }, { day: 31, votes: { [K.id]: 'you' } }, { day: 32, votes: { [K.id]: 'you' }, secret: true });
+    out.onto.push(ask('fooled', K, 31), ask('onto', K, 2));
+    g.votesLog.length -= 3;
+    Object.assign(T, { was: 'recruit', turned: 2, role: 'knife' });
+    out.later = [ask('traitor', T, 2), ask('trust', T, 2), ask('traitor', T, 3)];
+    delete T.was; delete T.turned; T.role = 'town';
+    return out;
+  }, { banished });
+  const [K, T, V] = v.names;
+  assert.deepEqual(v.traitor, [`${K} was a Traitor. You had it.`, `${T} was a Faithful.`]);
+  assert.deepEqual(v.trust, [`${K} was a Traitor.`, `${T} was no Traitor. Well placed.`]);
+  assert.deepEqual(v.gone, [`${V} did not. You called it.`, `It was ${V}.`, 'Everyone came in to breakfast.']);
+  assert.deepEqual(v.next, [`They banished ${T}. You called it.`, `They banished ${T}.`, 'Nobody was banished that day.']);
+  assert.deepEqual(v.onto, [`${K} never voted for you after that.`, `${K} voted to banish you once after that.`, `${K} voted to banish you 2 times after that.`], 'a secret ballot tells nobody anything');
+  assert.deepEqual(v.later, [`${T} was no Traitor yet, and was one by the end.`, `${T} was with you then, and a Traitor by the end.`, `${T} was a Traitor. You had it.`], 'someone recruited later was no Traitor the night they were named');
+  // The reveal has them, above the roles.
+  await page.evaluate(() => { const g = Game.state; g.winner = 'town'; g.phase = 'over'; Game.UI.render(); Game.UI.reveal(); });
+  const shown = await page.evaluate(() => ({ head: document.querySelector('#reveal-house h3').textContent, rows: [...document.querySelectorAll('#reveal-house p')].map(p => p.textContent), first: document.querySelector('dialog .reveal').children[1].id }));
+  assert.deepEqual([shown.head, shown.rows, shown.first], ['What you told the house', [`Night 2. Who is a Traitor? You said ${a.first}. ${a.first} was a Traitor. You had it.`], 'reveal-house']);
+  // A Traitor is asked other things, and cannot name a fellow Traitor.
+  const page2 = await open(h, { whole: true });
+  await sit(page2, { seed: 21, role: 'knife', deck: 'plain' });
+  await steer(page2);
+  await begin(page2);
+  const prey = () => page2.evaluate(() => Game.state.players.find(p => p.alive && !p.you && p.role === 'town').id);
+  await page2.click(`.seat[data-id="${await prey()}"]`);
+  await page2.click('#mid-go');
+  await settle(page2);
+  await page2.click('#btn-vote');
+  await page2.click(`.seat[data-id="${await prey()}"]`);
+  await page2.click('#mid-go');
+  await page2.waitForFunction(() => !Game.busy && Game.state.phase === 'night');
+  await page2.click(`.seat[data-id="${await page2.evaluate(() => Game.state.players.find(p => p.alive && !p.you && p.role !== 'knife').id)}"]`);
+  await sleep(page2);
+  assert.deepEqual(await midText(page2), { k: 'The house asks', t: 'Who is closest to catching you?', none: 'Say nothing' });
+  await page2.click(`.seat[data-id="${await page2.evaluate(() => Game.state.players.find(p => p.alive && !p.you && p.role === 'knife').id)}"]`);
+  assert.equal(await page2.$('#mid-go'), null, 'a fellow Traitor is no answer');
+  const f = await page2.evaluate(() => { const p = Game.state.players.find(q => q.alive && !q.you && q.role !== 'knife'); return { id: p.id, first: p.first }; });
+  await page2.click(`.seat[data-id="${f.id}"]`);
+  await page2.click('#mid-go');
+  await settle(page2);
+  assert.deepEqual(await page2.evaluate(() => Game.state.house), [{ night: 2, q: 'onto', a: f.id, end: false }]);
+  // The Traitors' table: once more before the end game's first vote.
+  const page3 = await open(h, { whole: true });
+  await sit(page3, { seed: 21, size: 6, role: 'town', deck: 'faithful' });
+  await steer(page3);
+  await begin(page3);
+  await page3.click('#mid-go');
+  await settle(page3);
+  await page3.click('#btn-vote');
+  await page3.click(`.seat[data-id="${await page3.evaluate(() => Game.state.players.find(p => p.alive && !p.you && p.role === 'town').id)}"]`);
+  await page3.click('#mid-go');
+  await page3.waitForFunction(() => Game.waiting === 'seat');
+  const end = await page3.evaluate(() => ({ endgame: Game.state.endgame, left: Game.state.players.filter(p => p.alive).length, id: Game.state.players.find(p => p.alive && !p.you).id }));
+  assert.deepEqual([end.endgame, end.left], [true, 4]);
+  assert.deepEqual(await midText(page3), { k: 'The house asks', t: 'Who is a Traitor?', none: 'Say nothing' });
+  await page3.click(`.seat[data-id="${end.id}"]`);
+  await page3.click('#mid-go');
+  await page3.waitForFunction(() => Game.waiting === 'pick');
+  assert.equal(await page3.textContent('#mid .mid-k'), 'The end game');
+  assert.deepEqual(await page3.evaluate(() => Game.state.house), [{ night: 1, q: 'traitor', a: end.id, end: true }]);
+  // A quick game asks nothing.
+  const page4 = await open(h);
+  await sit(page4, { seed: 21, role: 'town', deck: 'plain' });
+  const over = await playOut(page4);
+  assert.equal(over.phase, 'over');
+  assert.deepEqual(await page4.evaluate(() => [Game.state.house.length, Game.state.log.some(e => /house asks/i.test(e.text))]), [0, false]);
+});
+
+s.test('afterwards: when the cards are turned and the reveal is closed nobody has left; whoever has most to say says it, knowing everything; the player answers back, to one of them or to everyone, four times, and then the lights come up; what was said goes home with the regulars; and a quick game ends at the reveal', async h => {
+  const page = await open(h, { whole: true });
+  await sit(page, { seed: 21, role: 'town', deck: 'plain' });
+  const end = await playOut(page);
+  assert.equal(end.phase, 'over');
+  assert.equal(await page.evaluate(() => Game.state.after), null, 'nothing starts until the reveal has been read');
+  await page.click('#mid-reveal');
+  const rev = await page.evaluate(() => ({ rows: [...document.querySelectorAll('#reveal-asides p')].map(p => p.textContent), want: Game.state.asides.filter(a => a.lines.length && a.a !== 'you' && a.b !== 'you').map(a => { const n = id => Game.state.players.find(p => p.id === id).first; return `Day ${a.day}. ${n(a.a)} to ${n(a.b)}: “${a.lines[0].text}”`; }), head: document.querySelector('#reveal-asides h3').textContent, last: document.querySelector('dialog .reveal').lastElementChild.id }));
+  assert.ok(rev.want.length >= 2);
+  assert.deepEqual([rev.head, rev.rows, rev.last], ['What they said in private', rev.want, 'reveal-asides'], 'the reveal has what the others said to each other, under the roles');
+  await page.click('dialog .btn.primary');
+  await page.waitForFunction(() => Game.state.after && !Game.aftering);
+  const first = await page.evaluate(() => {
+    const g = Game.state; const said = g.log.filter(e => e.kind === 'after'); const l = Game.Ledger.read();
+    return { sys: g.log.filter(e => e.t === 'sys').pop().text, who: said.map(e => e.who), bar: document.querySelector('#tb-phase').textContent, table: document.querySelector('#screen-game').dataset.table, line: document.querySelector('#say-line').hidden, ph: document.querySelector('#say').placeholder, send: document.querySelector('#btn-say').textContent,
+      chips: [...document.querySelectorAll('#chips .chip')].map(c => c.textContent), mid: [...document.querySelectorAll('#mid button')].map(b => b.textContent), tags: document.querySelectorAll('.say[data-kind="after"] .say-head .role').length,
+      mem: said.map(e => [e.text, l.seats[e.who].last]), queue: g.after.queue.length, traitors: g.players.filter(p => p.role === 'knife').map(p => p.id) };
+  });
+  assert.equal(first.sys, 'The cards are face up, and nobody has left yet.');
+  assert.equal(first.who.length, 5, 'five of them at most, to start');
+  assert.equal(new Set(first.who).size, 5, 'each once');
+  assert.ok(first.traitors.every(id => first.who.includes(id)), 'the Traitors among them');
+  assert.match(first.bar, /Afterwards$/);
+  assert.deepEqual([first.table, first.line, first.ph, first.send, first.queue], ['strip', false, 'Say something back', 'Send', 0]);
+  assert.deepEqual(first.chips, ['Good game.', 'I knew it.', 'I had no idea.', 'Sorry, everyone.']);
+  assert.deepEqual(first.mid, ['The reveal', 'Deal again']);
+  assert.equal(first.tags, 5, 'everyone is shown as what they were');
+  assert.ok(first.mem.every(([text, last]) => last.endsWith(` When the cards were turned you said: "${text}"`)), 'what each said goes into what it remembers of the night: ' + JSON.stringify(first.mem));
+  // Said to one of them, by name: that one answers. A second line to them does not go into what they remember twice.
+  const x = await page.evaluate(() => { const p = Game.state.players.find(q => !q.you && !Game.state.after.count[q.id]) || Game.state.players[1]; return { id: p.id, first: p.first }; });
+  const sayAfter = async text => { const n = await page.evaluate(() => Game.state.log.length); await page.fill('#say', text); await page.click('#btn-say'); await page.waitForFunction(k => !Game.aftering && Game.state.log.length > k + 1, n); return page.evaluate(k => Game.state.log.slice(k).map(e => [e.who || e.kind, e.kind]), n); };
+  assert.deepEqual(await sayAfter(`Good game, ${x.first}.`), [['you', 'after'], [x.id, 'after']]);
+  const heard = await page.evaluate(id => Game.Ledger.read().seats[id].last, x.id);
+  assert.ok(heard.includes(`And {P} said to you: "Good game, ${x.first}."`), heard);
+  // Said to everyone: two answer, and not whoever spoke last.
+  await page.click('#chips .chip[data-chip="I had no idea."]');
+  await page.waitForFunction(() => !Game.aftering && Game.state.after.lines === 2 && Game.state.log[Game.state.log.length - 1].who !== 'you');
+  const both = await page.evaluate(() => Game.state.log.slice(-3).map(e => e.who));
+  assert.equal(both[0], 'you');
+  assert.ok(both[1] !== both[2] && !both.includes(x.id), 'two of the table, neither the one who had just spoken: ' + both.join());
+  // A seat that is picked is who a quick reply goes to.
+  await page.click(`.seat[data-id="${x.id}"]`);
+  assert.deepEqual(await page.evaluate(() => [document.querySelector('#chips .chips-to').textContent, ...[...document.querySelectorAll('#chips .chip')].map(c => c.textContent)]), [`To ${x.first}:`, 'Good game.', 'I knew it.', 'Sorry.', 'You lied to me.']);
+  await page.click('#chips .chip[data-chip="Sorry."]');
+  await page.waitForFunction(() => !Game.aftering && Game.state.after.lines === 3 && Game.state.log[Game.state.log.length - 1].who !== 'you');
+  assert.deepEqual(await page.evaluate(() => Game.state.log.slice(-2).map(e => [e.who, e.text])), [['you', `Sorry, ${x.first}.`], [x.id, await page.evaluate(() => Game.state.log[Game.state.log.length - 1].text)]]);
+  assert.equal(await page.evaluate(id => Game.Ledger.read().seats[id].last, x.id), heard, 'once for each');
+  // The fourth line is the last: it is answered, and the lights come up.
+  await page.fill('#say', 'One more round?');
+  await page.click('#btn-say');
+  await page.waitForFunction(() => Game.state.after.done);
+  const closed = await page.evaluate(() => { const g = Game.state; const e = g.log[g.log.length - 1]; return { last: [e.text, e.kind], lines: g.after.lines, line: document.querySelector('#say-line').hidden, chips: document.querySelector('#chips').hidden, bar: document.querySelector('#tb-phase').textContent, afters: g.log.filter(x => x.kind === 'after').length, rec: Game.recordText().includes('I had no idea.') }; });
+  assert.deepEqual(closed.last, ['The house lights come up, and the chairs go on the tables. That was the night.', 'host']);
+  assert.deepEqual([closed.lines, closed.line, closed.chips], [4, true, true]);
+  assert.match(closed.bar, /Over$/);
+  assert.equal(closed.rec, true, 'what is said afterwards is said to everyone');
+  // The reveal, read again and closed again, starts nothing more.
+  await page.click('#mid-reveal');
+  await page.click('dialog .btn.primary');
+  await page.waitForFunction(() => !document.querySelector('#dlg').open);
+  assert.equal(await page.evaluate(() => Game.state.log.filter(e => e.kind === 'after').length), closed.afters);
+  // The next night: a regular who is back is told what was said when the cards were turned.
+  await page.click('#mid-go');
+  await page.click('dialog .btn.primary');
+  const next = await page.evaluate(() => { const g = Game.state; const back = Object.keys(g.history); return { full: g.full, after: g.after, phase: g.phase, back: back.length, told: back.map(id => Game.Prompts.secret(g.players.find(p => p.id === id))) }; });
+  assert.deepEqual([next.full, next.after, next.phase], [true, null, 'role'], 'Deal again deals the whole night again');
+  assert.ok(next.back >= 2 && next.told.every(t => /YOU HAVE PLAYED WITH JOE BEFORE \(1 night\)\. The last time: /.test(t)));
+  assert.ok(next.told.some(t => /When the cards were turned you said: "[^"]+"/.test(t)), 'someone who spoke afterwards has it');
+  // A quick game ends at the reveal.
+  const page2 = await open(h);
+  await sit(page2, { seed: 21, role: 'town', deck: 'plain' });
+  await playOut(page2);
+  await page2.click('#mid-reveal');
+  assert.deepEqual(await page2.evaluate(() => [!!document.querySelector('#reveal-asides'), !!document.querySelector('#reveal-house')]), [false, false]);
+  await page2.click('dialog .btn.primary');
+  await page2.waitForFunction(() => !document.querySelector('#dlg').open);
+  assert.deepEqual(await page2.evaluate(() => [Game.state.after, Game.state.log.some(e => e.kind === 'after'), document.querySelector('#say-line').hidden, document.querySelector('#screen-game').dataset.table, document.querySelector('#tb-phase').textContent.endsWith('Over')]), [null, false, true, 'round', true]);
+});
+
+s.test('with Claude, afterwards each seat is told the game is over, how it really was and what is between it and the player, and what the player says back is put to whoever answers', async h => {
+  const bodies = [];
+  const page = await open(h, { whole: true, route: standIn(bodies) });
+  await page.fill('#f-key', 'sk-ant-test-key');
+  await page.fill('#f-name', 'Joe');
+  await page.click('#f-deck [data-v="plain"]');
+  await page.click('#f-role [data-v="town"]');
+  await page.click('#f-size [data-v="6"]');
+  await page.click('#f-pace [data-v="turns"]');
+  await page.evaluate(() => { Game.App.speed = 0; Game.App.quiet = true; });
+  await page.click('#btn-new');
+  await page.click('dialog .btn.primary');
+  // A word in private with the first of them, to have something between the two.
+  await begin(page);
+  await sleep(page);
+  const x = await page.evaluate(() => { const p = Game.state.players.find(q => q.alive && !q.you); return { id: p.id, first: p.first }; });
+  await page.click(`.seat[data-id="${x.id}"]`);
+  await page.click('#mid-go');
+  await page.waitForFunction(() => Game.waiting === 'line');
+  await page.click('#chips .chip[data-chip="I trust you."]');
+  await page.waitForFunction(() => Game.waiting === 'line' && Game.state.asides[0].lines.length === 2);
+  await page.click('#btn-nothing');
+  await page.waitForFunction(() => !Game.busy);
+  const end = await playOut(page);
+  assert.equal(end.phase, 'over');
+  const n0 = bodies.length;
+  await page.click('#mid-reveal');
+  await page.click('dialog .btn.primary');
+  await page.waitForFunction(() => Game.state.after && !Game.aftering);
+  const text = b => b.body.messages[0].content.map(c => c.text).join('\n');
+  const first = bodies.slice(n0);
+  const g = await page.evaluate(() => ({ said: Game.state.log.filter(e => e.kind === 'after').map(e => [e.who, e.text]), players: Game.state.players.map(p => [p.first, p.role, p.alive]), winner: Game.state.winner, cost: document.querySelector('#cost').textContent }));
+  assert.equal(first.length, 5, 'one call for each of the five who speak');
+  assert.equal(g.said.length, 5);
+  for (const b of first) {
+    const t = text(b);
+    assert.deepEqual(b.body.output_config.format.schema.required, ['say']);
+    assert.match(b.body.system[0].text, /^You are one of 6 friends playing "Last Call"/, 'the same rules as ever, so the cache holds');
+    assert.match(t, /NOW: THE GAME IS OVER, and every card has been turned\. Nobody is playing any more: there is nothing left to hide and no reason to lie, and what the rules above say about keeping your role to yourself no longer holds\./);
+    assert.match(t, new RegExp(`HOW IT REALLY WAS: ${g.winner === 'town' ? 'The Faithful won' : 'The Traitors won'}\\. Joe was a Faithful, `));
+    for (const [name, role] of g.players) assert.match(t, new RegExp(`${name} was ${role === 'knife' ? 'a Traitor' : role === 'witness' ? 'the Witness' : 'a Faithful'}, (in at the end|banished, day \\d|murdered in the night, day \\d)`));
+    assert.match(t, /\nBETWEEN YOU AND JOE: (Neither you nor Joe was a Traitor|You were a Traitor and Joe was not)\./);
+    assert.match(t, /Say what comes out of you now that you know.* One message, as yourself, typed the way you type\.\nLENGTH THIS TURN: /);
+  }
+  const theirs = first.find(b => new RegExp(`YOUR SEAT: ${x.first} `).test(text(b)));
+  if (theirs) assert.match(text(theirs), /On day 1 the two of you had a word in private\. Joe said: "I trust you\." You said: "[^"]+"/, 'a word in private is part of what is between them');
+  assert.ok(first.some(b => /On day \d you voted to banish Joe|On day \d Joe voted to banish you/.test(text(b))), 'and so are the votes');
+  assert.match(g.cost, new RegExp(`· ${bodies.length} calls ·`));
+  // The player answers back, to everyone: two calls, each given the words.
+  const n1 = bodies.length;
+  await page.fill('#say', 'I should have seen it.');
+  await page.click('#btn-say');
+  await page.waitForFunction(() => !Game.aftering && Game.state.log[Game.state.log.length - 1].who !== 'you');
+  const back = bodies.slice(n1);
+  assert.equal(back.length, 2);
+  assert.ok(back.every(b => /Joe has just said, to everyone: "I should have seen it\." Answer Joe, straight: there is nothing to hide now\. One message, as yourself/.test(text(b))));
+  assert.ok(back.every(b => /Joe: "I should have seen it\."/.test(text(b))), 'and it is in the record they are given, with what the others said');
+});
+
+s.test('on a small phone the whole night fits: who to take aside, a word in private, the house\'s question, the reveal with what was told and what was said, and afterwards', async h => {
+  const vp = { width: 320, height: 568 };
+  const page = await open(h, { viewport: vp, whole: true });
+  const okMid = () => page.evaluate(() => [...document.querySelectorAll('#mid button')].every(b => { const r = b.getBoundingClientRect(); return r.height >= 43.5 && r.left >= 0 && r.right <= window.innerWidth && r.bottom <= document.querySelector('.table-area').getBoundingClientRect().bottom + 1; }));
+  const fits = () => page.evaluate(() => { const d = document.querySelector('dialog[open]'); const r = d.getBoundingClientRect(); return r.left >= 0 && r.right <= window.innerWidth && r.top >= 0 && r.bottom <= window.innerHeight + 1 && [...d.querySelectorAll('button')].every(b => b.getBoundingClientRect().height >= 43.5 && b.getBoundingClientRect().bottom <= window.innerHeight + 1); });
+  assert.deepEqual(await overflowReport(page, vp.width), [], 'the first screen, with The night on it');
+  await sit(page, { seed: 21, size: 10, role: 'town', deck: 'plain' });
+  await steer(page);
+  await begin(page);
+  await sleep(page);
+  assert.ok(await okMid(), 'wait and see');
+  assert.deepEqual(await overflowReport(page, vp.width), []);
+  // (The longest first name at the table, for the widest button.)
+  const long = await page.evaluate(() => Game.state.players.filter(p => p.alive && !p.you).sort((a, b) => b.first.length - a.first.length)[0].id);
+  await page.click(`.seat[data-id="${long}"]`);
+  assert.ok(await okMid(), 'take them aside');
+  assert.deepEqual(await overflowReport(page, vp.width), []);
+  await page.click('#mid-go');
+  await page.waitForFunction(() => Game.waiting === 'line');
+  await page.click('#chips .chip[data-chip="Who is it?"]');
+  await page.waitForFunction(() => Game.waiting === 'line' && Game.state.asides[0].lines.length === 2);
+  assert.deepEqual(await overflowReport(page, vp.width), [], 'alone with them');
+  assert.ok(await page.evaluate(() => [...document.querySelectorAll('#chips .chip, #btn-nothing, #btn-say')].every(b => b.getBoundingClientRect().height >= 43.5)), 'every button is 44px');
+  assert.ok(await page.evaluate(() => document.querySelector('#log-wrap').getBoundingClientRect().height >= 120), 'and the chat has room');
+  await page.click('#btn-nothing');
+  await page.waitForFunction(() => !Game.busy);
+  await page.click('#btn-vote');
+  await page.click(`.seat[data-id="${await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you && p.role === 'town').id)}"]`);
+  await page.click('#mid-go');
+  await page.waitForFunction(() => !Game.busy && Game.state.phase === 'night');
+  // (The longest of the house's questions.)
+  await page.evaluate(() => { Game.state.house.push({ night: 0, q: 'traitor', a: 'nobody' }, { night: 0, q: 'trust', a: 'nobody' }); });
+  await sleep(page);
+  assert.equal((await midText(page)).t, 'Who does not come in to breakfast?');
+  assert.ok(await okMid(), 'say nothing');
+  assert.deepEqual(await overflowReport(page, vp.width), []);
+  await page.click(`.seat[data-id="${long}"]`);
+  assert.ok(await okMid(), 'say them');
+  await page.click('#mid-go');
+  await settle(page);
+  await page.evaluate(() => { Game.Bots.vote = p => ({ vote: Game.state.players.find(q => q.alive && q !== p && q.role === 'knife') || Game.state.players.find(q => q.alive && q !== p), text: 'Them.' }); });
+  const end = await playOut(page);
+  assert.equal(end.phase, 'over');
+  await page.click('#mid-reveal');
+  assert.ok(await page.evaluate(() => !!document.querySelector('#reveal-house') && !!document.querySelector('#reveal-asides')));
+  assert.ok(await fits(), 'the reveal');
+  assert.deepEqual(await overflowReport(page, vp.width), []);
+  await page.click('dialog .btn.primary');
+  await page.waitForFunction(() => Game.state.after && !Game.aftering);
+  assert.deepEqual(await overflowReport(page, vp.width), [], 'afterwards');
+  assert.ok(await page.evaluate(() => [...document.querySelectorAll('#mid button, #chips .chip, #btn-say')].every(b => { const r = b.getBoundingClientRect(); return r.height >= 43.5 && r.left >= 0; }) && [...document.querySelectorAll('#mid button')].every(b => b.getBoundingClientRect().right <= window.innerWidth)), 'The reveal and Deal again are in the strip, whole');
+  assert.ok(await page.evaluate(() => document.querySelector('#log-wrap').getBoundingClientRect().height >= 120), 'and the chat has room');
+});
+
+s.test('at a live table nobody talks while the twos are away: the pairs are joined across the round table as they go, and the Round Table starts when the player is back', async h => {
+  const page = await open(h, { whole: true, viewport: LAPTOP });
+  await sit(page, { seed: 21, role: 'town', deck: 'plain', live: true });
+  await page.click('#mid-go');
+  await page.waitForFunction(() => !Game.busy);
+  // (The lines between the twos are on the table for a moment: the most there were at once is kept.)
+  await page.evaluate(() => { window.seen = 0; new MutationObserver(() => { window.seen = Math.max(window.seen, document.querySelectorAll('#table .links line').length); }).observe(document.querySelector('#table'), { childList: true }); });
+  await sleep(page);
+  assert.deepEqual(await page.evaluate(() => [Game.talking, Game.state.said]), [false, 0]);
+  await page.click(`.seat[data-id="${await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you).id)}"]`);
+  await page.click('#mid-go');
+  await page.waitForFunction(() => Game.waiting === 'line');
+  const away = await page.evaluate(() => ({ seen: window.seen, twos: Game.state.asides.length, now: document.querySelectorAll('#table .links line').length, talking: Game.talking, said: Game.state.said, table: document.querySelector('#screen-game').dataset.table }));
+  assert.ok(away.twos >= 3);
+  assert.deepEqual([away.seen, away.now, away.talking, away.said], [away.twos, 0, false, 0], 'a line for each two while they go, and none once the player is alone with theirs');
+  await page.click('#btn-nothing');
+  await page.waitForFunction(() => Game.state.phase === 'vote');
+  const talk = await page.evaluate(() => { const log = Game.state.log; const back = log.findIndex(e => e.text === 'Back at the table.'); return { back, first: log.findIndex(e => e.t === 'say' && e.kind === 'talk'), said: Game.state.said }; });
+  assert.ok(talk.back > 0 && talk.first > talk.back && talk.said >= 3, 'the table talks on by itself, once everyone is back: ' + JSON.stringify(talk));
 });
 
 s.test('one self-contained file: no innerHTML, no markup from strings, one fetch (to the API), nothing loaded from elsewhere', async () => {

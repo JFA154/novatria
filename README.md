@@ -2117,6 +2117,65 @@ are this game's own.
   shown (you too: the table waits for yours). When it is over, **The
   reveal** shows every role, how each went, how each voted and what each
   was privately thinking.
+- **The whole night** (the owner, of the game as it stood: "Quick game
+  wise, it's good now. But how can we make it more like an experience,
+  rather than a quick game", and, of what was offered, "Do 1-2-5"). Three
+  things that are not at the table itself, at every deck. **The night**, on
+  the first screen, is **The whole night** unless you pick **A quick
+  game**, which has none of the three and plays as it did; **Deal again**
+  deals the same kind again.
+  - **A word in private**, before each Round Table (after breakfast and
+    the mission; not in the end game, nor with fewer than four in). Tap
+    someone to take them aside, or **Wait and see**: then whoever has a
+    reason comes over and speaks first (your fellow Traitor, someone who
+    trusts or suspects you or is carrying something from the table, a
+    regular on the first day who remembers the last time), or else
+    whoever is left over when the others have paired. You have up to
+    three things to say, each answered, typed or by one tap (**Who is
+    it? I trust you. Vote with me. It's you.**), and **Back to the
+    table** ends it sooner. The others pair off too, by who they trust or
+    suspect, and in each pair one says one thing to the other. The table
+    is told who went off with whom (a line joins each two across the
+    table as they go) and never what was said; what was said is outlined
+    in the chat, marked "in private", and is in nobody's record. Each
+    seat has its own words in what it alone is told, that morning and the
+    next, and may keep them, act on them or repeat them at the table,
+    truly or not: the rules every seat is given say so, and say that who
+    keeps going off with whom is evidence the way a vote is. With the
+    scripted table, naming someone to a Faithful turns them that way,
+    naming a Traitor to a Traitor tells them who is on to them, and
+    saying you trust someone warms them to you; a scripted seat may point
+    at two who went off together. Out of the game, you hear every pair.
+  - **The house asks** you one thing each night from the second night on,
+    answered by tapping someone (or **Say nothing**), and nobody hears it:
+    a Faithful is asked who is a Traitor, who they trust most, who will
+    not come in to breakfast; a Traitor, who is closest to catching them,
+    who the table banishes next, who believes them most (a fellow Traitor
+    is no answer). At the Traitors' table it asks once more before the end
+    game's first vote. It changes nothing in the game and makes no call.
+    **The reveal** has each answer above the roles, held against how it
+    really was ("Night 2. Who is a Traitor? You said Wade. Wade was a
+    Faithful.").
+  - **Afterwards**: when the game is over and you close the reveal, nobody
+    has left. Five of the table at most, the Traitors first among them,
+    then whoever the votes fell between, whoever had a word in private
+    with you, whoever was murdered, say what they make of it now that they
+    know, in or out of the game. You can answer back four times, typed or
+    by one tap: whoever you name or have picked answers, or two of the
+    table when it is said to everyone. Then the lights come up. With
+    Claude each of them is told that the game is over and nothing is
+    hidden, how it really was (every role, how each went, why the Traitors
+    chose who they murdered) and what is between the two of you (the
+    sides you were on, who stood up for or went after whom, the votes, a
+    murder, your words in private). The first thing each says, and the
+    first thing you say to each, goes into what that person remembers of
+    the last time, with a word in private that came to a vote ("The two
+    of you had a word in private, and Joe still voted you out."). **The
+    reveal** also shows, under the roles, what the others said to each
+    other in private.
+  - With Claude the whole night is twenty or thirty calls on top of the
+    game's: one for each other pair each morning, one for each answer in
+    your own word in private, and one for each message afterwards.
 - **Saying nothing is noticed** (the owner: "I tried to not talk and no
   one talked to me for 2 nights"). After three messages with not a word
   from you, whoever speaks next is told so and puts it to you; if you are
@@ -2132,7 +2191,9 @@ are this game's own.
   them, answers theirs; × sets one aside; the vote clears the rest.
 - **The table is all there is**: the seats are told that the only evidence
   is what happens at the table (what is said, who accuses and defends whom,
-  the votes, who is murdered and what they were, what is claimed). Nobody saw
+  the votes, who is murdered and what they were, what is claimed; in the
+  whole night, also who went off with whom, and what was said to them in
+  private). Nobody saw
   anything in the night, and where anyone was or was going means nothing,
   and nobody can see anybody's face, so they do not ask and do not say who
   is sweating. They are given no town either: to the others a seat is a
@@ -2150,7 +2211,8 @@ are this game's own.
   town game remembers is used if there is one; a key typed here is kept for
   the tab only and is never saved with the game. The line under the box
   shows the model, the calls so far and what they have cost; a game is
-  roughly 80 to 150 short calls. The model is Claude Opus 5.5 unless you
+  roughly 80 to 150 short calls, and the whole night twenty or thirty
+  more. The model is Claude Opus 5.5 unless you
   pick another.
 - **Offline demo**: no key and no calls; the others follow a simple script
   (they point at whoever has been pointed at, defend themselves, read the
@@ -2218,7 +2280,11 @@ fails it with a message saying so; the CI checkout fetches it all).
   ending when most would vote, two at each other being cut in on, the
   Claude path against a stand-in API (the request, what each seat and the
   host are told, a failed call), the player out, phone widths, the table
-  as a strip of faces while a phone's table talks, and the keyboard up;
+  as a strip of faces while a phone's table talks, the keyboard up, and
+  the whole night (a word in private with the scripted table and with
+  Claude, the house's question and each answer's verdict, afterwards with
+  the scripted table and with Claude, a live table, a small phone; the
+  tests before those sit down at a quick game);
 - `wave38-date` for the faces, the strip of who is here, the date table,
   Deal again and the one-tap flirt; `wave39-table-talk` for words said with
   a bet being answered before the cards;
