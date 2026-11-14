@@ -111,7 +111,7 @@ function standIn(bodies, opts) {
           : need.includes('take') ? { take: other, note: `took ${other}` }
             : need.includes('end') ? { end: !!(opts && opts.end), say: 'Not yet, I am not sure.' }
             : need.length === 1 ? { say: 'You will all be sorry by morning.' }
-              : { say: `${other}, You were too quiet.`, more: opts && opts.more ? 'Just saying, that is all I mean here' : null, about: other, stance: 'accuse', ready: !!(opts && opts.ready), suspect: other, trust: null, feel: `sore at ${other}`, note: `pressing ${other}` };
+              : { say: opts && opts.say ? opts.say(user, other) : `${other}, You were too quiet.`, more: opts && opts.more ? 'Just saying, that is all I mean here' : null, about: other, stance: 'accuse', ready: !!(opts && opts.ready), suspect: other, trust: null, feel: `sore at ${other}`, note: `pressing ${other}` };
     return route.fulfill({ status: 200, headers: Object.assign({ 'content-type': 'application/json' }, cors), body: JSON.stringify({ id: 'msg_x', type: 'message', role: 'assistant', model: body.model, stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(out) }], usage: { input_tokens: 1000, output_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } }) });
   };
 }
@@ -2655,6 +2655,75 @@ s.test('at a live table nobody talks while the twos are away: the pairs are join
   await page.waitForFunction(() => Game.state.phase === 'vote');
   const talk = await page.evaluate(() => { const log = Game.state.log; const back = log.findIndex(e => e.text === 'Back at the table.'); return { back, first: log.findIndex(e => e.t === 'say' && e.kind === 'talk'), said: Game.state.said }; });
   assert.ok(talk.back > 0 && talk.first > talk.back && talk.said >= 3, 'the table talks on by itself, once everyone is back: ' + JSON.stringify(talk));
+});
+
+s.test('the smallest model is tuned, and the others are left as they were: it is asked to think harder; it is told again at the end who it is, what day it is, what everyone can see and what to check; a draft that runs long or says what the table has heard is sent back once; a name called out at the start of an answer is dropped; and of two who would speak at once the second waits for the first', async h => {
+  const LONG = 'Joe you never said a name today and I have been sitting here the whole time waiting for one single name from you while everyone else at this table has at least tried to give us something to go on';
+  const bodies = [];
+  let drafts = 0;
+  const say = user => (/YOUR DRAFT RAN LONG/.test(user) ? 'Joe you never said a name today' : /YOUR DRAFT SAYS WHAT THE CHAT ALREADY HAS/.test(user) ? 'who gains by the murder then' : drafts++ ? 'the mission numbers look wrong to me' : LONG);
+  const page = await open(h, { route: standIn(bodies, { say }) });
+  assert.deepEqual(await page.evaluate(() => [Object.keys(Game.Tune), Game.Tune['claude-haiku-5-5'].effort]), [['claude-haiku-5-5'], 'medium']);
+  // (The same table every time: a key for the tab, and a table dealt from a seed.)
+  const deal = model => { sessionStorage.setItem('novatria.apiKey', 'sk-ant-test-key'); Game.App.speed = 0; Game.App.quiet = true; Game.App.newGame({ seed: 11, size: 8, mode: 'claude', model, name: 'Joe', live: false, deck: 'plain', role: 'town' }); };
+  await page.evaluate(deal, 'claude-haiku-5-5');
+  await page.click('dialog .btn.primary');
+  await begin(page);
+  await page.click('#mid-go');
+  await settle(page);
+  const n0 = bodies.length;
+  await page.fill('#say', 'Who is it then?');
+  await page.click('#btn-say');
+  await settle(page);
+  const text = b => b.body.messages[0].content.map(c => c.text).join('\n');
+  const seat = b => (/YOUR SEAT: (\S+)/.exec(text(b)) || [])[1];
+  const calls = bodies.slice(n0).filter(b => !/^You are the host/.test(b.body.system[0].text));
+  const said = await page.evaluate(() => Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk' && e.day === 1).map(e => [e.who === 'you' ? 'Joe' : Game.state.players.find(p => p.id === e.who).first, e.text]));
+  assert.ok(bodies.every(b => b.body.model === 'claude-haiku-5-5' && b.body.output_config.effort === 'medium'), 'every call is asked to think a little harder than the default');
+  // Three answer the player: the first's draft ran long and went back once; the third's said what the second had, and went back once.
+  assert.equal(said.length, 4);
+  assert.deepEqual(said.map(x => x[1].toLowerCase()), ['who is it then?', 'you never said a name today', 'the mission numbers look wrong to me', 'who gains by the murder then']);
+  assert.equal(calls.length, 5, 'three messages, and two drafts sent back');
+  const [a1, a2, b1, c1, c2] = calls;
+  assert.deepEqual([seat(a1), seat(a2), seat(b1), seat(c1), seat(c2)], [said[1][0], said[1][0], said[2][0], said[3][0], said[3][0]]);
+  assert.ok(text(a2).includes(`YOUR DRAFT RAN LONG. You wrote 40 words: "${LONG}"\nThe length is`) && /Send your message again\. Do not start with a name\.$/.test(text(a2)));
+  assert.doesNotMatch(said[1][1], /^joe/i, 'the name called out at the start of an answer to the player is dropped');
+  assert.ok(text(b1).toLowerCase().includes(`${said[1][0].toLowerCase()}: "${said[1][1].toLowerCase()}"`), 'the second of two waited for the first, and has its message in the record');
+  assert.ok(text(c2).includes('YOUR DRAFT SAYS WHAT THE CHAT ALREADY HAS. You wrote: "the mission numbers look wrong to me"') && new RegExp(`\\n${said[2][0]} already said today: "`).test(text(c2)) && /Say something the chat does not have yet/.test(text(c2)));
+  // What it is told last of all.
+  const tail = text(c1).split('LENGTH THIS TURN: ')[1];
+  assert.match(tail, /\nFACTS EVERYONE CAN SEE \(they are in the record: never ask anyone for them, and never get them wrong\):\n- Said so far today: (?:\w+ 1(?:, )?){3}\. Nothing yet from [^\n]+\.\nIF YOU HAVE NOTHING NEW to add to what is being said, bring up something nobody has yet: (?:who gains by \w+ being murdered last night|\w+, who has said nothing yet today: ask what they think)\.\n/, 'what everyone can see, who has spoken, and something nobody has brought up');
+  assert.ok([said[1][0], said[2][0]].every(n => tail.includes(`${n} 1`)) && tail.includes('Joe 1'));
+  assert.match(tail, new RegExp(`\\nYOU ARE ${said[3][0].toUpperCase()}\\. In the chat above, the messages marked "${said[3][0]}:" are your own, and anything said to or about ${said[3][0]} is about you\\. It is day 1, the first: there is no yesterday, nobody has voted yet, and nothing was said before this morning\\. 3 messages have been sent at the table so far today\\.`));
+  assert.match(tail, /\nBEFORE YOU SEND, check your message against these and fix it if it fails one:\n1\. Count the words\./);
+  assert.match(tail, /\n5\. Only what is in the record above happened\..* never ask anyone how they voted\.$/);
+  // Its own messages are given back to a seat that has spoken, and the vote has a check of its own.
+  await pass(page);
+  assert.ok(bodies.some(b => /\nWHAT YOU HAVE ALREADY SAID TODAY: "/.test(text(b))));
+  await page.click('#btn-vote');
+  await page.click(`.seat[data-id="${await page.evaluate(() => Game.state.players.find(p => p.alive && !p.you).id)}"]`);
+  await page.click('#mid-go');
+  await settle(page);
+  const votes = bodies.filter(b => b.body.output_config.format.schema.required.includes('vote'));
+  assert.ok(votes.length >= 5 && votes.every(b => /Send a few words as you do, eight at most\.\nYOU ARE \S+\. .*\nThe words you send with your vote: six at most, and no name at the start\./s.test(text(b))));
+  // The default model is told none of it, and two still answer at once.
+  const plain = [];
+  const page2 = await open(h, { route: standIn(plain, { say: () => 'Joe you never said a name today' }) });
+  await page2.evaluate(deal, 'claude-opus-5-5');
+  await page2.click('dialog .btn.primary');
+  await begin(page2);
+  await page2.click('#mid-go');
+  await settle(page2);
+  const m0 = plain.length;
+  await page2.fill('#say', 'Who is it then?');
+  await page2.click('#btn-say');
+  await settle(page2);
+  const seats2 = plain.slice(m0).filter(b => !/^You are the host/.test(b.body.system[0].text));
+  assert.ok(plain.every(b => b.body.model === 'claude-opus-5-5' && b.body.output_config.effort === 'low'));
+  assert.equal(seats2.length, 3, 'no draft is sent back');
+  assert.ok(seats2.every(b => !/YOU ARE |BEFORE YOU SEND|FACTS EVERYONE CAN SEE|WHAT YOU HAVE ALREADY SAID/.test(text(b)) && /LENGTH THIS TURN: [^\n]+$/.test(text(b))), 'what it is asked for ends where it did');
+  assert.doesNotMatch(text(seats2[1]), /you never said a name today/i, 'and the two who answer at once do not see each other\'s');
+  assert.ok((await page2.evaluate(() => Game.state.log.filter(e => e.t === 'say' && e.kind === 'talk' && e.who !== 'you').map(e => e.text))).every(t => /^joe /i.test(t)), 'nor is a name dropped');
 });
 
 s.test('one self-contained file: no innerHTML, no markup from strings, one fetch (to the API), nothing loaded from elsewhere', async () => {

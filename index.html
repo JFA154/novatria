@@ -424,7 +424,7 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
               <option value="claude-opus-5-5">Claude Opus 5.5 (default)</option>
               <option value="claude-fable-5-2">Claude Fable 5.2 (sharpest, slowest, most expensive)</option>
               <option value="claude-sonnet-5-5">Claude Sonnet 5.5 (faster, cheaper)</option>
-              <option value="claude-haiku-5-5">Claude Haiku 5.5 (fastest, cheapest)</option>
+              <option value="claude-haiku-5-5">Claude Haiku 5.5 (a few cents a night; tuned for this table, not as sharp)</option>
             </select>
             <span class="help">Each seat is its own call and knows only what that person knows. A whole game is roughly 100 to 200 short calls; the whole night adds twenty or thirty.</span>
           </div>
@@ -847,11 +847,19 @@ const Game = (() => {
      whoever is being answered (a tuned model only): "cora you didnt
      answer", said to Cora who has just spoken, is "you didnt answer". */
   function unlead(p, text, to) {
-    if (!tune().lead || !to || to === p) return text;
-    const m = new RegExp(`^${to.first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[,:]?\\s+(?=\\S+\\s+\\S)`, 'i').exec(text);
-    if (!m) return text;
-    const rest = text.slice(m[0].length);
-    return p.type === 'proper' || p.type === 'exact' ? capFirst(rest) : rest;
+    if (!tune().lead) return text;
+    /* (Only a name that is called out: one followed by a comma or by
+       "you". "wes is the one pushing me" keeps its Wes. Its own name is
+       dropped the same way: a small model sometimes answers a message
+       about itself in the words it was sent in.) */
+    for (const q of [p, to]) {
+      if (!q) continue;
+      const m = new RegExp(`^${q.first.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[,:]\\s+(?=\\S+\\s+\\S)|\\s+(?=(?:you|u|ur|your|youre|you're|you've|youve|you'd|you'll)\\b))`, 'i').exec(text);
+      if (!m) continue;
+      const rest = text.slice(m[0].length);
+      return p.type === 'proper' || p.type === 'exact' ? capFirst(rest) : rest;
+    }
+    return text;
   }
 
   // ----- the cast (the town's adults, from the Low Water story pack) -----
@@ -1613,13 +1621,66 @@ const Game = (() => {
       return lines.join('\n');
     },
     stillIn() { return `STILL IN: ${alive().map(q => q.first).join(', ')}.`; },
+    /* What a tuned model is given beside the record (tune().digest): the
+       day's public facts in a few plain lines, so that nobody is asked
+       for what everyone can see; who has and has not spoken; and, when
+       the table has gone on at one person for three messages running, or
+       the seat owes nobody an answer, something to bring up that nobody
+       has yet: what it was told in private, who went off with whom, the
+       mission, yesterday's vote, someone silent, who gains by the night.
+       A small model left to itself asks the last question again. */
+    digest(p, x) {
+      const out = [];
+      const today = state.log.filter(e => e.t === 'say' && e.kind === 'talk' && e.day === state.day);
+      const twos = (state.asides || []).filter(a => a.day === state.day && !a.open);
+      const name = id => (P(id) ? P(id).first : id);
+      const facts = [];
+      if (twos.length) facts.push(`This morning's words in private: ${twos.map(a => `${name(a.a)} with ${name(a.b)}`).join('; ')}.`);
+      const mission = state.log.find(e => e.t === 'sys' && e.day === state.day && /^The mission:/.test(e.text));
+      if (mission) facts.push(mission.text);
+      const v = state.votesLog[state.votesLog.length - 1];
+      if (v && v.day === state.day - 1 && !v.secret) facts.push(`Yesterday's votes: ${Object.keys(v.votes).filter(id => P(id) && P(v.votes[id])).map(id => `${name(id)} for ${name(v.votes[id])}`).join(', ')}.`);
+      const seats = alive();
+      const count = q => today.filter(e => e.who === q.id).length;
+      const silent = seats.filter(q => q !== p && !count(q));
+      if (today.length) facts.push(`Said so far today: ${seats.filter(q => count(q)).map(q => `${q === p ? 'you' : q.first} ${count(q)}`).join(', ')}${silent.length ? `. Nothing yet from ${andList(silent.map(q => q.first))}` : ''}.`);
+      if (facts.length) out.push(`FACTS EVERYONE CAN SEE (they are in the record: never ask anyone for them, and never get them wrong):\n${facts.map(f => `- ${f}`).join('\n')}`);
+      // Three messages running at one person: the table is stuck.
+      let stuck = null;
+      let run = 0;
+      for (let i = today.length - 1; i >= 0 && today[i].who !== 'you'; i--) { const a = today[i].aim; if (!a || (stuck && a !== stuck)) break; stuck = a; run += 1; }
+      if (run < 3 || stuck === p.id) stuck = null;
+      if (x.answering || (!stuck && (x.why || x.nudge || x.morning))) return out;
+      const mine = twos.find(a => (a.a === p.id || a.b === p.id) && a.lines.length);
+      const said = t => today.some(e => e.who === p.id && new RegExp(t, 'i').test(e.text));
+      const other = mine ? P(mine.a === p.id ? mine.b : mine.a) : null;
+      const quiet = silent.find(q => !q.you) || null;
+      const angles = [
+        other && !said(other.first) ? `what ${other.first} said to you in private this morning: tell the table, or part of it, or what you made of it` : null,
+        twos.length > 1 && !said('private|went off') ? 'who went off with whom this morning, and what you make of one of those twos' : null,
+        mission && !said('shield|pot') ? 'the mission: say what you played, or what you make of how many went for the Shield' : null,
+        v && v.day === state.day - 1 && !v.secret && !said('voted|vote') ? 'yesterday\'s vote: who voted with the one who went, or against' : null,
+        quiet ? `${quiet.first}, who has said nothing yet today: ask what they think` : null,
+        state.last && P(state.last.victim) && !said(P(state.last.victim).first) ? `who gains by ${P(state.last.victim).first} being murdered last night` : null
+      ].filter(Boolean);
+      if (!angles.length) return out;
+      const pickOne = angles[((p.mem.today || 0) + hash(p.id, state.day)) % angles.length];
+      out.push(stuck ? `THE TABLE IS STUCK: the last ${run} messages are all at ${name(stuck)}, who has heard it. Do not send another. Bring up something else: ${pickOne}.` : `IF YOU HAVE NOTHING NEW to add to what is being said, bring up something nobody has yet: ${pickOne}.`);
+      return out;
+    },
     /* What a tuned model is told last of all, after LENGTH THIS TURN
        (kind: 'say', 'vote', 'aside', 'after'): what the seat has itself
        said today, so that it is not said again, then the checks for that
        kind of message. Nothing, for a model with no tuning. */
-    tail(p, kind) {
+    tail(p, kind, x) {
       const t = tune();
       const out = [];
+      if (t.digest && kind === 'say') out.push(...Prompts.digest(p, x || {}));
+      /* (Who it is and when it is, said again at the end: a small model
+         answers a message about itself as if it were someone else's, and
+         speaks of "yesterday" on the first day.) */
+      if (t.facts && kind !== 'after') { const n = state.log.filter(e => e.t === 'say' && e.kind === 'talk' && e.day === state.day).length; out.push(`YOU ARE ${p.first.toUpperCase()}. In the chat above, the messages marked "${p.first}:" are your own, and anything said to or about ${p.first} is about you. It is day ${state.day}${state.day === 1 ? ', the first: there is no yesterday, nobody has voted yet, and nothing was said before this morning' : ''}.${n ? ` ${n} message${n === 1 ? ' has' : 's have'} been sent at the table so far today.` : ''}`); }
+      if (t.facts && kind === 'after') out.push(`YOU ARE ${p.first.toUpperCase()}.`);
       if (t.own && kind === 'say') { const mine = state.log.filter(e => e.t === 'say' && e.kind === 'talk' && e.day === state.day && e.who === p.id).map(e => `"${e.text}"`); if (mine.length) out.push(`WHAT YOU HAVE ALREADY SAID TODAY: ${mine.join(' / ')}`); }
       if (t.check && t.check[kind]) out.push(t.check[kind]);
       return out.length ? `\n${out.join('\n')}` : '';
@@ -1636,7 +1697,7 @@ const Game = (() => {
       return out;
     },
     task: {
-      say(p, x) { x = x || {}; return `NOW: day ${state.day}, the chat is going.${state.clock <= 3 ? ' It is getting late: the vote is close.' : ''}${x.why ? ` ${x.why}` : ''} You are about to send a message.\nLENGTH THIS TURN: ${(x.len || LENGTHS[2]).text}${Prompts.tail(p, 'say')}`; },
+      say(p, x) { x = x || {}; return `NOW: day ${state.day}, the chat is going.${state.clock <= 3 ? ' It is getting late: the vote is close.' : ''}${x.why ? ` ${x.why}` : ''} You are about to send a message.\nLENGTH THIS TURN: ${(x.len || LENGTHS[2]).text}${Prompts.tail(p, 'say', x)}`; },
       vote(p) { return `Those you can vote for, in no particular order (the order of a list of names means nothing): ${alive().filter(q => q !== p).sort((a, b) => hash(a.id, state.seed + state.day * 13 + hash(p.id, 5)) - hash(b.id, state.seed + state.day * 13 + hash(p.id, 5))).map(q => q.first).join(', ')}.\nNOW: day ${state.day}, the vote. Everyone votes at once, so you do not know how the othersvote. Name the one person still in that you vote to banish (not yourself). Vote for the one you really think it is, from what was said and done today (as a Traitor: whoever it suits your side to lose). Send a few words as you do, eight at most.${Prompts.tail(p, 'vote')}`; },
       kill(p) { return `NOW: night ${state.day}. You decide for the Traitors who is murdered tonight. Choose the one person still in, not a Traitor, whose going helps the Traitors most: go on what has happened at the table (who is on to you, who the table listens to, who is pushing whom), never on whose name comes first. Those you can choose, in no particular order: ${alive().filter(q => !isKnife(q)).sort((a, b) => hash(a.id, state.seed + state.day * 7 + hash(p.id, 3)) - hash(b.id, state.seed + state.day * 7 + hash(p.id, 3))).map(q => q.first).join(', ')}.`; },
       whisper(p, mate) { return `NOW: night ${state.day}. ${mate.name} is your fellow Traitor and decides tonight. Whisper to them who you would murder, and why, in one or two sentences.`; },
@@ -1672,10 +1733,40 @@ const Game = (() => {
      end of what a seat is asked for, after LENGTH THIS TURN, by the kind
      of message ({ say, vote, aside, after }). own: the seat is given back
      what it has itself said today. lead: a name at the start of a message
-     is dropped when that person is the one being answered. redo: a draft
-     that runs past its length is sent back once. serial: of two who
+     is dropped when that person is the one being answered. digest: the
+     day's public facts in a few lines, and something new to bring up
+     when the table is stuck on one person. facts: who the
+     seat is and what day it is, said again at the end. redo: a draft
+     that runs past its length, or says what the table has already heard
+     today, is sent back once. serial: of two who
      speak at once, the second waits for the first. */
-  const TUNE = {};
+  const TUNE = {
+    /* Claude Haiku 5.5 (the owner, after a night on it cost three cents
+       against two dollars on the default: "Or write a better prompt to
+       make haiku as good"). Left as every seat is told, it writes long and
+       is cut off (one message in six at the table, one vote in two),
+       opens on a name, asks what the record already says, answers a
+       message about itself as if it were someone else's, speaks of
+       "yesterday" on the first day, and asks the last question again.
+       Each entry here is for one of those, and was kept because games
+       scored with it came out better (see the README). */
+    'claude-haiku-5-5': {
+      effort: 'medium', own: true, lead: true, serial: true, redo: true, facts: true, digest: true,
+      check: {
+        say: [
+          "BEFORE YOU SEND, check your message against these and fix it if it fails one:",
+          "1. Count the words. Over the length above and it is cut off in the middle, which looks broken. Shorter is always fine: most messages in a chat like this are under twelve words.",
+          "2. Start with the point, not with a name. \"you jumped on her way too fast\", not \"nadine you jumped on her way too fast\". Use a name only where it would not be clear who you mean, and never your own: you are \"i\" and \"me\".",
+          "3. Say something the chat does not already have. If your point has been made today, by you or by anyone, do not make it again in other words: bring something else (a vote that does not add up, who gains from last night, who went off with whom, someone nobody has looked at), or agree in three words, or just react.",
+          "4. If someone has been asked the same thing twice and has not answered, stop asking. Say what you make of that, or turn to someone else.",
+          "5. Only what is in the record above happened. Nobody has been \"quiet all morning\" or \"dodging since breakfast\" unless the messages show it. How everyone voted is in the record, in the lines that start \"The vote:\": read it there, never ask anyone how they voted."
+        ].join('\n'),
+        vote: "The words you send with your vote: six at most, and no name at the start. \"too quick to point\", \"never answered me\", \"gut call\". Anything longer is cut off.",
+        aside: "Before you send: keep within the length; do not start with their name (there are only the two of you); and say something you have not already said to them.",
+        after: "Before you send: keep within the length; say only what HOW IT REALLY WAS supports; and never write your own name: you are \"i\" and \"me\"."
+      }
+    }
+  };
   const tune = () => (state && TUNE[state.model]) || {};
   const settings = { key: '', model: MODELS[0], name: '' };
   function apiKey() { return settings.key || session.get(TOWN_KEY) || store.get(TOWN_KEY) || ''; }
@@ -1737,12 +1828,33 @@ const Game = (() => {
      small model's message is its own, whole, and not one cut off in the
      middle. r: the reply; max: the words asked for. */
   const wordCount = t => cleanText(t, 2000).split(/\s+/).filter(Boolean).length;
+  /* The words of a message that carry what it says: no names, none of the
+     small words. And what a draft repeats: the message already sent at the
+     table today (by anyone) that shares most of those words with it. */
+  const SMALL = new Set('a an the and or but so to of in on at for with is it its im i you your u me my we they he she them him her that this was were be been are do did dont didnt not no yes just lol tbh ngl idk like if then than as who what why how when have has had got get still now too very really about from by up out all one'.split(' '));
+  function gist(text) { const names = state.players.map(q => q.first.toLowerCase()); return new Set(String(text || '').toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter(w => w && !SMALL.has(w) && !names.includes(w))); }
+  function echoes(text) {
+    const mine = gist(text);
+    if (mine.size < 3) return null;
+    for (const e of state.log) {
+      if (e.t !== 'say' || e.kind !== 'talk' || e.day !== state.day) continue;
+      const theirs = gist(e.text);
+      const both = [...mine].filter(w => theirs.has(w)).length;
+      if (both >= 3 && both / Math.min(mine.size, Math.max(theirs.size, 1)) >= 0.6) return e;
+    }
+    return null;
+  }
   async function tight(p, kind, task, r, max) {
+    if (!tune().redo) return r;
     const n = wordCount(r.say);
-    if (!tune().redo || n <= Math.ceil(max * 1.5)) return r;
+    const long = n > Math.ceil(max * 1.5);
+    const echo = kind === 'say' ? echoes(r.say) : null;
+    if (!long && !echo) return r;
+    const why = [long ? `YOUR DRAFT RAN LONG. You wrote ${n} words: "${cleanText(r.say, 600)}"\nThe length is ${max} words at most: keep one reason and drop the rest.` : '',
+      echo ? `YOUR DRAFT SAYS WHAT THE CHAT ALREADY HAS. You wrote: "${cleanText(r.say, 600)}"\n${P(echo.who) && P(echo.who) !== p ? P(echo.who).first : 'You'} already said today: "${echo.text}"\nDo not say it again in other words. Say something the chat does not have yet (what you make of it, someone else, a vote, who gains), or send a reaction of a few words.` : ''].filter(Boolean).join('\n');
     try {
-      const again = await callClaude(p, kind, `${task}\nYOUR DRAFT RAN LONG. You wrote ${n} words: "${cleanText(r.say, 600)}"\nThe length is ${max} words at most. Send the same point again within it: keep one reason, drop the rest, and do not start with a name.`);
-      if (typeof again.say === 'string' && again.say.trim() && wordCount(again.say) < n) return Object.assign({}, r, again);
+      const again = await callClaude(p, kind, `${task}\n${why}\nSend your message again. Do not start with a name.`);
+      if (typeof again.say === 'string' && again.say.trim() && (!long || wordCount(again.say) < n)) return Object.assign({}, r, again);
     } catch (e) { /* the first draft stands, cut to length */ }
     return r;
   }

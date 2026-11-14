@@ -2214,6 +2214,44 @@ are this game's own.
   roughly 80 to 150 short calls, and the whole night twenty or thirty
   more. The model is Claude Opus 5.5 unless you
   pick another.
+- **The smallest model is tuned** (the owner, after a night on Claude
+  Haiku 5.5 cost three cents against about two dollars on the default: "Or
+  write a better prompt to make haiku as good"). Left as every seat is
+  told, Haiku wrote long and was cut off (one table message in six, one
+  vote in two), opened on a name, asked what the record already says,
+  answered a message about itself as if it were someone else's, spoke of
+  "yesterday" on the first day, and asked the last question again. A table
+  by model (`TUNE`) now holds what a model is given on top of what every
+  seat is given, and Haiku's entry is the only one, so every other model
+  plays exactly as it did:
+  - it is asked to think a little harder (`effort: medium`, where the
+    others are sent `low`);
+  - at the very end of what it is asked for, after the length, it is told
+    again who it is and what day it is; the day's public facts in a few
+    lines (who went off with whom, the mission, yesterday's votes, who has
+    and has not spoken), so that nobody is asked for what everyone can
+    see; what it has itself said today; and five things to check before
+    sending. When the table has gone at one person three messages running,
+    or the seat owes nobody an answer, it is given something nobody has
+    brought up yet;
+  - a draft that runs past its length, or says what the table has already
+    heard today, is sent back once, so a message is its own and whole, not
+    one cut off in the middle;
+  - a name called out at the start of an answer is dropped when it is the
+    name of whoever is being answered ("cora you didnt answer" to Cora is
+    "you didnt answer");
+  - of two who would speak at once, the second waits for the first (two
+    asked at once sent the same message).
+
+  Measured against the live API on the same scripted nights, three tables
+  a side, with Claude Opus 5.5 judging one day's transcript against
+  another blind, each pair in both orders. On tables it was not tuned on,
+  tuned Haiku beat Haiku as it was 10 to 2; messages cut off went from 11%
+  to 1%, votes cut off from 29% to none, repeats from 10% to 3%. It is
+  still not Opus: on the first day's talk Opus beat tuned Haiku 12 to 0,
+  and Sonnet 5.5 beat it 3 to 1 (two tables). A night on tuned Haiku is
+  about three cents; a first day alone is about 20 cents on Sonnet and 37
+  on Opus.
 - **Offline demo**: no key and no calls; the others follow a simple script
   (they point at whoever has been pointed at, defend themselves, read the
   last vote) and the host reads from a short list. It teaches the game; it
@@ -2284,7 +2322,9 @@ fails it with a message saying so; the CI checkout fetches it all).
   the whole night (a word in private with the scripted table and with
   Claude, the house's question and each answer's verdict, afterwards with
   the scripted table and with Claude, a live table, a small phone; the
-  tests before those sit down at a quick game);
+  tests before those sit down at a quick game), and the smallest model's
+  tuning (what it is told last, a draft sent back, a name dropped, two
+  waiting their turn, and the default model told none of it);
 - `wave38-date` for the faces, the strip of who is here, the date table,
   Deal again and the one-tap flirt; `wave39-table-talk` for words said with
   a bet being answered before the cards;
