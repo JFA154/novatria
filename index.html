@@ -1990,12 +1990,15 @@ const Game = (() => {
        them that stung (never under a secret ballot, where nobody knows). */
     /* What was said afterwards goes into what that seat remembers of the
        last time, once for each kind (key: 'said', what it said when the
-       cards were turned; 'heard', what the player said to it). */
-    after(id, key, text) {
+       cards were turned; 'heard', what the player said to it). lead: how
+       it is told ("When the cards were turned you said:"); words: what was
+       said, in quotes, cut at a word when it runs long. */
+    after(id, key, lead, words) {
       const l = Ledger.read();
       const s = l.seats[id];
       if (!isObj(s) || typeof s.last !== 'string' || s[key]) return;
-      s.last = `${s.last} ${cleanText(text, 160)}`;
+      const w = cleanText(words, 400);
+      s.last = `${s.last} ${lead} "${w.length > 120 ? `${w.slice(0, 120).replace(/\s+\S*$/, '')}…` : w}"`;
       s[key] = true;
       Ledger.write(l);
     },
@@ -2326,7 +2329,7 @@ const Game = (() => {
           a.said += 1;
           a.last = p.id;
           // (What they said when they knew goes home with them: the next time they sit down with the player, it is part of the last time.)
-          if (a.count[p.id] === 1) Ledger.after(p.id, 'said', `When the cards were turned you said: "${got[i].text}"`);
+          if (a.count[p.id] === 1) Ledger.after(p.id, 'said', 'When the cards were turned you said:', got[i].text);
           UI.renderCost();
           save();
           readUntil = Date.now() + Math.min(2600, 800 + got[i].text.length * 28) * App.speed;
@@ -2350,7 +2353,7 @@ const Game = (() => {
     const sel = UI.sel ? P(UI.sel) : null;
     const to = mentioned(line, 'you')[0] || (sel && !sel.you ? sel : null);
     a.yours = { text: line, to: to ? to.id : null };
-    if (to) Ledger.after(to.id, 'heard', `And {P} said to you: "${line}"`);
+    if (to) Ledger.after(to.id, 'heard', 'And {P} said to you:', line);
     return true;
   }
 

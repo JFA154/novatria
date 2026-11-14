@@ -2475,6 +2475,9 @@ s.test('afterwards: when the cards are turned and the reveal is closed nobody ha
   assert.deepEqual(await sayAfter(`Good game, ${x.first}.`), [['you', 'after'], [x.id, 'after']]);
   const heard = await page.evaluate(id => Game.Ledger.read().seats[id].last, x.id);
   assert.ok(heard.includes(`And {P} said to you: "Good game, ${x.first}."`), heard);
+  // (Something long is cut at a word, with its quotes whole: against the live API a seat's forty words were cut mid-word and the quote left open.)
+  const long = await page.evaluate(() => { const l = Game.Ledger.read(); const id = Object.keys(l.seats)[0]; const before = l.seats[id].last; Game.Ledger.after(id, 'test', 'Later you said:', 'so pearl was the traitor the whole time and i spent three days going after joe for nothing, trent was clean and i backed the wrong one and i still cannot believe it'); return Game.Ledger.read().seats[id].last.slice(before.length); });
+  assert.equal(long, ' Later you said: "so pearl was the traitor the whole time and i spent three days going after joe for nothing, trent was clean and i\u2026"');
   // Said to everyone: two answer, and not whoever spoke last.
   await page.click('#chips .chip[data-chip="I had no idea."]');
   await page.waitForFunction(() => !Game.aftering && Game.state.after.lines === 2 && Game.state.log[Game.state.log.length - 1].who !== 'you');
