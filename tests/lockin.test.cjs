@@ -211,6 +211,22 @@ s.test('tonight\'s case through the buttons on a phone: the briefing, a question
   assert.equal(g.left, c.budget - 1);
   assert.deepEqual(g.notes, ['a|npc_loretta|1|0']);
   assert.match((await logText(page)).join('\n'), /\[note\] Loretta says .* at the bar at /);
+  // It is in the notes at once, and the top bar says there is something new there.
+  assert.equal(await page.textContent('#btn-notes'), 'Notes (1)');
+  assert.equal(await page.isVisible('#notes'), false, 'on a phone the notes are a page of their own');
+  await page.click('#btn-notes');
+  assert.equal(await page.isVisible('#notes'), true);
+  assert.equal(await page.isVisible('#log-wrap'), false);
+  assert.equal(await page.textContent('#btn-notes'), 'Back to the room');
+  assert.match(await page.textContent('#nt-grid thead'), /Around .*At /);
+  assert.equal(await page.$$eval('#nt-grid tbody tr', els => els.length), 6, 'a row each, and the bar');
+  assert.doesNotMatch(await page.textContent('#nt-grid td[data-cell="npc_loretta|1"]'), /Not asked/);
+  assert.equal(await page.textContent('#nt-grid td[data-cell="npc_loretta|0"]'), 'Not asked');
+  assert.match(await page.textContent('#nt-put'), /^Put it to them$/);
+  assert.deepEqual(await overflowReport(page, 375), []);
+  await page.click('#btn-notes');
+  assert.equal(await page.isVisible('#notes'), false);
+  assert.equal(await page.textContent('#btn-notes'), 'Notes', 'looked at');
   // A typed question to someone else.
   const other = c.people.find(p => p !== c.culprit && !c.story[p][1].lie);
   await page.click(`#strip .who[data-id="${other}"]`);
@@ -219,8 +235,15 @@ s.test('tonight\'s case through the buttons on a phone: the briefing, a question
   await page.press('#say', 'Enter');
   await idle(page);
   g = await st(page);
-  assert.ok(g.notes.includes(`a|${other}|1|0`), 'what they said is in the notebook');
+  assert.ok(g.notes.includes(`a|${other}|1|0`), 'what they said is in the notes');
   assert.equal(g.left, c.budget - 2);
+  // Where they said they were at that time is in their row of the grid, under that time; the other time is still to ask.
+  const said = await page.evaluate(id => { const R = Game.Rules; const n = Game.state.notes.find(x => x.by === id && x.slot === 1); return R.PLACES[n.place].at; }, other);
+  assert.match((await page.textContent(`#nt-grid td[data-cell="${other}|1"] .nt-own`)).toLowerCase(), new RegExp(`^${said}`));
+  assert.equal(await page.textContent(`#nt-grid td[data-cell="${other}|0"]`), 'Not asked');
+  // And whoever they named as company has that under their own name: who else has put them there.
+  const company = await page.evaluate(id => Game.state.notes.find(x => x.by === id && x.slot === 1).with, other);
+  for (const w of company) assert.equal(await page.$$eval(`#nt-grid td[data-cell="${w}|1"] .nt-by[data-by="${other}"]`, els => els.length), 1);
   // The marks are the player's own.
   await page.click('#sheet [data-mark="clear"]');
   assert.equal(await page.getAttribute(`#strip .who[data-id="${other}"]`, 'data-mark'), 'clear');
@@ -237,13 +260,14 @@ s.test('tonight\'s case through the buttons on a phone: the briefing, a question
     g.sel = liar; Game.UI.render();
     return R.noteId(find());
   }, liar);
-  await page.click('#btn-notes');
-  assert.match(await page.textContent('#dlg'), /is in the chair\. Putting something to them is one question\./);
-  assert.equal(await page.$(`#dlg [data-put^="a|${liar}|"]`), null, 'nobody is shown their own words');
-  const box = await page.evaluate(() => { const r = document.getElementById('dlg').getBoundingClientRect(); return [r.left, r.right, r.top, r.bottom]; });
-  assert.ok(box[0] >= 0 && box[1] <= 375 && box[2] >= 0 && box[3] <= 740, 'the notebook fits a phone');
-  await page.click(`#dlg [data-put="${proof}"]`);
+  await page.click('#chips .chip[data-chip="put"]');
+  assert.equal(await page.isVisible('#notes'), true, 'Put it to them opens the notes');
+  assert.match(await page.textContent('#notes'), /is in the chair\. Putting something to (him|her|them) is one question\./);
+  assert.equal(await page.$(`#notes [data-put^="a|${liar}|"]`), null, 'nobody is shown their own words');
+  assert.deepEqual(await overflowReport(page, 375), []);
+  await page.click(`#notes [data-put="${proof}"]`);
   await idle(page);
+  assert.equal(await page.isVisible('#notes'), false, 'and the notes step aside for the answer');
   g = await st(page);
   assert.deepEqual(g.caught, [liar]);
   assert.ok(g.notes.includes(`a|${liar}|1|0!`), 'the first story is struck');
@@ -251,6 +275,8 @@ s.test('tonight\'s case through the buttons on a phone: the briefing, a question
   assert.equal(await page.$$eval('#log .say[data-changed="1"]', els => els.length), 1);
   assert.match(await page.textContent('#log .say[data-changed="1"]'), /changes their story/);
   assert.equal(await page.textContent(`#strip .who[data-id="${liar}"] .who-tag`), 'lied');
+  // In the grid the first story is struck through, with the new one under it.
+  assert.deepEqual(await page.$$eval(`#nt-grid td[data-cell="${liar}|1"] .nt-own`, els => els.map(e => e.dataset.struck)), ['1', '0']);
   // Ask the rest about when it happened, so nobody else is left; then name the one.
   await page.evaluate(async () => { const g = Game.state; for (const p of [Game.HOST].concat(g.c.people)) { if (g.left <= 1 || Game.Rules.airtight(g.c, g.notes, g.c.culprit)) break; if (g.notes.some(n => n.by === p && n.slot === 1)) continue; g.sel = p; await Game.App.ask('Where?', { k: 'a', slot: 1 }); } });
   await page.click('#btn-accuse');
@@ -535,7 +561,7 @@ s.test('with Claude, something put to a liar that proves the lie: they are told 
   bodies.length = 0;
   opts.reply = () => ({ say: 'I have nothing to add.', told: [], cracked: false });
   await page.click('#chips .chip[data-chip="put"]');
-  await page.click(`#dlg [data-put="${proof}"]`);
+  await page.click(`#notes [data-put="${proof}"]`);
   await idle(page);
   const user = bodies[0].body.messages[0].content.map(x => x.text).join('\n');
   assert.match(user, /CAUGHT OUT\nThe detective has just put proof to you that you were not where you said at .*\. Give it up now: say that you were /);
@@ -597,8 +623,10 @@ s.test('a phone, narrow and short: six in the room and Loretta fit one row, noth
     const composer = await page.evaluate(() => { const r = document.getElementById('composer').getBoundingClientRect(); return [r.top, r.bottom]; });
     assert.ok(composer[1] <= vp.height + 1, 'the box is on the screen');
     await page.click('#btn-notes');
-    await inside('the notebook');
-    await page.click('dialog .row .btn');
+    assert.deepEqual(await overflowReport(page, vp.width), [], `the notes at ${vp.width}`);
+    assert.ok(await page.evaluate(() => { const n = document.getElementById('notes'); return n.scrollWidth <= n.clientWidth + 1; }), 'the notes do not scroll sideways');
+    assert.equal(await page.$$eval('#nt-grid tbody tr', els => els.length), 7);
+    await page.click('#btn-notes');
     await page.click('#chips .chip >> text=Tell me about');
     await inside('who to ask about');
     await page.click('dialog .row .btn');
@@ -610,6 +638,28 @@ s.test('a phone, narrow and short: six in the room and Loretta fit one row, noth
     await inside('the reveal');
     assert.ok(await page.evaluate(() => { const r = document.getElementById('reveal'); return r.scrollWidth <= r.clientWidth + 1; }), 'the reveal does not scroll sideways');
   }
+});
+
+s.test('on a wide screen the notes sit beside the talk and fill in as people answer: no button to open them, nothing to count', async h => {
+  const page = await open(h, { viewport: { width: 1280, height: 800 } });
+  await sit(page, { seed: 5, level: 2 });
+  assert.equal(await page.isVisible('#btn-notes'), false);
+  assert.equal(await page.isVisible('#notes'), true);
+  assert.equal(await page.isVisible('#log-wrap'), true);
+  const boxes = await page.evaluate(() => ['log-wrap', 'notes'].map(id => { const r = document.getElementById(id).getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right)]; }));
+  assert.ok(boxes[0][1] <= boxes[1][0] && boxes[1][1] <= 1280, `side by side: ${JSON.stringify(boxes)}`);
+  assert.equal(await page.$$eval('#nt-grid .nt-none', els => els.length), 12, 'nothing asked yet: every square says so');
+  await page.click('#chips .chip >> nth=0');
+  await idle(page);
+  assert.equal(await page.$$eval('#nt-grid .nt-none', els => els.length), 11, 'one answer, one square');
+  const c = (await st(page)).c;
+  await page.click(`#strip .who[data-id="${c.people[0]}"]`);
+  assert.match(await page.textContent('#nt-put'), /^Put it to \w+$/);
+  assert.equal(await page.$$eval('#notes [data-put]', els => els.length), 1, 'what Loretta said can be put to them from there');
+  await page.click('#notes [data-put]');
+  await idle(page);
+  assert.equal((await st(page)).asked, 2);
+  assert.deepEqual(await overflowReport(page, 1280), []);
 });
 
 s.test('one self-contained file: no innerHTML, no markup from strings, one fetch (to the API), nothing loaded from elsewhere', async () => {

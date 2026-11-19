@@ -2208,12 +2208,24 @@ questions it could have taken).
   They answer one thing at a time, and **every question is one off your
   count** (one for each of them and four more; five more at the hardest).
   When the count is gone you can only name one.
-- **The notebook** keeps, in its own plain words, what each of them has told
-  you, who has put whom where, and what is said about each. It does no
-  reasoning for you: Suspect and In the clear are marks of your own.
-- **Putting it to them.** When two accounts do not fit, open the notebook
-  and put one to the other (one question). A liar gives the lie up only when
-  the notebook holds a **true account that proves it**: put to them
+- **The notes page writes itself** (the owner: "have a notes page too, like
+  if someone said they were somewhere at 10, it automatically shows in the
+  notes"). Whatever a person tells you goes into it as they say it, and the
+  talk says "Noted:" under the answer. Its heart is a grid, **who says they
+  were where**: a row for each of them, a column for the half hour before
+  and one for when it happened, and in each square what that person said
+  (a story they have since changed is struck through, with the new one
+  under it), then who else has put them there ("Cora has him in the back
+  room"), or "Not asked". Loretta's row is who she saw at the bar. Under
+  the grid: whatever else was said (a sighting, what one says of another),
+  and everything that can be put to whoever is in the chair. It does no
+  reasoning for you: a clash is there to be seen, and Suspect and In the
+  clear are marks of your own. On a wide screen it sits beside the talk
+  and fills in as you go; on a phone it is a page of its own behind
+  **Notes** in the top bar, which counts what is new ("Notes (2)").
+- **Putting it to them.** When two accounts do not fit, put one to the
+  other from the notes page (one question). A liar gives the lie up only when
+  the notes hold a **true account that proves it**: put to them
   outright, the code makes them; said in your own words, the person decides
   whether that was what you meant. A bluff does nothing. An innocent liar
   then tells the truth, and names who they were really with, which is often
@@ -2231,9 +2243,9 @@ questions it could have taken).
   an innocent. Sometimes they also lie about the half hour before.
 - **Naming one.** Once. **Wrong**: no stars, and the guilty one has a word
   for you on the way out. **Right, on a hunch**: one star. **Airtight**
-  (every other person in the clear by your notebook): two. **Three** for
+  (every other person in the clear by your notes): two. **Three** for
   airtight within a question or two of the fewest it could have taken.
-- **The reveal**: who and why, what your notebook proved of each of the
+- **The reveal**: who and why, what your notes proved of each of the
   others and what it never did, where everyone really was beside what they
   said, what else was being hidden, **the shortest way through** question by
   question, and what each of them was privately thinking.
@@ -2253,9 +2265,9 @@ questions it could have taken).
 - **Every case can be closed.** A case is dealt from its seed until the
   fewest questions that leave nobody but the guilty one is inside the
   level's range (two or three, three or four, four or five); that shortest
-  way is found by a search over what could be in the notebook, and is what
+  way is found by a search over what could be in the notes, and is what
   the reveal shows. The suite also plays a player who knows only the
-  notebook and asks methodically: such a player closes every case, always
+  notes and asks methodically: such a player closes every case, always
   inside the count at the first level and about nine times in ten at the
   other two (measured over two hundred cases a level: 200, 188 and 179).
 - **Who plays them**: with an Anthropic API key, Claude, one call an answer.
@@ -2265,7 +2277,7 @@ questions it could have taken).
   have decided to say instead and why), what they would say about the
   others, their own questioning so far, and what the detective holds that
   would catch them out. The reply says which items it told, by id, and the
-  notebook is written by the code from those, never from the prose. The key
+  notes are written by the code from those, never from the prose. The key
   the town game remembers is used if there is one; a key typed here is kept
   for the tab only. Without a key **the scripted room** answers, plainly:
   the whole case is there and the talk is not. The first screen starts with
@@ -2274,7 +2286,7 @@ questions it could have taken).
 
 **Not yet tried with the live API.** The suite drives the Claude path
 against a stand-in (the request, what each person is and is not told, what
-goes in the notebook, a lie given up only with proof, a failed call falling
+goes in the notes, a lie given up only with proof, a failed call falling
 back), with no key to hand when it was written. How well real replies keep
 to "one thing at a time" and list what they told is the first thing to look
 at in a real case.
@@ -2295,7 +2307,7 @@ from `file://`, with the network blocked. Playwright is preinstalled in the
 build environment. Elsewhere, install it outside this folder (as the CI
 workflow does) and point `NODE_PATH` at it, because
 `tests/constraints.test.cjs` checks there is no `package.json` here. There is
-nothing else to install. The whole run is about 869 tests and takes fifteen to
+nothing else to install. The whole run is about 870 tests and takes fifteen to
 twenty minutes. `tests/wave30-rel-people.test.cjs` builds its older save from
 commit `56e69f5`'s `index.html`, so it needs the git history (a shallow clone
 fails it with a message saying so; the CI checkout fetches it all).
@@ -2321,9 +2333,10 @@ fails it with a message saying so; the CI checkout fetches it all).
 - `lockin` for Lock-In (`lockin.html`): the page alone with the network
   shut, three hundred cases with one guilty person who can never be put in
   the clear and innocents who always can, the shortest way through replayed
-  through the buttons for three stars, a notebook-only player closing every
+  through the buttons for three stars, a notes-only player closing every
   case, tonight's case on a phone from the briefing to the casebook and the
-  line to copy, proof moving a liar and a bluff not, the wrong one and a
+  line to copy, the notes page filling itself in (the grid, a struck story,
+  beside the talk on a wide screen), proof moving a liar and a bluff not, the wrong one and a
   hunch, the questions running out and a case picked up after a reload, who
   has been in the chair before, what the scripted room makes of a typed
   question, the Claude path against a stand-in API, phone widths, and no

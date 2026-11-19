@@ -94,7 +94,31 @@ a { color: var(--accent); }
 .topbar .left[data-low="1"] { color: var(--danger); font-weight: 700; }
 .topbar .btn { padding: 0 10px; }
 .topbar .sp { flex: 1; }
-.wrap { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; max-width: 760px; width: 100%; margin: 0 auto; }
+.stage { flex: 1 1 auto; min-height: 0; display: flex; justify-content: center; }
+.wrap { flex: 1 1 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; max-width: 760px; }
+/* The notes: beside the talk on a wide screen, a page of their own on a phone (the top bar's Notes). */
+.notes { flex: 0 0 420px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 14px calc(16px + var(--sab)); border-left: 1px solid var(--border); }
+.notes h2 { margin: 0 0 8px; font: 600 22px/1.2 var(--read-font); }
+.notes h3 { margin: 16px 0 6px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.notes p { margin: 0 0 8px; font-size: 14px; line-height: 1.4; }
+.nt-grid { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 14px; line-height: 1.3; }
+.nt-grid col.nt-who { width: 76px; }
+.nt-grid th, .nt-grid td { padding: 6px 6px 6px 0; border-top: 1px solid var(--border); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.nt-grid thead th { border-top: 0; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.nt-grid tbody th { font-weight: 700; }
+.nt-grid tbody th .say-face { display: block; margin-bottom: 2px; }
+.nt-grid tbody th .who-tag { display: block; font-size: 9px; }
+.nt-grid tr[data-mark="sus"] .who-tag { color: var(--danger); }
+.nt-grid tr[data-mark="clear"] .who-tag { color: var(--good); }
+.nt-own[data-struck="1"] { text-decoration: line-through; color: var(--muted); }
+.nt-none { color: var(--faint); font-style: italic; }
+.nt-by { margin-top: 3px; color: var(--muted); font-size: 12px; }
+@media (min-width: 980px) { #btn-notes { display: none; } }
+@media (max-width: 979px) {
+  .notes { display: none; flex: 1 1 auto; border-left: 0; }
+  #screen-game[data-notes="1"] .notes { display: block; }
+  #screen-game[data-notes="1"] .wrap { display: none; }
+}
 /* Who is in the room: Loretta, then the ones she kept back. Tap one to sit them down. */
 .strip { flex: none; display: grid; grid-template-columns: repeat(var(--n, 6), minmax(0, 1fr)); gap: 2px; padding: 8px 6px 4px; border-bottom: 1px solid var(--border); }
 .who { display: grid; justify-items: center; gap: 1px; min-width: 0; min-height: 62px; padding: 3px 0 2px; border: 0; border-radius: 10px; background: transparent; cursor: pointer; }
@@ -151,7 +175,7 @@ a { color: var(--accent); }
 .sys { margin: 2px 0; padding: 5px 9px; border-left: 3px solid var(--accent); background: var(--surface); border-radius: 0 var(--radius) var(--radius) 0; font-size: 14px; line-height: 1.35; }
 .sys[data-kind="notice"] { border-left-color: var(--field); color: var(--muted); }
 .sys[data-kind="note"] { border: 0; background: transparent; padding: 0 2px 0 34px; color: var(--muted); font-size: 12px; }
-.sys[data-kind="note"]::before { content: "In your notebook: "; font-weight: 700; }
+.sys[data-kind="note"]::before { content: "Noted: "; font-weight: 700; }
 .sys[data-kind="end"] { font-weight: 700; }
 .sys[data-kind="bad"] { border-left-color: var(--danger); font-weight: 700; }
 .chips { display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -12px; padding: 0 12px; }
@@ -182,12 +206,6 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
 .extra { padding: 6px 9px; border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 0 var(--radius) var(--radius) 0; font-size: 14px; line-height: 1.35; }
 .extra[data-ok="1"] { border-left-color: var(--good); }
 .extra[data-ok="0"] { border-left-color: var(--danger); }
-/* The notebook: what each of them has said, and who has put them where. */
-.nb-person { padding: 8px 0; border-top: 1px solid var(--border); }
-.nb-head { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-weight: 700; }
-.nb-head .say-face { flex: none; }
-.nb-head .who-tag { font-size: 10px; }
-.nb-k { margin: 6px 0 2px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .nb-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 2px 0; font-size: 14px; line-height: 1.35; }
 .nb-row[data-struck="1"] .nb-text { text-decoration: line-through; color: var(--muted); }
 .nb-row .btn { min-height: 36px; padding: 0 10px; font-size: 13px; }
@@ -298,8 +316,8 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
           <li><b>Tap a face and ask.</b> Type anything, or tap a question. They answer one thing at a time, and every question you ask is one off your count.</li>
           <li><b>Whoever did it will lie to you.</b> The others may lie about <i>themselves</i>, because people have business of their own. Only the guilty one lies about anybody else.</li>
           <li><b>So a person is in the clear when somebody else puts them away from it:</b> somewhere else when it happened, or somewhere else when the trace was picked up. Either the one saying so is honest, or they are the one.</li>
-          <li><b>Your notebook</b> keeps what each of them has told you. When two accounts do not fit, open it and <b>put one to the other</b>: with real proof in front of them a liar changes their story. A bluff does nothing.</li>
-          <li><b>Name one.</b> Right is good. <b>Airtight</b> is better: every other person in the room put in the clear by your notebook. Three stars is airtight in close to the fewest questions it could have taken, and the case tells you afterwards what that shortest way was.</li>
+          <li><b>Your notes write themselves.</b> When someone says where they were at ten, it goes on the notes page at once, in a grid of who says they were where and when, with who else has put them there. When two accounts do not fit, <b>put one to the other</b> from that page: with real proof in front of them a liar changes their story. A bluff does nothing.</li>
+          <li><b>Name one.</b> Right is good. <b>Airtight</b> is better: every other person in the room put in the clear by your notes. Three stars is airtight in close to the fewest questions it could have taken, and the case tells you afterwards what that shortest way was.</li>
           <li><b>Tonight's case</b> is the same for everybody, once a day. The casebook keeps your record, and who you have had in the chair before.</li>
         </ul>
         <p class="note">The code decides who did it, who was where and who is lying. The people only talk.</p>
@@ -313,9 +331,10 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
       <span class="title" id="game-title" tabindex="-1">Lock-In</span>
       <span class="left" id="tb-left"></span>
       <span class="sp"></span>
-      <button type="button" class="btn ghost" id="btn-notes">Notebook</button>
+      <button type="button" class="btn ghost" id="btn-notes" aria-pressed="false">Notes</button>
       <button type="button" class="btn ghost" id="btn-quit">Leave</button>
     </div>
+    <div class="stage">
     <div class="wrap">
       <div class="strip" id="strip" role="group" aria-label="Who is in the room"></div>
       <div class="sheet" id="sheet" hidden></div>
@@ -330,6 +349,8 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
         <div class="acts" id="acts"></div>
         <div class="cost" id="cost"></div>
       </div>
+    </div>
+    <aside class="notes" id="notes" aria-label="Notes"></aside>
     </div>
   </section>
 </div>
@@ -1224,7 +1245,7 @@ const Game = (() => {
     if (state && state.c === c && !correct) { UI.typing(c.culprit); await said(c.culprit, 'walked'); }
     if (!state || state.c !== c) { busy = false; return; }
     UI.typing(null);
-    sys(correct ? (tight ? `Airtight. It was ${castOf(c.culprit).name}, and your notebook leaves nobody else.` : `It was ${castOf(c.culprit).name}. You were right, but your notebook does not prove it.`) : `Wrong. It was ${castOf(c.culprit).name}, who has just walked out of the door.`, correct ? 'end' : 'bad');
+    sys(correct ? (tight ? `Airtight. It was ${castOf(c.culprit).name}, and your notes leave nobody else.` : `It was ${castOf(c.culprit).name}. You were right, but your notes do not prove it.`) : `Wrong. It was ${castOf(c.culprit).name}, who has just walked out of the door.`, correct ? 'end' : 'bad');
     Book.settle();
     store.del(SAVE_KEY);
     busy = false;
@@ -1320,6 +1341,7 @@ const Game = (() => {
       }));
       UI.renderSheet();
       UI.renderComposer();
+      UI.renderNotes();
     },
     renderSheet() {
       const p = state.sel;
@@ -1346,7 +1368,7 @@ const Game = (() => {
         chip(`Where were you at ${c.times[1]}?`, () => App.ask(`Where were you at ${c.times[1]}, and who was with you?`, { k: 'a', slot: 1 })),
         chip(`And around ${c.times[0]}?`, () => App.ask(`Where were you around ${c.times[0]}, and who was with you?`, { k: 'a', slot: 0 })),
         chip(`See anyone near ${PLACES[c.scene].name}?`, () => App.ask(`Did you see anyone near ${PLACES[c.scene].name} around ${c.times[1]}?`, { k: 'p' }))
-      ]).concat([chip('Tell me about…', () => UI.pickAbout()), p === HOST ? null : chip('Put it to them…', () => UI.notebook(), 'put')].filter(Boolean)));
+      ]).concat([chip('Tell me about…', () => UI.pickAbout()), p === HOST ? null : chip('Put it to them…', () => UI.openNotes(true, '#nt-put'), 'put')].filter(Boolean)));
       $('#say-line').hidden = !live();
       $('#say').disabled = !on;
       $('#say').placeholder = !live() ? '' : state.left <= 0 ? 'No questions left: name one' : `Ask ${first(p)} something`;
@@ -1376,7 +1398,7 @@ const Game = (() => {
         el('ul', null,
           el('li', null, 'Whoever did it will lie to you. The others may lie about themselves. Only the guilty one lies about anybody else.'),
           el('li', null, 'So a person is in the clear once somebody else puts them away from it: somewhere else when it happened, or somewhere else when the trace was picked up.'),
-          el('li', null, 'When two accounts do not fit, open your notebook and put one to the other. Proof moves a liar; a bluff does not.')),
+          el('li', null, 'Your notes write themselves as people answer. When two accounts do not fit, put one to the other from the notes page. Proof moves a liar; a bluff does not.')),
         el('p', { class: 'extra' }, el('b', null, `You get ${c.budget} questions. `), 'Then name one. Airtight is every other person in the clear.')), [['Start asking', null, 'primary']]);
     },
     pickAbout() {
@@ -1389,27 +1411,63 @@ const Game = (() => {
       UI.dialog('Who did it?', el('div', null, el('p', null, 'You name one, once. Loretta unlocks the door after.'),
         el('div', { class: 'people' }, c.people.map(x => el('button', { type: 'button', class: 'btn', dataset: { accuse: x }, onclick: () => { $('#dlg').close(); App.accuse(x); } }, face(x), castOf(x).name, state.marks[x] === 'sus' ? el('span', { class: 'who-tag' }, ' suspect') : null)))), [['Not yet', null]]);
     },
-    /* The notebook: the case, then each of them: what they have said, who
-       has put them where, and what is said about them. With someone in the
-       chair, anything somebody else said can be put to them (one question). */
-    notebook() {
+    /* The notes page (the owner: "have a notes page too, like if someone
+       said they were somewhere at 10, it automatically shows in the
+       notes"). It writes itself from what is told: a grid of who says they
+       were where at each of the two times, with, under each, who else has
+       put them there; what Loretta saw of the bar; whatever else was said;
+       and, with someone in the chair, everything somebody else told you
+       that can be put to them (one question). It reasons about none of it:
+       a clash is there to be seen, and seeing it is the player's. Beside
+       the talk on a wide screen; a page of its own on a phone, where the
+       top bar's Notes counts what is new since it was last looked at. */
+    notesOpen: false,
+    wide() { return !!(window.matchMedia && window.matchMedia('(min-width: 980px)').matches); },
+    openNotes(on, to) {
+      UI.notesOpen = !!on;
+      UI.render();
+      const pane = $('#notes');
+      const at = on && to ? $(to, pane) : null;
+      if (at) at.scrollIntoView({ block: 'start' }); else if (on) pane.scrollTop = 0;
+      if (!on && UI.stuck) UI.stick();
+    },
+    renderNotes() {
       const c = state.c;
       const sel = state.sel;
-      const can = live() && state.left > 0 && !busy && sel !== HOST;
-      const row = n => el('div', { class: 'nb-row', dataset: { struck: n.struck ? '1' : '0', note: noteId(n) } }, el('span', { class: 'nb-text' }, noteText(c, n)),
-        can && !n.struck && n.by !== sel && n.k !== 'g' ? el('button', { type: 'button', class: 'btn', dataset: { put: noteId(n) }, onclick: () => { $('#dlg').close(); App.put(noteId(n)); } }, `Put it to ${first(sel)}`) : null);
-      const person = p => {
-        const said = state.notes.filter(n => n.by === p && n.k !== 'g');
-        const placed = p === HOST ? [] : state.notes.filter(n => n.k === 'a' && !n.struck && n.by !== p && n.with.includes(p));
-        const about = state.notes.filter(n => (n.k === 'g' || n.k === 'p') && n.about === p);
-        const mark = state.marks[p];
-        return el('div', { class: 'nb-person', dataset: { id: p } },
-          el('div', { class: 'nb-head' }, face(p), castOf(p).name, el('span', { class: 'who-tag' }, p === HOST ? 'owner' : mark === 'sus' ? 'suspect' : mark === 'clear' ? 'clear' : '')),
-          said.length ? said.map(row) : el('div', { class: 'nb-none' }, p === HOST ? 'You have not asked her who was at the bar.' : 'Nothing yet.'),
-          placed.length ? [el('div', { class: 'nb-k' }, 'Placed by others'), placed.map(n => el('div', { class: 'nb-row', dataset: { placed: n.by } }, el('span', { class: 'nb-text' }, `${first(n.by)} has ${subj(p) === 'she' ? 'her' : subj(p) === 'he' ? 'him' : 'them'} ${PLACES[n.place].at} ${when(c, n.slot)}.`)))] : null,
-          about.length ? [el('div', { class: 'nb-k' }, 'Said about them'), about.map(n => (n.k === 'p' ? row(n) : el('div', { class: 'nb-row' }, el('span', { class: 'nb-text' }, noteText(c, n)))))] : null);
+      if (UI.notesOpen || UI.wide()) state.seenNotes = state.notes.length;
+      $('#screen-game').dataset.notes = UI.notesOpen ? '1' : '0';
+      const fresh = state.notes.length - (state.seenNotes | 0);
+      const btn = $('#btn-notes');
+      btn.textContent = UI.notesOpen ? 'Back to the room' : fresh > 0 ? `Notes (${fresh})` : 'Notes';
+      btn.setAttribute('aria-pressed', String(UI.notesOpen));
+      const obj = p => (subj(p) === 'she' ? 'her' : subj(p) === 'he' ? 'him' : 'them');
+      const cell = (p, slot) => {
+        const own = state.notes.filter(n => n.k === 'a' && n.by === p && n.slot === slot);
+        const others = state.notes.filter(n => n.k === 'a' && !n.struck && n.by !== p && n.slot === slot && n.with.includes(p));
+        return el('td', { dataset: { cell: `${p}|${slot}` } },
+          own.length ? own.map(n => el('div', { class: 'nt-own', dataset: { struck: n.struck ? '1' : '0' } }, `${capFirst(PLACES[n.place].at)}${n.with.length ? ` with ${names(n.with)}` : ', alone'}`)) : el('div', { class: 'nt-none' }, 'Not asked'),
+          others.map(n => el('div', { class: 'nt-by', dataset: { by: n.by } }, `${first(n.by)} has ${obj(p)} ${PLACES[n.place].at}`)));
       };
-      UI.dialog('Notebook', el('div', { class: 'scroll' }, UI.caseFacts(), can ? el('p', { class: 'note' }, `${first(sel)} is in the chair. Putting something to them is one question.`) : null, [HOST].concat(c.people).map(person)), [['Close', null, 'primary']]);
+      const bar = slot => { const n = state.notes.find(x => x.k === 'a' && x.by === HOST && x.slot === slot); return el('td', { dataset: { cell: `${HOST}|${slot}` } }, n ? el('div', { class: 'nt-own' }, n.with.length ? names(n.with) : 'None of them') : el('div', { class: 'nt-none' }, 'Not asked')); };
+      const more = state.notes.filter(n => n.k !== 'a');
+      const can = live() && state.left > 0 && !busy && sel !== HOST;
+      const puts = state.notes.filter(n => n.k !== 'g' && !n.struck && n.by !== sel);
+      const pane = $('#notes');
+      const top = pane.scrollTop;
+      pane.replaceChildren(...[el('h2', null, 'Notes'), UI.caseFacts(),
+        el('h3', null, 'Who says they were where'),
+        el('table', { class: 'nt-grid', id: 'nt-grid' }, el('colgroup', null, el('col', { class: 'nt-who' }), el('col'), el('col')),
+          el('thead', null, el('tr', null, el('th', null, ''), el('th', null, `Around ${c.times[0]}`), el('th', null, `At ${c.times[1]}`))),
+          el('tbody', null, c.people.map(p => { const mark = state.marks[p] || null; return el('tr', { dataset: { id: p, mark } }, el('th', { scope: 'row' }, face(p), first(p), el('span', { class: 'who-tag' }, mark === 'sus' ? 'suspect' : mark === 'clear' ? 'clear' : state.caught.includes(p) ? 'lied' : '')), cell(p, 0), cell(p, 1)); }),
+            el('tr', { dataset: { id: HOST } }, el('th', { scope: 'row' }, face(HOST), 'At the bar', el('span', { class: 'who-tag' }, 'Loretta saw')), bar(0), bar(1)))),
+        el('p', { class: 'note' }, 'It fills in as they answer. Under what someone says is who else has put them there.'),
+        more.length ? [el('h3', null, 'What else you were told'), more.map(n => el('div', { class: 'nb-row', dataset: { note: noteId(n) } }, el('span', { class: 'nb-text' }, noteText(c, n))))] : null,
+        live() ? [el('h3', { id: 'nt-put' }, sel === HOST ? 'Put it to them' : `Put it to ${first(sel)}`),
+          sel === HOST ? el('p', { class: 'note' }, 'Sit one of them down, and anything somebody else has told you can be put to them.')
+            : !puts.length ? el('p', { class: 'note' }, `Nothing anybody else has told you yet. When there is, it can be put to ${first(sel)} here.`)
+              : [el('p', { class: 'note' }, `${first(sel)} is in the chair. Putting something to ${obj(sel)} is one question.`),
+                puts.map(n => el('div', { class: 'nb-row', dataset: { note: noteId(n) } }, el('span', { class: 'nb-text' }, noteText(c, n)), el('button', { type: 'button', class: 'btn', dataset: { put: noteId(n) }, disabled: !can, onclick: () => App.put(noteId(n)) }, 'Put it')))]] : null].flat(3).filter(Boolean));
+      pane.scrollTop = top;
     },
     /* The case, closed: the verdict, who and why, what the notebook proved
        of each of the others, where everyone really was and what they said,
@@ -1426,7 +1484,7 @@ const Game = (() => {
         el('p', null, el('span', { class: 'stars' }, starText(o.stars)), ` ${state.asked} question${state.asked === 1 ? '' : 's'} asked. The shortest way through was ${c.min}.`),
         el('p', { class: 'extra', dataset: { ok: o.correct ? '1' : '0' } }, el('b', null, `It was ${castOf(c.culprit).name}. `), `At ${c.times[1]} ${subj(c.culprit)} ${wasOf(c.culprit)} ${PLACES[c.scene].at}, alone, and ${crimeOf(c).did}. ${c.motive[c.culprit]}`,
           o.correct ? '' : ` You named ${castOf(o.accused).name}.`),
-        el('h3', null, 'What your notebook proved'),
+        el('h3', null, 'What your notes proved'),
         el('ul', { id: 'proved' }, c.people.filter(p => p !== c.culprit).map(p => { const n = o.cleared[p] ? noteOf(o.cleared[p]) : null; return el('li', { dataset: { id: p, clear: n ? '1' : '0' } }, n ? `${first(p)}: in the clear. ${first(n.by)} had ${subj(p) === 'she' ? 'her' : subj(p) === 'he' ? 'him' : 'them'} ${PLACES[n.place].at} ${when(c, n.slot)}.` : `${first(p)}: never put in the clear. Nobody else had told you where ${subj(p)} ${wasOf(p)}.`); }),
           state.caught.includes(c.culprit) ? el('li', null, `And you caught ${first(c.culprit)} in a lie.`) : null),
         el('h3', null, 'Where they really were'),
@@ -1487,8 +1545,9 @@ const Game = (() => {
       const c = makeCase(seed, opts.level || 2);
       const b = Book.read();
       state = { v: 1, c, rng: hash('the room', seed) || 1, mode: opts.mode === 'claude' ? 'claude' : 'demo', model: MODELS.includes(opts.model) ? opts.model : settings.model, daily: opts.daily || null,
-        left: c.budget, asked: 0, sel: HOST, log: [], notes: [], ver: {}, caught: [], marks: {}, talk: {}, thoughts: {}, history: {}, seen: {}, usage: { calls: 0, cost: 0, failed: 0 }, over: null, book: null };
+        left: c.budget, asked: 0, sel: HOST, log: [], notes: [], seenNotes: 0, ver: {}, caught: [], marks: {}, talk: {}, thoughts: {}, history: {}, seen: {}, usage: { calls: 0, cost: 0, failed: 0 }, over: null, book: null };
       for (const p of c.people) if (isObj(b.people[p]) && b.people[p].last) { state.history[p] = cleanText(b.people[p].last, 200); state.seen[p] = { n: b.people[p].n | 0, guilty: b.people[p].guilty | 0 }; }
+      UI.notesOpen = false;
       UI.show('game');
       UI.rebuildLog();
       sys(`${crimeOf(c).what} It happened around ${c.times[1]}. Found there: ${TRACES[c.q]}. Loretta has locked the doors and kept back ${names(c.people)}. You have ${c.budget} questions.`);
@@ -1497,9 +1556,10 @@ const Game = (() => {
       UI.briefing();
       return state;
     },
-    resume() { const s = App.saved(); if (!s) return false; state = s; busy = false; failNoted = false; UI.show('game'); UI.rebuildLog(); UI.render(); return true; },
+    resume() { const s = App.saved(); if (!s) return false; state = s; busy = false; failNoted = false; UI.notesOpen = false; UI.show('game'); UI.rebuildLog(); UI.render(); return true; },
     ask(text, meta) { return ask(text, meta || null, null); },
-    put(id) { const n = state && state.notes.find(x => noteId(x) === id); return n ? ask('', null, n) : Promise.resolve(); },
+    // (On a phone the notes step aside, so the answer is seen.)
+    put(id) { const n = state && state.notes.find(x => noteId(x) === id); if (!n) return Promise.resolve(); UI.notesOpen = false; return ask('', null, n); },
     accuse(id) { return accuse(id); },
     quit() { const d = $('#dlg'); if (d.open) d.close(); state = null; busy = false; UI.show('home'); UI.home(); },
     // Another case, set the way this one was (tonight's is followed by one as hard).
@@ -1542,7 +1602,8 @@ const Game = (() => {
       $('#btn-new').addEventListener('click', () => App.start({ level: Number($('#f-level [aria-pressed="true"]').dataset.v) }));
       $('#btn-share').addEventListener('click', () => App.share());
       $('#btn-continue').addEventListener('click', () => App.resume());
-      $('#btn-notes').addEventListener('click', () => { if (state) UI.notebook(); });
+      $('#btn-notes').addEventListener('click', () => { if (state) UI.openNotes(!UI.notesOpen); });
+      if (window.matchMedia) window.matchMedia('(min-width: 980px)').addEventListener('change', () => { if (state) UI.render(); });
       $('#btn-quit').addEventListener('click', () => { if (busy) return; if (!live()) { App.quit(); return; } UI.dialog('Leave the case?', el('p', null, 'It is kept: "Back to the case" on the first screen picks it up where you left it.'), [['Stay', null], ['Leave', () => App.quit(), 'primary']]); });
       const send = () => { const i = $('#say'); const t = i.value.trim(); if (!t || busy || !live() || state.left <= 0) return; i.value = ''; App.ask(t); };
       $('#btn-say').addEventListener('click', send);
