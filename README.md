@@ -2,14 +2,15 @@
 
 Three games live here, each one self-contained HTML file with no build step.
 
-- **`index.html`: Last Call** (the front page). A hidden-role table game of
-  lying and deduction at the Low Water, with Claude at every other seat. See
-  [Last Call](#last-call-indexhtml) below.
-- **`lockin.html`: Lock-In.** A detective game in the same bar with the same
-  fifty people: something has been done, one of them did it, and you
-  question them one at a time and name one. Open the file directly; Lock-In
-  links to Last Call, and nothing on the front page links to it yet. See
-  [Lock-In](#lock-in-lockinhtml) below.
+- **`index.html`: Lock-In** (the front page; the owner: "make lock-in the
+  front page"). A detective game at the Low Water: something has been done,
+  one of the people Loretta kept back did it, and you question them one at
+  a time, with Claude playing each of them, and name one. See
+  [Lock-In](#lock-in-indexhtml) below.
+- **`lastcall.html`: Last Call** (the front page before it). A hidden-role
+  table game of lying and deduction in the same bar with the same fifty
+  people, with Claude at every other seat. Lock-In's first screen links to
+  it. See [Last Call](#last-call-lastcallhtml) below.
 - **`town.html`: the one-town text RPG** (Lockett's Ferry). It is kept here,
   whole and tested, but hidden for now: nothing on the front page links to
   it. Open the file directly to play it. Everything from the next heading
@@ -1914,9 +1915,9 @@ node tests/guide-doc.cjs --check  # exits 1 when it is out of date or an example
 
 A game already in progress keeps the town it started with.
 
-## Last Call (`index.html`)
+## Last Call (`lastcall.html`)
 
-The front page: a hidden-role game of lying and deduction at one table, the
+A hidden-role game of lying and deduction at one table, the
 doors shut for the night. The other seats have the names and faces of the
 town game's adults and nothing else of it. Some of the people shut in are
 **Traitors**; the rest are **Faithful**. Each night the Traitors murder one
@@ -2166,10 +2167,10 @@ are this game's own.
   to the end** (played by the script at once, with no calls). A table you
   leave is kept: **Continue** on the first screen picks it up.
 
-## Lock-In (`lockin.html`)
+## Lock-In (`index.html`)
 
-A detective game at the Low Water, built on Last Call's foundation (the
-owner, of Last Call: "how can I make it playable and entertaining, not just
+The front page. A detective game at the Low Water, built on Last Call's
+foundation (the owner, of Last Call: "how can I make it playable and entertaining, not just
 play it once, cool, then nah"; then "what about using that foundation to
 make a different game"; then "Okay let's do the interrogation"). Something
 has been done in the bar. Loretta has locked the doors and kept a few people
@@ -2352,7 +2353,7 @@ fails it with a message saying so; the CI checkout fetches it all).
 - `wave22-appointments`, `wave25-arrivals` and `wave26-objectives` for
   meetings kept, narrated arrivals and the Objectives tab (main's own wave
   26, built alongside the relationship branch's);
-- `lockin` for Lock-In (`lockin.html`): the page alone with the network
+- `lockin` for Lock-In (`index.html`): the page alone with the network
   shut, three hundred cases with one guilty person who can never be put in
   the clear and innocents who always can, the shortest way through replayed
   through the buttons for three stars, a notes-only player closing every
@@ -2363,7 +2364,7 @@ fails it with a message saying so; the CI checkout fetches it all).
   has been in the chair before, what the scripted room makes of a typed
   question, the Claude path against a stand-in API, phone widths, and no
   `innerHTML` and one `fetch`.
-- `lastcall` for Last Call (`index.html`): the deal and the wild cards, the
+- `lastcall` for Last Call (`lastcall.html`): the deal and the wild cards, the
   rules, a whole scripted game with the host and the reveal, last words, the
   Fool and the Hothead, the Traitors' table (the deal and the words every
   seat is given, the mission and the Shield, recruiting from either side,

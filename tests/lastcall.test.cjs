@@ -1,5 +1,5 @@
 'use strict';
-/* Last Call (index.html, the front page): the hidden-role game at the Low
+/* Last Call (lastcall.html; it was the front page until Lock-In was): the hidden-role game at the Low
    Water (the owner: "i always wanted a game like traitors or werewolf, but
    people are so ding dongs sometimes if playing online. A game powered by
    claude? I'm in"; then "let's start with table only for now, but make it
@@ -37,7 +37,7 @@ const path = require('path');
 const assert = require('assert/strict');
 const { suite, overflowReport, LAPTOP, PHONE } = require('./helpers.cjs');
 
-const FILE = path.resolve(__dirname, '..', 'index.html');
+const FILE = path.resolve(__dirname, '..', 'lastcall.html');
 const URL = 'file://' + FILE;
 const s = suite('lastcall');
 const open = (h, opts) => h.open(Object.assign({ url: URL, consent: false, viewport: PHONE, contextOptions: { reducedMotion: 'reduce' } }, opts || {}));

@@ -1,5 +1,6 @@
 'use strict';
-/* Lock-In (lockin.html): the detective game at the Low Water (the owner,
+/* Lock-In (index.html, the front page: the owner, "make lock-in the front
+   page"): the detective game at the Low Water (the owner,
    of Last Call: "how can I make it playable and entertaining, not just
    play it once, cool, then nah"; then "what about using that foundation to
    make a different game"; then "Okay let's do the interrogation"). The
@@ -27,7 +28,7 @@ const path = require('path');
 const assert = require('assert/strict');
 const { suite, overflowReport, PHONE } = require('./helpers.cjs');
 
-const FILE = path.resolve(__dirname, '..', 'lockin.html');
+const FILE = path.resolve(__dirname, '..', 'index.html');
 const URL = 'file://' + FILE;
 const s = suite('lockin');
 const open = (h, opts) => h.open(Object.assign({ url: URL, consent: false, viewport: PHONE, contextOptions: { reducedMotion: 'reduce' } }, opts || {}));
@@ -677,7 +678,7 @@ s.test('one self-contained file: no innerHTML, no markup from strings, one fetch
   assert.match(html, /connect-src https:\/\/api\.anthropic\.com;/, 'and the page\'s policy allows no other host');
   assert.doesNotMatch(html, /temperature|top_p|top_k|tool_choice|budget_tokens/, 'nothing the API refuses is sent');
   // The people and their faces are Last Call's own, word for word: the two pages draw the same fifty.
-  const other = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
+  const other = fs.readFileSync(path.resolve(__dirname, '..', 'lastcall.html'), 'utf8');
   const cast = t => /<script type="application\/json" id="cast">(.*)<\/script>/.exec(t)[1];
   assert.equal(cast(html), cast(other));
 });
