@@ -21,7 +21,9 @@
    makes of a typed question; the Claude path against a stand-in API (the
    request's shape, what each person is and is not told, what goes in the
    notebook, a lie given up only with proof, a failed call falling back to
-   the script); phone widths; no innerHTML and one fetch.
+   the script; a key Anthropic refuses, or none: which key was sent, a new
+   one taken in place, the question asked again and nothing spent); phone
+   widths; no innerHTML and one fetch.
    Run with: node tests/run.cjs lockin */
 const fs = require('fs');
 const path = require('path');
@@ -51,6 +53,7 @@ function standIn(bodies, opts) {
     if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
     const body = JSON.parse(req.postData());
     bodies.push({ body, headers: req.headers() });
+    if (opts && opts.badKey && req.headers()['x-api-key'] === opts.badKey) return route.fulfill({ status: 401, headers: Object.assign({ 'content-type': 'application/json' }, cors), body: JSON.stringify({ type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } }) });
     if (opts && opts.fail) return route.fulfill({ status: 500, headers: Object.assign({ 'content-type': 'application/json' }, cors), body: JSON.stringify({ type: 'error', error: { type: 'api_error', message: 'the stand-in is down' } }) });
     const user = body.messages[0].content.map(c => c.text).join('\n');
     const need = body.output_config.format.schema.required;
@@ -507,7 +510,7 @@ s.test('with Claude: one call for one person, told their own account and nobody 
   assert.deepEqual(g.notes, [`a|${honest}|1|0`], 'only what is theirs to tell is noted, by its id');
   assert.deepEqual(g.caught, [], 'and saying "cracked" with no lie to give up changes nothing');
   assert.equal((await logText(page)).filter(l => l.startsWith(honest)).pop(), `${honest}: At the bar. "That is all."`, 'the reply is shown without its stage directions');
-  assert.match(await page.textContent('#cost'), /^claude-sonnet-5-5 · 1 call · \$0\.00[0-9]$/);
+  assert.match(await page.textContent('#cost'), /^claude-sonnet-5-5 · 1 call · \$0\.00[0-9] · key …test$/, 'and the line under the box says which key');
   // The liar: told their lie, the truth and why; holds while there is no proof, whatever the model says.
   reply = () => ({ say: 'Fine, you have me.', told: [], cracked: true });
   await page.click(`#strip .who[data-id="${liar}"]`);
@@ -587,7 +590,91 @@ s.test('with Claude, something put to a liar that proves the lie: they are told 
   assert.equal(g.notes.length, before + 1, 'the scripted answer is noted like any other');
   const log = await logText(page);
   assert.equal(log.filter(l => /^\[notice\] A call to Claude failed \(the stand-in is down\), so that answer came from the script\. The case goes on\.$/.test(l)).length, 1, 'said once');
-  assert.match(await page.textContent('#cost'), /· 2 from the script$/);
+  assert.match(await page.textContent('#cost'), /· 2 not answered by Claude · key …test$/);
+});
+
+s.test('a key Anthropic refuses is never answered for by the script: the page says which key it sent and where it had it from, takes another in place, and asks the question again with nothing spent', async h => {
+  // (The owner, with a key that worked and a case the script was answering: "why no claude call?", "IT'S THE SAME KEY i gave you so it should be working". This browser had kept an older one, and nothing said so.)
+  const bodies = [];
+  const page = await open(h, { route: standIn(bodies, { badKey: 'sk-ant-old-one-7777', reply: () => ({ say: 'Here is who I had.', told: ['a1'] }) }) });
+  await page.evaluate(() => { window.localStorage.setItem('novatria.apiKey', 'sk-ant-old-one-7777'); Game.App.speed = 0; Game.UI.home(); });
+  // The first screen says whose key it is before a case is opened.
+  await page.click('#home-set summary');
+  await page.click('#f-mode [data-v="claude"]');
+  assert.equal(await page.textContent('#who-note'), 'Claude plays them, with the key ending …7777 (remembered on this device). Change it under “Who plays them”.');
+  assert.equal(await page.getAttribute('#f-key', 'placeholder'), 'Using the key ending …7777 (type here to use another)');
+  await page.click('#btn-new');
+  await page.click('dialog .btn.primary');
+  const c = (await st(page)).c;
+  await page.click('#chips .chip >> nth=0');
+  await page.waitForSelector('#key-ask');
+  let g = await st(page);
+  assert.equal(await page.textContent('#dlg-title'), 'The API key was refused');
+  assert.match(await page.textContent('#key-ask'), /Anthropic refused the key this page sent \(“invalid x-api-key”\)\. It was the key ending …7777 \(remembered on this device\)\./);
+  assert.deepEqual([g.left, g.asked, g.notes.length], [c.budget, 0, 0], 'nothing is spent and nothing is noted');
+  assert.equal(await page.$$eval('#log .say', els => els.length), 0, 'and nobody has answered: not Claude, and not the script in its place');
+  assert.equal(await page.isChecked('#dlg-keep'), true, 'a remembered key is replaced unless the player says not');
+  // Nothing typed is not a key.
+  await page.click('dialog .btn.primary');
+  assert.match(await page.textContent('#key-ask .err'), /Paste a key first\./);
+  // The right key: the same question is asked again, by Claude this time.
+  await page.fill('#dlg-key', '  sk-ant-new-one-1234 ');
+  await page.click('dialog .btn.primary');
+  await idle(page);
+  g = await st(page);
+  assert.deepEqual([g.left, g.asked, g.notes], [c.budget - 1, 1, ['a|npc_loretta|1|0']]);
+  assert.deepEqual(bodies.map(b => b.headers['x-api-key']), ['sk-ant-old-one-7777', 'sk-ant-new-one-1234'], 'the same question, sent again with the new key');
+  assert.equal((await logText(page)).filter(l => l.startsWith('npc_loretta')).pop(), 'npc_loretta: Here is who I had.');
+  assert.match(await page.textContent('#cost'), /· 1 call · .* · 1 not answered by Claude · key …1234$/);
+  assert.equal(await page.evaluate(() => window.localStorage.getItem('novatria.apiKey')), 'sk-ant-new-one-1234', 'remembered in place of the old one');
+  assert.equal((await logText(page)).filter(l => /^\[notice\]/.test(l)).length, 0);
+});
+
+s.test('a case played by Claude with no key on the page (a new tab, a key that was only ever typed): asked for before anything is spent; or the case is played from the script, knowingly', async h => {
+  const bodies = [];
+  const page = await open(h, { route: standIn(bodies, { reply: () => ({ say: 'Here is who I had.', told: ['a1'] }) }) });
+  await page.click('#home-set summary');
+  await page.click('#f-mode [data-v="claude"]');
+  assert.match(await page.textContent('#who-note'), /^Claude plays them, once there is a key/);
+  await page.fill('#f-key', 'sk-ant-typed-5555');
+  await page.evaluate(() => { Game.App.speed = 0; });
+  await page.click('#btn-new');
+  await page.click('dialog .btn.primary');
+  const c = (await st(page)).c;
+  assert.equal(await page.evaluate(() => window.sessionStorage.getItem('novatria.apiKey')), 'sk-ant-typed-5555', 'a typed key is kept for the tab');
+  assert.equal(await page.evaluate(() => window.localStorage.getItem('novatria.apiKey')), null, 'and not on the device unless asked');
+  // A reload in the same tab keeps it: the case goes on with Claude.
+  await page.reload();
+  await page.waitForFunction(() => window.Game && window.Game.App);
+  await page.evaluate(() => { Game.App.speed = 0; });
+  assert.equal(await page.textContent('#who-note'), 'Claude plays them, with the key ending …5555 (kept for this tab). Change it under “Who plays them”.');
+  await page.click('#btn-continue');
+  await page.click('#chips .chip >> nth=0');
+  await idle(page);
+  assert.equal(bodies.length, 1);
+  assert.equal(bodies[0].headers['x-api-key'], 'sk-ant-typed-5555');
+  // The tab's key gone (as in a new tab): the next question asks for one first.
+  await page.evaluate(() => { window.sessionStorage.removeItem('novatria.apiKey'); });
+  await page.reload();
+  await page.waitForFunction(() => window.Game && window.Game.App);
+  await page.evaluate(() => { Game.App.speed = 0; });
+  await page.click('#btn-continue');
+  assert.match(await page.textContent('#cost'), /· no key$/);
+  await page.click('#chips .chip >> nth=1');
+  await page.waitForSelector('#key-ask');
+  assert.equal(await page.textContent('#dlg-title'), 'No API key');
+  assert.equal((await st(page)).left, c.budget - 1, 'nothing spent');
+  assert.deepEqual(await overflowReport(page, 375), []);
+  const box = await page.evaluate(() => { const r = document.getElementById('dlg').getBoundingClientRect(); return [r.left, r.right, r.top, r.bottom]; });
+  assert.ok(box[0] >= 0 && box[1] <= 375 && box[2] >= 0 && box[3] <= 740, 'the ask fits a phone');
+  // Without one: this case from the script, by the player's own choice, and it says so.
+  await page.click('dialog .row .btn >> nth=0');
+  await idle(page);
+  const g = await st(page);
+  assert.equal(g.left, c.budget - 2);
+  assert.equal(await page.evaluate(() => Game.state.mode), 'demo');
+  assert.equal(await page.textContent('#cost'), 'Scripted: no key, no calls');
+  assert.equal(bodies.length, 1, 'no call was made');
 });
 
 s.test('from the first screen: Claude is asked for a key before a case opens, and with one the case opens with Claude; the choice is kept', async h => {
@@ -605,7 +692,7 @@ s.test('from the first screen: Claude is asked for a key before a case opens, an
   await page.click('#btn-new');
   const g = await page.evaluate(() => ({ mode: Game.state.mode, model: Game.state.model, level: Game.state.c.level, n: Game.state.c.people.length, budget: Game.state.c.budget }));
   assert.deepEqual(g, { mode: 'claude', model: 'claude-haiku-5-5', level: 3, n: 6, budget: 11 });
-  assert.doesNotMatch(await page.evaluate(() => JSON.stringify(window.localStorage)), /sk-ant-typed/, 'the key is never kept');
+  assert.doesNotMatch(await page.evaluate(() => JSON.stringify(window.localStorage)), /sk-ant-typed/, 'the key is not kept on the device unless the box is ticked');
   await page.reload();
   await page.waitForFunction(() => window.Game && window.Game.App);
   assert.deepEqual(await page.evaluate(() => [document.querySelector('#f-mode [aria-pressed="true"]').dataset.v, document.querySelector('#f-model').value, document.querySelector('#f-level [aria-pressed="true"]').dataset.v]), ['claude', 'claude-haiku-5-5', '3']);

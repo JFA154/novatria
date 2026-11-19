@@ -2283,6 +2283,23 @@ questions it could have taken).
   for the tab only. Without a key **the scripted room** answers, plainly:
   the whole case is there and the talk is not. The first screen starts with
   whichever it can, in one tap.
+- **Which key, and what happens when it is refused** (the owner, with a key
+  that worked and a case the script was answering: "why no claude call?",
+  "IT'S THE SAME KEY i gave you so it should be working". The key was good;
+  the page had sent another, one this browser had kept from before, and
+  nothing on the screen said which). The page sends the key typed on it,
+  else the one kept for the tab, else the one remembered on the device, and
+  it now **says which, by its last four characters**: on the first screen
+  ("Claude plays them, with the key ending …gAA (remembered on this
+  device)") and under the box in a case. A key typed is kept until the tab
+  is closed, so a reload does not lose it, and on the device only if
+  **Remember on this device** is ticked (the same place Last Call and the
+  town game read theirs). When Anthropic refuses the key, or there is none,
+  **the script no longer answers in Claude's place**: the question is taken
+  back, nothing is spent, and the page says what Anthropic said and which
+  key it was, and takes another there and then; or the case is played from
+  the script by the player's own choice. Any other failed call (the network,
+  a busy API) is still answered from the script, with a line saying so.
 - **A case left open is kept**: "Back to the case" on the first screen.
 
 **Tried with the live API** (19 November 2026: three cases on Claude Opus
@@ -2330,7 +2347,7 @@ from `file://`, with the network blocked. Playwright is preinstalled in the
 build environment. Elsewhere, install it outside this folder (as the CI
 workflow does) and point `NODE_PATH` at it, because
 `tests/constraints.test.cjs` checks there is no `package.json` here. There is
-nothing else to install. The whole run is about 870 tests and takes fifteen to
+nothing else to install. The whole run is about 872 tests and takes fifteen to
 twenty minutes. `tests/wave30-rel-people.test.cjs` builds its older save from
 commit `56e69f5`'s `index.html`, so it needs the git history (a shallow clone
 fails it with a message saying so; the CI checkout fetches it all).
@@ -2362,8 +2379,9 @@ fails it with a message saying so; the CI checkout fetches it all).
   beside the talk on a wide screen), proof moving a liar and a bluff not, the wrong one and a
   hunch, the questions running out and a case picked up after a reload, who
   has been in the chair before, what the scripted room makes of a typed
-  question, the Claude path against a stand-in API, phone widths, and no
-  `innerHTML` and one `fetch`.
+  question, the Claude path against a stand-in API, a refused key and a missing one
+  (which key was sent, another taken in place, nothing spent), phone widths,
+  and no `innerHTML` and one `fetch`.
 - `lastcall` for Last Call (`lastcall.html`): the deal and the wild cards, the
   rules, a whole scripted game with the host and the reveal, last words, the
   Fool and the Hothead, the Traitors' table (the deal and the words every

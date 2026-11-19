@@ -81,6 +81,8 @@ a { color: var(--accent); }
 .err { color: var(--danger); }
 .home details.card > summary { cursor: pointer; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; min-height: 28px; }
 .home details.card[open] > summary { margin-bottom: 12px; }
+.check { display: flex; align-items: center; gap: 8px; min-height: 32px; font-weight: 400; font-size: 14px; }
+.check input { width: 18px; height: 18px; flex: none; }
 .daily-title { margin: 0 0 4px; font: 600 22px/1.2 var(--read-font); }
 .stars { color: var(--accent); letter-spacing: .08em; white-space: nowrap; }
 .book p { margin: 0 0 6px; }
@@ -281,6 +283,7 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
         <p class="note" id="book-rank"></p>
         <p class="note" id="book-people"></p>
       </div>
+      <p class="note" id="who-note"></p>
       <details class="card" id="home-set">
         <summary>Who plays them</summary>
         <div class="field">
@@ -295,7 +298,8 @@ dialog .row { justify-content: flex-end; margin-top: 12px; }
           <div class="field">
             <label for="f-key">Anthropic API key</label>
             <input class="input" id="f-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
-            <span class="help" id="key-help">Sent only to api.anthropic.com from this page. Kept for this tab; the town game's remembered key is used if there is one.</span>
+            <label class="check"><input type="checkbox" id="f-keep"> Remember on this device</label>
+            <span class="help" id="key-help">Sent only to api.anthropic.com from this page. Unticked, it is kept until this tab is closed. Ticked, it stays in this browser, where the other pages of this site can read it (Last Call and the town game use the same one): tick it only on your own device.</span>
           </div>
           <div class="field">
             <label for="f-model">Model</label>
@@ -881,7 +885,25 @@ const Game = (() => {
   let state = null;
   let busy = false;
   const settings = { key: '', model: MODELS[0], mode: '' };
-  function apiKey() { return settings.key || session.get(TOWN_KEY) || store.get(TOWN_KEY) || ''; }
+  /* The key the page would send, and where it has it from (the owner, with
+     a key that worked and a case answered from the script: "why no claude
+     call?", "IT'S THE SAME KEY i gave you so it should be working". The
+     page was sending another: one this browser had kept from before, and
+     nothing on the screen said which). 'typed': given on this page since
+     it loaded. 'tab': kept for this tab. 'device': remembered in this
+     browser, by this game or the town game. Wherever a key is used or
+     refused, the screen says which one by its last four characters. */
+  function keyInfo() {
+    if (settings.key) return { key: settings.key, from: 'typed' };
+    const t = session.get(TOWN_KEY);
+    if (t) return { key: t, from: 'tab' };
+    const d = store.get(TOWN_KEY);
+    return d ? { key: d, from: 'device' } : { key: '', from: '' };
+  }
+  const apiKey = () => keyInfo().key;
+  const keyName = i => `the key ending …${i.key.slice(-4)} (${i.from === 'device' ? 'remembered on this device' : i.from === 'tab' ? 'kept for this tab' : 'the one you typed'})`;
+  // A key the player gives: used at once and kept for the tab (so a reload does not lose it), and on the device if they ask.
+  function setKey(k, remember) { settings.key = k; session.set(TOWN_KEY, k); if (remember) store.set(TOWN_KEY, k); }
   const live = () => !!state && !state.over;
   const verOf = (p, slot) => (state.ver[p] ? state.ver[p][slot] | 0 : 0);
   const lying = (p, slot) => p !== HOST && state.c.story[p][slot].lie && !verOf(p, slot);
@@ -1179,7 +1201,7 @@ const Game = (() => {
           const say = clip(r.say, 60);
           if (!say) throw Object.assign(new Error('an empty reply'), { type: 'bad_json' });
           return { say, told: (Array.isArray(r.told) ? r.told : []).map(x => cleanText(x, 40).replace(/^\[|\]$/g, '')), cracked: r.cracked === true, thinking: clip(r.aside, 30) };
-        } catch (e) { failed(e); }
+        } catch (e) { if (e && (e.type === 'auth' || e.type === 'no_key')) throw e; failed(e); }
       }
       return Bots.answer(p, text, meta, put, forced);
     },
@@ -1200,8 +1222,11 @@ const Game = (() => {
     if (busy || !live() || state.left <= 0) return;
     const c = state.c;
     const p = state.sel;
+    const again = () => ask(text, meta, put);
     text = cleanText(put ? `${noteText(c, put)} What do you say to that?` : text, 300);
     if (!text) return;
+    // (Claude was chosen and there is no key: asked for before anything is spent.)
+    if (useClaude() && !apiKey()) { UI.keyDialog(null, again); return; }
     busy = true;
     state.left -= 1;
     state.asked += 1;
@@ -1212,7 +1237,24 @@ const Game = (() => {
     UI.typing(p);
     const before = proofs(p);
     const forced = put && lying(p, put.slot) && conflicts(put, p, c.story[p][put.slot]) ? put.slot : null;
-    const [r] = await Promise.all([Seat.answer(p, text, meta || null, put || null, forced), nap(useClaude() ? 0 : 500)]);
+    let r;
+    try { [r] = await Promise.all([Seat.answer(p, text, meta || null, put || null, forced), nap(useClaude() ? 0 : 500)]); } catch (err) {
+      /* The key was refused. The script does not quietly answer in
+         Claude's place: the question is taken back, nothing is spent, and
+         the player is told which key was sent and asked for one that
+         works (or to play this case from the script, knowingly). */
+      if (!state || state.c !== c) { busy = false; return; }
+      state.usage.failed += 1;
+      state.left += 1;
+      state.asked -= 1;
+      state.log.pop();
+      busy = false;
+      UI.typing(null);
+      UI.rebuildLog();
+      UI.render();
+      UI.keyDialog(err, again);
+      return;
+    }
     if (!state || state.c !== c) { busy = false; return; }
     UI.typing(null);
     const slot = forced !== null ? forced : r.cracked && before.length ? (Number.isInteger(r.slot) && before.some(x => x.slot === r.slot) ? r.slot : before[0].slot) : null;
@@ -1388,7 +1430,7 @@ const Game = (() => {
       acts.replaceChildren(...(live() ? [el('button', { type: 'button', class: `btn ${state.left <= 0 ? 'primary' : 'danger'}`, id: 'btn-accuse', disabled: busy, onclick: () => UI.pickAccused() }, 'Name who did it')]
         : [el('button', { type: 'button', class: 'btn', id: 'btn-reveal', onclick: () => UI.reveal() }, 'What happened'), el('button', { type: 'button', class: 'btn primary', id: 'btn-next', onclick: () => App.next() }, 'Next case')]));
       const u = state.usage;
-      $('#cost').textContent = state.mode === 'claude' ? `${state.model} · ${u.calls} call${u.calls === 1 ? '' : 's'} · $${u.cost.toFixed(u.cost < 0.1 ? 3 : 2)}${u.failed ? ` · ${u.failed} from the script` : ''}` : 'Scripted: no key, no calls';
+      $('#cost').textContent = state.mode === 'claude' ? `${state.model} · ${u.calls} call${u.calls === 1 ? '' : 's'} · $${u.cost.toFixed(u.cost < 0.1 ? 3 : 2)}${u.failed ? ` · ${u.failed} not answered by Claude` : ''}${apiKey() ? ` · key …${apiKey().slice(-4)}` : ' · no key'}` : 'Scripted: no key, no calls';
     },
     dialog(title, body, buttons) {
       const d = $('#dlg');
@@ -1396,6 +1438,27 @@ const Game = (() => {
       if (!d.open) d.showModal();
       // (The title takes the focus: left to itself it goes to the scrolling body, which then wears a ring.)
       $('#dlg-title').focus({ preventScroll: true });
+    },
+    /* Claude cannot answer for want of a key that works: none on the page
+       (err null), or one Anthropic refused (err: what it said). Says which
+       key was sent and where the page had it from, takes another, and
+       then asks the question again (then). */
+    keyDialog(err, then, note) {
+      const info = keyInfo();
+      const kept = !!store.get(TOWN_KEY);
+      const input = el('input', { class: 'input', id: 'dlg-key', type: 'password', autocomplete: 'off', spellcheck: 'false', placeholder: 'sk-ant-…' });
+      const keep = el('input', { type: 'checkbox', id: 'dlg-keep' });
+      keep.checked = kept;
+      UI.dialog(err ? 'The API key was refused' : 'No API key', el('div', { id: 'key-ask' },
+        el('p', null, err ? `Anthropic refused the key this page sent (“${cleanText(err.message || 'refused', 120)}”). It was ${keyName(info)}. If that is not the key you meant, it is an older one this browser had kept: paste the right one below.`
+          : 'This case is played by Claude, and there is no API key on this page. Paste one below.'),
+        el('p', { class: 'note' }, 'Nothing was spent. Your question is asked again as soon as there is a key.'),
+        el('div', { class: 'field' }, el('label', { for: 'dlg-key' }, 'Anthropic API key'), input,
+          el('label', { class: 'check' }, keep, ` Remember on this device${kept ? ', in place of the one remembered now' : ''}`),
+          el('span', { class: 'help' }, 'Sent only to api.anthropic.com from this page. Unticked, it is kept until this tab is closed. Ticked, it stays in this browser, where the other pages of this site can read it: tick it only on your own device.')),
+        note ? el('p', { class: 'err', role: 'alert' }, note) : null),
+      [['Play this case from the script', () => { state.mode = 'demo'; save(); UI.render(); if (then) then(); }],
+        ['Use this key', () => { const k = input.value.trim(); if (!k || /\s/.test(k)) { UI.keyDialog(err, then, k ? 'That key has a space or a line break in it. Paste it again.' : 'Paste a key first.'); return; } setKey(k, keep.checked); UI.render(); if (then) then(); }, 'primary']]);
     },
     // What Loretta tells the player before they start, and at any time from the notebook.
     caseFacts() {
@@ -1534,10 +1597,13 @@ const Game = (() => {
         $('#book-people').textContent = known.length ? `In the chair most: ${known.map(id => `${first(id)} (${b.people[id].n}${b.people[id].guilty ? `, guilty ${b.people[id].guilty}` : ''})`).join(', ')}.` : '';
       }
       const mode = $('#f-mode [aria-pressed="true"]').dataset.v;
-      const townKey = !!(session.get(TOWN_KEY) || store.get(TOWN_KEY));
+      const info = keyInfo();
       $('#claude-fields').hidden = mode !== 'claude';
       $('#mode-help').textContent = mode === 'claude' ? 'Each of them is Claude, in that person\'s voice, knowing only what they know and what they have decided to tell you.' : 'No key and no calls: they answer from a script, plainly. The whole case is there; the talk is not. Add a key to have Claude play them.';
-      $('#f-key').placeholder = townKey ? 'Using the town game\'s key (type here to use another)' : 'sk-ant-…';
+      $('#f-key').placeholder = info.key ? `Using the key ending …${info.key.slice(-4)} (type here to use another)` : 'sk-ant-…';
+      $('#who-note').textContent = mode !== 'claude' ? 'The scripted room is answering: no key, no calls. Add a key under “Who plays them” to have Claude play them.'
+        : info.key ? `Claude plays them, with ${keyName(info)}. Change it under “Who plays them”.` : 'Claude plays them, once there is a key: paste one under “Who plays them”.';
+      if (!$('#f-key').value) $('#f-keep').checked = !!store.get(TOWN_KEY);
     }
   };
 
@@ -1580,7 +1646,7 @@ const Game = (() => {
     start(opts) {
       const mode = $('#f-mode [aria-pressed="true"]').dataset.v;
       const typed = $('#f-key').value.trim();
-      if (typed) settings.key = typed;
+      if (typed) { setKey(typed, $('#f-keep').checked); $('#f-key').value = ''; }
       const err = $('#home-err');
       const bad = mode === 'claude' && !apiKey() ? 'Paste an Anthropic API key under "Who plays them" to play with Claude, or pick Scripted.' : mode === 'claude' && /\s/.test(apiKey()) ? 'That key has a space or a line break in it. Paste it again.' : '';
       err.hidden = !bad;
