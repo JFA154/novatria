@@ -1,10 +1,15 @@
 # Novatria
 
-Two games live here, each one self-contained HTML file with no build step.
+Three games live here, each one self-contained HTML file with no build step.
 
 - **`index.html`: Last Call** (the front page). A hidden-role table game of
   lying and deduction at the Low Water, with Claude at every other seat. See
   [Last Call](#last-call-indexhtml) below.
+- **`lockin.html`: Lock-In.** A detective game in the same bar with the same
+  fifty people: something has been done, one of them did it, and you
+  question them one at a time and name one. Open the file directly; Lock-In
+  links to Last Call, and nothing on the front page links to it yet. See
+  [Lock-In](#lock-in-lockinhtml) below.
 - **`town.html`: the one-town text RPG** (Lockett's Ferry). It is kept here,
   whole and tested, but hidden for now: nothing on the front page links to
   it. Open the file directly to play it. Everything from the next heading
@@ -2161,6 +2166,119 @@ are this game's own.
   to the end** (played by the script at once, with no calls). A table you
   leave is kept: **Continue** on the first screen picks it up.
 
+## Lock-In (`lockin.html`)
+
+A detective game at the Low Water, built on Last Call's foundation (the
+owner, of Last Call: "how can I make it playable and entertaining, not just
+play it once, cool, then nah"; then "what about using that foundation to
+make a different game"; then "Okay let's do the interrogation"). Something
+has been done in the bar. Loretta has locked the doors and kept a few people
+back. **One of them did it, alone.** You question them one at a time, and
+then you name one.
+
+What it keeps of Last Call: the fifty people by name and face, each one
+Claude call told only what that person knows; the scripted room when there
+is no key or a call fails; the code owning every fact. What it changes, on
+purpose, is everything that made Last Call a game to play once: a case is
+about ten minutes and ten to twenty calls, you are the one acting the whole
+time, nobody can put you out of it, and the result is yours (whether you
+were right, whether you proved it, and how close you came to the fewest
+questions it could have taken).
+
+- **The case.** One of eight things done (the cash box, the ledger, the good
+  bourbon, the kegs, the card pot, Loretta's truck, the walk-in, the skiff),
+  each in its own place. Loretta tells you what, where and when, and what was
+  found there: something off one of the other places (duckweed from the
+  deck, fryer grease from the kitchen, a chip from the back room, clay from
+  the lot), so whoever did it had been **there in the half hour before**.
+- **The room.** Four, five or six of the fifty, drawn for the case, and
+  Loretta, who was behind the bar all night and saw the bar and nothing
+  else. Tap a face to sit that person down.
+- **The rules they talk by** (the briefing says them, and "How it plays"):
+  - Whoever did it lies to you.
+  - The others may lie about **themselves**: people have business of their
+    own. Only the guilty one lies about anybody else.
+  - So a person is **in the clear** once somebody else puts them away from
+    it: with them when it happened, or somewhere other than the trace's
+    place in the half hour before. Either the one saying so is honest, or
+    they are the one.
+  - Somebody seen heading for where it happened is a lead, not proof.
+- **Asking.** Type anything, or tap a question: where were you at the time,
+  and before; did you see anyone near it; tell me about one of the others.
+  They answer one thing at a time, and **every question is one off your
+  count** (one for each of them and four more; five more at the hardest).
+  When the count is gone you can only name one.
+- **The notebook** keeps, in its own plain words, what each of them has told
+  you, who has put whom where, and what is said about each. It does no
+  reasoning for you: Suspect and In the clear are marks of your own.
+- **Putting it to them.** When two accounts do not fit, open the notebook
+  and put one to the other (one question). A liar gives the lie up only when
+  the notebook holds a **true account that proves it**: put to them
+  outright, the code makes them; said in your own words, the person decides
+  whether that was what you meant. A bluff does nothing. An innocent liar
+  then tells the truth, and names who they were really with, which is often
+  the only thing that puts that other person in the clear. The guilty one
+  only changes the story, to somewhere alone that nobody can check.
+- **What an innocent person hides.** At the middle level one of them says
+  they were somewhere else (off the drink and at the bar, quit the cards and
+  at the card table, and so on). At the hardest, two of them were off
+  together and have both said otherwise (a debt paid quietly, a job offered,
+  a sale with no paperwork, Loretta's birthday): each can only be cleared by
+  the other owning up.
+- **What the guilty one says**, one of four: somewhere others really were
+  (and none of them saw it), somewhere empty with a named person who was
+  really elsewhere, somewhere empty alone, or that and a finger pointed at
+  an innocent. Sometimes they also lie about the half hour before.
+- **Naming one.** Once. **Wrong**: no stars, and the guilty one has a word
+  for you on the way out. **Right, on a hunch**: one star. **Airtight**
+  (every other person in the clear by your notebook): two. **Three** for
+  airtight within a question or two of the fewest it could have taken.
+- **The reveal**: who and why, what your notebook proved of each of the
+  others and what it never did, where everyone really was beside what they
+  said, what else was being hidden, **the shortest way through** question by
+  question, and what each of them was privately thinking.
+- **Tonight's case** is the same for everybody, once a day, from the date:
+  a long night in the week, the hardest at the weekend. When it is closed
+  the first screen shows how it went, with a line to copy and send, and the
+  next is tomorrow.
+- **The casebook**, kept in this browser: cases, right, airtight, the run,
+  stars and what they have made you (from "A regular who asks questions" to
+  "The Low Water's own"), and everyone who has been in the chair, how often,
+  and how often it was them. A person's sheet says so the next time, and
+  with Claude that person is told what happened the last time ("you had done
+  nothing, and they named you anyway").
+- **How hard** (under "Another case"): **Open and shut** (four in the room,
+  one liar), **A long night** (five, and one innocent liar), **Nobody's
+  talking** (six, and two covering for each other).
+- **Every case can be closed.** A case is dealt from its seed until the
+  fewest questions that leave nobody but the guilty one is inside the
+  level's range (two or three, three or four, four or five); that shortest
+  way is found by a search over what could be in the notebook, and is what
+  the reveal shows. The suite also plays a player who knows only the
+  notebook and asks methodically: such a player closes every case, always
+  inside the count at the first level and about nine times in ten at the
+  other two (measured over two hundred cases a level: 200, 188 and 179).
+- **Who plays them**: with an Anthropic API key, Claude, one call an answer.
+  A person is told who they are, how they talk and how they take being
+  questioned (a manner that is the same every night and is never a tell),
+  the case, **their own account and nobody else's** (what is true, what they
+  have decided to say instead and why), what they would say about the
+  others, their own questioning so far, and what the detective holds that
+  would catch them out. The reply says which items it told, by id, and the
+  notebook is written by the code from those, never from the prose. The key
+  the town game remembers is used if there is one; a key typed here is kept
+  for the tab only. Without a key **the scripted room** answers, plainly:
+  the whole case is there and the talk is not. The first screen starts with
+  whichever it can, in one tap.
+- **A case left open is kept**: "Back to the case" on the first screen.
+
+**Not yet tried with the live API.** The suite drives the Claude path
+against a stand-in (the request, what each person is and is not told, what
+goes in the notebook, a lie given up only with proof, a failed call falling
+back), with no key to hand when it was written. How well real replies keep
+to "one thing at a time" and list what they told is the first thing to look
+at in a real case.
+
 ## Running the tests
 
 ```
@@ -2177,7 +2295,7 @@ from `file://`, with the network blocked. Playwright is preinstalled in the
 build environment. Elsewhere, install it outside this folder (as the CI
 workflow does) and point `NODE_PATH` at it, because
 `tests/constraints.test.cjs` checks there is no `package.json` here. There is
-nothing else to install. The whole run is about 854 tests and takes fifteen to
+nothing else to install. The whole run is about 869 tests and takes fifteen to
 twenty minutes. `tests/wave30-rel-people.test.cjs` builds its older save from
 commit `56e69f5`'s `index.html`, so it needs the git history (a shallow clone
 fails it with a message saying so; the CI checkout fetches it all).
@@ -2200,6 +2318,16 @@ fails it with a message saying so; the CI checkout fetches it all).
 - `wave22-appointments`, `wave25-arrivals` and `wave26-objectives` for
   meetings kept, narrated arrivals and the Objectives tab (main's own wave
   26, built alongside the relationship branch's);
+- `lockin` for Lock-In (`lockin.html`): the page alone with the network
+  shut, three hundred cases with one guilty person who can never be put in
+  the clear and innocents who always can, the shortest way through replayed
+  through the buttons for three stars, a notebook-only player closing every
+  case, tonight's case on a phone from the briefing to the casebook and the
+  line to copy, proof moving a liar and a bluff not, the wrong one and a
+  hunch, the questions running out and a case picked up after a reload, who
+  has been in the chair before, what the scripted room makes of a typed
+  question, the Claude path against a stand-in API, phone widths, and no
+  `innerHTML` and one `fetch`.
 - `lastcall` for Last Call (`index.html`): the deal and the wild cards, the
   rules, a whole scripted game with the host and the reveal, last words, the
   Fool and the Hothead, the Traitors' table (the deal and the words every
