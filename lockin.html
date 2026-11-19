@@ -168,7 +168,7 @@ a { color: var(--accent); }
 .cost { color: var(--faint); font-size: 11px; line-height: 1.2; text-align: center; }
 dialog { width: min(560px, calc(100vw - 24px)); max-width: none; max-height: calc(100dvh - 24px); padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); }
 dialog::backdrop { background: rgba(0, 0, 0, .55); }
-dialog h2 { margin: 0 0 8px; font: 600 24px/1.2 var(--read-font); }
+dialog h2 { margin: 0 0 8px; font: 600 24px/1.2 var(--read-font); outline: none; }
 dialog h3 { margin: 14px 0 4px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 dialog p { margin: 0 0 10px; }
 dialog ul, dialog ol { margin: 0 0 10px; padding: 0 0 0 20px; }
@@ -1357,8 +1357,10 @@ const Game = (() => {
     },
     dialog(title, body, buttons) {
       const d = $('#dlg');
-      d.replaceChildren(el('h2', { id: 'dlg-title' }, title), body, el('div', { class: 'row' }, buttons.map(([label, fn, cls]) => el('button', { type: 'button', class: `btn ${cls || ''}`, onclick: () => { d.close(); if (fn) fn(); } }, label))));
+      d.replaceChildren(el('h2', { id: 'dlg-title', tabindex: '-1' }, title), body, el('div', { class: 'row' }, buttons.map(([label, fn, cls]) => el('button', { type: 'button', class: `btn ${cls || ''}`, onclick: () => { d.close(); if (fn) fn(); } }, label))));
       if (!d.open) d.showModal();
+      // (The title takes the focus: left to itself it goes to the scrolling body, which then wears a ring.)
+      $('#dlg-title').focus({ preventScroll: true });
     },
     // What Loretta tells the player before they start, and at any time from the notebook.
     caseFacts() {
