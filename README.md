@@ -2284,12 +2284,33 @@ questions it could have taken).
   whichever it can, in one tap.
 - **A case left open is kept**: "Back to the case" on the first screen.
 
-**Not yet tried with the live API.** The suite drives the Claude path
-against a stand-in (the request, what each person is and is not told, what
-goes in the notes, a lie given up only with proof, a failed call falling
-back), with no key to hand when it was written. How well real replies keep
-to "one thing at a time" and list what they told is the first thing to look
-at in a real case.
+**Tried with the live API** (19 November 2026: three cases on Claude Opus
+5.5, one on Sonnet 5.5, a first answer each on Fable 5.2 and Haiku 5.5).
+What it showed:
+
+- **A model asked what it is "thinking" is refused.** The line each person
+  privately has was first a field called `thinking` ("what your person is
+  really thinking ... the detective does not see it"). On Opus 5.5 every
+  such call came back with nothing written: `stop_reason: "refusal"`,
+  category `reasoning_extraction`. Sonnet answered it. It is now asked for
+  as an **aside**, a line the character mutters, and all four models answer.
+  A refused call is answered by the script like any failed one, so the case
+  would have gone on; it would only never have been Claude.
+- **"Walk me through your whole night" got both times in one answer**, which
+  is two questions for the price of one. The rule is now put harder (one
+  time to an answer, never two; ask for the other separately), and they
+  keep to it.
+- **The guilty one's last word made up a reason of its own.** Each of them
+  is now told what is said of them around town, and the guilty one that it
+  is why.
+- The rest held as built: what a reply says it told matches what it said;
+  a bluff moves nobody; the proof, in the player's own words ("That is not
+  what Burl tells me"), does; put from the notes, it always does; the
+  guilty one changes the story and never confesses; a case is eight to ten
+  calls and four or five cents on Opus 5.5, about two seconds an answer.
+
+`ANTHROPIC_API_KEY=… node tests/probe-lockin.cjs [model] [seed]` plays that
+live case again and says what held (not part of `run.cjs`).
 
 ## Running the tests
 
@@ -2300,6 +2321,7 @@ TEST_FILTER='\[4\]' node tests/acceptance.test.cjs     # tests whose title match
 PLAYTEST_TRANSCRIPT=1 node tests/playtest.test.cjs     # print the 30-turn playtest's story
 UI_SHOTS=/some/folder node tests/ui-fixes.test.cjs     # keep the screenshots the UI suite takes there
 ANTHROPIC_API_KEY=… node tests/probe-grammar.cjs       # the live grammar probe (needs a key; not part of run.cjs)
+ANTHROPIC_API_KEY=… node tests/probe-lockin.cjs        # a live case of Lock-In (needs a key; not part of run.cjs)
 ```
 
 The tests drive the game in headless Chromium with Playwright, in mock mode,

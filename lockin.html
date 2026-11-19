@@ -607,6 +607,8 @@ const Game = (() => {
     store: { name: 'the storeroom', at: 'in the storeroom' },
     office: { name: 'the office', at: 'in the office' }
   };
+  // What the guilty one says they were doing there, alone, once their first story has gone.
+  const EXCUSE = { bar: 'having a quiet drink', back: 'watching the cards', kitchen: 'looking for something to eat', deck: 'getting some air', lot: 'getting some air' };
   // Where people pass an evening. (The storeroom and the office are only ever where it happened.)
   const HANG = ['bar', 'back', 'kitchen', 'deck', 'lot'];
   // The half hour before, and when it happened.
@@ -916,9 +918,15 @@ const Game = (() => {
     state.usage.calls += 1;
     state.usage.cost += (inp * pr[0] + (u.output_tokens | 0) * pr[1]) / 1e6;
   }
+  /* (The aside was first a field called "thinking", asked for as "what your
+     person is really thinking ... the detective does not see it". The live
+     API refused every such call on Opus 5.5 before a word was written
+     (stop_reason "refusal", category "reasoning_extraction"): it reads as
+     an attempt to get at the model's own reasoning. Asked for as a line of
+     the character's, it is answered.) */
   const SCHEMAS = {
-    answer: { type: 'object', additionalProperties: false, required: ['say', 'told', 'cracked', 'thinking'],
-      properties: { say: { type: 'string' }, told: { type: 'array', items: { type: 'string' } }, cracked: { type: 'boolean' }, thinking: { type: 'string' } } },
+    answer: { type: 'object', additionalProperties: false, required: ['say', 'told', 'cracked', 'aside'],
+      properties: { say: { type: 'string' }, told: { type: 'array', items: { type: 'string' } }, cracked: { type: 'boolean' }, aside: { type: 'string' } } },
     last: { type: 'object', additionalProperties: false, required: ['say'], properties: { say: { type: 'string' } } }
   };
   /* What each person is told. A person's call has the game's rules of
@@ -932,7 +940,8 @@ const Game = (() => {
         '',
         'How you answer:',
         '- One to three short spoken sentences, forty words at most. Plain speech, in your person\'s manner. No narration, no stage directions, no asterisks, and no quotation marks round your reply.',
-        '- Answer what was asked, and stop. One thing at a time: asked about more than one time of the evening at once, answer for the time the thing happened and say you will take the rest one at a time. Do not volunteer what you were not asked.',
+        '- Answer what was asked, and stop. Do not volunteer what you were not asked.',
+        '- One time of the evening to an answer, never two. Asked about your whole night, or about both times at once, give only the time the thing happened, and tell the detective to ask you about the other time separately. Do not say where you were at the other time in that answer, even briefly.',
         '- When you say where you were at a time, say all of it: the place, and everyone who was there with you, by first name, or that you were on your own. The detective is taking notes and needs the names.',
         '- The only facts you have about where anyone was are the ones in YOUR ACCOUNT. Never invent a place, a time, a person or a sighting, and never guess where someone else was. Asked for something that is not there, say you do not know or did not see. You may have opinions about people; say them as opinions.',
         '- Some items are marked as a lie you are telling. Tell it as if it were true, and keep to it however hard you are pushed. A bluff with nothing behind it ("I know you are lying") does not move you.',
@@ -943,7 +952,7 @@ const Game = (() => {
         '- "say": what you say.',
         '- "told": the ids (in square brackets in YOUR ACCOUNT) of every item whose substance your reply gave the detective. An empty list if none.',
         '- "cracked": true only as above.',
-        '- "thinking": one short private line, what your person is really thinking as they answer. The detective does not see it until the case is closed.'].join('\n');
+        '- "aside": an aside, as in a play: one short line this character mutters under their breath as they answer, in their own voice. It is fiction for the player, who is shown it when the case is closed.'].join('\n');
     },
     // An account in the second person, for the one whose account it is.
     you(c, p, a) {
@@ -967,7 +976,7 @@ const Game = (() => {
         else if (!verOf(p, slot)) {
           const truth = p === c.culprit && slot === 1 ? `you were ${PLACES[c.scene].at}, alone, doing it` : Prompts.you(c, p, told(c, p, slot, 1));
           out.push(`${id} ${capFirst(T)} you SAY ${Prompts.you(c, p, now)}. THIS IS A LIE. The truth, which you keep to yourself: ${truth}.${p === c.culprit ? '' : ` Why you lie: ${Prompts.why(c, p)}`}`);
-        } else if (p === c.culprit && slot === 1) out.push(`${id} ${capFirst(T)} you NOW SAY ${Prompts.you(c, p, now)}, getting some air. (You were caught out in your first story and have changed it. This one is a lie too, but nobody can disprove it: keep to it.)`);
+        } else if (p === c.culprit && slot === 1) out.push(`${id} ${capFirst(T)} you NOW SAY ${Prompts.you(c, p, now)}, ${EXCUSE[now.place]}. (You were caught out in your first story and have changed it. This one is a lie too, but nobody can disprove it: keep to it.)`);
         else out.push(`${id} ${capFirst(T)}: ${Prompts.you(c, p, now)}. (True. You lied about this at first and have owned up${p === c.culprit ? '; you say it proves nothing.' : `, saying: "${Prompts.why(c, p)}"`})`);
       }
       if (c.point && c.point.by === p) out.push(c.point.real ? `[p] Around ${c.times[1]} you saw ${first(c.point.about)} heading for ${PLACES[c.scene].name}. (True. You did not see what they did there.)`
@@ -989,6 +998,8 @@ const Game = (() => {
         `TONIGHT: ${crime.what} It happened around ${c.times[1]}. Found there: ${TRACES[c.q]}, so whoever did it had been ${PLACES[c.q].at} around ${c.times[0]}.`,
         `The people Loretta has kept back: ${c.people.map(x => castOf(x).name).join(', ')}.`,
         p === HOST ? 'You are Loretta: it was done to you. You were behind the bar all night and saw only the bar. You do not lie to the detective.' : p === c.culprit ? `YOU DID IT: you ${crime.did}. Nobody saw you. You never confess.` : 'You did not do it, and you do not know who did.',
+        // (What the others say of them, so that they answer to it the same way, and the guilty one's reason is the case's own.)
+        p === HOST ? null : `What is said of you around town, and it is true: ${c.motive[p]}${p === c.culprit ? ' That is why you did it.' : ' It is not something you would do this over.'}`,
         '',
         'YOUR ACCOUNT',
         Prompts.account(p)].filter(x => x !== null).join('\n');
@@ -1000,7 +1011,7 @@ const Game = (() => {
       const c = state.c;
       const talk = state.talk[p] || [];
       const pr = proofs(p);
-      const admit = slot => `say that ${Prompts.you(c, p, told(c, p, slot, 1))}${p === c.culprit ? (slot === 1 ? ', getting some air, and that it is no crime' : ', and that it proves nothing') : `, and why you lied ("${Prompts.why(c, p)}")`}`;
+      const admit = slot => `say that ${Prompts.you(c, p, told(c, p, slot, 1))}${p === c.culprit ? (slot === 1 ? `, ${EXCUSE[c.fallback]}, and that it is no crime` : ', and that it proves nothing') : `, and why you lied ("${Prompts.why(c, p)}")`}`;
       const caught = forced !== null ? `The detective has just put proof to you that you were not where you said ${when(c, forced)}. Give it up now: ${admit(forced)}. List [a${forced}] in "told" and set "cracked" to true.`
         : pr.length ? pr.map(x => `About ${when(c, x.slot).replace(/^(at|around) /, '')}: the detective has been told, "${noteText(c, x.note)}" If the detective puts that to you, or says they know from ${first(x.note.by)} that you were not where you said, give it up: ${admit(x.slot)}. Then list [a${x.slot}] in "told" and set "cracked" to true.`).join('\n')
           : 'Nothing. The detective cannot prove any lie of yours: keep to your account.';
@@ -1107,7 +1118,7 @@ const Game = (() => {
       const c = state.c;
       const a = told(c, p, slot, 1);
       const was = c.story[p][slot];
-      if (p === c.culprit) return slot === 1 ? `Fine. I was not ${PLACES[was.place].at}. I was ${PLACES[a.place].at}, on my own, getting some air. That is not a crime.` : `All right. I was ${PLACES[a.place].at} for a while${a.with.length ? `, with ${names(a.with)}` : ''}. That proves nothing.`;
+      if (p === c.culprit) return slot === 1 ? `Fine. I was not ${PLACES[was.place].at}. I was ${PLACES[a.place].at}, on my own, ${EXCUSE[a.place]}. That is not a crime.` : `All right. I was ${PLACES[a.place].at} for a while${a.with.length ? `, with ${names(a.with)}` : ''}. That proves nothing.`;
       return `All right. I was not ${PLACES[was.place].at}. I was ${PLACES[a.place].at}${a.with.length ? ` with ${names(a.with)}` : ''}. ${Prompts.why(c, p)}`;
     },
     think(p) {
@@ -1167,7 +1178,7 @@ const Game = (() => {
           const r = await callClaude(p, 'answer', Prompts.turn(p, text, put, forced));
           const say = clip(r.say, 60);
           if (!say) throw Object.assign(new Error('an empty reply'), { type: 'bad_json' });
-          return { say, told: (Array.isArray(r.told) ? r.told : []).map(x => cleanText(x, 40).replace(/^\[|\]$/g, '')), cracked: r.cracked === true, thinking: clip(r.thinking, 30) };
+          return { say, told: (Array.isArray(r.told) ? r.told : []).map(x => cleanText(x, 40).replace(/^\[|\]$/g, '')), cracked: r.cracked === true, thinking: clip(r.aside, 30) };
         } catch (e) { failed(e); }
       }
       return Bots.answer(p, text, meta, put, forced);

@@ -53,7 +53,7 @@ function standIn(bodies, opts) {
     if (opts && opts.fail) return route.fulfill({ status: 500, headers: Object.assign({ 'content-type': 'application/json' }, cors), body: JSON.stringify({ type: 'error', error: { type: 'api_error', message: 'the stand-in is down' } }) });
     const user = body.messages[0].content.map(c => c.text).join('\n');
     const need = body.output_config.format.schema.required;
-    const out = need.length === 1 ? { say: 'Well. There it is.' } : Object.assign({ say: 'I was where I said I was.', told: [], cracked: false, thinking: 'Let this be over.' }, opts && opts.reply ? opts.reply(user, body) : {});
+    const out = need.length === 1 ? { say: 'Well. There it is.' } : Object.assign({ say: 'I was where I said I was.', told: [], cracked: false, aside: 'Let this be over.' }, opts && opts.reply ? opts.reply(user, body) : {});
     return route.fulfill({ status: 200, headers: Object.assign({ 'content-type': 'application/json' }, cors), body: JSON.stringify({ id: 'msg_x', type: 'message', role: 'assistant', model: body.model, stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(out) }], usage: { input_tokens: 1000, output_tokens: 100, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } }) });
   };
 }
@@ -360,7 +360,7 @@ s.test('proof moves a liar and a bluff does not: said in the player\'s own words
     return null;
   });
   assert.deepEqual({ caught: guilty.caught, alone: guilty.alone, isTrue: guilty.isTrue, cleared: guilty.cleared }, { caught: true, alone: true, isTrue: false, cleared: false });
-  assert.match(guilty.text, /^Fine\. I was not .* on my own, getting some air\. That is not a crime\.$/);
+  assert.match(guilty.text, /^Fine\. I was not .* on my own, (getting some air|looking for something to eat|watching the cards)\. That is not a crime\.$/);
 });
 
 s.test('the wrong one, and a hunch: no stars and the run broken for naming an innocent one, one star for the right one unproved, and each has something to say', async h => {
@@ -479,7 +479,7 @@ s.test('with Claude: one call for one person, told their own account and nobody 
   const liar = c.people.find(p => p !== c.culprit && c.story[p][1].lie);
   const honest = c.people.find(p => p !== c.culprit && !c.story[p][1].lie);
   // An honest person, asked where they were: the request, and what they are told.
-  reply = () => ({ say: 'At the bar. *shrugs* "That is all."', told: ['[a1]', 'a9', 'p'], cracked: true, thinking: 'Why me.' });
+  reply = () => ({ say: 'At the bar. *shrugs* "That is all."', told: ['[a1]', 'a9', 'p'], cracked: true, aside: 'Why me.' });
   await page.click(`#strip .who[data-id="${honest}"]`);
   await page.fill('#say', 'Where were you when it happened?');
   await page.click('#btn-say');
@@ -491,7 +491,9 @@ s.test('with Claude: one call for one person, told their own account and nobody 
   assert.equal(headers['anthropic-version'], '2026-10-21');
   assert.equal(headers['anthropic-dangerous-direct-browser-access'], 'true');
   assert.deepEqual(body.system[0].cache_control, { type: 'ephemeral' });
-  assert.deepEqual(body.output_config.format.schema.required, ['say', 'told', 'cracked', 'thinking']);
+  assert.deepEqual(body.output_config.format.schema.required, ['say', 'told', 'cracked', 'aside']);
+  // (The live API refuses a call that asks a model what it is "thinking": the line each of them mutters is asked for as an aside.)
+  assert.doesNotMatch(body.system[0].text + JSON.stringify(body.output_config), /thinking/i);
   assert.equal(body.output_config.format.schema.additionalProperties, false);
   assert.deepEqual(Object.keys(body).sort(), ['max_tokens', 'messages', 'model', 'output_config', 'system']);
   let user = body.messages[0].content.map(x => x.text).join('\n');
@@ -520,7 +522,7 @@ s.test('with Claude: one call for one person, told their own account and nobody 
   reply = user => (/behind the bar/.test(user) ? { say: 'Here is who I had.', told: ['a1'] } : { say: 'I was with them.', told: ['a1'] });
   await page.evaluate(async liar => { const R = Game.Rules, g = Game.state, c = g.c; const find = () => g.notes.find(n => R.conflicts(n, liar, c.story[liar][1])); for (const p of [Game.HOST].concat(c.people)) { if (find()) break; if (p === liar || p === c.culprit) continue; g.sel = p; await Game.App.ask('Where were you at the time?'); } g.sel = liar; Game.UI.render(); }, liar);
   bodies.length = 0;
-  reply = () => ({ say: 'All right. I was somewhere else.', told: [], cracked: true, thinking: 'There it goes.' });
+  reply = () => ({ say: 'All right. I was somewhere else.', told: [], cracked: true, aside: 'There it goes.' });
   await page.fill('#say', 'They tell me you were not there.');
   await page.click('#btn-say');
   await idle(page);
@@ -539,6 +541,8 @@ s.test('with Claude: one call for one person, told their own account and nobody 
   await idle(page);
   user = bodies[0].body.messages[0].content.map(x => x.text).join('\n');
   assert.match(user, /YOU DID IT: you .*\. Nobody saw you\. You never confess\./);
+  assert.match(user, /What is said of you around town, and it is true: .* That is why you did it\./, 'the reason is the case\'s own');
+  assert.match(bodies[0].body.system[0].text, /One time of the evening to an answer, never two\./);
   assert.match(user, /The truth, which you keep to yourself: you were .*, alone, doing it\./);
   bodies.length = 0;
   await page.evaluate(id => Game.App.accuse(id), c.culprit);
