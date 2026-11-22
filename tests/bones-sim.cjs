@@ -22,7 +22,8 @@
    The room reads you back (sharp people use the shape of your bids once a shape has
    become a tell), measured with two more proxies, both Mathy plus deliberate bluffs on
    PM_SHARE of its bids when a lie is there to tell:
-     Predictable  tells every lie the same way: a step of one on the last bid's face.
+     Predictable  tells every lie the same way: a step of one on the last bid's face
+                  (and never raises that way when it holds the dice).
      Mixer        picks the shape of each lie at random (open, same count higher face,
                   a step, a jump; stay on the face or switch).
    Their table win rates are measured with a warm Book (WARM nights of their own play
@@ -125,7 +126,7 @@ const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 
 const SIXES = ['loaded', 'slowroll', 'palm'], HOLD_JUMP = 0.75, SNAKE_K = 0, DBL_AT = 0.12, DBL_TELL_AT = 0.25;
 const BLUFF_SHARE = 0.5; // the Bluffer's share of deliberate bluffs
-const PM_SHARE = 0.3, WARM = 3; // the Predictable's and the Mixer's share of deliberate bluffs; nights of warm Book
+const PM_SHARE = 0.4, WARM = 6; // the Predictable's and the Mixer's share of deliberate bluffs; nights of warm Book
 // The shape of a bid after prev, as the engine scores it (open low/high, face/step/jump, stay/switch).
 const shapeKey = (prev, q, f) => !prev ? 'open' : (q - prev.q <= 0 ? 'face' : q - prev.q === 1 ? 'step' : 'jump') + '/' + (f === prev.f ? 'stay' : 'switch');
 const ORDER = ['shaved', 'barmirror', 'extrabone', 'lastword', 'double', 'rabbit', 'honest', 'mirror', 'housemoney', 'loaded', 'hothand', 'close', 'cornered', 'nod', 'sticky', 'palm', 'snake', 'sidebet', 'slowroll', 'pokerface', 'tab', 'friends', 'glasses', 'ledger'];
@@ -285,21 +286,24 @@ function makeProxy(opts) {
       const bluffNow = (S.rng >>> 0) % 100 < bluffPct;
       // Compare: when the bid in front is likelier false than its best raise is true, call.
       if (cmp && b && pick && 1 - believe(S, v, know) > countR(pick.q, pick.f) + cmp) return { t: 'liar' };
-      // The Predictable keeps its lie's shape for its lies: an honest raise that would be a step of one on the last
-      // bid's face is made another way (the likeliest other raise it believes as much, or near).
-      if (pick && b && opts.bluffShape === 'fixed' && shapeKey(b, pick.q, pick.f) === 'step/stay') {
-        let alt = null;
-        for (let q = L.minBid.q; q <= Math.min(L.maxQ, b.q + 2); q++) for (const f of L.faces) {
-          if (!E.isLegalBid(S, q, f) || shapeKey(b, q, f) === 'step/stay') continue;
-          const c = E.count(S, q, f);
-          if (c >= Math.min(likeP, E.count(S, pick.q, pick.f) - 0.1) && (!alt || c > alt.c)) alt = { q, f, c };
-        }
-        if (alt) pick = alt;
-      }
+      // The Predictable keeps its lie's shape for its lies (and its forced raises too).
+      if (pick && b && opts.bluffShape === 'fixed' && shapeKey(b, pick.q, pick.f) === 'step/stay') pick = honestAlt(pick);
       if (pick && !bluffNow) return { t: 'bid', q: pick.q, f: pick.f };
-      if (L.mustBid || bluffNow || (b && believe(S, v, know) >= 0.5)) return { t: 'bid', q: L.minBid.q, f: L.minBid.f };
+      if (L.mustBid || bluffNow || (b && believe(S, v, know) >= 0.5)) return { t: 'bid', q: (opts.bluffShape === 'fixed' && b ? honestAlt(L.minBid) : L.minBid).q, f: (opts.bluffShape === 'fixed' && b ? honestAlt(L.minBid) : L.minBid).f };
     }
     return { t: 'liar' };
+    // The Predictable's honest raise that would look like its lie, made another way: the likeliest other raise it
+    // believes as much (or nearly).
+    function honestAlt(pick) {
+      if (shapeKey(b, pick.q, pick.f) !== 'step/stay') return pick;
+      let alt = null;
+      for (let q = L.minBid.q; q <= Math.min(L.maxQ, b.q + 2); q++) for (const f of L.faces) {
+        if (!E.isLegalBid(S, q, f) || shapeKey(b, q, f) === 'step/stay') continue;
+        const c = E.count(S, q, f);
+        if (c >= Math.min(likeP, E.count(S, pick.q, pick.f) - 0.1) && (!alt || c > alt.c)) alt = { q, f, c };
+      }
+      return alt || pick;
+    }
   };
 }
 

@@ -13,7 +13,10 @@
    and its tips about the people kept off their seats at 390x780 and 360x640;
    phone widths in both themes, and nothing clipped at 390x640; the table's layout
    measured from 320x568 up with the most tricks, the longest names and every moment
-   (nothing overlaps, the felt holds its content, the controls stay put).
+   (nothing overlaps, the felt holds its content, the controls stay put); and the room reading you
+   back: a predictable night through the buttons read at a reveal in plain words, the tip once, the
+   Book's page on you and the end-of-night line, Poker Face hiding it, and the read line in the layout
+   matrix from 320x568 to 430x932.
    Run with: node tests/run.cjs bones.test   (or node tests/bones.test.cjs) */
 const fs = require('fs');
 const path = require('path');
@@ -510,7 +513,7 @@ s.test('the back room: an offer that goes with a trick you hold says so; so do y
   }
 });
 
-s.test('a night saved before the trick rework resumes from Continue and plays on to the end', async h => {
+s.test('a night saved before the trick rework (and before the room read you back) resumes from Continue and plays on to the end', async h => {
   const fx = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'fixtures', 'bones-night-v1.json'), 'utf8')).saves;
   for (const k of ['turn', 'ready', 'shop']) {
     const page = await open(h);
@@ -523,6 +526,8 @@ s.test('a night saved before the trick rework resumes from Continue and plays on
     assert.equal(await page.evaluate(() => Game.UI.Screens.cur), k === 'shop' ? 'shop' : 'table');
     assert.deepEqual(await page.evaluate(CHECK), []);
     assert.equal(await playOut(page, { check: true }), 'over');
+    // Saved before the room read you back: it ends with a word on how they read you all the same.
+    assert.equal(await page.textContent('#tell-line'), await page.evaluate(() => Game.Engine.summary(Game.App.state).tell.text));
   }
 });
 
@@ -1164,6 +1169,123 @@ s.test('the coach after a finished practice hand skips what it taught (your dice
   assert.equal(await p2.getAttribute('#coach', 'data-tip'), 'dice');
 });
 
+// ===================================================================== they read you back
+/* The predictable style: a step of one on the last bid's face whenever that is a bluff the Count puts at 20% to 40%;
+   otherwise as STEP plays (basicPolicy). PRED_STEP is STEP with that one change, through the same buttons. */
+const PRED = (S, v, L, E) => {
+  if (L.need === 'turn' && v.table.bid && L.canBid) {
+    const b = v.table.bid, q = b.q + 1, f = b.f;
+    if (E.isLegalBid(S, q, f)) { const x = E.count(S, q, f); if (x < 0.4 && x >= 0.2) return { t: 'bid', q, f }; }
+  }
+  return E.basicPolicy(S, v, L, E);
+};
+const PRED_STEP = async () => {
+  const A = Game.App, E = Game.Engine, q = sel => document.querySelector(sel);
+  await A.idle();
+  const S = A.state;
+  if (!S || Game.UI.after || S.phase !== 'table' || E.legal(S).need !== 'turn') return null;
+  const v = E.view(S), L = E.legal(S), b = v.table.bid;
+  if (!b || !L.canBid || !E.isLegalBid(S, b.q + 1, b.f)) return null;
+  const x = E.count(S, b.q + 1, b.f);
+  if (x >= 0.4 || x < 0.2) return null;
+  const must = sel => { const n = q(sel); if (!n || n.disabled || n.offsetParent === null) throw new Error('no button ' + sel); n.click(); };
+  must(`.facebtn[data-f="${b.f}"]`);
+  for (let g = 0; g < 40 && +q('#q-val').textContent !== b.q + 1; g++) must(+q('#q-val').textContent < b.q + 1 ? '#q-plus' : '#q-minus');
+  must('#btn-bid');
+  await A.idle();
+  return 'pred';
+};
+/* In Node: a Book of three nights of the predictable style, and the first seed after it where a read is said at a reveal. */
+function predictableNight() {
+  const E = engineInNode();
+  const pred = new Function('return ' + PRED.toString())();
+  let book = null;
+  for (let i = 0; i < 3; i++) { const r = E.playNight('predbook:' + i, pred, { keepEvents: true, book }); book = E.bookApply(book, r.events); }
+  for (let k = 0; k < 200; k++) {
+    const r = E.playNight('predread:' + k, pred, { keepEvents: true, book });
+    if (r.events.some(e => e.t === 'readout' && e.reads)) return { E, book, seed: 'predread:' + k, S: r.S, events: r.events };
+  }
+  throw new Error('no predictable night was read');
+}
+
+s.test('they read you back: a predictable night through the buttons is read, the reveal says so in plain words, the tip explains once, and it lands in the Book and the end screen', async h => {
+  const P = predictableNight();
+  const page = await open(h);
+  const tipsSeen = ['dice', 'bid', 'count', 'turn', 'habit', 'spot', 'booktally', 'bluffhabit'];
+  await page.evaluate(o => { localStorage.setItem('novatria.bones.settings', JSON.stringify({ v: 1, played: true, tipsDone: false, tipsSeen: o.tipsSeen })); localStorage.setItem('novatria.bones.book', JSON.stringify({ v: o.v, book: o.book })); }, { tipsSeen, v: P.E.VERSION, book: P.book });
+  await page.reload();
+  await page.waitForFunction(() => window.Game && Game.App);
+  // What they know about you, before the night: the habit is already on record.
+  await page.click('#btn-book');
+  assert.match(await page.textContent('#book-you-line'), /^They can read you: you (stay on the last bid’s face|step up by one) when you’ve got nothing\.$/);
+  await page.click('#btn-you');
+  const dlg = await page.textContent('#dlg');
+  assert.match(dlg, /What they know about you/); assert.match(dlg, /A tell: you (stay on the last bid’s face|step up by one) when you’ve got nothing\./);
+  assert.ok(await page.$$eval('#dlg .hrow[data-tell]', ns => ns.length) >= 1);
+  assert.equal(await page.$$eval('#dlg .hrow', ns => ns.length), 7, 'every shape listed');
+  await page.keyboard.press('Escape');
+  await startNight(page, { seed: P.seed });
+  const lines = [], tips = [];
+  for (let i = 0; i < 6000; i++) {
+    const r = await page.evaluate(() => { const l = document.querySelector('#read-line'), c = document.querySelector('#coach'); const out = { line: l && l.offsetParent !== null ? l.textContent : null, tip: c && !c.hidden ? [c.dataset.tip, c.querySelector('p').textContent] : null, seq: Game.UI.TV.revealSeq }; if (out.tip) document.querySelector('#btn-tip-ok').click(); return out; });
+    if (r.line && !lines.some(l => l.seq === r.seq)) lines.push(r);
+    if (r.tip) tips.push(r.tip);
+    const did = await page.evaluate(PRED_STEP);
+    const ph = did ? 'pred' : await page.evaluate(STEP);
+    assert.deepEqual(await page.evaluate(CHECK), [], `after step ${i}`);
+    if (ph === 'over' || ph === 'none') break;
+  }
+  // The page played the same night the engine did.
+  assert.equal(await page.evaluate(() => Game.App.state.ending), P.S.ending);
+  assert.equal(await page.evaluate(() => Game.App.state.cash), P.S.cash);
+  const said = P.events.filter(e => e.t === 'readout' && e.reads).map(e => e.reads.map(r => r.text).join(' '));
+  assert.ok(lines.length >= 1, 'a read line showed');
+  lines.forEach(l => { assert.match(l.line, /^Read: [A-Z][a-z]+ (had you read: |thought (he|she) had you read \(|let your bid stand: |had you read and let your bid stand: )you /, l.line); assert.ok(said.includes(l.line.replace(/^Read: /, '')), l.line); });
+  // The tip came once, the first time.
+  const readTips = tips.filter(t => t[0] === 'read');
+  assert.equal(readTips.length, 1, JSON.stringify(tips));
+  assert.equal(readTips[0][1], 'Sharp players watch how you raise when you bluff. Mix it up; your Book shows what they know about you.');
+  assert.ok(readTips[0][1].split(/\s+/).length <= 20);
+  // The end of the night: what your tell was, and who read it.
+  assert.equal(await page.evaluate(() => Game.UI.Screens.cur), 'over');
+  const tl = await page.textContent('#tell-line');
+  assert.equal(tl, P.E.summary(P.S).tell.text);
+  assert.match(tl, /^Your tell tonight: you .+ when you’ve got nothing\. .+ read it \((once|twice|\w+ times)\)\.$/);
+  assert.ok(await page.$('#tell-line[data-read]'));
+  // Pearl's column (no key: her templated one) says who had the visitor's number.
+  assert.match(await page.textContent('#col-body'), /had the visitor's number: the visitor .+ when bluffing\./);
+  // And the Book keeps it for the next night.
+  await page.click('#btn-home');
+  await page.click('#btn-book');
+  assert.match(await page.textContent('#book-you-line'), /^They can read you: /);
+});
+
+s.test('the Book on you at the table, Poker Face hiding the tell, and nobody reading a plain night', async h => {
+  const page = await open(h);
+  await startNight(page, { seed: 'bookyou' });
+  await playOut(page, { until: () => { const v = Game.App.view(); return v.phase === 'table' && v.table.wait === 'next'; } });
+  await page.click('#btn-bookside');
+  assert.ok(await page.isVisible('#bookside-you'));
+  const want = await page.evaluate(() => Game.Engine.youPage(Game.Book.data, Game.App.state).text);
+  assert.match(await page.textContent('#bookside-you'), new RegExp(want.replace(/[()]/g, '\\$&')));
+  assert.equal(await page.$$eval('#bookside-you .hrow', ns => ns.length), 7);
+  await page.click('#btn-bookside');
+  // A plain night by the Count: the end says nobody got a read (or the tell nobody used), as the engine does.
+  await playOut(page);
+  assert.equal(await page.textContent('#tell-line'), await page.evaluate(() => Game.Engine.summary(Game.App.state).tell.text));
+  // Poker Face: no shapes kept, no read line, and the end says so.
+  await startNight(page, { seed: 'pf-night', tricks: ['pokerface'] });
+  await page.evaluate(() => { Game.App.state.you.prior = { all: { n: 40, b: 8 }, step: { n: 14, b: 11 }, stay: { n: 10, b: 9 } }; });
+  let shown = 0;
+  for (let i = 0; i < 4000; i++) {
+    if (await page.$('#read-line')) shown++;
+    const ph = await page.evaluate(STEP);
+    if (ph === 'over' || ph === 'none') break;
+  }
+  assert.equal(shown, 0);
+  assert.equal(await page.textContent('#tell-line'), 'Poker Face: nobody got a read on you tonight.');
+});
+
 // ===================================================================== the table's layout, by measurement
 /* A table set as asked, after startNight (the tricks): o = { opps (2|3), rule, long (the longest names and habit
    lines in the cast), moment: 'turn' (a bid on the table, a habit under every opponent) | 'open' | 'theirs' (an
@@ -1199,6 +1321,12 @@ const TABLE_SCENE = async o => {
   if (o.moment === 'theirs') { const st = Game.UI.TV.seats[n - 1]; st.setTurn(true); st.thinking(); }
   if (o.nod) { await A.act({ t: 'use', id: 'nod' }); await A.idle(); }
   if (o.moment === 'reveal') { await A.act({ t: 'liar' }); await A.idle(); }
+  // A read said at that reveal (the longest the game says), as the engine would put it in the round's readout.
+  if (o.read && A.state.table && A.state.table.last) {
+    const T = A.state.table;
+    T.last.readout.reads = o.read.map(text => ({ who: 1, id: T.seats[1].id, name: '', shape: 'stay', dir: 'bluff', kind: 'call', right: true, text }));
+    Game.UI.Table.showReadout(Game.App.view().table);
+  }
   if (o.coach) { const St = Game.UI.Settings, C = Game.UI.Coach; St.tipsDone = false; St.tipsSeen = []; St.lesson = null; C.on = true; C.queue = []; C.hide(); C.want(o.coach); }
   // Two frames: a habit line or a bubble that changed size is fitted on the next frame.
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -1237,7 +1365,7 @@ const TABLE_LAYOUT = () => {
   // The controls: on screen, nothing over them, and the sheet / stamps aside, inside the viewport.
   qa('#actions button, #actions .live').forEach(n => { if (!vis(n)) return; const r = R(n); if (r.top < -0.5 || r.bottom > H + 0.5 || r.left < -0.5 || r.right > W + 0.5) bad.push(`${n.id || nm(n)} off screen`); });
   // 3. Nothing clipped by its own box (the chip row scrolls sideways by design; ellipsis lines are marked).
-  const clipSel = ['#felt', '#seats', '.seat', '.seat-name', '.seat-ledger', '.tray', '.bubble', '#bid', '.bid-main', '.bid-word', '.bid-line', '#countbar .lbl', '#bookline', '#infoline', '#mycup', '.cupdice', '.cupcap', '#actions', '.calls', '.call', '.faces', '.bidrow', '.live .what', '.live .pct', '.bar', '.bar .btn', '.sidebet', '.trick', '.sheet', '.had-row', '.coach', '.felt-tags', '.ruletag', '.anteTag'];
+  const clipSel = ['#felt', '#seats', '.seat', '.seat-name', '.seat-ledger', '.tray', '.bubble', '#bid', '.bid-main', '.bid-word', '.bid-line', '#countbar .lbl', '#bookline', '#infoline', '#mycup', '.cupdice', '.cupcap', '#actions', '.calls', '.call', '.faces', '.bidrow', '.live .what', '.live .pct', '.bar', '.bar .btn', '.sidebet', '.trick', '.sheet', '.had-row', '.readline', '.coach', '.felt-tags', '.ruletag', '.anteTag'];
   // (a transparent hit area drawn past a small button's edge, the house rule's tag, is not content: left out here)
   const nohit = document.head.appendChild(Object.assign(document.createElement('style'), { textContent: '.ruletag::before { display: none !important; }' }));
   clipSel.forEach(sel => qa(sel).forEach(n => {
@@ -1262,9 +1390,12 @@ const TABLE_LAYOUT = () => {
   const scrolls = up ? up.scrollHeight > up.clientHeight + 1 : false;
   if (scrolls) { const U = R(up); ['#mycup .cupdice .die', '#countbar'].forEach(sel => qa(sel).forEach(n => { if (vis(n) && !inside(R(n), U, 0.5)) bad.push(`${sel} scrolled out of view`); })); }
   const coach = q('#coach'); if (vis(coach)) { const c = R(coach); if (c.top < -0.5 || c.bottom > H + 0.5) bad.push('coach off screen'); }
+  // A tip never covers the read line it talks about.
+  const rl = q('#read-line'); if (vis(coach) && vis(rl) && meet(R(coach), seen(rl))) bad.push('the coach covers the read line');
   const sheet = q('.sheet'); if (vis(sheet)) { const c = R(sheet); if (c.top < -0.5 || c.bottom > H + 0.5) bad.push('sheet off screen'); }
   return { bad: [...new Set(bad)], scrolls, fit: q('#table').dataset.fit || '-' };
 };
+const LONG_READ = ['Annette had you read and let your bid stand: you only raise the face and not the count when you’ve got it. This time you had nothing.', 'Darlene thought she had you read (you stay on the last bid’s face when you’ve got nothing) and called. Not this time.'];
 const NAMED = { ids: ['npc_nadine', 'npc_royce'], habits: ['pushes her reading glasses up into her curls', 'laughs to fill the silence'] };
 const INFO5 = ['ledger', 'mirror', 'barmirror', 'glasses', 'nod'];
 const LAYOUT_CELLS = [
@@ -1289,6 +1420,12 @@ for (const vp of [[320, 568], [360, 640]]) {
     { vp, tricks: INFO5, o: { opps: 3, rule: 'double', moment: 'reveal', long: true } },
     { vp, tricks: ['ledger', 'mirror'], o: { opps: 2, moment: 'turn', long: true, coach: 'turn' } },
     { vp, tricks: ['ledger', 'mirror'], o: { opps: 3, moment: 'turn', long: true, coach: 'habit' } });
+}
+// They read you back: the read line on the reveal, and its tip, from the smallest phone to the largest.
+for (const vp of [[320, 568], [360, 640], [390, 780], [430, 932]]) {
+  LAYOUT_CELLS.push(
+    { vp, tricks: INFO5, o: { opps: 3, rule: 'double', moment: 'reveal', long: true, read: LONG_READ } },
+    { vp, tricks: ['ledger', 'mirror'], o: { opps: 2, moment: 'reveal', long: true, read: LONG_READ.slice(0, 1), coach: 'read' } });
 }
 
 s.test('the table never overlaps itself: with any tricks, names and moment, from 320x568 up, both themes, measured; the felt holds what it holds and the controls stay put', async h => {

@@ -2352,7 +2352,7 @@ code owns every die, rule and dollar; there is nothing for Claude to decide.
   Midnight) offer two tables each: **the near table** (cheaper, softer, three
   seats) and **the big table** (twice the buy-in, tougher people, four seats
   from 10 PM and usually a house rule). Buy-ins near/big are 20/40, 40/80,
-  80/160 and 160/320. Cups hold four dice at 9 and 10 PM and five from 11 PM.
+  80/160 and 160/320. Cups hold four dice at every hour (five at Last Call).
   On a first night "Sit down" deals you straight into the 9 PM near table and
   the choice first appears at 10 PM.
 - **Money at a table.** The ante is 15% of the buy-in (doubled under Double
@@ -2404,8 +2404,9 @@ code owns every die, rule and dollar; there is nothing for Claude to decide.
     extra ante for every 1 under your cup.
   - *Poker Face* (uncommon, manner): the people always take you for an
     honest player, however often they catch you bluffing, tonight or on
-    nights before. They call your bids less and believe them more: it pays
-    a bluffer.
+    nights before, and nobody reads how you bid (no notes on the shape of
+    your bids, no read of you; see below). They call your bids less and
+    believe them more: it pays a bluffer.
   - *Double or Nothing* (rare, manner): twice a table, make a Liar call for
     two dice: right and the bidder loses 2, wrong and you lose only 1
     (doubled under Sudden). The choice is which calls to spend it on: the
@@ -2454,6 +2455,40 @@ code owns every die, rule and dollar; there is nothing for Claude to decide.
   Book is kept across nights, so a regular's tell gets easier to read the
   more you play them. The people keep a Book too: they remember how often
   you bluff, this table and a little of the nights before.
+- **They read you back.** Every bid you make has a shape anyone at the
+  table can see without seeing a die: an opener is *low* or *high* (at
+  most, or more than, the dice an average table holds of a face); a raise
+  is the *same count on a higher face*, a *step of one* or a *jump* of two
+  or more, and *stays* on the last bid's face or *switches*. At every
+  reveal your bids that round are scored bluff or straight (the same 40%
+  line) under each of their shapes. A shape becomes a **tell** once six of
+  your bids have it and its share of bluffs sits 25 points or more off
+  your usual (either way: "steps up by one when you've got nothing", or
+  "only jumps when you've got it"). Only the sharp use it: tiers 1 and 2
+  never read you, tier 3 by half, tiers 4 and 5 and the house fully. Facing
+  a bid of yours whose shape is a tell, a reader moves its estimate of your
+  bluffing by the tell's gap, weighted by how many bids are behind it, and
+  its call line with it; it uses only what anyone at the table saw and
+  what the cups showed, never your dice, and its randomness is the
+  engine's. At the Midnight big table the sharp one sits on your left,
+  where your bids go first. When a read changed a decision the way it
+  points (a bluff tell made them call Liar, an honest one made them let
+  your bid stand, where they would have done otherwise without it; the engine
+  takes the same decision again without the read, on the same dice and
+  draws), the reveal says so in the bar's words, once per shape a table:
+  "Vada had you read: you step up by one when you've got nothing." The first
+  time, a coach tip explains it (on any night, unless the tips are off).
+  The Book has a page on you, **What they know about you** (a card on the
+  Book screen, "Your page", and a block beside the table's Book): every
+  shape with its tally ("Raising by one 27×: 13 bluffs") and the ones that
+  have become tells marked in red, with what to do about it. The end of the
+  night says what your tell was and who read it ("Your tell tonight: you
+  stay on the last bid's face when you've got nothing. Elbert read it
+  (twice).") or that nobody got a read on you, and so does Pearl's column.
+  The room remembers: the Book keeps your tally by shape, faded to three
+  quarters every night, and a night starts with three quarters of it (at
+  most 60 bids' worth), so a habit carried from night to night keeps
+  costing until you change it, and one you drop fades in a few nights.
 
 The rest of the page:
 
@@ -2477,6 +2512,10 @@ The rest of the page:
   night has been played) "Sit down" is the first button again, and the
   hand can be replayed from How it works and from the table's menu. Its end
   offers "Sit down for real" (a normal first night) or Back.
+- **The rules** (the table menu) say the whole game in the plain words of
+  How it works: the cups (four dice, five at Last Call), a bid, your turn,
+  Liar and Spot on, the money, the table, the house rules, the night, Last
+  Call (no antes, dice tricks asleep) and the room reading you back.
 - **Tonight's tables** are the same for everybody, from the date. The first
   finish of the day is kept, with a line to copy and send ("Bones ·
   2026-11-21 · beat the house · $2,340 · ..."); replays do not count.
@@ -2556,7 +2595,8 @@ draws the events, and exposes `window.Game` (`Game.App`, `Game.UI`).
 progress, dropped when `Engine.VERSION` changes; a night saved before the
 trick rework resumes and plays on under the new rules: a Palm already used
 that table stays used, and a loaded six counts twice from the next roll),
-`novatria.bones.book`,
+`novatria.bones.book` (which also keeps your bids by shape, for the room to
+remember; a Book or a night saved before that has none and carries on),
 `novatria.bones.ledger` and `novatria.bones.settings` (which also notes
 whether the practice hand was done or skipped). The API key is
 `novatria.apiKey`, shared with the other games, and is written there only
@@ -2570,7 +2610,9 @@ With no theme of its own Bones follows the town game's (`novatria.settings`).
   of a house rule is 0 at 9 PM, then 25% at the near table and 75% at the
   big one. The people's tiers by seat: 9 PM near 1, 1 and big 1, 2; 10 PM
   near 1, 2 and big 1, 2, 2; 11 PM near 1, 2 and big 1, 2, 3 or 4;
-  Midnight near 2, 2 and big 1 or 2, 2, 3 or 4. Tiers across the fifty:
+  Midnight near 2, 2 and big 3 or 4, 2, 1 or 2 (the first seat is on your
+  left and answers your bids: at the Midnight big table the sharp one sits
+  there, to read you back). Tiers across the fifty:
   14, 16, 12, 7 and 1 (Loretta is the only tier 5; Curtis is tier 4).
 - A bid is a **bluff** when the bidder's own cup puts it under 40%. The same
   line marks bluffs for the Book, the readout and the stats.
@@ -2583,6 +2625,11 @@ With no theme of its own Bones follows the town game's (`novatria.settings`).
   level 85% of the time when the bid is two or more below it.
 - The people remember you: your bids from earlier nights count a quarter
   each against your bids at this table, up to forty of them.
+- They read you back: a shape is a tell at 6 bids and a 25-point gap from
+  your overall bluff rate; a reader (tier 3 by half, 4 and 5 fully) moves
+  its estimate of your bluffing by the gap times n / (n + 6), and its call
+  line by 0.9 of that again; the Book's tally of you fades to 75% each night
+  and a night starts with 75% of it, at most 60 bids.
 - `Engine.basicPolicy` (and the page's tests): Liar under 38%, Spot on over
   50% exact, else the raise the Count puts at 60%.
 - Money: ante 15% of the buy-in; streak bonus up to +3 antes; Spot on pays
@@ -2600,21 +2647,32 @@ With no theme of its own Bones follows the town game's (`novatria.settings`).
 - Last Call needs $500 and pays three times the stack.
 
 A 2,000-night run of the simulator (`node tests/bones-sim.cjs 2000`)
-gives, for a player who plays by the Count alone and buys nothing: 12.6%
-beat the house, 35.4% cleaned out, 19.6% walked home, 32.5% bust; buying
-tricks sensibly, 30.9% beat the house. A player who also reads the tells
-beats the house 23.3% of the time, and 46.4% buying tricks (17.9% bust).
-Reading the tells is worth about ten points of table win rate at every
-hour. Holding one trick all night, a proxy that uses it as a holder would
+gives, for a player who plays by the Count alone and buys nothing: 12.9%
+beat the house, 34.1% cleaned out, 19.2% walked home, 33.8% bust; buying
+tricks sensibly, 29.8% beat the house. A player who also reads the tells
+beats the house 21.5% of the time, and 45.4% buying tricks (18.4% bust).
+Reading the tells is worth about ten points of table win rate at most
+hours. A table runs a median of 11 rounds (10 at three seats, 13 at four).
+The room reading you back: the Predictable (every lie a step of one on the
+last bid's face) wins 4.3 points fewer tables than the Mixer at the
+Midnight big table (32.2% to 36.5%) and at Last Call (23.7% to 28.0%), where
+the sharp ones sit, against about 2 points more at the tables where nobody
+reads (tiers 1 and 2 only); it ends 60% of its nights with a tell on
+record and is read about once every two or three nights. Played by the
+Count, a player has a tell on about one night in ten and is hardly ever
+read; the Reader proxy's natural play carries one on a third of its nights.
+Holding one trick all night, a proxy that uses it as a holder would
 gains, in points of house-beating rate (by the Count / reading the tells):
 Loaded Six +8.5 / +11, Slow Roll +4.6 / +4, Palm +4 / +4.4, Side Bet +2.8 /
 +4.3 (+$183 / +$457 mean cash), Snake Eyes +1.3 / +2.5 (+$127 / +$245),
 Poker Face +4.6 for a player who bluffs (+3.3 / +5.6), Double or Nothing
 +4.2 / +3.9 on sure calls (+4.3 / +9.1 pressed on its first calls of each
 table; unlimited, before the limit, that was +13.7 / +12.6), Friends Rates +2.8 / +4.9 for a buyer (+$301 / +$838); for scale, Reading Glasses
-+11.6 and Close Enough +11.3 by the Count.
++11.6 and Close Enough +11.3 by the Count. (Those lifts were measured with
+five-dice cups from 11 PM and before the room read you back; now, with
+four, Poker Face measures +2.5 / +7.6 and +2.4 for a player who bluffs.)
 
-**Tests.** `node tests/bones-engine.test.cjs` (66 tests, Node only, no
+**Tests.** `node tests/bones-engine.test.cjs` (74 tests, Node only, no
 browser) loads the engine block from `index.html` into `vm` and checks the
 rules exactly: determinism and the JSON round trip, the view hiding what it
 must, every call and its money, every house rule, the Count against brute
@@ -2626,8 +2684,16 @@ Snake Eyes on each kind of win, Poker Face however often you are caught,
 Double or Nothing's terms and its two calls a table, Friends Rates' fourth offer), the builds table,
 the back room, the four endings, a night saved before the rework playing on,
 a few hundred whole nights, and the practice hand's script (its cups, moves,
-Counts and no money) and that real nights never see it. `node
-tests/bones.test.cjs` (32 tests, Playwright) plays the page through its own
+Counts and no money) and that real nights never see it; and the room reading
+you back: the shape of every kind of bid, the tally at each reveal and a tell
+at 6 bids and 25 points either way, who reads you (tiers 1 and 2 never, 3 by
+half, 4, 5 and the house fully; the 9 PM tables playing out the same with
+notes on you or without), the reveal's line only when a read changed the
+call (checked against the same decision without it) and once per shape a
+table, Poker Face hiding it all, the Book keeping and fading it across
+nights, the page on you, the end-of-night line and Pearl's sentence, and a
+night saved before it (no notes) playing on. `node
+tests/bones.test.cjs` (36 tests, Playwright) plays the page through its own
 buttons on a phone: the file alone from `file://` with the network shut,
 whole nights to each of the four endings with the page checked against the
 engine's view after every step, a reload mid-round, storage switched off,
@@ -2644,7 +2710,14 @@ every step through its buttons at 390x780 and 360x640 in both themes (the
 line of teaching never covering what it rings, nothing clipped), the lit
 dice and the tally of five, only the asked-for button live, the Count
 equal to the engine's, nothing kept after finishing or skipping, "Sit down
-for real", a reload mid-lesson, and the coach after it.
+for real", a reload mid-lesson, and the coach after it; and the room
+reading you back: a predictable night (a step of one on the last bid's
+face whenever that is a bluff) through the buttons after three such nights
+in the Book, read at a reveal with the line in plain words, the tip once,
+the Book's page on you before and after, the end-of-night line and Pearl's
+column; the page on you beside the table; a Poker Face night with no read
+line; and the read line and its tip in the layout matrix from 320x568 to
+430x932 in both themes.
 `node tests/run.cjs bones` runs both. The simulator is not part of
 `run.cjs`: `node tests/bones-sim.cjs [nights] [--rates] [--quick]
 [--only=id,id]` (2,000 nights by default; `--rates` prints every person's
@@ -2659,6 +2732,15 @@ round, bids it is sure of (75%) with a cup a dice trick made stronger,
 Double or Nothing only on a sure call while it has calls for 2 left (and,
 measured beside it, an "always press" player who spends them on its first
 Liar calls of each table), a side bet on whoever it believes, and a buyer sells Friends Rates once the slots are full.
+Two more proxies measure the room reading you back, both by the Count plus
+deliberate bluffs on 40% of the bids where a lie is there to tell: the
+**Predictable** tells every lie as a step of one on the last bid's face
+(and never makes that raise honestly), the **Mixer** picks each lie's
+shape at random among lies as believable by its own cup. Their table win
+rates are measured with six nights of their own play in the Book, their
+whole nights both alone and with the Book carried through runs of five
+nights; every row also counts reads per night and nights that ended with a
+tell on record.
 
 ## Running the tests
 

@@ -433,6 +433,18 @@ details.card[open] > summary { margin-bottom: 10px; }
 .hrow .meter .ms { background: var(--good); }
 .hrow[data-bump] em { color: var(--accent); }
 .hrow[data-quiet] em { font-style: normal; color: var(--faint); font-size: 13px; }
+/* The page on you: a shape that has become a tell. */
+.hrow .tellnote { grid-column: 1 / -1; font-size: 13px; line-height: 1.3; color: var(--danger); }
+.hrow .tellnote b { font-weight: 700; }
+.hrow[data-tell] em { color: var(--danger); font-style: normal; font-weight: 600; }
+.youverdict { margin: 4px 0 6px; font-size: 14px; line-height: 1.35; }
+.youverdict[data-tells]:not([data-tells="0"]) { color: var(--danger); }
+.youcard { display: grid; gap: 8px; margin: 10px 0 12px; }
+.youcard h2 { margin: 0; font: 600 18px/1.2 var(--read-font); }
+.youcard .note { margin: 2px 0 0; }
+.youcard .btn { justify-self: start; }
+.telline { margin: 0 0 6px; font: 16px/1.4 var(--read-font); }
+.telline[data-read] { color: var(--danger); }
 .truth { margin: 6px 0 0; padding: 6px 8px; border-radius: 8px; background: var(--surface-2); font-size: 13px; color: var(--accent); }
 @media (min-width: 980px) { #btn-bookside { display: none; } }
 @media (max-width: 979px) {
@@ -774,6 +786,27 @@ dialog li { margin: 0 0 6px; }
          rows:[{ i, habit, n, bluff, straight, text, underline }],
          quiet:{ n, bluff, straight }  (bids with no habit shown),
          truth: phrase|null }   (underline / truth only via S's tricks)
+     Engine.youPage(book|null, S?) -> { n, bluff, rate, text, rows:[{ shape,
+         name, n, bluff, rate, tell:'bluff'|'honest'|null, text, line }],
+         tells:[{ shape, dir, text }], hidden (Poker Face), minN, gap }
+         "What they know about you": with S, the room's notes tonight (tonight's
+         bids plus what it remembers); without, what a new night starts with.
+     The Book also keeps book.me.shapes: your bids by shape, faded each night.
+
+   THE ROOM READS YOU BACK (Engine.SHAPES; tuned by tests/bones-sim.cjs)
+     Every bid has a shape anyone can see: an opener is low or high; a raise is
+     the same count on a higher face, a step of one or a jump, and stays on the
+     last bid's face or switches. At each reveal your bids that round are
+     scored bluff or straight (BLUFF_P) under their shapes (S.you.tonight). A
+     shape is a tell once 6 bids have it and its bluff rate is 25 points or
+     more off your overall rate. Tiers 1-2 never use it; tier 3 by half; tiers
+     4, 5 and the house fully: facing your bid, a reader moves its estimate of
+     your bluffing by the tell's gap (blended by sample size) and its call line
+     with it. When that changed whether it called Liar (the same decision is
+     taken without the read on the same draws), the round's readout says so,
+     once per shape a table; S.you.fired counts every one. A new night starts
+     with 3/4 of the Book's faded tally (at most 60 bids). Poker Face: no
+     shapes kept, no tally, no read. summary(S).tell says what your tell was.
 
    DATA: Engine.PEOPLE (public: id, name, first, age, pronouns, look, voice,
    habits), Engine.TRICKS, Engine.HOUSE_RULES, Engine.HOURS, Engine.VERSION.
@@ -805,8 +838,12 @@ dialog li { margin: 0 0 6px; }
      {t:'lose', who, id, n, left} · {t:'gain', who, id, left}
      {t:'out', who, id, name, place}
      {t:'readout', bids:[{who, id, name, q, f, held, p, bluff,
-               habit:i|null, text|null}]}    "what they had": held = matching
-               dice in the bidder's cup; p = P(true) from the bidder's own cup
+               habit:i|null, text|null, shape?}], reads?}    "what they had": held =
+               matching dice in the bidder's cup; p = P(true) from the bidder's own
+               cup; shape (your bids only): the shapes the room scored it under
+               (null under Poker Face); reads: [{who, id, name, shape, dir, kind:
+               'call'|'stand', right, text}] the reads of you that decided a call
+               this round (see THE ROOM READS YOU BACK)
      {t:'bark', who, id, name, text}                  a scripted one-liner
      {t:'tableEnd', hour, kind, place, won, payout, refund, net, rounds,
                people, cash}   net = everything this table did to your cash
@@ -832,8 +869,8 @@ dialog li { margin: 0 0 6px; }
    THE NIGHT (tuned by tests/bones-sim.cjs; see Engine.HOURS)
      $100 to start. 9 PM, 10 PM, 11 PM, Midnight: two tables each (easy 3
      seats; rich about double the buy-in, 4 seats from 10 PM, usually a house
-     rule from 10 PM; both 9 PM tables are plain). Cups: 4 dice at 9 and
-     10 PM, 5 from 11 PM and at Last Call (Short cups 3, Deep cups 6).
+     rule from 10 PM; both 9 PM tables are plain). Cups: 4 dice at every
+     hour, 5 at Last Call (Short cups 3, Deep cups 6).
      Buy-ins easy/rich: 20/40, 40/80, 80/160, 160/320. After every
      table, the back room. Leaving it short of the cheaper buy-in (and no
      Tab) = 'bust'. Last Call: Loretta + Curtis, 3 seats, 5 dice, needs $500,
@@ -863,7 +900,8 @@ dialog li { margin: 0 0 6px; }
        doubles the caller's loss (4 under Sudden).
      Side Bet: the prompt comes after the call and before the reveal; pick
        'bidder' = the bid is good (Liar) or not exactly right (Spot On).
-     Poker Face: the people put your bluffing at nothing, whatever they saw.
+     Poker Face: the people put your bluffing at nothing, whatever they saw,
+       and keep no notes on how you bid (no tally, no read of you).
      Close Enough: a Liar call on your bid that finds exactly q-1.
      Last Word: you stay in with 1 die, once per table (after Rabbit's Foot).
      Hot Hand follows any challenge you win (Liar or Spot On). Snake Eyes pays
@@ -1030,12 +1068,13 @@ dialog li { margin: 0 0 6px; }
     { id: 'double', name: 'Double ante', text: 'Antes are doubled.' }
   ];
   const RULE = {}; HOUSE_RULES.forEach(r => { RULE[r.id] = r; });
-  // tiers: the people's tiers, one per seat after yours ([3, 4] = either); rule: chance of a house rule.
+  // tiers: the people's tiers, one per seat after yours ([3, 4] = either; seat 1 is on your left and answers your
+  // bids, so at the Midnight big table the sharp one sits there and can read you back); rule: chance of a house rule.
   const HOURS = [
     { name: '9 PM', easy: { buyIn: 20, seats: 3, tiers: [1, 1], rule: 0 }, rich: { buyIn: 40, seats: 3, tiers: [1, 2], rule: 0 } },
     { name: '10 PM', easy: { buyIn: 40, seats: 3, tiers: [1, 2], rule: 0.25 }, rich: { buyIn: 80, seats: 4, tiers: [1, 2, 2], rule: 0.75 } },
     { name: '11 PM', easy: { buyIn: 80, seats: 3, tiers: [1, 2], rule: 0.25 }, rich: { buyIn: 160, seats: 4, tiers: [1, 2, [3, 4]], rule: 0.75 } },
-    { name: 'Midnight', easy: { buyIn: 160, seats: 3, tiers: [2, 2], rule: 0.25 }, rich: { buyIn: 320, seats: 4, tiers: [[1, 2], 2, [3, 4]], rule: 0.75 } },
+    { name: 'Midnight', easy: { buyIn: 160, seats: 3, tiers: [2, 2], rule: 0.25 }, rich: { buyIn: 320, seats: 4, tiers: [[3, 4], 2, [1, 2]], rule: 0.75 } },
     { name: 'Last Call', last: { seats: 3, people: [HOST, SHARK], min: 500 } }
   ];
   const START_CASH = 100, SLOTS = 5;
@@ -1060,7 +1099,7 @@ dialog li { margin: 0 0 6px; }
     ['snake', 'Snake Eyes', 'common', 'money', 'Win a challenge and collect an extra ante for every 1 under your cup.'],
     ['friends', 'Friends Rates', 'common', 'money', 'Tricks cost 25% less, and Curtis shows you four instead of three.'],
     ['tab', 'A Tab', 'uncommon', 'money', 'Once a night, sit at a table you cannot afford; the buy-in comes out of your winnings (lose and you owe nothing; it is used up).'],
-    ['pokerface', 'Poker Face', 'uncommon', 'manner', 'Opponents always take you for an honest player, however often they catch you bluffing.'],
+    ['pokerface', 'Poker Face', 'uncommon', 'manner', 'Opponents always take you for an honest player, however often they catch you bluffing, and nobody reads how you bid.'],
     ['honest', 'Honest Face', 'uncommon', 'manner', 'When someone calls Liar on you and your bid is good, they lose 2 dice.'],
     ['double', 'Double or Nothing', 'rare', 'manner', 'Twice a table, make a Liar call for 2 dice: right and the bidder loses 2, wrong and you lose only 1.'],
     ['close', 'Close Enough', 'common', 'manner', 'If your own bid is called and misses by exactly one, you lose no die (you still pay the ante).'],
@@ -1094,7 +1133,8 @@ dialog li { margin: 0 0 6px; }
   // each of your bids that round is scored bluff or straight (BLUFF_P) under each of its shapes. A shape is a TELL
   // once TELL_N bids of it are on record and its bluff rate sits TELL_GAP or more from your rate over all your bids.
   // READS by tier: how fully a person uses a tell (tiers 1 and 2 never read you; 4, 5 and the house fully). A reader
-  // moves its estimate of your bluffing by the tell's gap, times n / (n + READ_K) (blended by sample size).
+  // moves its estimate of your bluffing by the tell's gap, times n / (n + READ_K) (blended by sample size), and its
+  // call line by READ_THR of that again.
   // The room remembers: the Book keeps your tally across nights, faded by FADE at the end of each; a night starts
   // with PRIOR of it, at most PRIOR_CAP bids' worth. Poker Face hides it all: no tally, no read.
   // (Tuned by tests/bones-sim.cjs: the predictable and the mixer.)
@@ -1108,7 +1148,7 @@ dialog li { margin: 0 0 6px; }
     switch: { name: 'Switching faces', you: 'switch faces', it: 'switches faces' }
   };
   const SHAPES = Object.keys(SHAPE);
-  const TELL_N = 6, TELL_GAP = 0.25, READ_K = 6, READ_GAIN = 1, FADE = 0.75, PRIOR = 0.75, PRIOR_CAP = 60;
+  const TELL_N = 6, TELL_GAP = 0.25, READ_K = 6, READ_THR = 0.9, FADE = 0.75, PRIOR = 0.75, PRIOR_CAP = 60;
   const READS = { 1: 0, 2: 0, 3: 0.5, 4: 1, 5: 1 };
   // Bot arithmetic: noise per unit of missing skill, how much a good player reads
   // honest bids, how much a poor one is taken in by any bid.
@@ -1441,7 +1481,7 @@ dialog li { margin: 0 0 6px; }
     const tells = tellsIn(roomTally(S)).filter(x => b.shape.includes(x.shape));
     if (!tells.length) return null;
     const x = tells[0];
-    return { shape: x.shape, dir: x.dir, delta: READ_GAIN * k * (x.rate - x.all) * x.n / (x.n + READ_K) };
+    return { shape: x.shape, dir: x.dir, delta: k * (x.rate - x.all) * x.n / (x.n + READ_K) };
   }
 
   // ----- the bots -----
@@ -1530,7 +1570,8 @@ dialog li { margin: 0 0 6px; }
       return { t: 'bid', q: clamp(o.q, 1, total), f: o.f };
     }
     const bidder = cur.who;
-    const thr = nerve + per.skill * (est(bidder) - 0.25) * 0.8;
+    // (A read also moves its call line directly: READ_THR of the read's shift.)
+    const thr = nerve + per.skill * (est(bidder) - 0.25) * 0.8 + (rd && bidder === 0 ? READ_THR * rd.delta : 0);
     const pc = believe(cur.q, cur.f);
     const capped = seat.n >= T.start[s];
     const pe = clamp(pmf(n, cur.q - matches(cur.f), p) + (rnd(S) - 0.5) * noise, 0, 1);
@@ -1795,7 +1836,8 @@ dialog li { margin: 0 0 6px; }
     const rng = S.rng, m0 = botMove(S, T, s, true);
     S.rng = rng;
     const m = botMove(S, T, s);
-    if ((m.t === 'liar') !== (m0.t === 'liar')) {
+    // (Only a change the read's way counts: a call from a read that says bluff, a bid let stand from one that says honest.)
+    if ((m.t === 'liar') !== (m0.t === 'liar') && (m.t === 'liar') === (rd.dir === 'bluff')) {
       const Y = S.you = S.you || { tonight: {}, prior: {}, fired: [] };
       Y.fired = Y.fired || [];
       Y.fired.push({ id: T.seats[s].id, shape: rd.shape, dir: rd.dir, hour: T.hour });
@@ -2160,14 +2202,12 @@ dialog li { margin: 0 0 6px; }
   function youPage(book, S) {
     const t = S ? roomTally(S) : priorOf(book && book.me && book.me.shapes);
     const all = tallyGet(t, 'all'), tells = tellsIn(t), pct = x => Math.round(100 * x) + '%';
-    const count = x => ({ n: x.n, b: x.b });
     const rows = SHAPES.map(k => {
-      const x = tallyGet(t, k), c = count(x), tell = tells.find(y => y.shape === k);
-      return { shape: k, name: SHAPE[k].name, n: c.n, bluff: c.b, rate: x.n ? x.b / x.n : null, tell: tell ? tell.dir : null,
-        text: c.n ? `${c.n} time${c.n === 1 ? '' : 's'}, ${c.b} of them bluff${c.b === 1 ? '' : 's'} (${pct(x.b / x.n)})` : 'not seen yet', line: tell ? tell.text : null };
+      const x = tallyGet(t, k), tell = tells.find(y => y.shape === k);
+      return { shape: k, name: SHAPE[k].name, n: x.n, bluff: x.b, rate: x.n ? x.b / x.n : null, tell: tell ? tell.dir : null,
+        text: x.n ? `${x.n} time${x.n === 1 ? '' : 's'}, ${x.b} of them bluff${x.b === 1 ? '' : 's'} (${pct(x.b / x.n)})` : 'not seen yet', line: tell ? tell.text : null };
     });
-    const ca = count(all);
-    return { n: ca.n, bluff: ca.b, rate: all.n ? all.b / all.n : null, text: ca.n ? `${ca.n} bid${ca.n === 1 ? '' : 's'} on record, ${ca.b} of them bluff${ca.b === 1 ? '' : 's'} (${pct(all.b / all.n)})` : 'No bids of yours on record yet',
+    return { n: all.n, bluff: all.b, rate: all.n ? all.b / all.n : null, text: all.n ? `${all.n} bid${all.n === 1 ? '' : 's'} on record, ${all.b} of them bluff${all.b === 1 ? '' : 's'} (${pct(all.b / all.n)})` : 'No bids of yours on record yet',
       rows, tells: tells.map(x => ({ shape: x.shape, dir: x.dir, text: x.text })), hidden: !!S && has(S, 'pokerface'), minN: TELL_N, gap: TELL_GAP };
   }
   // The night's word on your tell: the one the people used on you (or the one they had and nobody used), or none.
@@ -2365,7 +2405,7 @@ dialog li { margin: 0 0 6px; }
     lesson, LESSON: clone(LESSON),
     // For tests and the balance sim only: the hidden side of the people and the odds. Not for the UI.
     _sim: { person: id => P[id] ? clone(P[id]) : null, tail, pmf, price: (S, id, h) => price(S, id, h), estBluff: (S, j) => estBluff(S, S.table, j), TELL, BLUFF_P,
-      readOf: (S, s, b) => readOf(S, S.table, s, b || lastBid(S.table)), roomTally, tellsIn, shapeOf, botMove: (S, s, noRead) => botMove(S, S.table, s, noRead), READS, TELL_N, TELL_GAP }
+      readOf: (S, s, b) => readOf(S, S.table, s, b || lastBid(S.table)), readLine, roomTally, tellsIn, shapeOf, botMove: (S, s, noRead) => botMove(S, S.table, s, noRead), READS, TELL_N, TELL_GAP }
   };
   Game.Engine = Engine;
 })();
@@ -3390,7 +3430,7 @@ dialog li { margin: 0 0 6px; }
     booktally: { at: 'bottom', text: 'Your Book remembers this habit. Weigh it against the Count.' },
     bluffhabit: { at: 'bottom' },  // its text names the bluffer: "<Name> <habit>, and was bluffing. ..."
     // (the first read of you, on any night: it sits over the seats, clear of the read line at the top of the sheet)
-    read: { at: 'top', text: 'Sharp players read you back: they watch how you raise and remember what your cup showed. Mix up how you bluff, and check “What they know about you” in the Book.' }
+    read: { at: 'top', text: 'Sharp players watch how you raise when you bluff. Mix it up; your Book shows what they know about you.' }
   };
   // What the practice hand teaches by doing: a player who finished it is not told again.
   const LESSON_TAUGHT = ['dice', 'bid', 'turn', 'count'];
@@ -4104,7 +4144,8 @@ dialog li { margin: 0 0 6px; }
     setPeople() {
       const side = $('bookside'); if (!side) return;
       const ids = TV.seats.filter(Boolean).map(s => s.id);
-      side.replaceChildren(el('h2', null, 'The Book'), el('p', { class: 'sub' }, 'What you have seen of the people at this table. It never says which habit is the tell; the numbers do.'), ...ids.map(id => People.page(id, bookShown, App.state, { compact: true })));
+      side.replaceChildren(el('h2', null, 'The Book'), el('p', { class: 'sub' }, 'What you have seen of the people at this table. It never says which habit is the tell; the numbers do.'), ...ids.map(id => People.page(id, bookShown, App.state, { compact: true })),
+        Lesson.on ? null : People.you(bookShown, App.state, { compact: true }));
     },
     bumpPages(readout) {
       if (!$('bookside')) return;
@@ -4147,6 +4188,30 @@ dialog li { margin: 0 0 6px; }
       if (!PEOPLE[id]) return;
       const live = App.state && App.state.phase === 'table';
       Dialog.open(this.page(id, live ? bookShown : Book.data, live ? App.state : null), [['Close', null]]);
+    },
+    /* The page on you: what the room knows about how you bid. Each shape of a bid with its tally in plain words, the
+       ones that have become tells marked, and what to do about it. S: a night in progress (tonight's notes and what
+       the room remembers); without it, what the next night starts with. */
+    you(book, S, opts) {
+      const o = opts || {};
+      const yp = Engine.youPage(book, S || undefined);
+      const rows = yp.rows.map(r => el('div', { class: 'hrow', dataset: { shape: r.shape }, 'data-tell': r.tell || null },
+        el('em', null, r.name),
+        el('span', { class: 'n' }, r.n ? [el('b', null, `${r.n}×`), `: ${plural(r.bluff, 'bluff')}`] : 'not seen'),
+        r.n ? el('span', { class: 'meter', 'aria-hidden': 'true' }, el('i', { class: 'mb', style: `width:${(r.bluff / r.n * 100).toFixed(1)}%` }), el('i', { class: 'ms', style: `width:${((r.n - r.bluff) / r.n * 100).toFixed(1)}%` })) : null,
+        r.line ? el('span', { class: 'tellnote' }, el('b', null, 'A tell: '), `${r.line}.`) : null));
+      const verdict = yp.hidden ? 'Poker Face: tonight they take you for an honest player and keep no notes on how you bid.'
+        : yp.tells.length ? `They can read you: ${yp.tells.map(t => t.text).join('; ')}. Bluff some other way, or bid that way when you hold it too.`
+        : yp.n ? 'No tells yet: nothing in how you bid gives your bluffs away.' : 'No bids of yours on record yet.';
+      const how = `Sharp players and the house watch the shape of every bid you make, and the cups show them which were bluffs. A shape is a tell once ${yp.minN} of your bids have it and its share of bluffs is ${Math.round(yp.gap * 100)} points or more off your usual. They remember from night to night, less each night.`;
+      const head = o.compact ? el('div', { class: 'bpage-head' }, mini('me'), el('div', null, el('div', { class: 'bpage-name' }, 'What they know about you'), el('div', { class: 'bpage-stat' }, yp.text)))
+        : el('div', { class: 'pp-head' }, mini('me'), el('div', null, el('h2', { id: 'dlg-title' }, 'What they know about you'), el('p', { class: 'pp-look' }, yp.text)));
+      const box = [head, el('p', { class: 'youverdict', id: o.compact ? null : 'you-verdict', 'data-tells': String(yp.tells.length) }, verdict), rows, o.compact ? null : el('p', { class: 'note' }, how)];
+      return o.compact ? el('div', { class: 'bpage', id: 'bookside-you', dataset: { id: 'me' } }, box) : box;
+    },
+    openYou() {
+      const live = App.state && App.state.phase !== 'over';
+      Dialog.open(this.you(live && App.state.phase === 'table' ? bookShown : Book.data, live ? App.state : null), [['Close', null]]);
     }
   };
 
@@ -4258,7 +4323,7 @@ dialog li { margin: 0 0 6px; }
             el('li', null, el('b', null, 'An example. '), 'Nine dice on the table; you hold 3, 3 and 1. Glenda bids “four 3s”: at least four 3s in all the cups. Ones are wild (a 1 counts as any face), so you already have three. One more 3 or 1 in the other six dice and she is right.'),
             el('li', null, el('b', null, 'Your turn. '), 'Raise to a bigger bid (more dice, or as many of a higher face), or call Liar! on the bid in front of you. Lose all your dice and you are out. The last cup with dice wins the table’s money.'),
             el('li', null, el('b', null, 'The Count '), 'is the chance the bid in front of you is true, worked out from your own dice. Low means it is probably a lie.'),
-            el('li', null, el('b', null, 'Tells and the Book. '), 'Everyone has habits that show when they bid, and one of them tends to come with their bluffs. Your Book counts each habit against what the cups showed, night after night.'),
+            el('li', null, el('b', null, 'Tells and the Book. '), 'Everyone has habits that show when they bid, and one of them tends to come with their bluffs. Your Book counts each habit against what the cups showed, night after night. The sharp ones read you back, from how you raise when you bluff.'),
             el('li', null, el('b', null, 'The night. '), 'You start with $100. Each hour you pay to sit at one of two tables; win it and you take its pot. Between tables, Curtis sells tricks in the back room. Have $500 at Last Call and you play the house: win and your money triples.')),
           learnFirst ? null : el('button', { class: 'btn', id: 'btn-replay-lesson', type: 'button', style: 'margin-top:6px', onclick: () => Lesson.start() }, 'Replay the practice hand')),
         el('section', { class: 'card', id: 'home-ledger' },
@@ -4420,6 +4485,9 @@ dialog li { margin: 0 0 6px; }
         column,
         el('div', { class: 'row' }, el('button', { class: 'btn', id: 'btn-copy-column', type: 'button', onclick: () => App.copy(`${$('col-head').textContent}\n\n${$('col-body').textContent}\n${$('col-by').textContent}`, 'copy-col-note') }, 'Copy the column'), el('span', { class: 'note', id: 'copy-col-note', role: 'status' })),
         el('h3', { class: 'kicker' }, 'The night'), strip,
+        // What they made of how you bid: your tell tonight, who read it, or that nobody got a read on you.
+        el('h3', { class: 'kicker' }, 'How they read you'),
+        el('p', { class: 'telline', id: 'tell-line', 'data-read': sum.tell && sum.tell.reads ? '' : null }, sum.tell ? sum.tell.text : 'Nobody got a read on you tonight.'),
         el('h3', { class: 'kicker' }, 'What the ledger gained'), el('ul', { class: 'gains' }, gains.map(g => el('li', null, g))),
         el('p', { class: 'share', id: 'share-line' }, share),
         el('div', { class: 'row', style: 'margin-top:8px' }, el('button', { class: 'btn', id: 'btn-share', type: 'button', onclick: () => App.copy(share, 'share-note') }, 'Copy the result'), el('span', { class: 'note', id: 'share-note', role: 'status' })),
@@ -4427,6 +4495,16 @@ dialog li { margin: 0 0 6px; }
       if (!instant()) anim(stamp, [{ transform: 'rotate(-5deg) scale(2.4)', opacity: 0 }, { transform: 'rotate(-5deg) scale(.95)', opacity: 1, offset: .7 }, { transform: 'rotate(-5deg) scale(1)' }], 300, { move: true });
       Column.start(S);
       focusHead(root);
+    },
+
+    // The Book's page on you, as a card: the one line that matters and the way in.
+    youCard() {
+      const live = App.state && App.state.phase !== 'over' ? App.state : null;
+      const yp = Engine.youPage(Book.data, live || undefined);
+      const line = yp.hidden ? 'Poker Face: tonight nobody keeps notes on you.' : yp.tells.length ? `They can read you: ${yp.tells[0].text}.` : yp.n ? 'No tells yet. Nobody can read you.' : 'Nothing on record yet. The sharp ones watch how you bid.';
+      return el('section', { class: 'card youcard', id: 'book-you', 'data-tells': String(yp.tells.length) },
+        el('div', { class: 'bpage-head' }, mini('me'), el('div', null, el('h2', null, 'What they know about you'), el('p', { class: 'note', id: 'book-you-line' }, line))),
+        el('button', { class: 'btn', id: 'btn-you', type: 'button', onclick: () => People.openYou() }, 'Your page'));
     },
 
     // ----- The Book: the collection -----
@@ -4443,6 +4521,7 @@ dialog li { margin: 0 0 6px; }
         el('div', { class: 'page-in' },
           el('h1', { class: 'hourhead', id: 'book-title' }, 'The Book'),
           el('p', { class: 'note' }, 'Everyone at the Low Water has three habits, and one of them is a tell. Every bid you see goes on their page with the habit that came with it, and the cups say whether it was a bluff. The Book never says which habit is the tell. The numbers do.'),
+          this.youCard(),
           el('div', { class: 'grid50' }, ids.map(id => {
             const m = Book.met(id), pg = m ? Engine.bookPage(Book.data, id) : null;
             return el('button', { class: 'gface', type: 'button', dataset: { id }, 'data-unmet': m ? null : '', disabled: !m, 'aria-label': m ? `${PEOPLE[id].name}: ${plural(pg.bids, 'bid')} seen` : 'Not met yet', onclick: () => People.open(id) },
@@ -4470,16 +4549,21 @@ dialog li { margin: 0 0 6px; }
       if (inNight && !Lesson.on) $('dlg').querySelector('.row.end').before(el('p', { class: 'note' }, 'Leaving keeps the night exactly where it is: “Continue the night” picks it up. The practice hand leaves it alone too.'));
     },
     rules() {
+      const b = t => el('b', null, t);
       Dialog.open([
         el('h2', null, 'The rules'),
-        el('ul', null,
-          el('li', null, 'Everyone rolls their dice in secret. You see only yours.'),
-          el('li', null, 'A bid: “at least Q dice showing face F, in all the cups together.” Ones are wild: they count as any face (except under the house rule Straight).'),
-          el('li', null, 'In turn, raise (more dice, or the same number of a higher face), or call Liar! on the bid in front of you, or Spot on: it is exactly right.'),
-          el('li', null, 'Liar!: the cups lift. If there are at least Q, the caller loses a die; if not, the bidder does. Spot on: exactly Q wins the caller a die back (and three antes); otherwise the caller loses a die.'),
-          el('li', null, 'When you are one of the two in a challenge, the loser pays the winner one ante. Win in a row and each win pays more (up to +3 antes).'),
-          el('li', null, 'No dice left, you are out. The last cup with dice takes the pot. At four seats, second place gets the buy-in back.'),
-          el('li', null, 'The night: 9 PM to Midnight, one of two tables an hour, the back room after each. Reach Last Call with $500 to play Loretta for everything.')),
+        el('ul', { class: 'rules', id: 'rules-list' },
+          el('li', null, b('The cups. '), 'Everyone shakes dice under a cup and looks only at their own. Four dice each at every hour, five at Last Call.'),
+          el('li', null, b('A bid '), 'says: at least this many of this face, in all the cups together. Ones are wild: a 1 counts as any face.'),
+          el('li', null, b('Your turn. '), 'Raise (more dice, or as many of a higher face, never more than the dice on the table), or call ', b('Liar!'), ' on the bid in front of you, or ', b('Spot on!'), ' The opener of a round has to bid.'),
+          el('li', null, b('Liar! '), 'The cups lift. If the bid is there, the caller loses a die; if not, the bidder does. Whoever loses opens the next round.'),
+          el('li', null, b('Spot on! '), 'You say the bid is exactly right. Right, and you win a die back (never more than you started with) and three antes. Wrong, and you lose a die.'),
+          el('li', null, b('Money. '), 'When you are one of the two in a challenge, the loser pays the winner one ante. Wins in a row pay one more ante each, up to three more.'),
+          el('li', null, b('The table. '), 'No dice left and you are out. The last cup with dice takes the pot. At a four-seat table, second place gets the buy-in back.'),
+          el('li', null, b('House rules. '), 'From 10 PM a table may have one: Straight (ones are not wild, and 1 may be bid), Short cups (3 dice), Deep cups (6), Sudden (the loser loses 2), Open hand (everyone’s first die face up), Blind opener (the opener bids before looking) or Double ante.'),
+          el('li', null, b('The night. '), 'You start with $100. Each hour from 9 PM to Midnight you pay to sit at the near table or the big one. After each table Curtis sells tricks in the back room: five slots, and a trick sells back for half. Short of the cheapest seat, the night is over.'),
+          el('li', null, b('Last Call. '), 'Hold $500 after Midnight and you play Loretta and Curtis with everything you have: win and it triples, lose and it is gone. Dice tricks do not work at her table, and there are no antes there.'),
+          el('li', null, b('They read you back. '), 'Sharp players and the house watch how you raise (a step of one, a jump, a new face) and remember what your cup showed. Bluff the same way every time and they will call it. Your Book’s page, “What they know about you”, shows what they have. Poker Face hides it.')),
         el('p', { class: 'note' }, 'The Count is the chance the bid is true from your dice (and anything a trick shows you), the other dice fair. People are not fair. That is the game.')
       ], [['Close', null, 'primary']]);
     }

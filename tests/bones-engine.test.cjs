@@ -368,9 +368,9 @@ test('the night\'s tables are fixed by the seed; the 9 PM tables seat 3, later r
   assert.strictEqual(E.newNight({ daily: '2026-11-21' }).seed, 'daily:2026-11-21');
 });
 
-test('cups by the hour: 4 dice at 9 and 10 PM, 5 from 11 PM and at Last Call; Short / Deep override; Extra Bone one more', () => {
+test('cups by the hour: 4 dice at every hour, 5 at Last Call; Short / Deep override; Extra Bone one more', () => {
   const S = E.newNight({ seed: 'cups' });
-  const want = [4, 4, 5, 5];
+  const want = [4, 4, 4, 4];
   for (let h = 0; h < 4; h++) {
     S.hour = h; S.cash = 1e6;
     E.options(S).forEach(c => assert.strictEqual(c.dice, c.rule && c.rule.id === 'short' ? 3 : c.rule && c.rule.id === 'deep' ? 6 : want[h], E.HOURS[h].name + ' ' + c.kind));
@@ -530,7 +530,7 @@ test('the bluff definition, the readout and the Book tallies agree', () => {
   }
   assert.ok(checked > 500);
   assert.strictEqual(book.nights, 25);
-  deq(book.me, me);
+  deq({ bids: book.me.bids, bluffs: book.me.bluffs }, me);
   for (const id in byPerson) {
     const pg = E.bookPage(book, id);
     assert.strictEqual(pg.bids, byPerson[id].bids); assert.strictEqual(pg.bluffs, byPerson[id].bluffs);
@@ -1502,6 +1502,241 @@ test('the practice hand leaves real nights alone: no open cups, no lesson flag, 
   assert.ok(!JSON.stringify(E.LESSON).includes('"habit":0') && JSON.stringify(E.LESSON).includes('"habit":"tell"'));
 });
 
+// ===================================================================== the room reads you back
+// A table with a sharp person on your left (Hollis, tier 4) and a plain one (Dewayne, tier 2), your bid in front of
+// Hollis, and the room's notes on you set by hand: { all, <shape>: {n, b} }.
+function readRig(o) {
+  o = o || {};
+  const S = rig({ seed: o.seed || 'read', tricks: o.tricks || [], people: o.people || ['npc_hollis', 'npc_dewayne'], dice: o.dice || [[2, 3, 4, 6], [2, 3, 5, 6], [2, 4, 5, 6]] });
+  S.you = { tonight: J(o.tally || {}), prior: {}, fired: [] };
+  const T = S.table, R = T.round;
+  R.bids = [{ who: 2, q: 3, f: 5, p: 0.5, held: 1, bluff: false, habit: null }, { who: 0, q: o.q || 4, f: o.f || 5, p: 0.2, held: 0, bluff: o.bluff !== false, habit: null, shape: o.shape || ['step', 'stay'] }];
+  R.opener = 2; R.turn = o.turn || 1; T.wait = null;
+  return S;
+}
+const TOLD = { all: { n: 40, b: 8 }, step: { n: 14, b: 11 }, stay: { n: 10, b: 9 }, switch: { n: 20, b: 2 }, jump: { n: 6, b: 0 } };
+
+test('the shape of a bid: an opener low or high; a raise by face, one or a jump, staying on the face or switching', () => {
+  const sh = SIM.shapeOf;
+  deq(sh(3, 4, null, 12, true), ['low']); deq(sh(4, 4, null, 12, true), ['low']); deq(sh(5, 2, null, 12, true), ['high']);
+  deq(sh(3, 4, null, 12, false), ['high'], 'under Straight a face is rarer: 3 of 12 is a high opener');
+  deq(sh(4, 5, { q: 4, f: 3 }, 12, true), ['face', 'switch']);
+  deq(sh(5, 3, { q: 4, f: 3 }, 12, true), ['step', 'stay']);
+  deq(sh(5, 6, { q: 4, f: 3 }, 12, true), ['step', 'switch']);
+  deq(sh(7, 3, { q: 4, f: 3 }, 12, true), ['jump', 'stay']);
+  deq(sh(6, 2, { q: 4, f: 3 }, 12, true), ['jump', 'switch']);
+  deq(E.SHAPES.map(x => x.id), ['low', 'high', 'face', 'step', 'jump', 'stay', 'switch']);
+  // Your bids carry their shapes into the readout; nobody else's do.
+  const { events } = E.playNight('shapes', null, { keepEvents: true });
+  let mine = 0;
+  all(events, 'readout').forEach(r => r.bids.forEach((b, k) => {
+    if (b.id !== 'me') { assert.strictEqual(b.shape, undefined); return; }
+    mine++;
+    const prev = k ? r.bids[k - 1] : null;
+    assert.ok(Array.isArray(b.shape) && b.shape.length === (prev ? 2 : 1), JSON.stringify(b));
+    if (prev) assert.strictEqual(b.shape[1], b.f === prev.f ? 'stay' : 'switch');
+  }));
+  assert.ok(mine > 10);
+});
+
+test('the tally: every bid of yours a reveal shows is scored under its shapes; a tell needs 6 bids and a 25-point gap, either way', () => {
+  const { S, events } = E.playNight('tally', null, { keepEvents: true });
+  const want = {};
+  all(events, 'readout').forEach(r => r.bids.forEach(b => { if (b.id !== 'me') return; ['all'].concat(b.shape).forEach(k => { const x = want[k] = want[k] || { n: 0, b: 0 }; x.n++; if (b.bluff) x.b++; }); }));
+  deq(S.you.tonight, want);
+  assert.strictEqual(S.you.tonight.all.n, S.stats.bids, 'every bid you made was scored (every round ends at a reveal)');
+  const tells = SIM.tellsIn;
+  deq(tells({ all: { n: 30, b: 6 }, step: { n: 5, b: 5 } }), [], 'five bids are not enough');
+  deq(tells({ all: { n: 30, b: 6 }, step: { n: 6, b: 3 } }).map(x => [x.shape, x.dir]), [['step', 'bluff']], '50% against 20%');
+  deq(tells({ all: { n: 30, b: 6 }, step: { n: 10, b: 4 } }), [], '40% against 20% is no tell');
+  deq(tells({ all: { n: 30, b: 12 }, jump: { n: 8, b: 0 } }).map(x => [x.shape, x.dir, x.text]), [['jump', 'honest', 'you only jump two or more when you’ve got it']]);
+  deq(tells(TOLD).map(x => x.shape), ['stay', 'step'], 'the strongest first');
+  assert.strictEqual(tells(TOLD)[1].text, 'you step up by one when you’ve got nothing');
+});
+
+test('who reads you: tiers 1 and 2 never, tier 3 by half, tiers 4, 5 and the house fully; only your bid, only a shape that is a tell', () => {
+  const S = readRig({ tally: TOLD });
+  const rd = SIM.readOf(S, 1);
+  assert.ok(rd && rd.shape === 'stay' && rd.dir === 'bluff' && rd.delta > 0.2, JSON.stringify(rd));
+  assert.strictEqual(SIM.readOf(S, 2), null, 'Dewayne (tier 2) never reads you');
+  const tier = id => SIM.person(id).tier;
+  for (const id of E.PEOPLE.map(p => p.id)) {
+    const X = readRig({ tally: TOLD, people: [id, 'npc_dewayne'] }), r = SIM.readOf(X, 1);
+    if (tier(id) <= 2) assert.strictEqual(r, null, id);
+    else assert.ok(Math.abs(r.delta - rd.delta * SIM.READS[tier(id)]) < 1e-9, id);
+  }
+  assert.strictEqual(SIM.READS[3], 0.5); assert.strictEqual(SIM.READS[4], 1); assert.strictEqual(SIM.READS[5], 1);
+  // Not a shape with no tell in it, not with no notes, not someone else's bid.
+  assert.strictEqual(SIM.readOf(readRig({ tally: TOLD, shape: ['jump', 'switch'] }), 1), null);
+  assert.strictEqual(SIM.readOf(readRig({ tally: {} }), 1), null);
+  const O = readRig({ tally: TOLD }); assert.strictEqual(SIM.readOf(O, 1, O.table.round.bids[0]), null);
+  // An honest tell reads the other way.
+  const H = readRig({ tally: { all: { n: 40, b: 14 }, jump: { n: 10, b: 0 } }, shape: ['jump', 'switch'] });
+  assert.ok(SIM.readOf(H, 1).delta < 0 && SIM.readOf(H, 1).dir === 'honest');
+  // A sharp reader with a bluff tell calls your bid more; a plain one is exactly as it was.
+  const calls = (people, tally) => { let c = 0; for (let i = 0; i < 300; i++) { const X = readRig({ seed: 'rc' + i, people, tally }); if (SIM.botMove(X, 1).t === 'liar') c++; } return c; };
+  const sharpWith = calls(['npc_hollis', 'npc_dewayne'], TOLD), sharpWithout = calls(['npc_hollis', 'npc_dewayne'], {});
+  assert.ok(sharpWith > sharpWithout + 30, `Hollis calls ${sharpWith} with your tell on record, ${sharpWithout} without`);
+  assert.strictEqual(calls(['npc_vada', 'npc_hollis'], TOLD), calls(['npc_vada', 'npc_hollis'], {}), 'Vada (tier 2) plays the same');
+  // The 9 PM tables seat tiers 1 and 2: nobody there can read you, so a night's early tables play out the same with notes or without.
+  const plain = E.playNight('nine', null, { keepEvents: true }), told = E.newNight({ seed: 'nine' });
+  told.you.prior = J(TOLD);
+  let g = 0; const ev2 = [];
+  while (told.phase !== 'over' && told.hour === 0) { ev2.push(...ok(E.act(told, E.basicPolicy(told, E.view(told), E.legal(told), E)))); assert.ok(++g < 5000); }
+  const cut = ev => ev.slice(0, ev.findIndex(e => e.t === 'shop') + 1).filter(e => e.t !== 'readout').map(e => JSON.stringify(e));
+  deq(cut(ev2), cut(plain.events));
+});
+
+test('the reveal says so only when a read changed the call, once per shape a table; the night counts every one', () => {
+  let changed = 0, same = 0;
+  // Cups that vary with the seed (a little generator of its own), so Hollis's cup sometimes backs your bid and sometimes not.
+  const cups = i => { let x = i * 2654435761 >>> 0; const d = () => { x = (x * 1103515245 + 12345) >>> 0; return 1 + (x >>> 16) % 6; }; return [0, 1, 2].map(() => [d(), d(), d(), d()]); };
+  for (let i = 0; i < 300; i++) {
+    const S = readRig({ seed: 'rv' + i, tally: TOLD, dice: cups(i) });
+    const rng = S.rng, m0 = SIM.botMove(S, 1, true); S.rng = rng;
+    const m1 = SIM.botMove(S, 1); S.rng = rng;
+    // (a bluff tell can only be said to have decided a call)
+    const differs = (m0.t === 'liar') !== (m1.t === 'liar') && m1.t === 'liar';
+    const ev = ok(E.advance(S));
+    const ro = find(ev, 'readout'), reads = ro ? ro.reads : S.table.round && S.table.round.reads;
+    const fired = S.you.fired.filter(r => r.id === 'npc_hollis');
+    if (differs) {
+      changed++;
+      assert.ok(reads && reads.length >= 1 && reads[0].shape === 'stay', 'seed ' + i);
+      assert.ok(fired.length >= 1);
+      if (ro && find(ev, 'call', c => c.who === 1 && c.on.who === 0)) {
+        const r = ro.reads[0];
+        assert.strictEqual(r.kind, 'call'); assert.strictEqual(r.right, !find(ev, 'reveal').good);
+        assert.strictEqual(r.text, r.right ? 'Hollis had you read: you stay on the last bid’s face when you’ve got nothing.' : 'Hollis thought he had you read (you stay on the last bid’s face when you’ve got nothing) and called. Not this time.');
+      }
+    } else {
+      same++;
+      assert.ok(!fired.length, 'no read fired when the call was the same without it: seed ' + i);
+    }
+  }
+  assert.ok(changed > 20 && same > 20, `${changed} changed, ${same} the same`);
+  // An honest tell can only let a bid stand, and the line says so.
+  const HON = { all: { n: 40, b: 16 }, jump: { n: 12, b: 0 } };
+  let stood = 0;
+  for (let i = 0; i < 300; i++) {
+    const S = readRig({ seed: 'st' + i, tally: HON, dice: cups(i), shape: ['jump', 'switch'], q: 6, bluff: false });
+    const rng = S.rng, m0 = SIM.botMove(S, 1, true); S.rng = rng;
+    const m1 = SIM.botMove(S, 1); S.rng = rng;
+    ok(E.advance(S));
+    const fired = S.you.fired;
+    if (m0.t === 'liar' && m1.t !== 'liar') {
+      stood++;
+      assert.deepStrictEqual(J(fired.map(r => [r.shape, r.dir])), [['jump', 'honest']]);
+    } else assert.strictEqual(fired.length, 0, 'seed ' + i);
+  }
+  assert.ok(stood > 5, 'an honest read let a bid stand ' + stood + ' times');
+  const T0 = readRig({ tally: HON }).table;
+  assert.strictEqual(SIM.readLine(T0, { who: 1, shape: 'jump', dir: 'honest', kind: 'stand', bluff: false }, null).text, 'Hollis let your bid stand: you only jump two or more when you’ve got it.');
+  assert.strictEqual(SIM.readLine(T0, { who: 1, shape: 'jump', dir: 'honest', kind: 'stand', bluff: true }, null).text, 'Hollis had you read and let your bid stand: you only jump two or more when you’ve got it. This time you had nothing.');
+  // Once per shape a table: a second read of the same shape at the same table is counted, not said again.
+  const S = readRig({ tally: TOLD });
+  S.table.said = { stay: true };
+  for (let i = 0; i < 200 && !S.you.fired.length; i++) { const X = readRig({ seed: 'once' + i, tally: TOLD, dice: cups(i) }); X.table.said = { stay: true }; const ev = ok(E.advance(X)); if (X.you.fired.length) { const ro = find(ev, 'readout'); assert.ok(!(ro && ro.reads) && !(X.table.round && X.table.round.reads)); S.you.fired = X.you.fired; } }
+  assert.ok(S.you.fired.length, 'a read fired somewhere');
+  // The view's last round keeps the line (a reload shows it again).
+  for (let i = 0; i < 300; i++) {
+    const X = readRig({ seed: 'rv' + i, tally: TOLD, dice: cups(i) }), ev = ok(E.advance(X)), ro = find(ev, 'readout');
+    if (ro && ro.reads && X.table) { deq(E.view(X).table.last.readout.reads, ro.reads); return; }
+  }
+  assert.fail('no read line at a reveal in 300 tries');
+});
+
+test('Poker Face hides your tell entirely: no shapes kept, no tally, no read, and the Book says so', () => {
+  const S = readRig({ tally: TOLD, tricks: ['pokerface'] });
+  assert.strictEqual(SIM.readOf(S, 1), null);
+  for (let i = 0; i < 100; i++) { const X = readRig({ seed: 'pf' + i, tally: TOLD, tricks: ['pokerface'] }); E.advance(X); assert.strictEqual(X.you.fired.length, 0); }
+  const { S: N, events } = E.playNight('pfnight', null, { keepEvents: true, tricks: ['pokerface'] });
+  all(events, 'readout').forEach(r => r.bids.forEach(b => { if (b.id === 'me') assert.strictEqual(b.shape, null); }));
+  deq(N.you.tonight, {});
+  const book = E.bookApply(null, events);
+  assert.ok(book.me.bids > 0 && !book.me.shapes, 'the Book keeps no shapes under Poker Face');
+  assert.strictEqual(E.summary(N).tell.text, 'Poker Face: nobody got a read on you tonight.');
+  const yp = E.youPage(null, readRig({ tally: TOLD, tricks: ['pokerface'] }));
+  assert.strictEqual(yp.hidden, true);
+  // It changes nothing else about Poker Face: they still put your bluffing at nothing.
+  assert.strictEqual(SIM.estBluff(S, 0), 0);
+});
+
+test('the room remembers across nights: the Book keeps your shapes, fades them each night, and a new night starts with some of it', () => {
+  let book = null;
+  const nights = [];
+  for (let i = 0; i < 3; i++) { const r = E.playNight('mem' + i, null, { keepEvents: true, book }); book = E.bookApply(book, r.events); nights.push(r.S); }
+  assert.ok(book.me.shapes && book.me.shapes.all.n > 0);
+  // The fade: the Book after a night is (what it had + tonight) x 0.75.
+  const one = E.bookApply(null, E.playNight('mem0', null, { keepEvents: true }).events);
+  deq(one.me.shapes.all, { n: Math.round(nights[0].you.tonight.all.n * 0.75 * 100) / 100, b: Math.round(nights[0].you.tonight.all.b * 0.75 * 100) / 100 });
+  // A new night starts with three quarters of it, at most 60 bids' worth, in whole bids.
+  const S = E.newNight({ seed: 'mem-next', book });
+  const k = Math.min(0.75, 60 / book.me.shapes.all.n);
+  assert.strictEqual(S.you.prior.all.n, Math.round(book.me.shapes.all.n * k));
+  for (const id in S.you.prior) { assert.ok(Number.isInteger(S.you.prior[id].n) && Number.isInteger(S.you.prior[id].b) && S.you.prior[id].b <= S.you.prior[id].n); }
+  deq(S.you.tonight, {});
+  // A habit kept is a tell the next night from the first bid; one dropped fades below the line.
+  const habit = { all: { n: 60, b: 12 }, step: { n: 20, b: 14 } };
+  let B = { v: 1, nights: 4, me: { bids: 60, bluffs: 12, shapes: J(habit) }, people: {} };
+  deq(SIM.tellsIn(E.newNight({ seed: 'm', book: B }).you.prior).map(x => x.shape), ['step']);
+  const tellAt = [];
+  for (let n = 0; n < 6; n++) { tellAt.push(SIM.tellsIn(E.newNight({ seed: 'm', book: B }).you.prior).length > 0); B = E.bookApply(B, [{ t: 'nightEnd', ending: 'walked', cash: 0, share: '' }]); }
+  assert.deepStrictEqual(tellAt.slice(0, 2), [true, true], 'kept for a night or two');
+  assert.strictEqual(tellAt[5], false, 'gone after a few nights of not doing it');
+  // Sharp people use what the room remembers: a tell in the Book is read at the first chance.
+  const R = readRig({ tally: {} }); R.you.prior = J(TOLD);
+  assert.ok(SIM.readOf(R, 1));
+  // A Book from before this change (no shapes) is fine, and so is a night saved before it (no notes at all).
+  deq(E.newNight({ seed: 'm', book: { v: 1, nights: 2, me: { bids: 9, bluffs: 2 }, people: {} } }).you.prior, {});
+  const old = readRig({ tally: TOLD }); delete old.you;
+  assert.strictEqual(SIM.readOf(old, 1), null);
+  ok(E.advance(old));
+});
+
+test('the Book\'s page on you: each shape in plain words, the tells marked, from the night or from the Book', () => {
+  const S = readRig({ tally: TOLD });
+  const yp = E.youPage(null, S);
+  assert.strictEqual(yp.n, 40); assert.strictEqual(yp.bluff, 8);
+  assert.strictEqual(yp.text, '40 bids on record, 8 of them bluffs (20%)');
+  deq(yp.rows.map(r => r.shape), ['low', 'high', 'face', 'step', 'jump', 'stay', 'switch']);
+  const step = yp.rows.find(r => r.shape === 'step');
+  deq([step.name, step.n, step.bluff, step.tell, step.text, step.line], ['Raising by one', 14, 11, 'bluff', '14 times, 11 of them bluffs (79%)', 'you step up by one when you’ve got nothing']);
+  const low = yp.rows.find(r => r.shape === 'low');
+  deq([low.n, low.tell, low.text, low.line], [0, null, 'not seen yet', null]);
+  assert.strictEqual(yp.rows.find(r => r.shape === 'jump').tell, null, 'six honest jumps against 20%: no tell (gap under 25)');
+  deq(yp.tells.map(t => t.shape), ['stay', 'step']);
+  assert.strictEqual(yp.hidden, false);
+  // From the Book alone (between nights): what the next night starts with.
+  const book = { v: 1, nights: 3, me: { bids: 80, bluffs: 16, shapes: { all: { n: 80, b: 16 }, step: { n: 20, b: 15 } } }, people: {} };
+  const yb = E.youPage(book);
+  assert.strictEqual(yb.n, 60); assert.strictEqual(yb.rows.find(r => r.shape === 'step').n, 15);
+  deq(yb.tells.map(t => t.shape), ['step']);
+  deq(E.youPage(null).n, 0); assert.strictEqual(E.youPage(null).text, 'No bids of yours on record yet');
+});
+
+test('the end of the night says what your tell was, or that nobody got a read on you; so does Pearl\'s column', () => {
+  const night = (fired, tally, tricks) => { const S = E.newNight({ seed: 'endtell', tricks }); S.you = { tonight: J(tally || {}), prior: {}, fired }; return S; };
+  let S = night([{ id: 'npc_vada', shape: 'step', dir: 'bluff', hour: 3 }, { id: 'npc_loretta', shape: 'step', dir: 'bluff', hour: 4 }, { id: 'npc_vada', shape: 'stay', dir: 'bluff', hour: 3 }], TOLD);
+  let t = E.summary(S).tell;
+  assert.strictEqual(t.text, 'Your tell tonight: you step up by one when you’ve got nothing. Vada and Loretta read it (three times).');
+  deq(J(t.by), ['npc_vada', 'npc_loretta']); assert.strictEqual(t.reads, 3);
+  assert.ok(E.column(S).body.includes('Vada Sturdivant had the visitor\'s number: the visitor steps up by one when bluffing.'), E.column(S).body);
+  assert.ok(E.columnFacts(S).includes('The visitor\'s tell: steps up by one when bluffing. Read by Vada Sturdivant, Loretta Gaddis (3 times).'));
+  S = night([], TOLD);
+  assert.strictEqual(E.summary(S).tell.text, 'Your tell tonight: you stay on the last bid’s face when you’ve got nothing. Nobody at your tables was sharp enough to use it.');
+  assert.ok(E.column(S).body.includes('The visitor stays on the last bid’s face when bluffing, though nobody sharp enough sat down to notice.'));
+  S = night([], {});
+  assert.strictEqual(E.summary(S).tell.text, 'Nobody got a read on you tonight.');
+  assert.ok(/Nobody at the Low Water could read the visitor's bidding\.|Not one of the regulars got a read on the visitor\./.test(E.column(S).body));
+  assert.ok(E.columnFacts(S).includes('Nobody got a read on the visitor\'s bidding.'));
+  S = night([{ id: 'npc_vada', shape: 'step', dir: 'bluff', hour: 3 }], TOLD);
+  assert.strictEqual(E.summary(S).tell.text, 'Your tell tonight: you step up by one when you’ve got nothing. Vada read it (once).');
+  // A night saved before this change has no notes: nobody read it.
+  S = E.newNight({ seed: 'old' }); delete S.you;
+  assert.strictEqual(E.summary(S).tell.text, 'Nobody got a read on you tonight.');
+});
+
 // ===================================================================== saved nights
 test('a night saved before the trick rework resumes and plays on to its end under the new rules', () => {
   const fx = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'fixtures', 'bones-night-v1.json'), 'utf8')).saves;
@@ -1519,9 +1754,13 @@ test('a night saved before the trick rework resumes and plays on to its end unde
     }
     if (k === 'ready') assert.ok(L.uses.includes('slowroll') && v.table.slow);
     if (k === 'shop') assert.strictEqual(v.shop.offers.length, 3, 'the offers already drawn stay');
+    // Saved before the room read you back: no notes on you; it plays on, takes notes from now, and ends with a word on them.
+    assert.strictEqual(S.you, undefined);
+    deq(E.youPage(null, S).n, 0);
     let g = 0;
     while (S.phase !== 'over') { ok(E.act(S, E.basicPolicy(S, E.view(S), E.legal(S), E))); assert.ok(++g < 5000); }
     assert.ok(['house', 'cleaned', 'walked', 'bust'].includes(S.ending));
+    assert.ok(typeof E.summary(S).tell.text === 'string' && E.column(S).body.length > 0);
   }
   // A night saved before Double or Nothing was limited has no count at its table: it resumes with both calls for 2.
   const D = J(fx.turn.S);
