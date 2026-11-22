@@ -47,6 +47,7 @@ const STEP = async () => {
   else if (S.phase === 'shop') must('#btn-leave');
   else if (L.need === 'next') must('#btn-next');
   else if (L.need === 'ready') must('#btn-go');
+  else if (L.need === 'side') { const a = E.basicPolicy(S, v, L, E); must(a.pick ? '#btn-side-' + a.pick : '#btn-side-pass'); }
   else if (L.need === 'turn') {
     const a = E.basicPolicy(S, v, L, E);
     if (a.t === 'liar') must('#btn-liar');
@@ -269,20 +270,21 @@ s.test('each usable trick\'s control: Slow Roll picks dice, Palm a die and a fac
   await page.click('#btn-use');
   await page.evaluate(() => Game.App.idle());
   const d1 = await page.evaluate(() => ({ dice: Game.App.view().table.myDice, slow: Game.App.state.table.round.slow, shown: document.querySelector('#mycup').dataset.faces }));
-  assert.equal(d1.slow, true);
+  assert.equal(d1.slow, 1, 'one of the round\'s two re-rolls');
   assert.equal(d1.dice[0], d0[0], 'the die kept stays');
   assert.equal(d1.shown, d1.dice.join(','));
-  // Palm: the last die to a 6 (any face would do).
+  // Palm: the last die to a 6, or a 5 if it already shows a 6 (any face from 2 to 6 would do).
   await playOut(page, usable('palm'));
   const n = await page.evaluate(() => Game.App.view().table.myDice.length);
+  const was = await page.evaluate(() => Game.App.view().table.myDice.slice(-1)[0]), to = was === 6 ? 5 : 6;
   await page.click('.tricks .trick[data-id="palm"]');
   assert.equal(await page.isDisabled('#btn-use'), true);
   await page.click(`dialog .picks button[data-i="${n - 1}"]`);
-  await page.click('dialog .picks button[data-f="6"]');
+  await page.click(`dialog .picks button[data-f="${to}"]`);
   await page.click('#btn-use');
   await page.evaluate(() => Game.App.idle());
-  assert.equal(await page.evaluate(() => Game.App.view().table.myDice.slice(-1)[0]), 6);
-  assert.equal(await page.evaluate(() => Game.Engine.legal(Game.App.state).uses.includes('palm')), false, 'once a table');
+  assert.equal(await page.evaluate(() => Game.App.view().table.myDice.slice(-1)[0]), to);
+  assert.equal(await page.evaluate(() => Game.App.view().table.palm.left), 3, 'four a table: three left');
   // Loretta's Nod: the truth about the bid in front of you.
   await playOut(page, usable('nod'));
   await page.click('.tricks .trick[data-id="nod"]');
@@ -291,14 +293,209 @@ s.test('each usable trick\'s control: Slow Roll picks dice, Palm a die and a fac
   const nod = await page.evaluate(() => Game.App.view().table.nod);
   assert.ok(nod);
   assert.match(await page.textContent('#infoline'), nod.truth ? /Loretta nods/ : /Loretta shakes her head/);
-  // Double or Nothing: the Liar button offers "for two".
+  // Double or Nothing: the Liar button offers "for two": right, the bidder loses 2; wrong, you lose 1.
   await playOut(page, { until: untilTurnWithBid });
   assert.ok(await page.isVisible('#btn-liar2'));
   await page.click('#btn-liar2');
   await page.evaluate(() => Game.App.idle());
   const loss = await page.evaluate(() => Game.UI.TV.lastLoss);
-  const rule = await page.evaluate(() => Game.UI.TV.rule && Game.UI.TV.rule.id);
-  assert.ok(loss.length && loss.some(l => l.n >= (rule === 'sudden' ? 3 : 2) || l.left === 0), JSON.stringify(loss));
+  const rule = await page.evaluate(() => Game.UI.TV.rule && Game.UI.TV.rule.id), L = rule === 'sudden' ? 2 : 1;
+  assert.ok(loss.length === 1 && (loss[0].who === 0 ? loss[0].n === L || loss[0].left === 0 : loss[0].n === 2 * L || loss[0].left === 0), JSON.stringify(loss));
+});
+
+// ===================================================================== the reworked tricks
+const PHONES = [{ width: 390, height: 780 }, { width: 360, height: 640 }];
+const withTheme = async (h, theme, viewport) => {
+  const page = await open(h, { viewport });
+  await page.evaluate(t => { localStorage.setItem('novatria.bones.settings', JSON.stringify({ v: 1, theme: t, played: true, tipsDone: true })); }, theme);
+  await page.reload();
+  await page.waitForFunction(() => window.Game && Game.App);
+  return page;
+};
+/* Everything on screen and nothing spilling: the felt, the controls in the action bar. */
+const TABLE_FITS = sels => {
+  const bad = [], H = innerHeight, W = innerWidth;
+  sels.forEach(sel => document.querySelectorAll(sel).forEach(n => { if (n.offsetParent === null) return; const r = n.getBoundingClientRect(); if (r.top < -1 || r.bottom > H + 1 || r.left < -1 || r.right > W + 1) bad.push(`${sel} off screen`); if (n.tagName === 'BUTTON' && r.height < 43.5) bad.push(`${sel} ${r.height}px tall`); }));
+  const felt = document.querySelector('#felt');
+  if (felt.scrollHeight > felt.clientHeight + 2) bad.push(`felt overflows ${felt.scrollHeight} > ${felt.clientHeight}`);
+  return bad;
+};
+
+s.test('Side Bet: when two others go to a challenge the holder gets one tap (the bid, the Count, the habit); fits at 360 px in both themes', async h => {
+  for (const theme of ['dark', 'parchment']) for (const vp of PHONES) {
+    const page = await withTheme(h, theme, vp);
+    await startNight(page, { seed: 'side-' + theme + vp.width, tricks: ['sidebet'] });
+    await playOut(page, { until: () => { const v = Game.App.view(); return v.phase === 'table' && v.table.wait === 'side'; } });
+    assert.equal(await page.evaluate(() => Game.App.view().table.wait), 'side', 'a side bet came up');
+    const sb = await page.evaluate(() => Game.App.view().table.side);
+    const shown = await page.evaluate(() => ({ q: document.querySelector('.sidebet .sb-q').textContent, facts: document.querySelector('.sidebet .sb-facts').textContent, picker: document.querySelector('#picker').hidden }));
+    const E = engineInNode(), word = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve'][sb.q];
+    assert.ok(shown.q.includes(`${word} ${sb.f}`), 'the bid: ' + shown.q);
+    const p = sb.kind === 'liar' ? sb.count : sb.exact;
+    assert.ok(shown.facts.includes((p > 0 && p < 0.005 ? '<1' : p > 0.995 && p < 1 ? '>99' : String(Math.round(p * 100))) + '%'), 'the Count: ' + shown.facts);
+    if (sb.habit) assert.ok(shown.facts.includes(sb.habit.text), 'the habit line');
+    assert.ok(shown.picker, 'the bid picker steps aside');
+    assert.deepEqual(await page.evaluate(TABLE_FITS, ['#btn-side-bidder', '#btn-side-caller', '#btn-side-pass', '.sidebet .sb-q', '#mycup .die', '#bid']), [], `${theme} ${vp.width}x${vp.height}`);
+    assert.deepEqual(await overflowReport(page, vp.width), []);
+    // One tap: the cups lift and the night goes on.
+    const cash = await page.evaluate(() => Game.App.state.cash);
+    await page.click('#btn-side-bidder');
+    await page.evaluate(() => Game.App.idle());
+    const after = await page.evaluate(() => ({ need: Game.Engine.legal(Game.App.state).need, last: Game.App.state.table && Game.App.state.table.last, cash: Game.App.state.cash }));
+    assert.notEqual(after.need, 'side');
+    if (after.last) {
+      const right = sb.kind === 'liar' ? after.last.reveal.good : !after.last.reveal.exact;
+      assert.equal(after.cash - cash >= (right ? sb.pays : 0), true, 'a right side bet pays the ante');
+    }
+    void E;
+  }
+  // A player without it is never asked.
+  const page = await open(h);
+  await startNight(page, { seed: 'side-none' });
+  let asked = false;
+  for (let i = 0; i < 400 && !asked; i++) { const ph = await page.evaluate(STEP); asked = await page.evaluate(() => Game.App.state && Game.App.state.phase === 'table' && Game.App.state.table.wait === 'side'); if (ph === 'over') break; }
+  assert.equal(asked, false);
+});
+
+s.test('Loaded Six: the die is marked, a bid of 6s may go one past the dice, and the reveal counts it twice and says so', async h => {
+  for (const vp of PHONES) {
+    const page = await open(h, { viewport: vp, contextOptions: {} });
+    await page.evaluate(() => { Game.App.speed = 0; Game.App.start({ seed: 'loaded-ui', tips: false, tricks: ['loaded'] }); });
+    await page.evaluate(() => Game.App.state.phase === 'choose' ? Game.App.act({ t: 'sit', i: 0 }) : null);
+    await page.evaluate(async () => {
+      await Game.App.idle();
+      const S = Game.App.state, T = S.table;
+      T.seats[0].dice = [6, 6, 2, 4]; T.seats[1].dice = [6, 1, 3, 5]; T.seats[2].dice = [6, 2, 2, 4];
+      T.seats.forEach(x => { x.n = x.dice.length; x.out = false; });
+      T.round = { no: T.roundNo, opener: 1, turn: 0, bids: [{ who: 2, q: 6, f: 6, p: 0.2, held: 1, bluff: true, habit: null }], blindSeat: -1, looked: false, peek: [], ones: null, nod: null, slow: 0, hot: false, fixed: [], pinned: { 0: 6 }, loaded: 0 };
+      T.wait = 'turn'; Game.UI.TV.key = ''; Game.UI.Screens.render();
+    });
+    // Marked on your cup, worth two.
+    assert.equal(await page.evaluate(() => document.querySelectorAll('#mycup .die[data-twice]').length), 1);
+    assert.match(await page.getAttribute('#mycup .die[data-twice]', 'aria-label'), /counts as two 6s/);
+    // The Count and the picker agree with the engine: twelve dice, and thirteen 6s is a legal bid.
+    assert.equal(await page.evaluate(() => Game.Engine.legal(Game.App.state).maxFor[6]), 13);
+    await page.click('.facebtn[data-f="6"]');
+    for (let g = 0; g < 20 && !(await page.isDisabled('#q-plus')); g++) await page.click('#q-plus');
+    assert.equal(await page.textContent('#q-val'), '13');
+    assert.equal(await page.isEnabled('#btn-bid'), true);
+    await page.click('.facebtn[data-f="5"]');
+    assert.ok(+(await page.textContent('#q-val')) <= 12, 'not for 5s');
+    // The reveal, at speed: the loaded die lights and the counter takes two from it.
+    await page.evaluate(() => { Game.App.speed = 1; });
+    await page.click('#btn-liar');
+    await page.waitForSelector('#mycup .die[data-twice][data-hit]', { timeout: 20000 });
+    await page.evaluate(() => Game.App.idle());
+    const rv = await page.evaluate(() => Game.App.view().table.last.reveal);
+    assert.deepEqual([rv.count, rv.loaded, rv.good], [6, 0, true]);
+    assert.equal(await page.textContent('#bid .count-num'), '6');
+    assert.match(await page.textContent('.sheet .sub'), /There were 6 \(your loaded six counts twice\); you lose a die\./);
+    assert.deepEqual(await overflowReport(page, vp.width), []);
+  }
+});
+
+s.test('Slow Roll: one tap keeps your best face and re-rolls the rest, twice a round; the dice picker still works', async h => {
+  const page = await open(h, { viewport: { width: 360, height: 640 } });
+  await startNight(page, { seed: 'slow-ui', tricks: ['slowroll'] });
+  await playOut(page, { until: () => { const v = Game.App.view(); return v.phase === 'table' && v.table.wait === 'ready' && v.table.slow && v.table.slow.reroll.length > 0; } });
+  const before = await page.evaluate(() => ({ dice: Game.App.view().table.myDice, slow: Game.App.view().table.slow }));
+  assert.match(await page.textContent('#btn-keepbest'), new RegExp(`^Keep ${before.slow.f}sre-roll ${before.slow.reroll.length}$`));
+  assert.match(await page.textContent('#bar p'), /Slow Roll: 2 re-rolls left\./);
+  assert.deepEqual(await page.evaluate(TABLE_FITS, ['#btn-keepbest', '#btn-slowroll', '#btn-go']), []);
+  await page.click('#btn-keepbest');
+  await page.evaluate(() => Game.App.idle());
+  const after = await page.evaluate(() => ({ dice: Game.App.view().table.myDice, wait: Game.App.view().table.wait, slow: Game.App.state.table.round.slow, shown: document.querySelector('#mycup').dataset.faces }));
+  before.dice.forEach((d, i) => { if (!before.slow.reroll.includes(i)) assert.equal(after.dice[i], d, 'kept die ' + i); });
+  assert.deepEqual([after.wait, after.slow, after.shown], ['ready', 1, after.dice.join(',')]);
+  assert.match(await page.textContent('#bar p'), /1 re-roll left/);
+  // The second, by hand from the dialog: the dialog offers the same one tap at the top.
+  await page.click('#btn-slowroll');
+  if (await page.$('#btn-keepbest-dlg')) assert.match(await page.textContent('#btn-keepbest-dlg'), /^Keep the \d+s, re-roll \d+$/);
+  await page.click('dialog .picks button[data-i="0"]');
+  await page.click('#btn-use');
+  await page.evaluate(() => Game.App.idle());
+  assert.equal(await page.evaluate(() => Game.App.state.table.round.slow), 2);
+  assert.match(await page.textContent('#bar p'), /spent this round/);
+  await page.click('#btn-go');
+  assert.equal(await page.evaluate(() => Game.App.idle().then(() => Game.Engine.legal(Game.App.state).uses.includes('slowroll'))), false);
+});
+
+s.test('Palm: faces 2 to 6 only, the loaded six will not turn, four a table and the count left shown', async h => {
+  const page = await open(h, { viewport: { width: 360, height: 640 } });
+  await startNight(page, { seed: 'palm-ui', tricks: ['palm', 'loaded'] });
+  await playOut(page, { until: () => Game.Engine.legal(Game.App.state).uses.includes('palm') && Game.App.view().table.wait === 'turn' });
+  for (let k = 0; k < 2; k++) {
+    await page.click('.tricks .trick[data-id="palm"]');
+    assert.match(await page.textContent('#palm-left'), new RegExp(`^${4 - k} palms? left at this table`));
+    assert.equal(await page.$('dialog .picks button[data-f="1"]'), null, 'no 1');
+    assert.equal(await page.evaluate(() => document.querySelectorAll('dialog .picks button[data-f]').length), 5);
+    const loaded = await page.evaluate(() => Game.App.view().table.palm.loaded);
+    if (loaded !== null) assert.equal(await page.isDisabled(`dialog .picks button[data-i="${loaded}"]`), true, 'the loaded six will not turn');
+    assert.match(await page.textContent('#trick-goes'), /Goes with your Loaded Six\./);
+    const dice = await page.evaluate(() => Game.App.view().table.myDice);
+    const i = dice.findIndex((d, j) => j !== loaded), to = dice[i] === 6 ? 2 : 6;
+    await page.click(`dialog .picks button[data-i="${i}"]`);
+    await page.click(`dialog .picks button[data-f="${to}"]`);
+    assert.equal(await page.textContent('#btn-use'), `Turn the ${dice[i]} to a ${to}`);
+    assert.deepEqual(await overflowReport(page, 360), []);
+    await page.click('#btn-use');
+    await page.evaluate(() => Game.App.idle());
+    assert.equal(await page.evaluate(j => Game.App.view().table.myDice[j], i), to);
+  }
+  assert.equal(await page.evaluate(() => Game.App.view().table.palm.left), 2);
+});
+
+s.test('the back room: an offer that goes with a trick you hold says so; so do your held tricks and a trick\'s page', async h => {
+  for (const theme of ['dark', 'parchment']) {
+    const page = await withTheme(h, theme, { width: 360, height: 640 });
+    await startNight(page, { seed: 'builds', tricks: ['shaved', 'loaded'] });
+    await page.evaluate(() => { const S = Game.App.state; S.phase = 'shop'; S.table = null; S.cash = 500; S.shop = { hour: 1, offers: ['snake', 'mirror', 'palm'], rerolls: 0 }; Game.UI.Screens.render(); });
+    assert.equal(await page.textContent('.offer[data-id="snake"] .goes'), 'Goes with your Shaved Die.');
+    assert.equal(await page.textContent('.offer[data-id="palm"] .goes'), 'Goes with your Loaded Six.');
+    assert.equal(await page.$('.offer[data-id="mirror"] .goes'), null);
+    await page.click('.offer button.buy[data-i="2"]');
+    assert.equal(await page.textContent('.held-item[data-id="loaded"] .goes'), 'Goes with your Palm.');
+    assert.equal(await page.textContent('.held-item[data-id="palm"] .goes'), 'Goes with your Loaded Six.');
+    assert.equal(await page.textContent('.offer[data-id="snake"] .goes'), 'Goes with your Shaved Die.');
+    assert.deepEqual(await overflowReport(page, 360), []);
+    // Friends Rates: four offers.
+    await page.evaluate(() => { const S = Game.App.state; S.tricks.push({ id: 'friends', paid: 15 }); S.shop.offers = ['snake', 'mirror', 'nod', 'sticky']; Game.UI.Screens.render(); });
+    assert.equal(await page.evaluate(() => document.querySelectorAll('.offer').length), 4);
+    assert.deepEqual(await overflowReport(page, 360), []);
+  }
+});
+
+s.test('a night saved before the trick rework resumes from Continue and plays on to the end', async h => {
+  const fx = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'fixtures', 'bones-night-v1.json'), 'utf8')).saves;
+  for (const k of ['turn', 'ready', 'shop']) {
+    const page = await open(h);
+    await page.evaluate(r => { localStorage.setItem('novatria.bones.settings', JSON.stringify({ v: 1, played: true, tipsDone: true })); localStorage.setItem('novatria.bones.night', JSON.stringify(r)); }, fx[k]);
+    await page.reload();
+    await page.waitForFunction(() => window.Game && Game.App);
+    assert.ok(await page.isVisible('#btn-continue'), k);
+    await page.click('#btn-continue');
+    await page.evaluate(() => { Game.App.speed = 0; });
+    assert.equal(await page.evaluate(() => Game.UI.Screens.cur), k === 'shop' ? 'shop' : 'table');
+    assert.deepEqual(await page.evaluate(CHECK), []);
+    assert.equal(await playOut(page, { check: true }), 'over');
+  }
+});
+
+s.test('a whole night through real clicks holding Side Bet and Loaded Six: no page errors, the page equals the view', async h => {
+  const page = await open(h);
+  // rc0 plays all five tables and beats the house (Engine.playNight with basicPolicy, as STEP plays).
+  await startNight(page, { seed: 'rc0', tricks: ['sidebet', 'loaded'] });
+  let sides = 0;
+  for (let i = 0; i < 4000; i++) {
+    if (await page.evaluate(() => Game.App.state && Game.App.state.phase === 'table' && Game.App.state.table.wait === 'side')) sides++;
+    const ph = await page.evaluate(STEP);
+    assert.deepEqual(await page.evaluate(CHECK), [], `after step ${i}`);
+    if (ph === 'over' || ph === 'none') break;
+  }
+  const end = await page.evaluate(() => ({ phase: Game.App.state.phase, ending: Game.App.state.ending, tables: Game.App.state.log.length }));
+  assert.deepEqual(end, { phase: 'over', ending: 'house', tables: 5 });
+  assert.equal(await page.evaluate(() => Game.UI.Screens.cur), 'over');
+  assert.ok(sides >= 5, 'side bets were offered: ' + sides);
 });
 
 s.test('the quiet tricks show what they show: Mirror Ring in the cups, Bar Mirror and the Ledger by the seats; a dice trick sleeps at Last Call', async h => {

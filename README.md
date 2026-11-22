@@ -2367,18 +2367,64 @@ code owns every die, rule and dollar; there is nothing for Claude to decide.
   challenge loses 2 dice), Open hand (everyone's first die face up), Blind
   opener (the opener bids before looking) and Double ante.
 - **The back room.** After every table Curtis Pruett, who puts odds on
-  everything, sells **tricks**: three offers, five slots, rerolls and
-  selling back at half what you paid. Twenty-four tricks in four kinds:
-  dice (Shaved Die, Loaded Six, Extra Bone, Rabbit's Foot, Slow Roll, Palm,
-  Hot Hand), information (Mirror Ring, Bar Mirror, Loretta's Nod, Reading
-  Glasses, Lyman's Ledger, Cornered), money (Sticky Fingers, Side Bet, House
-  Money, Snake Eyes, Friends Rates, A Tab) and manner (Poker Face, Honest
-  Face, Double or Nothing, Close Enough, Last Word). Leaving the back room
-  without the cheaper next buy-in (and no Tab) ends the night.
+  everything, sells **tricks**: three offers (four with Friends Rates), five
+  slots, rerolls and selling back at half what you paid. Twenty-four tricks
+  in four kinds: dice (Shaved Die, Loaded Six, Extra Bone, Rabbit's Foot,
+  Slow Roll, Palm, Hot Hand), information (Mirror Ring, Bar Mirror, Loretta's
+  Nod, Reading Glasses, Lyman's Ledger, Cornered), money (Sticky Fingers,
+  Side Bet, House Money, Snake Eyes, Friends Rates, A Tab) and manner (Poker
+  Face, Honest Face, Double or Nothing, Close Enough, Last Word). Leaving the
+  back room without the cheaper next buy-in (and no Tab) ends the night.
+- **Tricks that ask something of you** (the ones reworked to matter):
+  - *Loaded Six* (common, dice): one of your dice always lands on 6 and
+    counts as **two 6s** on any bid of 6s, whoever made it. Nobody else
+    knows, so the table holds one more 6 than they expect, and a bid of 6s
+    may go one past the dice on the table. The Count, Spot on, Loretta's Nod
+    and the reveal all count it twice; the die wears a "×2" badge, and at
+    the reveal the counter takes two from it ("your loaded six counts
+    twice").
+  - *Slow Roll* (uncommon, dice): twice a round, before the first bid
+    (opener or not), re-roll any of your dice. One tap, "Keep 5s · re-roll
+    2", keeps every die showing your best face (wild 1s and the loaded six's
+    second 6 counted; a tie goes to the higher face) and re-rolls the rest;
+    "Pick…" chooses dice by hand.
+  - *Palm* (uncommon, dice): four times a table, after you see your roll,
+    turn one of your dice to any face **from 2 to 6**. It never makes a 1
+    (that stays Shaved Die's and Hot Hand's job) and the loaded six will not
+    turn.
+  - *Side Bet* (uncommon, money): when two others go to a challenge, you are
+    asked before the cups lift who is right: "It's there" or "It's not" (on
+    a Spot on, "Dead on" or "Not exact"), with the bid, the Count of it by
+    your dice and the habit the bidder showed. Right pays an ante; wrong
+    costs nothing; "Pass" lets it go. One tap, and only for a holder. Like
+    the other ante tricks it does nothing at Last Call (no antes there), so
+    there is no prompt at Loretta's table.
+  - *Snake Eyes* (common, money): whenever you win a challenge (your Liar
+    or Spot on was right, or your bid was called and was good), collect an
+    extra ante for every 1 under your cup.
+  - *Poker Face* (uncommon, manner): the people always take you for an
+    honest player, however often they catch you bluffing, tonight or on
+    nights before. They call your bids less and believe them more: it pays
+    a bluffer.
+  - *Double or Nothing* (rare, manner): any Liar call may be for two dice:
+    right and the bidder loses 2, wrong and you lose only 1 (doubled under
+    Sudden).
+  - *Friends Rates* (common, money): tricks cost 25% less, and Curtis shows
+    you four instead of three.
+- **Builds.** Some tricks go together, and the game says so where you
+  decide: an offer in the back room that goes with a trick you hold says
+  "Goes with your Shaved Die.", and so do your held tricks there and a
+  trick's page at the table. The groups (`Engine.BUILDS`): **Ones** (Shaved
+  Die, Hot Hand, Snake Eyes, Bar Mirror), **Sixes** (Loaded Six, Palm, Slow
+  Roll), **Calling** (Sticky Fingers, Double or Nothing, Loretta's Nod,
+  Snake Eyes), **Bluffing** (Poker Face, Honest Face, Close Enough) and
+  **Reading** (Reading Glasses, Lyman's Ledger, Side Bet).
 - **Last Call.** Hold **$500** after Midnight and you sit at Loretta's own
   table: Loretta Gaddis and Curtis Pruett, five dice each, no antes, your
   whole stack as the buy-in. Win and it triples. Loretta counts the bones:
-  dice tricks do not work there; information, money and manner tricks do.
+  dice tricks do not work there; information, money and manner tricks do
+  (though the ones that pay in antes, Sticky Fingers, Snake Eyes and Side
+  Bet, have no antes to pay there).
 - **Four endings.** **Beat the house** (won at Last Call), **cleaned out at
   Last Call** (lost it all there), **walked home** (short of $500 after
   Midnight, or chose to walk from Last Call with your cash) and **went
@@ -2472,8 +2518,10 @@ the same night byte for byte. You are always seat 0. In brief:
 - `Engine.newNight({ seed, daily, book, tricks })` returns `S`.
 - `Engine.act(S, action)` is the one way to change `S`. Actions by phase:
   `sit` and `walk` (choosing a table), `bid`, `liar` (optionally `double`),
-  `spot`, `use` (Loretta's Nod, Slow Roll, Palm), `go` and `next` (at a
-  table), `buy`, `sell`, `reroll` and `leave` (the back room). It returns
+  `spot`, `use` (Loretta's Nod, Slow Roll with `dice` or `keep: 'best'`,
+  Palm), `go`, `side` (Side Bet: `pick: 'bidder'` or `'caller'`, or none to
+  pass) and `next` (at a table), `buy`, `sell`, `reroll` and `leave` (the
+  back room). It returns
   the events to draw, in order (`hour`, `sit`, `pay`, `roll`, `bid`,
   `call`, `reveal`, `lose`, `readout`, `bark`, `tableEnd`, `shop`,
   `nightEnd` and others), and every batch ends with `{ t: 'wait', need }`,
@@ -2493,15 +2541,19 @@ the same night byte for byte. You are always seat 0. In brief:
   three-seat table with set cups and set moves for the people
   (`Engine.LESSON`), its first round open (`view.table.cups`), played on
   with `Engine.act` like any table.
-- Data: `Engine.PEOPLE`, `Engine.TRICKS`, `Engine.HOUSE_RULES`,
-  `Engine.HOURS`, `Engine.VERSION` (`bones-1`). `Engine._sim` exposes the
+- Data: `Engine.PEOPLE`, `Engine.TRICKS`, `Engine.BUILDS` (with
+  `Engine.partners(id)`), `Engine.HOUSE_RULES`, `Engine.HOURS`,
+  `Engine.VERSION` (`bones-1`). `Engine._sim` exposes the
   hidden side for the tests and the simulator; the page never uses it.
 
 The UI is one closure after the engine. It only calls `Engine.act` and
 draws the events, and exposes `window.Game` (`Game.App`, `Game.UI`).
 
 **Storage**, all in this browser: `novatria.bones.night` (the night in
-progress, dropped when `Engine.VERSION` changes), `novatria.bones.book`,
+progress, dropped when `Engine.VERSION` changes; a night saved before the
+trick rework resumes and plays on under the new rules: a Palm already used
+that table stays used, and a loaded six counts twice from the next roll),
+`novatria.bones.book`,
 `novatria.bones.ledger` and `novatria.bones.settings` (which also notes
 whether the practice hand was done or skipped). The API key is
 `novatria.apiKey`, shared with the other games, and is written there only
@@ -2531,34 +2583,54 @@ With no theme of its own Bones follows the town game's (`novatria.settings`).
 - `Engine.basicPolicy` (and the page's tests): Liar under 38%, Spot on over
   50% exact, else the raise the Count puts at 60%.
 - Money: ante 15% of the buy-in; streak bonus up to +3 antes; Spot on pays
-  3 antes (6 with Side Bet); House Money +25% on a pot.
+  3 antes; Snake Eyes one ante per 1 on a win; a right side bet one ante;
+  House Money +25% on a pot.
+- Tricks: Slow Roll 2 re-rolls a round, Palm 4 a table (faces 2 to 6),
+  Double or Nothing 2 dice for the bidder and 1 for you, Poker Face makes
+  the people put your bluffing at nothing.
 - The back room: three offers drawn by rarity (common 6, uncommon 3, rare
-  1); prices common $15, uncommon $30, rare $55, times 1, 2, 3.5 and 6 after
-  the 9 PM, 10 PM, 11 PM and Midnight tables (rounded to $5; Friends Rates
-  25% off); a reroll costs $10, then $20, $30; a trick sells for half what
-  was paid; five slots.
+  1), four with Friends Rates; prices common $15, uncommon $30, rare $55,
+  times 1, 2, 3.5 and 6 after the 9 PM, 10 PM, 11 PM and Midnight tables
+  (rounded to $5; Friends Rates 25% off); a reroll costs $10, then $20, $30;
+  a trick sells for half what was paid; five slots.
 - Last Call needs $500 and pays three times the stack.
 
-A 200-night run of the simulator (`node tests/bones-sim.cjs 200 --quick`)
-gives, for a player who plays by the Count alone and buys nothing: 17.5%
-beat the house, 29% cleaned out, 22% walked home, 31.5% bust. A player who
-also reads the tells and buys tricks sensibly beats the house 45.5% of the
-time and goes bust 19%. Reading the tells is worth about ten points of
-table win rate at every hour.
+A 2,000-night run of the simulator (`node tests/bones-sim.cjs 2000`)
+gives, for a player who plays by the Count alone and buys nothing: 12.6%
+beat the house, 35.4% cleaned out, 19.6% walked home, 32.5% bust; buying
+tricks sensibly, 30.9% beat the house. A player who also reads the tells
+beats the house 23.3% of the time, and 46.4% buying tricks (17.9% bust).
+Reading the tells is worth about ten points of table win rate at every
+hour. Holding one trick all night, a proxy that uses it as a holder would
+gains, in points of house-beating rate (by the Count / reading the tells):
+Loaded Six +8.5 / +11, Slow Roll +4.6 / +4, Palm +4 / +4.4, Side Bet +2.8 /
++4.3 (+$183 / +$457 mean cash), Snake Eyes +1.3 / +2.5 (+$127 / +$245),
+Poker Face +4.6 for a player who bluffs (+3.3 / +5.6), Double or Nothing +7
+/ +4.2, Friends Rates +2.8 / +4.9 for a buyer (+$301 / +$838); for scale, Reading Glasses
++11.6 and Close Enough +11.3 by the Count.
 
-**Tests.** `node tests/bones-engine.test.cjs` (58 tests, Node only, no
+**Tests.** `node tests/bones-engine.test.cjs` (65 tests, Node only, no
 browser) loads the engine block from `index.html` into `vm` and checks the
 rules exactly: determinism and the JSON round trip, the view hiding what it
 must, every call and its money, every house rule, the Count against brute
-force, the bluff line and the Book, the tells by kind and strength, bot bids
-always legal over 2,000 tables, every trick, the back room, the four endings,
+force (Loaded Six included), the bluff line and the Book, the tells by kind
+and strength, bot bids always legal over 2,000 tables, every trick (each
+reworked trick's rule: Loaded Six counted twice on 6s and only on 6s, Slow
+Roll's keep-best, Palm's uses and faces, the Side Bet prompt and its pay,
+Snake Eyes on each kind of win, Poker Face however often you are caught,
+Double or Nothing's terms, Friends Rates' fourth offer), the builds table,
+the back room, the four endings, a night saved before the rework playing on,
 a few hundred whole nights, and the practice hand's script (its cups, moves,
 Counts and no money) and that real nights never see it. `node
-tests/bones.test.cjs` (24 tests, Playwright) plays the page through its own
+tests/bones.test.cjs` (31 tests, Playwright) plays the page through its own
 buttons on a phone: the file alone from `file://` with the network shut,
 whole nights to each of the four endings with the page checked against the
 engine's view after every step, a reload mid-round, storage switched off,
-the back room, each trick's control, the Book, tonight's tables and the
+the back room, each trick's control (the Side Bet prompt in one tap at 360
+px in both themes, the Loaded Six reveal, Slow Roll's one tap, Palm's
+dialog, "Goes with" in the back room), a night saved before the rework
+resumed from Continue, a whole night holding Side Bet and Loaded Six, the
+Book, tonight's tables and the
 ledger, Claude against a stand-in API (the column, table talk, a refused
 key, no key and no call), the first-night coach and where its tips sit,
 phone widths in both themes, and the practice hand: the first-visit home,
@@ -2568,12 +2640,18 @@ dice and the tally of five, only the asked-for button live, the Count
 equal to the engine's, nothing kept after finishing or skipping, "Sit down
 for real", a reload mid-lesson, and the coach after it.
 `node tests/run.cjs bones` runs both. The simulator is not part of
-`run.cjs`: `node tests/bones-sim.cjs [nights] [--rates] [--quick]` (2,000
-nights by default; `--rates` prints every person's measured bluff rate,
-`--quick` skips the per-trick ablation) plays seeded nights with proxy
-players (by the Count alone, and with the tells known, each with and
-without buying tricks) and prints table win rates by hour and how whole
-nights end.
+`run.cjs`: `node tests/bones-sim.cjs [nights] [--rates] [--quick]
+[--only=id,id]` (2,000 nights by default; `--rates` prints every person's
+measured bluff rate, `--quick` skips the per-trick ablation, `--only` runs
+it for just those tricks) plays seeded nights with proxy players (by the
+Count alone, and with the tells known, each with and without buying tricks)
+and prints table win rates by hour, how whole nights end, and each trick's
+lift for both players (Poker Face also for a Bluffer, who tells a sensible
+lie on half its bids when one is there to tell). A proxy holding a trick
+uses it as a holder would: Slow Roll's one tap, Palm on its first move of a
+round, bids it is sure of (75%) with a cup a dice trick made stronger,
+Double or Nothing only on a sure call, a side bet on whoever it believes,
+and a buyer sells Friends Rates once the slots are full.
 
 ## Running the tests
 

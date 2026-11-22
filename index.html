@@ -264,6 +264,9 @@ details.card[open] > summary { margin-bottom: 10px; }
 .die .mark { position: absolute; top: 0; right: 0; width: 34%; height: 34%; border-top-right-radius: inherit; background: var(--accent); clip-path: polygon(30% 0, 100% 0, 100% 70%); opacity: .9; }
 .die .fixmark { position: absolute; left: 50%; bottom: -15px; transform: translateX(-50%); font: 700 9px/1 var(--ui-font); letter-spacing: .06em; color: var(--accent); white-space: nowrap; text-transform: uppercase; }
 .die .crack { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+/* Loaded Six: the die that counts as two 6s */
+.die[data-twice]::after { content: '\00D7 2'; position: absolute; right: -7px; bottom: -7px; padding: 2px 4px; border-radius: 7px; background: var(--accent); color: var(--accent-ink); font: 700 10px/1 var(--ui-font); letter-spacing: .02em; box-shadow: 0 1px 3px var(--shadow); white-space: nowrap; }
+.die[data-twice][data-hit]::after { font-size: 12px; padding: 3px 5px; }
 .die[data-pick] { cursor: pointer; }
 .die[data-sel] { box-shadow: var(--die-shadow), 0 0 0 3px var(--accent); transform: translateY(-3px); }
 
@@ -315,6 +318,18 @@ details.card[open] > summary { margin-bottom: 10px; }
 .bar .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .bar .btns[data-one] { grid-template-columns: 1fr; }
 .bar .btn { min-height: 52px; border-radius: 12px; font: 700 18px/1 var(--read-font); }
+.bar .btns[data-three] { grid-template-columns: 1.3fr 1fr 1fr; }
+.bar .btn { flex-direction: column; gap: 3px; padding: 0 8px; }
+.bar .btn small { display: block; font: 600 11px/1.1 var(--ui-font); opacity: .85; white-space: nowrap; }
+.bar .btns[data-side] { grid-template-columns: 1fr 1fr minmax(64px, .55fr); }
+.bar .btns[data-side] .pass { font-size: 15px; color: var(--muted); }
+/* Side Bet: who is right, before the cups lift */
+.sidebet { display: grid; gap: 5px; }
+.sidebet .sb-q { margin: 0; text-align: center; font: 600 15px/1.25 var(--read-font); color: var(--text); }
+.sidebet .sb-facts { display: flex; justify-content: center; gap: 10px; margin: 0; font: 13px/1.3 var(--ui-font); color: var(--muted); white-space: nowrap; overflow: hidden; }
+.sidebet .sb-facts > span:last-child { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.sidebet .sb-facts b { font-variant-numeric: tabular-nums; }
+.sidebet .sb-facts em { color: var(--text); }
 
 /* ===== Stamps, floats, sheets, coach ===== */
 .stamp-layer { position: absolute; inset: 0; z-index: 6; display: grid; place-items: center; pointer-events: none; }
@@ -436,7 +451,10 @@ details.card[open] > summary { margin-bottom: 10px; }
 .result .amt { color: var(--danger); }
 .result .amt[data-up] { color: var(--good); }
 .offers { display: grid; gap: 10px; }
-@media (min-width: 760px) { .offers { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 760px) { .offers { grid-template-columns: repeat(3, 1fr); } .offers[data-n="4"] { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1040px) { .offers[data-n="4"] { grid-template-columns: repeat(4, 1fr); } }
+.goes { margin: 0; font: 600 13px/1.3 var(--ui-font); color: var(--accent); }
+.goes::before { content: '\2726  '; }
 .offer { display: grid; gap: 6px; align-content: start; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
 .offer[data-rarity="rare"] { border-color: color-mix(in srgb, var(--accent) 70%, var(--border)); }
 .offer[data-gone] { opacity: .5; border-style: dashed; }
@@ -455,7 +473,8 @@ details.card[open] > summary { margin-bottom: 10px; }
 .held-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
 .held-item b { font: 700 16px/1.2 var(--read-font); }
 .held-item span { grid-column: 1; color: var(--muted); font-size: 13px; line-height: 1.35; }
-.held-item .btn { grid-column: 2; grid-row: 1 / span 2; }
+.held-item span.goes { color: var(--accent); font-weight: 600; }
+.held-item .btn { grid-column: 2; grid-row: 1 / span 3; }
 .next-note { margin: 12px 0 0; color: var(--muted); font-size: 14px; }
 .next-note[data-warn] { color: var(--danger); font-weight: 600; }
 .leave { width: 100%; margin-top: 12px; }
@@ -498,6 +517,8 @@ dialog .picks { display: flex; flex-wrap: wrap; justify-content: center; gap: 8p
 dialog .picks button { padding: 0; border: 0; background: none; border-radius: 10px; cursor: pointer; min-width: 44px; min-height: 44px; display: grid; place-items: center; }
 dialog .picks button[aria-pressed="true"] .die { box-shadow: var(--die-shadow), 0 0 0 3px var(--accent); }
 dialog .picks button[aria-pressed="false"] .die { opacity: .55; }
+dialog .picks button:disabled { cursor: not-allowed; }
+dialog .picks button:disabled .die { opacity: .25; }
 dialog ul { margin: 0 0 10px; padding-left: 20px; }
 dialog li { margin: 0 0 6px; }
 
@@ -595,16 +616,22 @@ dialog li { margin: 0 0 6px; }
                                  {t:'liar', double:true}  (Double or Nothing)
                                  {t:'use', id:'nod'}
                                  {t:'use', id:'slowroll', dice?:[indices]} (all if omitted)
-                                 {t:'use', id:'palm', die, face}
+                                 {t:'use', id:'slowroll', keep:'best'}  (keep your best
+                                       face, re-roll the rest: the one-tap choice)
+                                 {t:'use', id:'palm', die, face}  (face 2..6)
            'table' wait 'ready': {t:'go'} (also the two uses: slowroll, palm)
-                      ('ready' only happens when you hold Slow Roll and are
-                       not the opener: your chance to re-roll before bid 1)
+                      ('ready' only happens when you hold Slow Roll: your
+                       chance to re-roll before bid 1, opener or not, unless
+                       you open blind)
+           'table' wait 'side':  {t:'side', pick:'bidder'|'caller'} | {t:'side'} (pass)
+                      ('side' only happens when you hold Side Bet and two others
+                       go to a challenge: say who is right before the cups lift)
            'table' wait 'next':  {t:'next'}  start the next round (after a reveal)
            'shop':   {t:'buy', i} | {t:'sell', id} | {t:'reroll'} | {t:'leave'}
            'over':   nothing.
          An illegal action changes nothing and returns
          [{t:'error', msg}]. Every other batch ends with {t:'wait', need},
-         need = 'turn'|'ready'|'next'|'choose'|'shop'|'over': what the
+         need = 'turn'|'ready'|'side'|'next'|'choose'|'shop'|'over': what the
          human must do now. There is never anything left to "run".
      Engine.sit(S, i) = act(S, {t:'sit', i}).
      Engine.advance(S) -> events   runs bots if anything is pending (after a
@@ -614,12 +641,13 @@ dialog li { margin: 0 0 6px; }
          opts: { daily, book, tricks, keepEvents }.
      Engine.basicPolicy   a plain by-the-Count player (a usable policy): Liar
          under 38%, Spot on over 50% exact, else opens or jumps to
-         Engine.suggest, else the smallest raise it puts at 50%.
+         Engine.suggest, else the smallest raise it puts at 50%; a side bet
+         on whichever side the Count favours.
 
    READING (never mutate S)
      Engine.view(S) -> {
        v, phase, hour (0..4), hourName, cash, streak, seed, daily, ending,
-       tricks: [{ id, name, text, rarity, kind, usable, asleep }],
+       tricks: [{ id, name, text, rarity, kind, usable, asleep, goesWith }],
                usable = can be used right now; asleep = a dice trick at Last
                Call (Loretta counts the bones: dice tricks do not work there)
        options: (phase 'choose') same as Engine.options(S),
@@ -635,6 +663,14 @@ dialog li { margin: 0 0 6px; }
          myDice: [faces] | null (null while you bid blind),
          myFixed: [die indices]: your fixed 1s (Shaved Die / Hot Hand), wild
                   only for your own bids,
+         myLoaded: [die index] | []: your loaded six while it counts as two 6s,
+         slow: null | { f, reroll:[indices], left }  (Slow Roll ready: your best
+               face, the dice keep:'best' would re-roll, re-rolls left)
+         palm: null | { left, loaded }  (Palm held: uses left at this table,
+               the loaded six it cannot turn)
+         side: null | { kind, caller, callerId, bidder, bidderId, q, f, count,
+                 exact, habit, stake, pays }  (wait 'side': the challenge between
+                 two others, the Count of its bid and the habit that came with it)
          blind (bool), bid: {who, id, q, f} | null,
          history: [{ who, id, q, f, habit:{i, text, line, underline}|null }],
          ones: number|null (Bar Mirror), nod: {q, f, truth}|null,
@@ -651,7 +687,8 @@ dialog li { margin: 0 0 6px; }
          ante, rule:{id,name,text}|null, people:[public person], affordable,
          viaTab }]   (one card at Last Call; [] outside phase 'choose')
      Engine.legal(S) -> { need, mustBid, canBid, canLiar, canSpot,
-         minBid:{q,f}|null, maxQ, faces, uses:[ids], canGo, canNext,
+         minBid:{q,f}|null, maxQ, maxFor:{face: largest legal q}, faces,
+         uses:[ids], canGo, canNext, canSide,
          sit:[i...], canWalk, buy:[i...], sell:[ids], canReroll,
          rerollPrice, canLeave }
      Engine.isLegalBid(S, q, f) -> bool
@@ -665,8 +702,12 @@ dialog li { margin: 0 0 6px; }
          that is a legal bid now (the picker's default; basicPolicy opens and
          jumps to it).
      Engine.shopView(S) -> { hour, offers:[{ i, id, name, text, rarity, kind,
-         price, affordable }|null], held:[{ id, name, text, sell }],
-         slots: 5, rerollPrice, cash }
+         price, affordable, goesWith:[held ids] }|null] (3; 4 with Friends
+         Rates), held:[{ id, name, text, sell, goesWith }], slots: 5,
+         rerollPrice, cash }
+     Engine.BUILDS -> [{ id, name, tricks:[ids] }]   tricks that work together;
+     Engine.partners(id) -> [ids] sharing a build with id. goesWith = the
+         partners you hold.
      Engine.summary(S) -> facts for the ledger and the end screen (see fn).
      Engine.shareLine(S) -> 'Bones · 2026-11-21 · beat the house · $2,340 · 🎲🎲⬛🎲👑'
      Engine.column(S) -> { headline, body, byline }  Pearl's column, templated.
@@ -704,21 +745,24 @@ dialog li { margin: 0 0 6px; }
                seats:[{seat, id, name, dice}]}
      {t:'pay', amount (signed), why, cash}            every change of cash; why =
          'buyin'|'won'|'lost'|'streak'|'spot'|'sticky'|'snake'|'pot'|'refund'|
-         'buy'|'sell'|'reroll'
+         'buy'|'sell'|'reroll'|'side'
      {t:'roll', round, opener, openerId, mine:[faces]|null, counts:[per seat],
                open:[{seat, face}], blind, cups?}     a round starts (cups: every
                seat's dice, only in the practice hand's open round)
      {t:'look', mine}                                 a blind opener sees the cup
      {t:'trick', id, ...}                             a trick did something:
          shaved/loaded/hothand {die} · extrabone {dice} · rabbit {saved}
-         slowroll {dice, mine} · palm {die, face, mine} · mirror {seat, who, die, face}
+         slowroll {dice, mine, left, kept?} · palm {die, face, mine, left}
+         mirror {seat, who, die, face}
          barmirror {ones} · nod {q, f, truth} · cornered {shown:[{seat,die,face}]}
-         sticky {amount} · sidebet {} · housemoney {extra} · snake {amount}
+         sticky {amount} · sidebet {pick, right, amount} · housemoney {extra}
+         snake {ones, amount}
          tab {buyIn} · honest {who, n} · double {who, n} · close {} · lastword {}
      {t:'bid', who, id, name, q, f, habit:{i, text, line, underline}|null}
      {t:'call', who, id, name, kind:'liar'|'spot', on:{who, id, q, f}}
      {t:'reveal', kind, caller, bidder, q, f, wild, count, good, exact,
-               cups:[{who, id, dice}]}
+               cups:[{who, id, dice}], loaded?}   loaded: the index of your
+               loaded six in your cup when it counted as two (a bid of 6s)
      {t:'lose', who, id, n, left} · {t:'gain', who, id, left}
      {t:'out', who, id, name, place}
      {t:'readout', bids:[{who, id, name, q, f, held, p, bluff,
@@ -738,7 +782,9 @@ dialog li { margin: 0 0 6px; }
      only the pot moves). When you are caller or bidder in a Liar call, or
      you call Spot On, the loser pays the winner one ante (never below $0).
      A win pays ante x (1 + min(streak, 3)), streak = wins in a row before it.
-     A correct Spot On pays 3 antes (6 with Side Bet) plus the streak bonus.
+     A correct Spot On pays 3 antes plus the streak bonus. Snake Eyes: a win
+     also pays an ante per 1 under your cup. Side Bet: a right side bet pays
+     an ante (a wrong one costs nothing); never at Last Call (no antes).
      A bot's Spot On on your bid costs or pays you nothing. Win the table:
      the pot (seats x buy-in; +25% House Money; minus the buy-in if on a Tab).
      2nd of 4: your buy-in back. Next round's opener: whoever lost the
@@ -762,16 +808,28 @@ dialog li { margin: 0 0 6px; }
        anyone else's bid it is a plain 1 (view.table.myFixed marks it).
        With Shaved + Loaded, die 0 is the 1, die 1 the 6.
      Mirror Ring: no die is shown while the cup on your left holds under 3.
-     Slow Roll: {dice:[...]} re-rolls just those; fixed dice land as fixed.
-     Palm: any face 1..6 on any die; a palmed die is no longer fixed.
+     Loaded Six: the loaded die counts as two 6s for anyone's bid of 6s (in the
+       reveal's count, Spot On, Loretta's Nod and the Count); a bid of 6s may go
+       to one more than the dice on the table. The people do not know it.
+     Slow Roll: twice a round; {dice:[...]} re-rolls just those; keep:'best'
+       keeps every die showing your best face (the most for one face, wild 1s
+       and the loaded six's second 6 counted; a tie to the higher face) and
+       re-rolls the rest; fixed dice land as fixed.
+     Palm: four times a table, any die but the loaded six to a face 2..6
+       (never a 1); a palmed die is no longer fixed.
      Rabbit's Foot takes 1 off the first loss at a table (Sudden 2 -> 1).
-     Double or Nothing is chosen per call ({t:'liar', double:true}); it and
-       Honest Face double the loss (4 under Sudden).
+     Double or Nothing is chosen per call ({t:'liar', double:true}): right,
+       the bidder loses 2; wrong, you lose 1 (x2 under Sudden). Honest Face
+       doubles the caller's loss (4 under Sudden).
+     Side Bet: the prompt comes after the call and before the reveal; pick
+       'bidder' = the bid is good (Liar) or not exactly right (Spot On).
+     Poker Face: the people put your bluffing at nothing, whatever they saw.
      Close Enough: a Liar call on your bid that finds exactly q-1.
      Last Word: you stay in with 1 die, once per table (after Rabbit's Foot).
      Hot Hand follows any challenge you win (Liar or Spot On). Snake Eyes pays
-       on every roll you see (a Slow Roll included). Sell = half the price
-       paid. Friends Rates discounts tricks, not rerolls. A Tab is spent when
+       on a challenge you win (as caller, or as the bidder of a good bid), for
+       the 1s in your cup at the reveal. Sell = half the price paid. Friends
+       Rates discounts tricks, not rerolls, and shows four offers. A Tab is spent when
        you sit on it. Reading Glasses counts sightings in the Book plus
        tonight. Loretta's Nod lasts the round (Palm cancels it).
 
@@ -944,11 +1002,11 @@ dialog li { margin: 0 0 6px; }
   const MIRROR_MIN = 3; // Mirror Ring catches a cup only while it holds this many dice or more
   const TRICKS = [
     ['shaved', 'Shaved Die', 'rare', 'dice', 'One of your dice always lands on 1. It is wild only for your own bids.'],
-    ['loaded', 'Loaded Six', 'common', 'dice', 'One of your dice always lands on 6.'],
+    ['loaded', 'Loaded Six', 'common', 'dice', 'One of your dice always lands on 6, and it counts as two 6s on any bid of 6s, whoever made it.'],
     ['extrabone', 'Extra Bone', 'uncommon', 'dice', 'You start every table with one more die than the others.'],
     ['rabbit', 'Rabbit\'s Foot', 'common', 'dice', 'The first die you would lose at each table, you keep.'],
-    ['slowroll', 'Slow Roll', 'uncommon', 'dice', 'Once per round, before the first bid, you may re-roll any of your dice.'],
-    ['palm', 'Palm', 'uncommon', 'dice', 'Once per table, turn one of your dice to any face you like.'],
+    ['slowroll', 'Slow Roll', 'uncommon', 'dice', 'Twice a round, before the first bid, re-roll any of your dice. One tap keeps your best face and re-rolls the rest.'],
+    ['palm', 'Palm', 'uncommon', 'dice', 'Four times a table, after you see your roll, turn one of your dice to any face from 2 to 6.'],
     ['hothand', 'Hot Hand', 'common', 'dice', 'After you win a challenge, one of your dice next round is a guaranteed 1, wild only for your own bids.'],
     ['mirror', 'Mirror Ring', 'uncommon', 'info', 'Each round you see one die under the cup of the player on your left, while that cup holds three or more.'],
     ['barmirror', 'Bar Mirror', 'rare', 'info', 'At the start of each round you are told how many 1s are on the table.'],
@@ -957,14 +1015,14 @@ dialog li { margin: 0 0 6px; }
     ['ledger', 'Lyman\'s Ledger', 'common', 'info', 'Every opponent\'s Book page shows their true bluff rate from the first bid.'],
     ['cornered', 'Cornered', 'common', 'info', 'While you are on your last die, you see one die under every other cup.'],
     ['sticky', 'Sticky Fingers', 'common', 'money', '+1 ante every time you catch a liar.'],
-    ['sidebet', 'Side Bet', 'uncommon', 'money', 'A correct Spot On pays 6 antes instead of 3.'],
+    ['sidebet', 'Side Bet', 'uncommon', 'money', 'When two others go to a challenge, say who is right before the cups lift: right pays you an ante, wrong costs nothing. No antes at Last Call, so no side bets there.'],
     ['housemoney', 'House Money', 'uncommon', 'money', 'Pots you win pay 25% more.'],
-    ['snake', 'Snake Eyes', 'common', 'money', 'Whenever you roll two or more 1s, collect an ante.'],
-    ['friends', 'Friends Rates', 'common', 'money', 'Tricks cost 25% less.'],
+    ['snake', 'Snake Eyes', 'common', 'money', 'Win a challenge and collect an extra ante for every 1 under your cup.'],
+    ['friends', 'Friends Rates', 'common', 'money', 'Tricks cost 25% less, and Curtis shows you four instead of three.'],
     ['tab', 'A Tab', 'uncommon', 'money', 'Once a night, sit at a table you cannot afford; the buy-in comes out of your winnings (lose and you owe nothing; it is used up).'],
-    ['pokerface', 'Poker Face', 'uncommon', 'manner', 'Opponents never learn how often you bluff (they treat you as average).'],
+    ['pokerface', 'Poker Face', 'uncommon', 'manner', 'Opponents always take you for an honest player, however often they catch you bluffing.'],
     ['honest', 'Honest Face', 'uncommon', 'manner', 'When someone calls Liar on you and your bid is good, they lose 2 dice.'],
-    ['double', 'Double or Nothing', 'rare', 'manner', 'You may make any Liar call for 2 dice: right and the bidder loses 2, wrong and you lose 2.'],
+    ['double', 'Double or Nothing', 'rare', 'manner', 'You may make any Liar call for 2 dice: right and the bidder loses 2, wrong and you lose only 1.'],
     ['close', 'Close Enough', 'common', 'manner', 'If your own bid is called and misses by exactly one, you lose no die (you still pay the ante).'],
     ['lastword', 'Last Word', 'rare', 'manner', 'Once per table, when you would be knocked out, you stay in with one die.']
   ].map(([id, name, rarity, kind, text]) => Object.freeze({ id, name, rarity, kind, text }));
@@ -972,6 +1030,21 @@ dialog li { margin: 0 0 6px; }
   const PRICE = { common: 15, uncommon: 30, rare: 55 };
   const PRICE_HOUR = [1, 2, 3.5, 6]; // the back room after the 9 PM .. Midnight table
   const WEIGHT = { common: 6, uncommon: 3, rare: 1 };
+  // Tuned by tests/bones-sim.cjs: Palm's uses per table (one a round), Slow Roll's re-rolls per round,
+  // what the people take a Poker Face for (their estimate of how often you bluff), the offers Curtis shows.
+  const PALM_USES = 4, SLOW_ROLLS = 2, POKER_EST = 0, OFFERS = 3, FRIENDS_OFFERS = 4;
+  // Side Bet: antes a wrong side bet costs (0: nothing). Double or Nothing: dice you lose on a wrong call (x2 under Sudden).
+  const SIDE_STAKE = 0, DOUBLE_RISK = 1;
+  // Builds: tricks that work together. A trick on offer names the ones you hold from the same group.
+  const BUILDS = [
+    { id: 'ones', name: 'Ones', tricks: ['shaved', 'hothand', 'snake', 'barmirror'] },
+    { id: 'sixes', name: 'Sixes', tricks: ['loaded', 'palm', 'slowroll'] },
+    { id: 'calling', name: 'Calling', tricks: ['sticky', 'double', 'nod', 'snake'] },
+    { id: 'bluffing', name: 'Bluffing', tricks: ['pokerface', 'honest', 'close'] },
+    { id: 'reading', name: 'Reading', tricks: ['glasses', 'ledger', 'sidebet'] }
+  ].map(b => Object.freeze({ id: b.id, name: b.name, tricks: Object.freeze(b.tricks.slice()) }));
+  // Every trick that shares a build with id, in TRICKS order.
+  const partnersOf = id => TRICKS.map(t => t.id).filter(x => x !== id && BUILDS.some(b => b.tricks.includes(id) && b.tricks.includes(x)));
   const BLUFF_P = 0.40; // the one definition: a bid is a bluff when P(true | own cup) < 0.40
   // Bot arithmetic: noise per unit of missing skill, how much a good player reads
   // honest bids, how much a poor one is taken in by any bid.
@@ -1029,12 +1102,22 @@ dialog li { margin: 0 0 6px; }
   function nextAlive(T, s) { const n = T.seats.length; for (let k = 1; k <= n; k++) { const j = (s + k) % n; if (!T.seats[j].out) return j; } return s; }
   // How many dice show f for a bid made by seat `by`. Your fixed 1s (Shaved Die, Hot
   // Hand) are wild only for your own bids: on anyone else's they are a plain 1.
+  // Loaded Six: your loaded die counts as two 6s on any bid of 6s, whoever made it.
   function countFace(T, f, by) {
     const w = isWild(T), fixed = (T.round && T.round.fixed) || [];
     let c = 0;
     T.seats.forEach((s, k) => { if (!s.out) s.dice.forEach((d, i) => { if (hit(d, f, w) && !(k === 0 && by !== 0 && w && d === 1 && fixed.includes(i))) c++; }); });
-    return c;
+    return c + (f === 6 && loadedAt(T) >= 0 ? 1 : 0);
   }
+  // The index of your loaded six while it counts double this round (it sits on a 6 under your cup), else -1.
+  // (Set only while Loaded Six works: never at Last Call. Palm cannot turn it.)
+  function loadedAt(T) {
+    const R = T.round, me = T.seats[0];
+    if (!R || R.loaded == null || me.out || me.dice[R.loaded] !== 6) return -1;
+    return R.loaded;
+  }
+  // The largest legal quantity of face f: the dice on the table, one more for 6s with your loaded six.
+  const maxQ = (T, f) => totalDice(T) + (f === 6 && loadedAt(T) >= 0 ? 1 : 0);
   // Dice everyone can see: the face-up first die under Open hand.
   function publicDice(T, except) {
     const out = [];
@@ -1149,17 +1232,22 @@ dialog li { margin: 0 0 6px; }
     me.dice = [];
     for (let k = 0; k < me.n; k++) me.dice.push(1 + ri(S, 6));
     let slot = 0;
-    T.round.fixed = []; T.round.pinned = {};
-    const fix = (id, face) => { if (slot < me.n) { me.dice[slot] = face; T.round.pinned[slot] = face; if (face === 1) T.round.fixed.push(slot); ev.push({ t: 'trick', id, die: slot }); slot++; } };
+    T.round.fixed = []; T.round.pinned = {}; T.round.loaded = null;
+    const fix = (id, face) => { if (slot < me.n) { me.dice[slot] = face; T.round.pinned[slot] = face; if (face === 1) T.round.fixed.push(slot); if (id === 'loaded') T.round.loaded = slot; ev.push({ t: 'trick', id, die: slot }); slot++; } };
     if (has(S, 'shaved')) fix('shaved', 1);
     if (has(S, 'loaded')) fix('loaded', 6);
     if (hot) fix('hothand', 1);
   }
-  function snakeCheck(S, T, ev) {
-    if (has(S, 'snake') && T.seats[0].dice.filter(d => d === 1).length >= 2 && T.ante > 0) {
-      ev.push({ t: 'trick', id: 'snake', amount: T.ante });
-      pay(S, ev, T.ante, 'snake');
+  // Slow Roll's one tap: your best face by your own cup (the most dice for it, wild 1s and a loaded six's
+  // second 6 included; a tie goes to the higher face), and the dice that do not show it.
+  function bestFace(S, T) {
+    const me = T.seats[0], wild = isWild(T), li = loadedAt(T);
+    let best = null;
+    for (const f of facesOf(T)) {
+      const c = me.dice.filter(d => hit(d, f, wild)).length + (f === 6 && li >= 0 ? 1 : 0);
+      if (!best || c >= best.c) best = { f, c };
     }
+    return { f: best.f, reroll: me.dice.map((d, i) => i).filter(i => !hit(me.dice[i], best.f, wild) && T.round.pinned[i] == null) };
   }
 
   function startRound(S, T, ev) {
@@ -1167,7 +1255,7 @@ dialog li { margin: 0 0 6px; }
     T.last = null;
     let opener = T.nextOpener;
     if (T.seats[opener].out) opener = nextAlive(T, opener);
-    const R = T.round = { no: T.roundNo, opener, turn: opener, bids: [], blindSeat: T.rule === 'blind' ? opener : -1, looked: false, peek: [], ones: null, nod: null, slow: false, hot: T.hot && has(S, 'hothand') };
+    const R = T.round = { no: T.roundNo, opener, turn: opener, bids: [], blindSeat: T.rule === 'blind' ? opener : -1, looked: false, peek: [], ones: null, nod: null, slow: 0, hot: T.hot && has(S, 'hothand') };
     const trickEv = [];
     T.seats.forEach((s, k) => { if (k !== 0 && !s.out) { s.dice = []; for (let j = 0; j < s.n; j++) s.dice.push(1 + ri(S, 6)); } });
     rollMine(S, T, trickEv, R.hot);
@@ -1183,7 +1271,6 @@ dialog li { margin: 0 0 6px; }
     if (R.open) roll.cups = T.seats.map(s => s.out ? [] : s.dice.slice());
     ev.push(roll);
     ev.push(...trickEv);
-    if (!blind) snakeCheck(S, T, ev);
     // Information tricks.
     const shown = (seat, used) => { const s = T.seats[seat]; const free = s.dice.map((d, i) => i).filter(i => !used.includes(i) && !(T.rule === 'open' && i === 0)); return free.length ? free[ri(S, free.length)] : -1; };
     if (has(S, 'mirror')) {
@@ -1196,7 +1283,8 @@ dialog li { margin: 0 0 6px; }
       if (out.length) ev.push({ t: 'trick', id: 'cornered', shown: out });
     }
     if (has(S, 'barmirror')) { R.ones = countOnes(T); ev.push({ t: 'trick', id: 'barmirror', ones: R.ones }); }
-    if (has(S, 'slowroll') && opener !== 0 && !blind) T.wait = 'ready';
+    // Slow Roll: a beat before the first bid of the round, whoever opens (not while you bid blind).
+    if (has(S, 'slowroll') && !blind) T.wait = 'ready';
   }
   function countOnes(T) { let c = 0; T.seats.forEach(s => { if (!s.out) s.dice.forEach(d => { if (d === 1) c++; }); }); return c; }
 
@@ -1205,8 +1293,10 @@ dialog li { margin: 0 0 6px; }
   function placeBid(S, T, s, q, f, ev, forced) {
     const R = T.round, seat = T.seats[s], wild = isWild(T), total = totalDice(T);
     const own = !ownBlind(T, s);
-    const p = pFrom(knownFor(T, s, own), total, q, f, wild);
-    const held = seat.dice.filter(d => hit(d, f, wild)).length;
+    // Your loaded six is a second 6 in your own cup.
+    const twice = s === 0 && f === 6 && loadedAt(T) >= 0 ? 1 : 0;
+    const p = pFrom(knownFor(T, s, own), total, q - (own ? twice : 0), f, wild);
+    const held = seat.dice.filter(d => hit(d, f, wild)).length + twice;
     const bluff = p < BLUFF_P;
     let habit = null;
     if (seat.id !== 'me') {
@@ -1229,7 +1319,7 @@ dialog li { margin: 0 0 6px; }
     ev.push({ t: 'bid', who: s, id: seat.id, name: nameOf(T, s), q, f, habit: habit ? clone(habit) : null });
     if (R.blindSeat === s && !R.looked) {
       R.looked = true;
-      if (s === 0) { ev.push({ t: 'look', mine: seat.dice.slice() }); snakeCheck(S, T, ev); }
+      if (s === 0) ev.push({ t: 'look', mine: seat.dice.slice() });
     }
     R.turn = nextAlive(T, s);
   }
@@ -1237,7 +1327,8 @@ dialog li { margin: 0 0 6px; }
   // ----- the bots -----
   // How often seat j's revealed bids were bluffs, as seat s estimates it.
   function estBluff(S, T, j) {
-    if (j === 0 && has(S, 'pokerface')) return 0.25;
+    // Poker Face: you always look honest to them, whatever they have caught tonight or remember.
+    if (j === 0 && has(S, 'pokerface')) return POKER_EST;
     let n = 4 + T.seen[j].n, b = 1 + T.seen[j].b;
     // A little memory of you from earlier nights (the Book): worth at most 10 bids seen tonight.
     if (j === 0 && S.mem.bids) { const w = 0.25 * Math.min(S.mem.bids, 40); n += w; b += w * S.mem.bluffs / S.mem.bids; }
@@ -1383,17 +1474,28 @@ dialog li { margin: 0 0 6px; }
     }
   }
 
-  function challenge(S, T, caller, kind, ev, dbl) {
+  // The call itself (said out loud). With Side Bet in hand and two others at it, the cups wait for your side bet.
+  function callOut(S, T, caller, kind, ev) {
+    const b = lastBid(T);
+    ev.push({ t: 'call', who: caller, id: T.seats[caller].id, name: nameOf(T, caller), kind, on: { who: b.who, id: T.seats[b.who].id, q: b.q, f: b.f } });
+  }
+  const sideBetOn = (S, T, caller) => has(S, 'sidebet') && T.ante > 0 && !T.lesson && caller !== 0 && lastBid(T).who !== 0;
+  // o: { dbl: Double or Nothing on your Liar call, called: the call was said already, side: your side bet ('bidder'|'caller'|null) }
+  function challenge(S, T, caller, kind, ev, o) {
+    o = o || {};
     const R = T.round, b = lastBid(T), bidder = b.who, wild = isWild(T), L = T.rule === 'sudden' ? 2 : 1;
-    ev.push({ t: 'call', who: caller, id: T.seats[caller].id, name: nameOf(T, caller), kind, on: { who: bidder, id: T.seats[bidder].id, q: b.q, f: b.f } });
+    if (!o.called) callOut(S, T, caller, kind, ev);
+    const li = b.f === 6 ? loadedAt(T) : -1;
     const count = countFace(T, b.f, bidder), good = count >= b.q, exact = count === b.q;
+    const ones = T.seats[0].out ? 0 : T.seats[0].dice.filter(d => d === 1).length;
     const reveal = { t: 'reveal', kind, caller, bidder, q: b.q, f: b.f, wild, count, good, exact, cups: alive(T).map(k => ({ who: k, id: T.seats[k].id, dice: T.seats[k].dice.slice() })) };
+    if (li >= 0) reveal.loaded = li; // your loaded six, counted twice
     ev.push(reveal);
     const start = ev.length;
     let winner = -1, loser = -1, n = L, opener;
     if (kind === 'liar') {
       if (good) { winner = bidder; loser = caller; } else { winner = caller; loser = bidder; }
-      if (caller === 0 && dbl) { n = 2 * L; ev.push({ t: 'trick', id: 'double', who: loser, n }); }
+      if (caller === 0 && o.dbl) { n = (good ? DOUBLE_RISK : 2) * L; ev.push({ t: 'trick', id: 'double', who: loser, n }); }
       if (good && bidder === 0 && has(S, 'honest')) { n = 2 * L; ev.push({ t: 'trick', id: 'honest', who: caller, n }); }
       if (!good && bidder === 0 && count === b.q - 1 && has(S, 'close')) { n = 0; ev.push({ t: 'trick', id: 'close' }); }
     } else if (exact) { winner = caller; } else { loser = caller; }
@@ -1403,10 +1505,11 @@ dialog li { margin: 0 0 6px; }
       const a = T.ante;
       if (winner === 0) {
         const bonus = Math.min(S.streak, 3);
-        if (kind === 'spot') { pay(S, ev, a * (has(S, 'sidebet') ? 6 : 3), 'spot'); if (has(S, 'sidebet')) ev.push({ t: 'trick', id: 'sidebet' }); }
+        if (kind === 'spot') pay(S, ev, a * 3, 'spot');
         else pay(S, ev, a, 'won');
         if (bonus) pay(S, ev, a * bonus, 'streak');
         if (kind === 'liar' && has(S, 'sticky') && a) { ev.push({ t: 'trick', id: 'sticky', amount: a }); pay(S, ev, a, 'sticky'); }
+        if (has(S, 'snake') && a && ones) { ev.push({ t: 'trick', id: 'snake', ones, amount: a * ones }); pay(S, ev, a * ones, 'snake'); }
         S.streak++; S.stats.won++; S.stats.bestStreak = Math.max(S.stats.bestStreak, S.streak);
         T.hot = true;
         S.stats.antes += a;
@@ -1414,6 +1517,13 @@ dialog li { margin: 0 0 6px; }
         pay(S, ev, -a, 'lost');
         S.streak = 0; S.stats.lost++;
       }
+    }
+    // Side Bet: you said who was right in a challenge between two others.
+    if (o.side) {
+      const right = kind === 'liar' ? (o.side === 'bidder') === good : (o.side === 'caller') === exact;
+      const amount = right ? T.ante : -Math.min(S.cash, T.ante * SIDE_STAKE);
+      ev.push({ t: 'trick', id: 'sidebet', pick: o.side, right, amount });
+      if (amount) pay(S, ev, amount, 'side');
     }
     if (kind === 'liar' && caller === 0 && !good) { S.stats.caught++; T.rec.caught.push(T.seats[bidder].id); }
     if (kind === 'liar' && bidder === 0 && !good) { S.stats.caughtBy++; T.rec.caughtBy.push(T.seats[caller].id); }
@@ -1470,10 +1580,11 @@ dialog li { margin: 0 0 6px; }
     const raw = PRICE[TRICK[id].rarity] * PRICE_HOUR[clamp(hour, 0, 3)] * (has(S, 'friends') ? 0.75 : 1);
     return Math.max(5, Math.round(raw / 5) * 5);
   }
-  function draw3(S) {
+  // Curtis's offers: three, four with Friends Rates (never a trick you hold, rarer ones less often).
+  function drawOffers(S) {
     let pool = TRICKS.filter(t => !holds(S, t.id)).map(t => t.id);
-    const out = [];
-    while (out.length < 3 && pool.length) {
+    const out = [], want = holds(S, 'friends') ? FRIENDS_OFFERS : OFFERS;
+    while (out.length < want && pool.length) {
       const tot = sum(pool.map(id => WEIGHT[TRICK[id].rarity]));
       let x = rnd(S) * tot, k = 0;
       for (; k < pool.length - 1; k++) { x -= WEIGHT[TRICK[pool[k]].rarity]; if (x < 0) break; }
@@ -1484,17 +1595,19 @@ dialog li { margin: 0 0 6px; }
   function openShop(S, ev) {
     S.phase = 'shop';
     S.rng = hash(S.seed + '|shop|' + S.hour, 5);
-    S.shop = { hour: S.hour, offers: draw3(S), rerolls: 0 };
+    S.shop = { hour: S.hour, offers: drawOffers(S), rerolls: 0 };
     const v = shopView(S);
     ev.push({ t: 'shop', hour: S.hour, offers: v.offers, rerollPrice: v.rerollPrice });
   }
+  // The tricks you hold that share a build with id.
+  const goesWith = (S, id) => partnersOf(id).filter(x => holds(S, x));
   function shopView(S) {
     if (S.phase !== 'shop' || !S.shop) return null;
     const h = S.shop.hour;
     return {
       hour: h, cash: S.cash, slots: SLOTS, rerollPrice: 10 * (S.shop.rerolls + 1),
-      offers: S.shop.offers.map((id, i) => id ? Object.assign({ i, price: price(S, id, h), affordable: S.cash >= price(S, id, h) && S.tricks.length < SLOTS }, clone(TRICK[id])) : null),
-      held: S.tricks.map(t => Object.assign({ sell: Math.floor(t.paid / 2) }, clone(TRICK[t.id])))
+      offers: S.shop.offers.map((id, i) => id ? Object.assign({ i, price: price(S, id, h), affordable: S.cash >= price(S, id, h) && S.tricks.length < SLOTS }, clone(TRICK[id]), { goesWith: goesWith(S, id) }) : null),
+      held: S.tricks.map(t => Object.assign({ sell: Math.floor(t.paid / 2) }, clone(TRICK[t.id]), { goesWith: goesWith(S, t.id) }))
     };
   }
   function leaveShop(S, ev) {
@@ -1519,6 +1632,7 @@ dialog li { margin: 0 0 6px; }
       if (T.round.turn === 0) { T.wait = 'turn'; break; }
       const s = T.round.turn, m = scripted(S, T, s) || botMove(S, T, s);
       if (m.t === 'bid') placeBid(S, T, s, m.q, m.f, ev, m.habit);
+      else if (sideBetOn(S, T, s)) { callOut(S, T, s, m.t, ev); T.round.call = { caller: s, kind: m.t }; T.wait = 'side'; }
       else challenge(S, T, s, m.t, ev);
     }
     ev.push({ t: 'wait', need: need(S) });
@@ -1571,27 +1685,29 @@ dialog li { margin: 0 0 6px; }
     const T = S.table;
     if (S.phase !== 'table' || !T || !T.round || T.wait !== 'turn') return false;
     if (!Number.isInteger(q) || !Number.isInteger(f)) return false;
-    if (q < 1 || q > totalDice(T) || !facesOf(T).includes(f)) return false;
+    if (q < 1 || !facesOf(T).includes(f) || q > maxQ(T, f)) return false;
     return higher(q, f, lastBid(T));
   }
   function minBid(T) {
-    const b = lastBid(T), faces = facesOf(T), total = totalDice(T);
+    const b = lastBid(T), faces = facesOf(T);
     if (!b) return { q: 1, f: faces[0] };
-    const k = faces.indexOf(b.f);
-    if (k < faces.length - 1) return { q: b.q, f: faces[k + 1] };
-    return b.q + 1 <= total ? { q: b.q + 1, f: faces[0] } : null;
+    for (let q = b.q; q <= b.q + 1; q++) for (const f of faces) if (higher(q, f, b) && q <= maxQ(T, f)) return { q, f };
+    return null;
   }
+  // Uses left (a night saved before these counted holds true for "used").
+  const slowLeft = R => SLOW_ROLLS - (R.slow === true ? SLOW_ROLLS : R.slow | 0);
+  const palmLeft = T => PALM_USES - (T.used.palm === true ? PALM_USES : T.used.palm | 0);
   function usesNow(S) {
     const T = S.table, out = [];
     if (S.phase !== 'table' || !T || !T.round || (T.wait !== 'turn' && T.wait !== 'ready')) return out;
     const R = T.round, blind = ownBlind(T, 0), me = T.seats[0];
-    if (has(S, 'slowroll') && !R.slow && !R.bids.length && !blind) out.push('slowroll');
-    if (has(S, 'palm') && !T.used.palm && !blind && me.n > 0) out.push('palm');
+    if (has(S, 'slowroll') && slowLeft(R) > 0 && !R.bids.length && !blind) out.push('slowroll');
+    if (has(S, 'palm') && palmLeft(T) > 0 && !blind && me.n > 0) out.push('palm');
     if (has(S, 'nod') && !T.used.nod && T.wait === 'turn' && lastBid(T)) out.push('nod');
     return out;
   }
   function legal(S) {
-    const L = { need: need(S), mustBid: false, canBid: false, canLiar: false, canSpot: false, minBid: null, maxQ: 0, faces: [], uses: [], canGo: false, canNext: false, sit: [], canWalk: false, buy: [], sell: [], canReroll: false, rerollPrice: 0, canLeave: false };
+    const L = { need: need(S), mustBid: false, canBid: false, canLiar: false, canSpot: false, minBid: null, maxQ: 0, maxFor: {}, faces: [], uses: [], canGo: false, canNext: false, canSide: false, sit: [], canWalk: false, buy: [], sell: [], canReroll: false, rerollPrice: 0, canLeave: false };
     if (S.phase === 'choose') { L.sit = options(S).filter(o => o.affordable).map(o => o.i); L.canWalk = S.hour === 4; }
     if (S.phase === 'shop') {
       const v = shopView(S);
@@ -1604,9 +1720,10 @@ dialog li { margin: 0 0 6px; }
       if (T.wait === 'turn') {
         const b = lastBid(T);
         L.mustBid = !b; L.canLiar = !!b; L.canSpot = !!b;
-        L.minBid = minBid(T); L.canBid = !!L.minBid; L.maxQ = totalDice(T); L.faces = facesOf(T);
+        L.minBid = minBid(T); L.canBid = !!L.minBid; L.faces = facesOf(T);
+        L.faces.forEach(f => { L.maxFor[f] = maxQ(T, f); }); L.maxQ = Math.max(...L.faces.map(f => L.maxFor[f]));
       }
-      L.canGo = T.wait === 'ready'; L.canNext = T.wait === 'next';
+      L.canGo = T.wait === 'ready'; L.canNext = T.wait === 'next'; L.canSide = T.wait === 'side';
     }
     return L;
   }
@@ -1645,7 +1762,7 @@ dialog li { margin: 0 0 6px; }
       if (a.t === 'reroll') {
         if (S.cash < v.rerollPrice) return err('cannot afford a reroll');
         pay(S, ev, -v.rerollPrice, 'reroll');
-        S.shop.rerolls++; S.shop.offers = draw3(S);
+        S.shop.rerolls++; S.shop.offers = drawOffers(S);
         ev.push({ t: 'reroll', price: v.rerollPrice, offers: shopView(S).offers });
         return run(S, ev);
       }
@@ -1658,19 +1775,30 @@ dialog li { margin: 0 0 6px; }
       if (!usesNow(S).includes(a.id)) return err('cannot use that now');
       const me = T.seats[0];
       if (a.id === 'slowroll') {
-        // Re-roll the dice named (all of them by default); a loaded die still lands as it must.
-        const pick = a.dice == null ? null : a.dice;
+        // Re-roll the dice named (all of them by default), or keep:'best' (your best face stays, the rest
+        // go back in the cup); a fixed die (Shaved Die, Loaded Six, Hot Hand) still lands as it must.
+        let pick = a.dice == null ? null : a.dice, best = null;
+        if (a.keep === 'best') {
+          if (a.dice != null) return err('slow roll: dice or keep, not both');
+          best = bestFace(S, T); pick = best.reroll;
+          if (!pick.length) return err('every die already shows your best face');
+        } else if (a.keep != null) return err('slow roll: keep what?');
         if (pick && (!Array.isArray(pick) || !pick.length || pick.some(i => !Number.isInteger(i) || i < 0 || i >= me.n) || new Set(pick).size !== pick.length)) return err('slow roll which dice?');
-        R.slow = true;
+        R.slow = (R.slow === true ? SLOW_ROLLS : R.slow | 0) + 1;
         if (!pick) rollMine(S, T, ev, R.hot);
         else pick.slice().sort((x, y) => x - y).forEach(i => { me.dice[i] = R.pinned[i] != null ? R.pinned[i] : 1 + ri(S, 6); });
-        ev.push({ t: 'trick', id: 'slowroll', dice: pick ? pick.slice() : me.dice.map((d, i) => i), mine: me.dice.slice() });
-        snakeCheck(S, T, ev);
+        const e = { t: 'trick', id: 'slowroll', dice: pick ? pick.slice().sort((x, y) => x - y) : me.dice.map((d, i) => i), mine: me.dice.slice(), left: slowLeft(R) };
+        if (best) e.kept = best.f;
+        ev.push(e);
         if (R.ones != null) { R.ones = countOnes(T); ev.push({ t: 'trick', id: 'barmirror', ones: R.ones }); }
       } else if (a.id === 'palm') {
-        if (!Number.isInteger(a.die) || a.die < 0 || a.die >= me.n || !Number.isInteger(a.face) || a.face < 1 || a.face > 6) return err('palm which die to which face?');
-        T.used.palm = true; me.dice[a.die] = a.face; R.nod = null; R.fixed = R.fixed.filter(i => i !== a.die); delete R.pinned[a.die];
-        ev.push({ t: 'trick', id: 'palm', die: a.die, face: a.face, mine: me.dice.slice() });
+        // Any one die to a face from 2 to 6 (never a 1: that is Shaved Die's job); your loaded six stays put.
+        if (!Number.isInteger(a.die) || a.die < 0 || a.die >= me.n || !Number.isInteger(a.face) || a.face < 2 || a.face > 6) return err('palm which die to which face (2 to 6)?');
+        if (a.die === R.loaded) return err('the loaded six will not turn');
+        if (me.dice[a.die] === a.face) return err('that die already shows a ' + a.face);
+        T.used.palm = (T.used.palm === true ? PALM_USES : T.used.palm | 0) + 1;
+        me.dice[a.die] = a.face; R.nod = null; R.fixed = R.fixed.filter(i => i !== a.die); delete R.pinned[a.die];
+        ev.push({ t: 'trick', id: 'palm', die: a.die, face: a.face, mine: me.dice.slice(), left: palmLeft(T) });
         if (R.ones != null) { R.ones = countOnes(T); ev.push({ t: 'trick', id: 'barmirror', ones: R.ones }); }
       } else if (a.id === 'nod') {
         const b = lastBid(T);
@@ -1679,6 +1807,15 @@ dialog li { margin: 0 0 6px; }
       }
       ev.push({ t: 'wait', need: T.wait });
       return ev;
+    }
+    if (T.wait === 'side') {
+      // Side Bet: back the bidder (the bid is good / exactly right for a Spot On fails) or the caller; no pick passes.
+      if (a.t !== 'side') return err('side bet: the bidder, the caller, or pass');
+      const pick = a.pick == null ? null : a.pick;
+      if (pick !== null && pick !== 'bidder' && pick !== 'caller') return err('side bet on the bidder or the caller');
+      const c = R.call; R.call = null; T.wait = null;
+      challenge(S, T, c.caller, c.kind, ev, { called: true, side: pick });
+      return run(S, ev);
     }
     if (T.wait === 'next') { if (a.t !== 'next') return err('the round is over: next'); T.wait = null; return run(S, ev); }
     if (T.wait === 'ready') { if (a.t !== 'go') return err('ready: go'); T.wait = null; return run(S, ev); }
@@ -1690,7 +1827,7 @@ dialog li { margin: 0 0 6px; }
     if (a.t === 'liar' || a.t === 'spot') {
       if (!lastBid(T)) return err('nothing to call');
       if (a.double && (a.t !== 'liar' || !has(S, 'double'))) return err('only a Liar call with Double or Nothing can be for 2 dice');
-      T.wait = null; challenge(S, T, 0, a.t, ev, !!a.double); return run(S, ev);
+      T.wait = null; challenge(S, T, 0, a.t, ev, { dbl: !!a.double }); return run(S, ev);
     }
     return err('bid, liar or spot');
   }
@@ -1712,12 +1849,14 @@ dialog li { margin: 0 0 6px; }
       if (R.nod.truth && q <= R.nod.q && !exact) return 1;
       if (!R.nod.truth && q >= R.nod.q) return 0;
     }
-    if (q > total) return 0;
-    const known = knownMine(S, T), n = total - known.length;
-    // The bid in front is judged as its bidder's: your fixed 1s do not help it.
+    if (q > maxQ(T, f)) return 0;
+    const known = knownMine(S, T), n = total - known.length - (f === 6 && loadedAt(T) >= 0 && ownBlind(T, 0) ? 1 : 0);
+    // The bid in front is judged as its bidder's: your fixed 1s do not help it. Your loaded six is
+    // two 6s for anyone's bid (you know it is there even while you bid blind).
     const b = lastBid(T), theirs = b && b.who !== 0 && b.q === q && b.f === f;
     const plain = theirs && wild && !ownBlind(T, 0) ? R.fixed.filter(i => T.seats[0].dice[i] === 1).length : 0;
-    const km = known.filter(d => hit(d, f, wild)).length - plain;
+    const twice = f === 6 && loadedAt(T) >= 0 ? (ownBlind(T, 0) ? 2 : 1) : 0;
+    const km = known.filter(d => hit(d, f, wild)).length - plain + twice;
     const fn = exact ? pmf : tail;
     if (R.ones != null) {
       const u = R.ones - known.filter(d => d === 1).length, m = n - u;
@@ -1733,11 +1872,11 @@ dialog li { margin: 0 0 6px; }
   function suggest(S, at) {
     const T = S.table;
     if (S.phase !== 'table' || !T || !T.round || T.wait !== 'turn') return null;
-    const want = at == null ? 0.6 : at, total = totalDice(T);
+    const want = at == null ? 0.6 : at;
     let best = null;
     for (const f of facesOf(T)) {
       let q = 0;
-      for (let k = 1; k <= total; k++) { if (count(S, k, f) >= want) q = k; else break; }
+      for (let k = 1; k <= maxQ(T, f); k++) { if (count(S, k, f) >= want) q = k; else break; }
       if (!q) continue;
       const c = count(S, q, f);
       if (!best || q > best.q || (q === best.q && c >= best.c)) best = { q, f, c };
@@ -1764,10 +1903,16 @@ dialog li { margin: 0 0 6px; }
     if (r < 0.07) return 'almost never bluffs';
     return 'bluffs about 1 bid in ' + Math.round(1 / r);
   }
+  // The Side Bet prompt: who called whom on what, the Count of that bid by your dice, and the habit that came with it.
+  function sideView(S, T) {
+    const R = T.round, b = lastBid(T), c = R.call, h = R.bids[R.bids.length - 1].habit;
+    return { kind: c.kind, caller: c.caller, callerId: T.seats[c.caller].id, bidder: b.who, bidderId: T.seats[b.who].id, q: b.q, f: b.f,
+      count: count(S, b.q, b.f), exact: countExact(S, b.q, b.f), habit: h ? clone(h) : null, stake: T.ante * SIDE_STAKE, pays: T.ante };
+  }
   function view(S) {
     const v = {
       v: VERSION, phase: S.phase, hour: S.hour, hourName: HOURS[S.hour] ? HOURS[S.hour].name : '', cash: S.cash, streak: S.streak, seed: S.seed, daily: S.daily, ending: S.ending,
-      tricks: S.tricks.map(t => Object.assign({ usable: usesNow(S).includes(t.id), asleep: !has(S, t.id) }, clone(TRICK[t.id]))),
+      tricks: S.tricks.map(t => Object.assign({ usable: usesNow(S).includes(t.id), asleep: !has(S, t.id) }, clone(TRICK[t.id]), { goesWith: goesWith(S, t.id) })),
       options: S.phase === 'choose' ? options(S) : null, shop: shopView(S), table: null
     };
     const T = S.table;
@@ -1786,6 +1931,10 @@ dialog li { margin: 0 0 6px; }
           return { seat: k, id: s.id, name: nameOf(T, k), isMe: k === 0, dice: s.out ? 0 : s.n, start: T.start[k], out: s.out, lastBid: mine.length ? { q: mine[mine.length - 1].q, f: mine[mine.length - 1].f } : null, shown, ledger: k !== 0 && has(S, 'ledger') ? ledgerPhrase(s.id) : null };
         }),
         myDice: R && !blind ? T.seats[0].dice.slice() : null, blind, myFixed: R && !blind ? R.fixed.slice() : [],
+        myLoaded: R && !blind && loadedAt(T) >= 0 ? [loadedAt(T)] : [],
+        side: T.wait === 'side' && R && R.call ? sideView(S, T) : null,
+        slow: R && usesNow(S).includes('slowroll') ? Object.assign(bestFace(S, T), { left: slowLeft(R) }) : null,
+        palm: has(S, 'palm') ? { left: palmLeft(T), loaded: R && R.loaded != null ? R.loaded : null } : null,
         bid: b ? { who: b.who, id: T.seats[b.who].id, q: b.q, f: b.f } : null,
         history: R ? R.bids.map(x => ({ who: x.who, id: T.seats[x.who].id, q: x.q, f: x.f, habit: x.habit ? clone(x.habit) : null })) : [],
         ones: R ? R.ones : null, nod: R && R.nod ? clone(R.nod) : null,
@@ -1968,6 +2117,8 @@ dialog li { margin: 0 0 6px; }
     if (S.phase === 'shop') return { t: 'leave' };
     if (L.need === 'next') return { t: 'next' };
     if (L.need === 'ready') return { t: 'go' };
+    // A side bet: with the Count, on whoever it says is likelier right.
+    if (L.need === 'side') { const sb = v.table.side, p = sb.kind === 'liar' ? sb.count : 1 - sb.exact; return { t: 'side', pick: p >= 0.5 ? 'bidder' : 'caller' }; }
     const b = v.table.bid;
     if (b && count(S, b.q, b.f) < 0.38) return { t: 'liar' };
     if (b && countExact(S, b.q, b.f) > 0.5) return { t: 'spot' };
@@ -1993,7 +2144,7 @@ dialog li { margin: 0 0 6px; }
   }
 
   const Engine = {
-    VERSION, PEOPLE, TRICKS, HOUSE_RULES: HOUSE_RULES.map(r => Object.freeze(r)), HOURS: clone(HOURS), START_CASH, SLOTS,
+    VERSION, PEOPLE, TRICKS, BUILDS, partners: partnersOf, HOUSE_RULES: HOUSE_RULES.map(r => Object.freeze(r)), HOURS: clone(HOURS), START_CASH, SLOTS,
     newNight, options, sit: (S, i) => act(S, { t: 'sit', i }), act, advance, legal, isLegalBid, count, countExact, suggest,
     view, shopView, bookApply, bookPage, summary, shareLine, column, columnFacts, talkFacts, dailySeed, playNight, basicPolicy,
     lesson, LESSON: clone(LESSON),
@@ -2230,11 +2381,12 @@ dialog li { margin: 0 0 6px; }
       d.toggleAttribute('data-hit', !!o.hit);
       d.toggleAttribute('data-peek', !!o.peek);
       d.toggleAttribute('data-loaded', !!o.loaded);
+      d.toggleAttribute('data-twice', !!o.twice);
       const kids = [];
       if (!o.down && !o.empty && PIPS[face]) for (const c of PIPS[face]) kids.push(el('i', { class: 'pip c' + c }));
       if (o.loaded) kids.push(el('i', { class: 'mark', title: o.loaded === true ? 'Fixed by a trick' : o.loaded }));
       d.replaceChildren(...kids);
-      if (d.getAttribute('role') === 'img') d.setAttribute('aria-label', o.empty ? 'lost die' : o.down ? 'hidden die' : `${face}${wild ? ' (wild)' : ''}${o.loaded ? ' (' + (o.loaded === true ? 'fixed' : o.loaded) + ')' : ''}`);
+      if (d.getAttribute('role') === 'img') d.setAttribute('aria-label', o.empty ? 'lost die' : o.down ? 'hidden die' : `${face}${wild ? ' (wild)' : ''}${o.loaded ? ' (' + (o.loaded === true ? 'fixed' : o.loaded) + ')' : ''}${o.twice && !o.loaded ? ' (counts as two 6s)' : ''}`);
       return d;
     },
     crack(d) {
@@ -2703,7 +2855,7 @@ dialog li { margin: 0 0 6px; }
       this.capL = el('span', null, 'Your cup'); this.capR = el('span', null, '1s are wild');
       root.replaceChildren(this.row, el('div', { class: 'cupcap' }, this.capL, this.capR));
     },
-    opts(i) { const s = this.state; return { loaded: s.loaded.includes(i) ? 'loaded six' : s.fixed.includes(i) ? 'wild for your bids only' : false }; },
+    opts(i) { const s = this.state; return { loaded: s.loaded.includes(i) ? 'loaded six: counts as two 6s' : s.fixed.includes(i) ? 'wild for your bids only' : false, twice: s.loaded.includes(i) && s.dice[i] === 6 }; },
     render() {
       const s = this.state;
       this.nodes = s.dice.map((f, i) => (s.down ? Dice.node(0, { down: true }) : Dice.node(f, this.opts(i))));
@@ -2717,12 +2869,12 @@ dialog li { margin: 0 0 6px; }
     caption(text) { this.capR.textContent = text; },
     get el() { return this.root; },
     set(dice, max, o) { this.state = { dice: dice.slice(), max: max || this.state.max, fixed: (o && o.fixed) || [], loaded: (o && o.loaded) || [], down: !!(o && o.down) }; this.render(); this.root.style.transform = ''; this.root.style.opacity = ''; },
-    /* The cup lifted at a reveal (hits lit, the rest dimmed). */
-    setOpen(dice, max, hits, n) {
+    /* The cup lifted at a reveal (hits lit, the rest dimmed; twice: the loaded six that counted as two). */
+    setOpen(dice, max, hits, n, twice) {
       this.state = { dice: dice.slice(0, n), max, fixed: [], loaded: [], down: false };
       while (this.state.dice.length < n) this.state.dice.push(0); // a die won back: not rolled yet
       this.render();
-      this.nodes.forEach((d, i) => { if (!this.state.dice[i]) { Dice.set(d, 0, { down: true }); return; } d.toggleAttribute('data-hit', hits.includes(i)); d.toggleAttribute('data-dim', !hits.includes(i)); });
+      this.nodes.forEach((d, i) => { if (!this.state.dice[i]) { Dice.set(d, 0, { down: true }); return; } d.toggleAttribute('data-hit', hits.includes(i)); d.toggleAttribute('data-dim', !hits.includes(i)); d.toggleAttribute('data-twice', i === twice); });
       this.root.dataset.faces = '';
     },
     setTurn(on) { this.root.toggleAttribute('data-turn', !!on); this.capL.textContent = on ? 'Your turn' : 'Your cup'; this.capL.classList.toggle('turn', !!on); },
@@ -2806,7 +2958,7 @@ dialog li { margin: 0 0 6px; }
     build(root) {
       this.root = root;
       this.liar = el('button', { class: 'call liar', id: 'btn-liar', type: 'button', disabled: true, onclick: () => this.call('liar', false) }, 'Liar!');
-      this.liar2 = el('button', { class: 'call liar2', id: 'btn-liar2', type: 'button', disabled: true, hidden: true, title: 'Double or Nothing: right and the bidder loses 2 dice, wrong and you lose 2', onclick: () => this.call('liar', true) }, 'Liar ×2', el('small', null, 'for two dice'));
+      this.liar2 = el('button', { class: 'call liar2', id: 'btn-liar2', type: 'button', disabled: true, hidden: true, title: 'Double or Nothing: right and the bidder loses 2 dice, wrong and you lose 1', onclick: () => this.call('liar', true) }, 'Liar ×2', el('small', null, 'for two dice'));
       this.spotSmall = el('small', null, '');
       this.spot = el('button', { class: 'call spot', id: 'btn-spot', type: 'button', disabled: true, onclick: () => this.call('spot', false) }, 'Spot on', this.spotSmall);
       this.calls = el('div', { class: 'calls' }, this.liar, this.liar2, this.spot);
@@ -2829,11 +2981,13 @@ dialog li { margin: 0 0 6px; }
       this.facesEl.replaceChildren(...this.faceBtns);
     },
     min(face) { const b = this.ctx && this.ctx.bid; return !b ? 1 : (face > b.f ? b.q : b.q + 1); },
+    // The most of a face you may bid: the dice on the table (one more for 6s with your loaded six).
+    max(face) { const m = this.ctx && this.ctx.maxFor; return m && m[face] != null ? m[face] : this.ctx ? this.ctx.total : 0; },
     legal(q, f) { return !!this.ctx && Engine.isLegalBid(App.state, q, f); },
     step(d) {
       if (!this.ctx) return false;
       const nq = this.q + d;
-      if (nq < this.min(this.f) || nq > this.ctx.total) return false;
+      if (nq < this.min(this.f) || nq > this.max(this.f)) return false;
       this.q = nq; this.touched = true; this.render(); Sfx.play('clack'); return true;
     },
     holdRepeat(btn, d) {
@@ -2849,7 +3003,7 @@ dialog li { margin: 0 0 6px; }
       btn.addEventListener('contextmenu', e => e.preventDefault());
     },
     pickFace(face) {
-      if (!this.ctx || this.min(face) > this.ctx.total) return;
+      if (!this.ctx || this.min(face) > this.max(face)) return;
       this.f = face;
       if (!this.touched || !this.legal(this.q, face)) this.q = Math.max(this.min(face), this.touched ? this.q : this.min(face));
       if (!this.legal(this.q, face)) this.q = this.min(face);
@@ -2866,12 +3020,12 @@ dialog li { margin: 0 0 6px; }
       this.spotSmall.textContent = ex === null ? '' : `exactly: ${pct(ex)}`;
       this.faceBtns.forEach(b => {
         const face = Number(b.dataset.f);
-        b.disabled = !on || this.min(face) > c.total;
+        b.disabled = !on || this.min(face) > this.max(face);
         b.setAttribute('aria-pressed', String(on && face === this.f));
         b.toggleAttribute('data-illegal', on && this.q < this.min(face));
       });
       this.minus.disabled = !on || this.q - 1 < this.min(this.f);
-      this.plus.disabled = !on || this.q + 1 > c.total;
+      this.plus.disabled = !on || this.q + 1 > this.max(this.f);
       this.bidBtn.disabled = !on || !c.canBid || !this.legal(this.q, this.f);
       if (!on) { this.qty.textContent = ' '; this.what.textContent = ' '; this.pctEl.textContent = ' '; this.pctEl.style.color = ''; return; }
       this.qty.textContent = String(this.q);
@@ -2882,7 +3036,7 @@ dialog li { margin: 0 0 6px; }
       this.pctEl.style.color = bandColour(p);
       this.bidBtn.setAttribute('aria-label', `Bid ${bidText(this.q, this.f)} (${pct(p)} by your dice)`);
     },
-    /* ctx: {bid, total, faces, canBid, canLiar, canSpot, mustBid, double, minBid} */
+    /* ctx: {bid, total, maxFor, faces, canBid, canLiar, canSpot, mustBid, double, minBid} */
     open(c) {
       const same = this.ctx && JSON.stringify(c.bid) === JSON.stringify(this.ctx.bid) && c.total === this.ctx.total;
       this.ctx = c;
@@ -3067,6 +3221,8 @@ dialog li { margin: 0 0 6px; }
   // ----- The tricks row on the table (and the same chips elsewhere) -----
   const TRICK_INFO = {};
   Engine.TRICKS.forEach(t => { TRICK_INFO[t.id] = t; });
+  // 'Shaved Die, Hot Hand and Snake Eyes'
+  const listNames = (ids, and) => { const n = ids.map(x => TRICK_INFO[x].name); return n.length < 2 ? n.join('') : `${n.slice(0, -1).join(', ')} ${and || 'and'} ${n[n.length - 1]}`; };
   const Tricks = {
     root: null,
     build(root) { this.root = root; },
@@ -3082,11 +3238,15 @@ dialog li { margin: 0 0 6px; }
       const t = (v && v.tricks.find(x => x.id === id)) || Object.assign({ usable: false, asleep: false }, TRICK_INFO[id]);
       const kids = [el('p', { class: 'rar', 'data-r': t.rarity }, `${t.rarity} · ${t.kind}`), el('h2', { id: 'dlg-title' }, t.name), el('p', null, t.text)];
       if (t.asleep) kids.push(el('p', { class: 'note' }, 'Asleep: Loretta counts the bones at Last Call, and dice tricks don’t work at her table.'));
+      // Its builds: the tricks it goes with (the ones you hold first).
+      const partners = Engine.partners(id), mine = (t.goesWith || []).filter(x => partners.includes(x));
+      if (mine.length) kids.push(el('p', { class: 'goes', id: 'trick-goes' }, `Goes with your ${listNames(mine)}.`));
+      else if (partners.length) kids.push(el('p', { class: 'note', id: 'trick-goes' }, `Goes with ${listNames(partners, 'or')}.`));
       const buttons = [['Close', null]];
       const usable = t.usable && v && v.phase === 'table' && !App.busy;
       if (usable && id === 'nod') buttons.push(['Ask Loretta', () => App.act({ t: 'use', id: 'nod' }), 'primary', 'btn-use']);
       if (usable && id === 'slowroll') {
-        const dice = v.table.myDice || [];
+        const dice = v.table.myDice || [], sr = v.table.slow;
         const sel = dice.map(() => true);
         const go = el('button', { class: 'btn primary', type: 'button', id: 'btn-use' });
         const picks = el('div', { class: 'picks', role: 'group', 'aria-label': 'Dice to re-roll' });
@@ -3098,30 +3258,33 @@ dialog li { margin: 0 0 6px; }
         };
         draw();
         go.addEventListener('click', () => { const pick = sel.map((s, i) => (s ? i : -1)).filter(i => i >= 0); Dialog.close(); App.act(pick.length === dice.length ? { t: 'use', id: 'slowroll' } : { t: 'use', id: 'slowroll', dice: pick }); });
-        kids.push(el('h3', null, 'Tap to choose which dice'), picks);
+        if (sr && sr.reroll.length) kids.push(el('button', { class: 'btn primary', type: 'button', id: 'btn-keepbest-dlg', style: 'width:100%;min-height:48px', onclick: () => { Dialog.close(); App.act({ t: 'use', id: 'slowroll', keep: 'best' }); } }, `Keep the ${sr.f}s, re-roll ${sr.reroll.length}`));
+        kids.push(el('h3', null, sr && sr.reroll.length ? 'Or tap to choose which dice' : 'Tap to choose which dice'), picks);
+        go.classList.remove('primary');
         Dialog.open(kids, [['Not now', null]], go);
         return;
       }
       if (usable && id === 'palm') {
-        const dice = v.table.myDice || [];
+        const dice = v.table.myDice || [], pm = v.table.palm || { left: 0, loaded: null };
         let die = -1, face = 0;
         const go = el('button', { class: 'btn primary', type: 'button', id: 'btn-use', disabled: true }, 'Palm it');
         const dPick = el('div', { class: 'picks', role: 'group', 'aria-label': 'Which die' });
         const fPick = el('div', { class: 'picks', role: 'group', 'aria-label': 'To which face' });
         const draw = () => {
-          dPick.replaceChildren(...dice.map((f, i) => el('button', { type: 'button', 'aria-pressed': String(i === die), 'aria-label': `Die ${i + 1}: ${f}`, dataset: { i: String(i) }, onclick: () => { die = i; draw(); } }, Dice.node(f, { label: false }))));
-          fPick.replaceChildren(...[1, 2, 3, 4, 5, 6].map(f => el('button', { type: 'button', 'aria-pressed': String(f === face), 'aria-label': `Face ${f}`, dataset: { f: String(f) }, onclick: () => { face = f; draw(); } }, Dice.node(f, { label: false }))));
+          dPick.replaceChildren(...dice.map((f, i) => el('button', { type: 'button', 'aria-pressed': String(i === die), 'aria-label': `Die ${i + 1}: ${f}${i === pm.loaded ? ' (the loaded six will not turn)' : ''}`, disabled: i === pm.loaded, dataset: { i: String(i) }, onclick: () => { die = i; if (face === dice[i]) face = 0; draw(); } }, Dice.node(f, { label: false, twice: i === pm.loaded }))));
+          fPick.replaceChildren(...[2, 3, 4, 5, 6].map(f => el('button', { type: 'button', 'aria-pressed': String(f === face), 'aria-label': `Face ${f}`, disabled: die >= 0 && dice[die] === f, dataset: { f: String(f) }, onclick: () => { face = f; draw(); } }, Dice.node(f, { label: false }))));
           go.disabled = die < 0 || !face;
           go.textContent = die >= 0 && face ? `Turn the ${dice[die]} to a ${face}` : 'Palm it';
         };
         draw();
         go.addEventListener('click', () => { if (die < 0 || !face) return; Dialog.close(); App.act({ t: 'use', id: 'palm', die, face }); });
-        kids.push(el('h3', null, 'Which die'), dPick, el('h3', null, 'To which face'), fPick);
+        kids.push(el('p', { class: 'note', id: 'palm-left' }, `${plural(pm.left, 'palm')} left at this table. Faces 2 to 6: Palm never makes a 1.`), el('h3', null, 'Which die'), dPick, el('h3', null, 'To which face'), fPick);
         Dialog.open(kids, [['Not now', null]], go);
         return;
       }
       if (id === 'double' && v && v.phase === 'table' && !t.asleep) kids.push(el('p', { class: 'note' }, 'When you call, use the “Liar ×2” button.'));
-      if ((id === 'slowroll' || id === 'palm' || id === 'nod') && !usable && v && v.phase === 'table') kids.push(el('p', { class: 'note' }, id === 'slowroll' ? 'Ready before the first bid of a round.' : id === 'palm' ? 'Once a table; used, or not right now.' : 'Once a table, with a bid in front of you on your turn.'));
+      if ((id === 'slowroll' || id === 'palm' || id === 'nod') && !usable && v && v.phase === 'table') kids.push(el('p', { class: 'note' }, id === 'slowroll' ? 'Ready before the first bid of a round.' : id === 'palm' ? (v.table && v.table.palm && !v.table.palm.left ? 'All four used at this table.' : 'On your turn, once you see your dice.') : 'Once a table, with a bid in front of you on your turn.'));
+      if (id === 'sidebet' && v && v.phase === 'table' && !t.asleep) kids.push(el('p', { class: 'note' }, v.table && v.table.kind === 'last' ? 'No antes at Loretta’s table, so no side bets.' : 'When two others go to a challenge, you are asked before the cups lift.'));
       Dialog.open(kids, buttons);
     }
   };
@@ -3175,6 +3338,16 @@ dialog li { margin: 0 0 6px; }
           BidBanner.tick(n, state());
           Sfx.play('tick', n); Haptic.tap(6);
           await wait(n === e.q - 1 ? 280 : 110);
+          // Loaded Six: the same die again, worth a second 6.
+          if (cup.who === 0 && i === e.loaded) {
+            n++;
+            node.setAttribute('data-twice', '');
+            anim(node, [{ transform: 'scale(1)' }, { transform: 'scale(1.6) rotate(8deg)', offset: .4 }, { transform: 'scale(1)' }], 320, { move: true, easing: 'ease-out' });
+            BidBanner.tick(n, state());
+            say('Your loaded six counts as two 6s.');
+            Sfx.play('tick', n); Haptic.tap(6);
+            await wait(260);
+          }
         }
         if (hits.length) await wait(40);
       }
@@ -3204,7 +3377,7 @@ dialog li { margin: 0 0 6px; }
     const c = Engine.count(App.state, q, f);
     if (c !== null) return c;
     const known = (TV.blind ? [] : TV.my).concat(TV.open.filter(o => o.seat !== 0).map(o => o.face), TV.peek.map(o => o.face));
-    const m = known.filter(d => d === f || (TV.wild && d === 1)).length, n = TV.total - known.length, p = TV.wild ? 1 / 3 : 1 / 6;
+    const m = known.filter(d => d === f || (TV.wild && d === 1)).length + (f === 6 && !TV.blind && TV.loaded.some(i => TV.my[i] === 6) ? 1 : 0), n = TV.total - known.length, p = TV.wild ? 1 / 3 : 1 / 6;
     const need = q - m;
     if (need <= 0) return 1;
     if (need > n) return 0;
@@ -3228,9 +3401,9 @@ dialog li { margin: 0 0 6px; }
     extrabone: e => `Extra Bone: you start with ${e.dice} dice`,
     rabbit: () => 'Rabbit’s Foot: you keep that die',
     sticky: e => `Sticky Fingers: +${money(e.amount)}`,
-    sidebet: () => 'Side Bet: six antes',
+    sidebet: e => (e.right ? `Side Bet: you called it, +${money(e.amount)}` : e.amount ? `Side Bet: wrong, −${money(-e.amount)}` : 'Side Bet: wrong, no harm done'),
     housemoney: e => `House Money: +${money(e.extra)}`,
-    snake: e => `Snake Eyes: two 1s, +${money(e.amount)}`,
+    snake: e => `Snake Eyes: ${plural(e.ones, 'one', 'ones')} under your cup, +${money(e.amount)}`,
     tab: e => `On the tab: the ${money(e.buyIn)} comes out of a win`,
     honest: e => `Honest Face: ${nameAt(e.who)} ${e.who === 0 ? 'lose' : 'loses'} ${e.n}`,
     double: e => `Double or Nothing: ${nameAt(e.who)} ${e.who === 0 ? 'lose' : 'loses'} ${e.n}`,
@@ -3506,8 +3679,8 @@ dialog li { margin: 0 0 6px; }
       });
       // Your cup.
       const me = t.seats[0];
-      if (rv) { const cup = rv.cups.find(c => c.who === 0); if (cup) MyCup.setOpen(cup.dice, TV.start[0], hitsOf(cup.dice, rv.f, rv.wild, 0, rv.bidder, TV.fixed), me.dice); else MyCup.set([], TV.start[0]); }
-      else if (t.myDice) { TV.my = t.myDice.slice(); TV.blind = false; TV.fixed = t.myFixed.slice(); MyCup.set(t.myDice, TV.start[0], { fixed: t.myFixed, loaded: TV.loaded.filter(i => t.myDice[i] === 6) }); }
+      if (rv) { const cup = rv.cups.find(c => c.who === 0); if (cup) MyCup.setOpen(cup.dice, TV.start[0], hitsOf(cup.dice, rv.f, rv.wild, 0, rv.bidder, TV.fixed), me.dice, rv.loaded); else MyCup.set([], TV.start[0]); }
+      else if (t.myDice) { TV.my = t.myDice.slice(); TV.blind = false; TV.fixed = t.myFixed.slice(); TV.loaded = t.myLoaded.slice(); MyCup.set(t.myDice, TV.start[0], { fixed: t.myFixed, loaded: t.myLoaded }); }
       else { TV.blind = t.blind; MyCup.set(new Array(me.dice).fill(0), TV.start[0], { down: true }); }
       MyCup.caption(t.blind ? 'Blind: bid, then look' : TV.wild ? '1s are wild' : 'Straight: 1s not wild');
       // The bid, the Count, the Book on the habit that came with it, what tricks tell you.
@@ -3532,7 +3705,7 @@ dialog li { margin: 0 0 6px; }
       setTurn(t.wait === 'turn' ? 0 : -1);
       if (t.wait === 'turn') {
         $('bar').hidden = true; $('picker').hidden = false; Sheet.clear();
-        Picker.open({ bid: t.bid, total: t.total, faces: t.faces, canBid: L.canBid, canLiar: L.canLiar, canSpot: L.canSpot, mustBid: L.mustBid, minBid: L.minBid, double: v.tricks.some(x => x.id === 'double' && !x.asleep) });
+        Picker.open({ bid: t.bid, total: t.total, maxFor: L.maxFor, faces: t.faces, canBid: L.canBid, canLiar: L.canLiar, canSpot: L.canSpot, mustBid: L.mustBid, minBid: L.minBid, double: v.tricks.some(x => x.id === 'double' && !x.asleep) });
         say(t.bid ? `Your turn. ${bidText(t.bid.q, t.bid.f)} on the table; the Count says ${pct(t.count || 0)}.` : 'Your turn to open.');
         Coach.want('turn');
         if (t.bid && t.bid.who !== 0 && $('bookline').childElementCount && !$('bookline').hasAttribute('data-quiet')) Coach.want('booktally');
@@ -3540,12 +3713,45 @@ dialog li { margin: 0 0 6px; }
       } else if (t.wait === 'ready') {
         Picker.close(); Sheet.clear(); $('picker').hidden = true;
         const bar = $('bar'); bar.hidden = false;
-        bar.replaceChildren(el('p', null, `${nameAt(t.opener)} opens. Slow Roll: re-roll any of your dice before the first bid?`),
-          el('div', { class: 'btns' }, el('button', { class: 'btn', type: 'button', id: 'btn-slowroll', onclick: () => Tricks.open('slowroll') }, 'Slow Roll…'), el('button', { class: 'btn primary', type: 'button', id: 'btn-go', onclick: () => App.act({ t: 'go' }) }, 'Play on')));
+        bar.replaceChildren(...this.readyBar(t));
+      } else if (t.wait === 'side') {
+        Picker.close(); Sheet.clear(); $('picker').hidden = true;
+        const bar = $('bar'); bar.hidden = false;
+        bar.replaceChildren(this.sideBar(t));
+        say(bar.querySelector('.sb-q').textContent + ' ' + bar.querySelector('.sb-facts').textContent);
+        const b = $('btn-side-bidder'); if (b) { try { b.focus({ preventScroll: true }); } catch (e) { /* ok */ } }
       } else if (t.wait === 'next') {
         $('bar').hidden = true; $('picker').hidden = false; Picker.close();
         if (!Lesson.on && (!Sheet.cur || Sheet.cur.dataset.seq !== String(TV.revealSeq))) this.showReadout(t);
       } else { Picker.close(); }
+    },
+    /* Slow Roll, before the first bid: one tap keeps your best face and re-rolls the rest; or pick dice; or play on. */
+    readyBar(t) {
+      const sr = t.slow, opener = t.opener === 0 ? 'You open' : `${nameAt(t.opener)} opens`;
+      const go = el('button', { class: 'btn primary', type: 'button', id: 'btn-go', onclick: () => App.act({ t: 'go' }) }, 'Play on');
+      if (!sr) return [el('p', null, `${opener}. Slow Roll is spent this round.`), el('div', { class: 'btns', 'data-one': '' }, go)];
+      const n = sr.reroll.length, keepable = n > 0;
+      const keep = el('button', { class: 'btn', type: 'button', id: 'btn-keepbest', disabled: !keepable, 'aria-label': keepable ? `Slow Roll: keep your ${sr.f}s, re-roll ${n}` : `Every die already shows your ${sr.f}s`, onclick: () => App.act({ t: 'use', id: 'slowroll', keep: 'best' }) },
+        `Keep ${sr.f}s`, el('small', null, keepable ? `re-roll ${n}` : 'nothing to re-roll'));
+      return [el('p', null, `${opener}. Slow Roll: ${plural(sr.left, 're-roll')} left.`),
+        el('div', { class: 'btns', 'data-three': '' }, keep, el('button', { class: 'btn', type: 'button', id: 'btn-slowroll', onclick: () => Tricks.open('slowroll') }, 'Pick…'), go)];
+    },
+    /* Side Bet: two others at it; say who is right before the cups lift (one tap), or let it go. */
+    sideBar(t) {
+      const sb = t.side, bidder = first(sb.bidderId), caller = first(sb.callerId), bid = bidText(sb.q, sb.f);
+      const liar = sb.kind === 'liar', p = liar ? sb.count : sb.exact;
+      const pays = `+${money(sb.pays)}`;
+      const q = liar ? `${caller} calls Liar on ${bid}. Is it there?` : `${caller} calls Spot on: exactly ${bid}?`;
+      const b = el('b', null, pct(p)); b.style.color = bandColour(p);
+      const facts = el('p', { class: 'sb-facts' }, el('span', null, liar ? 'Count ' : 'Exactly ', b),
+        sb.habit ? el('span', null, el('em', { style: sb.habit.underline ? 'text-decoration:underline' : null }, `${bidder} ${sb.habit.text}`)) : el('span', null, `${bidder} showed no habit`));
+      const pick = k => App.act({ t: 'side', pick: k });
+      const yes = el('button', { class: 'btn', type: 'button', id: liar ? 'btn-side-bidder' : 'btn-side-caller', 'aria-label': `${liar ? 'It’s there' : 'Dead on'}: side with ${liar ? bidder : caller}, ${pays} if right`, onclick: () => pick(liar ? 'bidder' : 'caller') }, liar ? 'It’s there' : 'Dead on', el('small', null, `${liar ? bidder : caller} · ${pays}`));
+      const no = el('button', { class: 'btn', type: 'button', id: liar ? 'btn-side-caller' : 'btn-side-bidder', 'aria-label': `${liar ? 'It’s not' : 'Not exact'}: side with ${liar ? caller : bidder}, ${pays} if right`, onclick: () => pick(liar ? 'caller' : 'bidder') }, liar ? 'It’s not' : 'Not exact', el('small', null, `${liar ? caller : bidder} · ${pays}`));
+      const pass = el('button', { class: 'btn pass', type: 'button', id: 'btn-side-pass', onclick: () => App.act({ t: 'side' }) }, 'Pass', sb.stake ? el('small', null, `or −${money(sb.stake)}`) : null);
+      return el('div', { class: 'sidebet', role: 'group', 'aria-label': 'Side Bet' },
+        el('p', { class: 'sb-q' }, el('b', null, 'Side Bet: '), q), facts,
+        el('div', { class: 'btns', 'data-side': '' }, yes, no, pass));
     },
     /* "What they had": every bid of the round, what its bidder held, bluff or straight, and what the Book now says. */
     // Only theirs: the challenged bid first, then the bluffs, then the rest.
@@ -3580,7 +3786,7 @@ dialog li { margin: 0 0 6px; }
     },
     verdict(rv, losses) {
       const who = k => (k === 0 ? 'you' : nameAt(k));
-      const head = `${cap(who(rv.caller))} called ${rv.kind === 'liar' ? 'Liar on' : 'Spot on against'} ${rv.bidder === 0 ? 'your' : nameAt(rv.bidder) + '’s'} ${bidText(rv.q, rv.f)}. There ${rv.count === 1 ? 'was' : 'were'} ${rv.count}`;
+      const head = `${cap(who(rv.caller))} called ${rv.kind === 'liar' ? 'Liar on' : 'Spot on against'} ${rv.bidder === 0 ? 'your' : nameAt(rv.bidder) + '’s'} ${bidText(rv.q, rv.f)}. There ${rv.count === 1 ? 'was' : 'were'} ${rv.count}${rv.loaded != null ? ' (your loaded six counts twice)' : ''}`;
       let tail;
       if (rv.kind === 'spot' && rv.exact) tail = `${rv.caller === 0 ? 'you win' : nameAt(rv.caller) + ' wins'} a die back`;
       else if (losses && losses.length) tail = losses.map(l => `${who(l.who)} ${l.who === 0 ? 'lose' : 'loses'} ${l.n === 1 ? 'a die' : word(l.n) + ' dice'}${l.left === 0 ? (l.who === 0 ? ' and you’re out' : ' and is out') : ''}`).join('; ');
@@ -3872,10 +4078,12 @@ dialog li { margin: 0 0 6px; }
           el('div', { class: 'offer-head' }, el('h3', null, o.name), el('span', { class: 'price' }, money(o.price))),
           el('span', { class: 'rar', 'data-r': o.rarity }, `${o.rarity} · ${o.kind}`),
           el('p', null, o.text),
+          o.goesWith && o.goesWith.length ? el('p', { class: 'goes', dataset: { with: o.goesWith.join(' ') } }, `Goes with your ${listNames(o.goesWith)}.`) : null,
           el('button', { class: `btn ${can ? 'primary' : ''} buy`, type: 'button', dataset: { i: String(i) }, disabled: !can, onclick: () => App.act({ t: 'buy', i }) }, can ? `Buy · ${money(o.price)}` : full ? 'Your five slots are full' : `Need ${money(o.price)}`));
       });
       const slots = el('div', { class: 'slots', 'aria-label': `${v.tricks.length} of ${Engine.SLOTS} slots used` }, new Array(Engine.SLOTS).fill(0).map((x, i) => el('span', { 'data-full': i < v.tricks.length ? '' : null })));
       const held = sv0.held.map(h => el('div', { class: 'held-item', dataset: { id: h.id } }, el('b', null, h.name), el('span', null, h.text),
+        h.goesWith && h.goesWith.length ? el('span', { class: 'goes' }, `Goes with your ${listNames(h.goesWith)}.`) : null,
         el('button', { class: 'btn sell', type: 'button', dataset: { id: h.id }, onclick: () => App.act({ t: 'sell', id: h.id }) }, `Sell · +${money(h.sell)}`)));
       const nextH = S.hour + 1;
       const need = nextH >= 4 ? Engine.HOURS[4].last.min : Engine.HOURS[nextH].easy.buyIn;
@@ -3888,7 +4096,7 @@ dialog li { margin: 0 0 6px; }
         goalLine(v.cash),
         el('div', { class: 'curtis' }, mini(SHARK), el('div', null, el('p', null, `“${PATTER[hash(S.seed + '|' + S.hour, 9) % PATTER.length]}”`), el('small', null, 'Curtis Pruett, who puts odds on everything'))),
         el('h3', { class: 'kicker' }, 'On offer'),
-        el('div', { class: 'offers' }, offers),
+        el('div', { class: 'offers', dataset: { n: String(offers.length) } }, offers),
         el('div', { class: 'row', style: 'margin-top:10px' }, el('button', { class: 'btn', id: 'btn-reroll', type: 'button', disabled: !L.canReroll, onclick: () => App.act({ t: 'reroll' }) }, `Show me others · ${money(sv0.rerollPrice)}`), el('span', { class: 'note' }, 'Tricks sell back for half what you paid.')),
         el('h3', { class: 'kicker' }, `Your tricks · ${v.tricks.length} of ${Engine.SLOTS}`), slots,
         held.length ? el('div', { class: 'held' }, held) : el('p', { class: 'note' }, 'Nothing yet. You can carry five.'),

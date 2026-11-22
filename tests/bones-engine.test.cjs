@@ -61,7 +61,8 @@ function arm(S, o) {
   const T = S.table;
   o.dice.forEach((d, k) => { T.seats[k].dice = d.slice(); T.seats[k].n = d.length; T.seats[k].out = d.length === 0; });
   if (o.start) T.start = o.start.slice();
-  T.round = { no: T.roundNo, opener: o.opener || 0, turn: 0, bids: (o.bids || []).map(b => ({ who: b.who, q: b.q, f: b.f, p: 0.5, held: 0, bluff: false, habit: null })), blindSeat: -1, looked: false, peek: o.peek || [], ones: o.ones != null ? o.ones : null, nod: null, slow: false, hot: false, fixed: o.fixed || [], pinned: {} };
+  T.round = { no: T.roundNo, opener: o.opener || 0, turn: 0, bids: (o.bids || []).map(b => ({ who: b.who, q: b.q, f: b.f, p: 0.5, held: 0, bluff: false, habit: null })), blindSeat: -1, looked: false, peek: o.peek || [], ones: o.ones != null ? o.ones : null, nod: null, slow: 0, hot: false, fixed: o.fixed || [], pinned: {}, loaded: o.loaded != null ? o.loaded : null };
+  if (o.loaded != null) T.round.pinned[o.loaded] = 6;
   T.wait = 'turn';
   return S;
 }
@@ -153,13 +154,13 @@ test('the state survives a JSON round-trip mid-round and plays on identically', 
 
 test('every batch ends with a wait at a state where the human must act (or the phase changed)', () => {
   for (let i = 0; i < 30; i++) {
-    const S = E.newNight({ seed: 'w' + i, tricks: i % 2 ? ['slowroll'] : [] });
+    const S = E.newNight({ seed: 'w' + i, tricks: i % 2 ? ['slowroll'] : i % 4 === 2 ? ['sidebet', 'loaded'] : [] });
     while (S.phase !== 'over') {
       const ev = ok(E.act(S, E.basicPolicy(S, E.view(S), E.legal(S))));
       const last = ev[ev.length - 1];
       assert.strictEqual(last.t, 'wait');
       assert.strictEqual(last.need, E.legal(S).need);
-      assert.ok(['turn', 'ready', 'next', 'choose', 'shop', 'over'].includes(last.need));
+      assert.ok(['turn', 'ready', 'side', 'next', 'choose', 'shop', 'over'].includes(last.need));
       deq(E.advance(S), [{ t: 'wait', need: last.need }], 'nothing pending');
     }
   }
@@ -455,6 +456,7 @@ function bruteCount(S, q, f, exact) {
       let c = 0;
       known.forEach(x => { if (x.d === f || (wild && x.d === 1 && !(x.k === 0 && theirs && R.fixed.includes(x.i)))) c++; });
       vals.forEach(v => { if (v === f || (wild && v === 1)) c++; });
+      if (f === 6 && R.loaded != null && T.seats[0].dice[R.loaded] === 6) c++; // Loaded Six: two 6s
       tot++; if (exact ? c === q : c >= q) good++;
     }
     let j = 0; while (j < n && vals[j] === 6) { vals[j] = 1; j++; }
@@ -462,7 +464,7 @@ function bruteCount(S, q, f, exact) {
   }
   return good / tot;
 }
-test('the Count matches brute-force enumeration (wilds, Straight, peeks, Bar Mirror, Shaved Die)', () => {
+test('the Count matches brute-force enumeration (wilds, Straight, peeks, Bar Mirror, Shaved Die, Loaded Six)', () => {
   let cases = 0;
   const setups = [
     { dice: [[2, 1, 4], [3, 4], [6, 6, 2]] },
@@ -471,14 +473,18 @@ test('the Count matches brute-force enumeration (wilds, Straight, peeks, Bar Mir
     { dice: [[1, 5, 5], [3, 1, 4], [6, 2]], ones: 3 },
     { rule: 'straight', dice: [[1, 5], [3, 1, 4], [6, 1]], ones: 3 },
     { rule: 'open', dice: [[2, 2], [4, 1, 4], [3, 6]] },
-    { dice: [[1, 3, 5], [4, 4], [2, 6]], fixed: [0], bids: [{ who: 2, q: 3, f: 4 }] }
+    { dice: [[1, 3, 5], [4, 4], [2, 6]], fixed: [0], bids: [{ who: 2, q: 3, f: 4 }] },
+    { dice: [[6, 2, 1], [3, 6], [6, 1, 2]], loaded: 0 },
+    { dice: [[6, 2, 1], [3, 6], [6, 1, 2]], loaded: 0, bids: [{ who: 2, q: 4, f: 6 }] },
+    { rule: 'straight', dice: [[6, 6, 1], [3, 6], [5, 1]], loaded: 1 },
+    { dice: [[1, 6, 6], [3, 4, 1], [6, 2]], fixed: [0], loaded: 1, ones: 3 }
   ];
   for (const o of setups) {
     const S = rig(Object.assign({ bids: o.bids || [{ who: 2, q: 1, f: 2 }] }, o));
     if (o.ones != null) S.table.round.ones = S.table.seats.reduce((a, s) => a + s.dice.filter(d => d === 1).length, 0);
     const T = S.table, faces = T.rule === 'straight' ? [1, 2, 3, 4, 5, 6] : [2, 3, 4, 5, 6];
     const total = T.seats.reduce((a, s) => a + s.dice.length, 0);
-    for (let q = 0; q <= total + 1; q++) for (const f of faces) {
+    for (let q = 0; q <= total + 2; q++) for (const f of faces) {
       const want = bruteCount(S, q, f, false), got = E.count(S, q, f);
       assert.ok(Math.abs(want - got) < 1e-9, JSON.stringify(o) + ` count(${q},${f}) ${got} vs ${want}`);
       const wantX = bruteCount(S, q, f, true), gotX = E.countExact(S, q, f);
@@ -561,19 +567,38 @@ test('habit lines read after a first name, and tells show by kind and strength',
   assert.strictEqual(bidEv.habit.line, p.first + ' ' + bidEv.habit.text + '.');
 });
 
-test('bots remember how you bluff (this table plus a little of the Book); Poker Face hides it', () => {
+test('bots remember how you bluff (this table plus a little of the Book); Poker Face makes you look honest however often you are caught', () => {
   const S = rig({});
   S.table.seen[0] = { n: 20, b: 18 };
   assert.ok(SIM.estBluff(S, 0) > 0.7);
-  const P2 = rig({ tricks: ['pokerface'] });
-  P2.table.seen[0] = { n: 20, b: 18 };
-  assert.strictEqual(SIM.estBluff(P2, 0), 0.25);
   const B = rig({ book: { v: 1, nights: 3, me: { bids: 40, bluffs: 40 }, people: {} } });
   const C = rig({});
   assert.ok(SIM.estBluff(B, 0) > SIM.estBluff(C, 0) + 0.3);
+  assert.ok(SIM.estBluff(C, 0) > 0.2, 'a stranger is taken for an average bluffer');
+  // Poker Face: honest to them, whatever they caught tonight and whatever the Book remembers.
+  for (const seen of [{ n: 0, b: 0 }, { n: 5, b: 5 }, { n: 20, b: 18 }, { n: 60, b: 60 }]) {
+    const P2 = rig({ tricks: ['pokerface'], book: { v: 1, nights: 9, me: { bids: 200, bluffs: 190 }, people: {} } });
+    P2.table.seen[0] = seen;
+    assert.strictEqual(SIM.estBluff(P2, 0), 0, JSON.stringify(seen));
+  }
+  // It is you they take for honest, not the others.
+  const P3 = rig({ tricks: ['pokerface'] }); P3.table.seen[1] = { n: 20, b: 18 };
+  assert.ok(SIM.estBluff(P3, 1) > 0.7);
+  // And it changes their play: across many tables of the same bluffing, they call your bids less with it.
+  const calls = tricks => {
+    let called = 0, bids = 0;
+    for (let i = 0; i < 300; i++) {
+      const T = rig({ seed: 'pf' + i, tricks, people: ['npc_darlene', 'npc_boyd'], dice: [[2, 3, 4], [2, 3, 6], [2, 6, 6]] });
+      T.table.seen[0] = { n: 30, b: 25 };
+      T.table.round.bids = [{ who: 0, q: 4, f: 5, p: 0.1, held: 0, bluff: true, habit: null }];
+      T.table.round.turn = 1; T.table.wait = null;
+      const ev = E.advance(T); bids++;
+      if (find(ev, 'call', c => c.on.who === 0)) called++;
+    }
+    return called / bids;
+  };
+  assert.ok(calls(['pokerface']) < calls([]) - 0.15, `called ${calls(['pokerface'])} with it, ${calls([])} without`);
 });
-
-// ===================================================================== bots
 test('no bot ever makes an illegal or impossible bid across 2,000 tables', () => {
   let tables = 0, bids = 0;
   const kinds = [[0, 'easy'], [0, 'rich'], [1, 'easy'], [1, 'rich'], [2, 'easy'], [2, 'rich'], [3, 'easy'], [3, 'rich'], [4, 'last']];
@@ -710,6 +735,57 @@ test('Loaded Six: a die always lands on 6; Extra Bone: one more die (but not at 
   assert.ok(E.view(L).tricks.every(t => t.asleep));
 });
 
+test('Loaded Six counts as two 6s on any bid of 6s, and only on 6s: the reveal, Spot On, the Count, the largest bid', () => {
+  // Your loaded 6 (die 0) and one more 6 at the table: three 6s for anyone's bid of 6s.
+  let S = rig({ tricks: ['loaded'], dice: [[6, 2], [6, 3], [4, 5]], loaded: 0, bids: [{ who: 2, q: 3, f: 6 }] });
+  assert.ok(Math.abs(E.count(S, 3, 6) - SIM.tail(4, 1, 1 / 3)) < 1e-12, 'the Count has it: your one die is two of the three');
+  assert.ok(Math.abs(E.count(S, 2, 6) - 1) < 1e-12);
+  deq(E.view(S).table.myLoaded, [0]);
+  let ev = ok(E.act(S, { t: 'liar' }));
+  let r = find(ev, 'reveal');
+  deq([r.count, r.good, r.loaded], [3, true, 0], 'their three 6s are there');
+  assert.strictEqual(find(ev, 'lose').who, 0);
+  // Spot On: exactly three.
+  S = rig({ tricks: ['loaded'], dice: [[6, 2], [6, 3], [4, 5]], loaded: 0, bids: [{ who: 2, q: 3, f: 6 }] });
+  assert.ok(Math.abs(E.countExact(S, 3, 6) - SIM.pmf(4, 1, 1 / 3)) < 1e-12);
+  ev = ok(E.act(S, { t: 'spot' }));
+  assert.ok(find(ev, 'reveal').exact); deq(pays(ev).map(p => p.why), ['spot']);
+  // Wild 1s count as usual on top: 6, 1 and the loaded 6 twice = four.
+  S = rig({ tricks: ['loaded'], dice: [[6, 1], [2, 3], [4, 5]], loaded: 0, bids: [{ who: 1, q: 4, f: 6 }] });
+  assert.strictEqual(find(ok(E.act(S, { t: 'spot' })), 'reveal').count, 3, 'your 6 (twice) and your 1');
+  // Only on 6s: a bid of 5s sees one plain die, and no 'loaded' on the reveal.
+  S = rig({ tricks: ['loaded'], dice: [[6, 5], [5, 3], [4, 2]], loaded: 0, bids: [{ who: 2, q: 3, f: 5 }] });
+  ev = ok(E.act(S, { t: 'liar' })); r = find(ev, 'reveal');
+  deq([r.count, r.good, 'loaded' in r], [2, false, false]);
+  // The largest legal bid: one more 6 than there are dice (and nobody else knows it).
+  S = rig({ tricks: ['loaded'], dice: [[6, 2], [6, 3], [4, 5]], loaded: 0, bids: [{ who: 2, q: 6, f: 5 }] });
+  const L = E.legal(S);
+  deq([L.maxFor[5], L.maxFor[6], L.maxQ], [6, 7, 7]);
+  assert.ok(E.isLegalBid(S, 7, 6) && !E.isLegalBid(S, 7, 5) && !E.isLegalBid(S, 8, 6));
+  deq(L.minBid, { q: 6, f: 6 });
+  S.table.round.bids.push({ who: 1, q: 6, f: 6, p: 0, held: 1, bluff: true, habit: null });
+  deq(E.legal(S).minBid, { q: 7, f: 6 }, 'past six 6s, only seven 6s');
+  ok(E.act(S, { t: 'bid', q: 7, f: 6 }));
+  // Your own bid of 6s is judged with the second 6: not a bluff when the cup backs it.
+  S = rig({ tricks: ['loaded'], dice: [[6, 6], [2, 3], [4, 5]], loaded: 0 });
+  ok(E.act(S, { t: 'bid', q: 3, f: 6 }));
+  const mine = S.table.round ? S.table.round.bids.find(b => b.who === 0) : null;
+  if (mine) { assert.strictEqual(mine.held, 3); assert.strictEqual(mine.p, 1); assert.strictEqual(mine.bluff, false); }
+  // Without the trick the same cups count once.
+  S = rig({ dice: [[6, 2], [6, 3], [4, 5]], bids: [{ who: 2, q: 3, f: 6 }] });
+  assert.strictEqual(find(ok(E.act(S, { t: 'liar' })), 'reveal').count, 2);
+  deq(E.legal(rig({ dice: [[6, 2], [6, 3], [4, 5]], bids: [{ who: 2, q: 6, f: 5 }] })).minBid, { q: 6, f: 6 });
+  assert.strictEqual(E.legal(rig({ dice: [[6, 2], [6, 3], [4, 5]], bids: [{ who: 2, q: 6, f: 6 }] })).minBid, null);
+  // A real roll: the loaded die is marked, and counted twice in the Count of 6s.
+  const R = E.newNight({ seed: 'ld2', tricks: ['loaded'] }); ok(E.sit(R, 0));
+  if (R.table.round && R.table.round.blindSeat !== 0) {
+    assert.strictEqual(R.table.round.loaded, 0); assert.strictEqual(R.table.seats[0].dice[0], 6);
+  }
+  // Asleep at Last Call: no loaded die, nothing counted twice.
+  const LC = rig({ hour: 4, tricks: ['loaded'] });
+  assert.ok(!LC.table.round || LC.table.round.loaded === null);
+});
+
 test('Rabbit\'s Foot: the first die you would lose at each table, you keep', () => {
   const S = rig({ tricks: ['rabbit'], dice: [[2, 3], [4, 4], [5, 6]], bids: [{ who: 2, q: 2, f: 4 }] });
   let ev = ok(E.act(S, { t: 'liar' }));
@@ -720,32 +796,86 @@ test('Rabbit\'s Foot: the first die you would lose at each table, you keep', () 
   deq(find(ev, 'lose'), { t: 'lose', who: 0, id: 'me', n: 1, left: 1 });
 });
 
-test('Slow Roll: before the first bid, re-roll any of your dice, once per round', () => {
+test('Slow Roll: before the first bid, twice a round, re-roll any dice, or keep your best face in one tap', () => {
   let S = null;
   for (let i = 0; i < 30 && !S; i++) { const T = E.newNight({ seed: 'slow' + i, tricks: ['slowroll'] }); const ev = ok(E.sit(T, 0)); if (find(ev, 'roll').opener !== 0) S = T; }
   assert.strictEqual(S.table.wait, 'ready');
   deq(E.legal(S).uses.includes('slowroll'), true);
   const before = S.table.seats[0].dice.slice();
-  const ev = ok(E.act(S, { t: 'use', id: 'slowroll', dice: [1, 3] }));
+  let ev = ok(E.act(S, { t: 'use', id: 'slowroll', dice: [1, 3] }));
   const after = find(ev, 'trick', e => e.id === 'slowroll').mine;
   deq([after[0], after[2], after[4]], [before[0], before[2], before[4]]);
-  assert.ok(isErr(E.act(S, { t: 'use', id: 'slowroll' })), 'once per round');
+  assert.strictEqual(find(ev, 'trick', e => e.id === 'slowroll').left, 1);
+  ok(E.act(S, { t: 'use', id: 'slowroll' }));
+  assert.ok(isErr(E.act(S, { t: 'use', id: 'slowroll' })), 'twice per round');
+  assert.ok(!E.legal(S).uses.includes('slowroll'));
   ok(E.act(S, { t: 'go' }));
+  // The opener gets the same beat before the first bid.
+  let O = null;
+  for (let i = 0; i < 40 && !O; i++) { const T = E.newNight({ seed: 'slowo' + i, tricks: ['slowroll'] }); const e = ok(E.sit(T, 0)); if (find(e, 'roll').opener === 0 && !find(e, 'roll').blind) O = T; }
+  assert.strictEqual(O.table.wait, 'ready'); ok(E.act(O, { t: 'go' })); assert.strictEqual(O.table.wait, 'turn');
+  // Keep the best face: 5, 5 and a wild 1 make three 5s; the 2 and the 3 go back in the cup.
+  let K = rig({ tricks: ['slowroll'], dice: [[5, 2, 1, 5, 3], [4, 4], [5, 6]] });
+  deq(E.view(K).table.slow, { f: 5, reroll: [1, 4], left: 2 });
+  ev = ok(E.act(K, { t: 'use', id: 'slowroll', keep: 'best' }));
+  let tr = find(ev, 'trick', e => e.id === 'slowroll');
+  deq([tr.dice, tr.kept, tr.left], [[1, 4], 5, 1]);
+  deq([tr.mine[0], tr.mine[2], tr.mine[3]], [5, 1, 5], 'the 5s and the 1 stay');
+  // A tie goes to the higher face; under Straight a 1 is a face like any other.
+  K = rig({ tricks: ['slowroll'], rule: 'straight', dice: [[1, 4, 1, 4], [4, 4], [5, 6]] });
+  deq(E.view(K).table.slow.f, 4); deq(E.view(K).table.slow.reroll, [0, 2]);
+  // Fixed dice stay (the loaded six counts twice for 6s), and nothing to re-roll is an error.
+  K = rig({ tricks: ['slowroll', 'loaded'], dice: [[6, 5, 5, 2], [4, 4], [5, 6]], loaded: 0 });
+  deq(E.view(K).table.slow.f, 6, 'two 6s from the loaded die beat two 5s on the tie');
+  deq(E.view(K).table.slow.reroll, [1, 2, 3]);
+  K = rig({ tricks: ['slowroll'], dice: [[4, 1, 4], [4, 4], [5, 6]] });
+  assert.ok(isErr(E.act(K, { t: 'use', id: 'slowroll', keep: 'best' })), 'every die already shows the best face');
+  assert.ok(isErr(E.act(K, { t: 'use', id: 'slowroll', keep: 'best', dice: [0] })));
+  assert.ok(isErr(E.act(K, { t: 'use', id: 'slowroll', keep: 'worst' })));
+  // Deterministic: the same keep from the same state rolls the same.
+  const A = rig({ tricks: ['slowroll'], dice: [[5, 2, 1, 5, 3], [4, 4], [5, 6]] }), B = J(A);
+  deq(E.act(A, { t: 'use', id: 'slowroll', keep: 'best' }), E.act(B, { t: 'use', id: 'slowroll', keep: 'best' }));
   const R = rig({ tricks: ['slowroll'], dice: [[2, 3], [4, 4], [5, 6]], bids: [{ who: 2, q: 2, f: 4 }] });
   assert.ok(!E.legal(R).uses.includes('slowroll'), 'not after the first bid');
+  assert.strictEqual(E.view(R).table.slow, null);
   assert.ok(isErr(E.act(rig({ tricks: ['slowroll'], dice: [[2, 3], [4], [5]] }), { t: 'use', id: 'slowroll', dice: [5] })));
 });
-
-test('Palm: once per table, turn one of your dice to any face', () => {
-  const S = rig({ tricks: ['palm'], dice: [[2, 3], [4, 4], [5, 6]], bids: [{ who: 2, q: 2, f: 4 }] });
-  const ev = ok(E.act(S, { t: 'use', id: 'palm', die: 1, face: 4 }));
-  deq(find(ev, 'trick', e => e.id === 'palm').mine, [2, 4]);
-  deq(S.table.seats[0].dice, [2, 4]);
+test('Palm: four times a table, turn one of your dice to a face from 2 to 6 (never a 1, never the loaded six)', () => {
+  const S = rig({ tricks: ['palm'], dice: [[2, 3, 1], [4, 4], [5, 6]], bids: [{ who: 2, q: 2, f: 4 }] });
+  deq(E.view(S).table.palm, { left: 4, loaded: null });
+  let ev = ok(E.act(S, { t: 'use', id: 'palm', die: 1, face: 4 }));
+  deq(find(ev, 'trick', e => e.id === 'palm'), { t: 'trick', id: 'palm', die: 1, face: 4, mine: [2, 4, 1], left: 3 });
+  deq(S.table.seats[0].dice, [2, 4, 1]);
   assert.strictEqual(S.table.wait, 'turn');
-  assert.ok(isErr(E.act(S, { t: 'use', id: 'palm', die: 0, face: 4 })));
+  // Again in the same round (a 1 may become a face, but nothing becomes a 1).
+  ok(E.act(S, { t: 'use', id: 'palm', die: 2, face: 4 }));
+  assert.ok(isErr(E.act(S, { t: 'use', id: 'palm', die: 0, face: 1 })), 'no 1s');
+  assert.ok(isErr(E.act(S, { t: 'use', id: 'palm', die: 0, face: 7 })));
+  assert.ok(isErr(E.act(S, { t: 'use', id: 'palm', die: 1, face: 4 })), 'already a 4');
+  ok(E.act(S, { t: 'use', id: 'palm', die: 0, face: 4 }));
+  assert.strictEqual(E.view(S).table.palm.left, 1);
+  ok(E.act(S, { t: 'use', id: 'palm', die: 0, face: 5 }));
+  assert.strictEqual(E.view(S).table.palm.left, 0);
+  assert.ok(!E.legal(S).uses.includes('palm'), 'four a table');
+  assert.ok(isErr(E.act(S, { t: 'use', id: 'palm', die: 0, face: 6 })));
+  // The next round of the same table: still spent. (A new table starts with four.)
+  S.table.round = null; S.table.wait = 'next';
+  ok(E.act(S, { t: 'next' }));
+  if (S.table && S.table.wait === 'turn') assert.ok(!E.legal(S).uses.includes('palm'));
   assert.ok(isErr(E.act(rig({ tricks: ['palm'], dice: [[2, 3], [4], [5]] }), { t: 'use', id: 'palm', die: 2, face: 4 })));
+  // The loaded six will not turn; a fixed 1 may (and is then a plain die).
+  const L = rig({ tricks: ['palm', 'loaded', 'shaved'], dice: [[1, 6, 3], [4], [5]], fixed: [0], loaded: 1 });
+  deq(E.view(L).table.palm, { left: 4, loaded: 1 });
+  assert.ok(isErr(E.act(L, { t: 'use', id: 'palm', die: 1, face: 5 })));
+  ok(E.act(L, { t: 'use', id: 'palm', die: 0, face: 6 }));
+  deq([L.table.round.fixed, E.view(L).table.myLoaded], [[], [1]]);
+  // Palm cancels Loretta's Nod (the cup changed); asleep at Last Call.
+  const N = rig({ tricks: ['palm', 'nod'], dice: [[2, 3], [4, 4], [5, 6]], bids: [{ who: 2, q: 2, f: 4 }] });
+  ok(E.act(N, { t: 'use', id: 'nod' })); ok(E.act(N, { t: 'use', id: 'palm', die: 0, face: 4 }));
+  assert.strictEqual(E.view(N).table.nod, null);
+  const LC = rig({ hour: 4, tricks: ['palm'] });
+  assert.ok(!E.legal(LC).uses.includes('palm'));
 });
-
 test('Hot Hand: after you win a challenge, a die next round is a guaranteed 1', () => {
   const S = rig({ tricks: ['hothand'], dice: [[2, 3], [4, 4], [5, 6]], bids: [{ who: 2, q: 3, f: 4 }] });
   ok(E.act(S, { t: 'liar' }));
@@ -843,26 +973,151 @@ test('Lyman\'s Ledger: every opponent shows a true bluff rate from the first bid
   assert.ok(BLOCK.includes('npc_colt: 0.') && E.PEOPLE.every(p => BLOCK.includes(' ' + p.id + ': 0.')), 'RATE lists all fifty');
 });
 
-test('Sticky Fingers +1 ante on a caught liar; Side Bet 6 antes on Spot On; Snake Eyes an ante for two 1s', () => {
+test('Sticky Fingers +1 ante on a caught liar; a Spot On pays 3 antes, Side Bet or not', () => {
   let S = rig({ tricks: ['sticky'], dice: [[2, 3], [4, 4], [5, 6]], bids: [{ who: 2, q: 3, f: 4 }] });
   deq(pays(ok(E.act(S, { t: 'liar' }))).map(p => [p.amount, p.why]), [[3, 'won'], [3, 'sticky']]);
   S = rig({ tricks: ['sidebet'], dice: [[2, 3], [4, 4], [4, 6]], bids: [{ who: 2, q: 3, f: 4 }] });
-  deq(pays(ok(E.act(S, { t: 'spot' }))).map(p => [p.amount, p.why]), [[18, 'spot']]);
-  let got = 0, rolls = 0;
-  for (let i = 0; i < 40; i++) {
-    const T = rig({ seed: 'sn' + i, tricks: ['snake'] });
-    T.table.round = null; T.table.wait = 'next';
-    const ev = ok(E.act(T, { t: 'next' }));
-    const roll = find(ev, 'roll');
-    if (!roll || !roll.mine) continue;
-    rolls++;
-    const two = roll.mine.filter(d => d === 1).length >= 2;
-    assert.strictEqual(!!find(ev, 'trick', e => e.id === 'snake'), two);
-    if (two) { got++; deq(pays(ev, 'snake').map(p => p.amount), [3]); }
-  }
-  assert.ok(rolls > 30 && got > 0);
+  const ev = ok(E.act(S, { t: 'spot' }));
+  deq(pays(ev).map(p => [p.amount, p.why]), [[9, 'spot']]);
+  assert.ok(!find(ev, 'trick', e => e.id === 'sidebet'), 'Side Bet is about other people\'s challenges now');
 });
 
+test('Snake Eyes: a challenge you win pays an extra ante for every 1 under your cup; a loss, or a mere roll, pays nothing', () => {
+  // Your Liar call, right, with two 1s: the ante, and two more.
+  let S = rig({ tricks: ['snake'], dice: [[1, 1, 3], [4, 4], [5, 6]], bids: [{ who: 2, q: 5, f: 4 }] });
+  let ev = ok(E.act(S, { t: 'liar' }));
+  deq(pays(ev).map(p => [p.amount, p.why]), [[3, 'won'], [6, 'snake']]);
+  deq(find(ev, 'trick', e => e.id === 'snake'), { t: 'trick', id: 'snake', ones: 2, amount: 6 });
+  // Spot On, right, with one 1 (a fixed one counts too): three antes, and one.
+  S = rig({ tricks: ['snake', 'shaved'], dice: [[1, 2], [4, 4], [4, 6]], fixed: [0], bids: [{ who: 2, q: 3, f: 4 }] });
+  deq(pays(ok(E.act(S, { t: 'spot' }))).map(p => [p.amount, p.why]), [[9, 'spot'], [3, 'snake']]);
+  // Your bid, called and good: a bot calls Liar on your three 1s-backed 5s.
+  let hit = false;
+  for (let i = 0; i < 300 && !hit; i++) {
+    const T = rig({ seed: 'sne' + i, tricks: ['snake'], dice: [[1, 1, 1, 5], [2, 3], [4, 6]] });
+    T.table.round.bids = [{ who: 0, q: 4, f: 5, p: 1, held: 4, bluff: false, habit: null }];
+    T.table.round.turn = 1; T.table.wait = null;
+    ev = E.advance(T);
+    const c = find(ev, 'call');
+    if (c && c.kind === 'liar' && c.on.who === 0) { hit = true; deq(pays(ev).map(p => [p.amount, p.why]), [[3, 'won'], [9, 'snake']]); }
+  }
+  assert.ok(hit, 'a bot called');
+  // A lost challenge pays nothing, 1s or no 1s.
+  S = rig({ tricks: ['snake'], dice: [[1, 1, 3], [4, 4], [5, 6]], bids: [{ who: 2, q: 3, f: 4 }] });
+  ev = ok(E.act(S, { t: 'liar' }));
+  deq(pays(ev).map(p => p.why), ['lost']); assert.ok(!find(ev, 'trick', e => e.id === 'snake'));
+  // No 1s, no extra; and none for the roll itself any more.
+  S = rig({ tricks: ['snake'], dice: [[2, 3], [4, 4], [5, 6]], bids: [{ who: 2, q: 3, f: 4 }] });
+  deq(pays(ok(E.act(S, { t: 'liar' }))).map(p => p.why), ['won']);
+  let rolls = 0;
+  for (let i = 0; i < 30; i++) {
+    const T = rig({ seed: 'sn' + i, tricks: ['snake'] });
+    T.table.round = null; T.table.wait = 'next';
+    const e = ok(E.act(T, { t: 'next' }));
+    const roll = find(e, 'roll');
+    if (roll && roll.mine && roll.mine.filter(d => d === 1).length >= 2) rolls++;
+    const firstCall = e.findIndex(x => x.t === 'call');
+    assert.ok(!e.slice(0, firstCall < 0 ? e.length : firstCall).some(x => x.t === 'trick' && x.id === 'snake'), 'nothing on the roll');
+  }
+  assert.ok(rolls > 0);
+  // Last Call has no antes: nothing.
+  const H = rig({ hour: 4, cash: 600, tricks: ['snake'] });
+  arm(H, { dice: [[1, 1], [4], [5]], bids: [{ who: 1, q: 3, f: 4 }] });
+  assert.ok(!find(ok(E.act(H, { t: 'liar' })), 'trick', e => e.id === 'snake'));
+});
+
+test('Side Bet: asked only of a holder, only when two others go to a challenge; a right guess pays an ante, a wrong one nothing', () => {
+  // Seat 1 bids six 4s with none showing anywhere: seat 2 calls. Find a seed where it calls Liar.
+  const setup = (tricks, o) => {
+    for (let i = 0; i < 200; i++) {
+      const T = rig(Object.assign({ seed: 'sb' + i, tricks, dice: [[2, 3], [5, 5], [6, 2]] }, o || {}));
+      if (o && o.hour === 4) arm(T, { dice: [[2, 3], [5, 5], [6, 2]] });
+      T.table.round.bids = [{ who: 1, q: 6, f: 4, p: 0, held: 0, bluff: true, habit: null }];
+      T.table.round.turn = 2; T.table.wait = null;
+      const probe = J(T), ev = E.advance(probe);
+      const c = find(ev, 'call');
+      if (c && c.kind === 'liar' && c.who === 2) return T;
+    }
+    throw new Error('no call');
+  };
+  let S = setup(['sidebet']);
+  let ev = ok(E.advance(S));
+  deq(ev.map(e => e.t), ['call', 'wait']);
+  deq(ev[1], { t: 'wait', need: 'side' });
+  const v = E.view(S).table;
+  deq([v.wait, v.side.kind, v.side.caller, v.side.bidder, v.side.callerId, v.side.bidderId, v.side.q, v.side.f, v.side.pays, v.side.stake], ['side', 'liar', 2, 1, 'npc_dewayne', 'npc_colt', 6, 4, 3, 0]);
+  assert.strictEqual(v.side.count, E.count(S, 6, 4));
+  assert.ok(E.legal(S).canSide && !E.legal(S).canBid && !E.legal(S).canLiar);
+  assert.ok(isErr(E.act(S, { t: 'liar' })) && isErr(E.act(S, { t: 'side', pick: 'nobody' })) && isErr(E.act(S, { t: 'next' })));
+  // Right: there are no 4s at all, so the caller is right.
+  const W = J(S);
+  ev = ok(E.act(S, { t: 'side', pick: 'caller' }));
+  assert.ok(!find(ev, 'call'), 'the call is not said twice');
+  assert.ok(ev.findIndex(e => e.t === 'reveal') < ev.findIndex(e => e.t === 'trick' && e.id === 'sidebet'));
+  deq(find(ev, 'trick', e => e.id === 'sidebet'), { t: 'trick', id: 'sidebet', pick: 'caller', right: true, amount: 3 });
+  deq(pays(ev).map(p => [p.amount, p.why]), [[3, 'side']]);
+  assert.strictEqual(S.streak, 0, 'a side bet is not a challenge you won');
+  // Wrong: nothing is lost.
+  ev = ok(E.act(W, { t: 'side', pick: 'bidder' }));
+  deq(find(ev, 'trick', e => e.id === 'sidebet'), { t: 'trick', id: 'sidebet', pick: 'bidder', right: false, amount: 0 });
+  deq(pays(ev), []);
+  // Pass: no bet, no event.
+  const Pz = setup(['sidebet']); E.advance(Pz);
+  ev = ok(E.act(Pz, { t: 'side' }));
+  assert.ok(find(ev, 'reveal') && !find(ev, 'trick', e => e.id === 'sidebet'));
+  // Without the trick the cups lift at once.
+  const N = setup([]);
+  ev = ok(E.advance(N));
+  assert.ok(find(ev, 'reveal') && ev[ev.length - 1].need !== 'side');
+  // Not when you are the bidder or the caller.
+  for (let i = 0; i < 50; i++) {
+    const T = rig({ seed: 'sbm' + i, tricks: ['sidebet'], dice: [[2, 3], [5, 5], [6, 2]] });
+    T.table.round.bids = [{ who: 0, q: 6, f: 4, p: 0, held: 0, bluff: true, habit: null }];
+    T.table.round.turn = 1; T.table.wait = null;
+    ev = ok(E.advance(T));
+    assert.notStrictEqual(ev[ev.length - 1].need, 'side');
+  }
+  const Y = rig({ tricks: ['sidebet'], dice: [[2, 3], [5, 5], [6, 2]], bids: [{ who: 2, q: 6, f: 4 }] });
+  assert.ok(find(ok(E.act(Y, { t: 'liar' })), 'reveal'));
+  // Not at Last Call (no antes there).
+  const LC = setup(['sidebet'], { hour: 4 });
+  ev = ok(E.advance(LC));
+  assert.ok(find(ev, 'reveal'), 'no side bets at Loretta\'s table');
+  // A Spot On between two others: 'caller' means exactly right.
+  for (let i = 0; i < 400; i++) {
+    const T = rig({ seed: 'sbs' + i, tricks: ['sidebet'], dice: [[2, 3], [4, 4], [4, 2]] });
+    T.table.round.bids = [{ who: 1, q: 3, f: 4, p: 0.9, held: 2, bluff: false, habit: null }];
+    T.table.round.turn = 2; T.table.wait = null;
+    const e1 = ok(E.advance(T));
+    if (!find(e1, 'call', c => c.kind === 'spot')) continue;
+    assert.strictEqual(E.view(T).table.side.kind, 'spot');
+    const e2 = ok(E.act(T, { t: 'side', pick: 'caller' }));
+    deq(find(e2, 'trick', e => e.id === 'sidebet').right, find(e2, 'reveal').exact);
+    break;
+  }
+});
+
+test('Side Bet: a night with it is deterministic, and survives a JSON round-trip at the prompt', () => {
+  let prompts = 0;
+  for (const seed of ['sbn1', 'sbn2', 'sbn3']) {
+    const a = E.playNight(seed, null, { keepEvents: true, tricks: ['sidebet'] }), b = E.playNight(seed, null, { keepEvents: true, tricks: ['sidebet'] });
+    assert.strictEqual(JSON.stringify(a.events), JSON.stringify(b.events));
+    prompts += a.events.filter(e => e.t === 'wait' && e.need === 'side').length;
+  }
+  assert.ok(prompts > 3, 'prompts ' + prompts);
+  let checked = 0;
+  for (let i = 0; i < 20 && checked < 3; i++) {
+    const S = E.newNight({ seed: 'sbrt' + i, tricks: ['sidebet'] });
+    while (S.phase !== 'over' && !(S.phase === 'table' && S.table.wait === 'side')) ok(E.act(S, E.basicPolicy(S, E.view(S), E.legal(S))));
+    if (S.phase === 'over') continue;
+    const copy = J(S), evA = [], evB = [];
+    while (S.phase !== 'over') evA.push(...ok(E.act(S, E.basicPolicy(S, E.view(S), E.legal(S)))));
+    while (copy.phase !== 'over') evB.push(...ok(E.act(copy, E.basicPolicy(copy, E.view(copy), E.legal(copy)))));
+    assert.strictEqual(JSON.stringify(evA), JSON.stringify(evB));
+    checked++;
+  }
+  assert.ok(checked >= 1);
+});
 test('tableEnd carries the table\'s net: buy-in, antes, bonuses, pot and refund, to the dollar', () => {
   let n = 0, tab = 0;
   for (let i = 0; i < 120; i++) {
@@ -916,20 +1171,27 @@ test('A Tab: sit at a table you cannot afford; the buy-in comes out of a win; lo
   assert.ok(!E.options(N).some(o => o.affordable));
 });
 
-test('Double or Nothing: you may call Liar for 2 dice, either way', () => {
+test('Double or Nothing: a Liar call for 2 dice: right and the bidder loses 2, wrong and you lose only 1', () => {
   let ev;
   let S;
   S = rig({ tricks: ['double'], dice: [[2, 3], [4, 4], [5, 6, 6]], bids: [{ who: 2, q: 3, f: 4 }] });
   ev = ok(E.act(S, { t: 'liar', double: true }));
   deq(find(ev, 'lose'), { t: 'lose', who: 2, id: 'npc_dewayne', n: 2, left: 1 });
+  deq(find(ev, 'trick', e => e.id === 'double'), { t: 'trick', id: 'double', who: 2, n: 2 });
   S = rig({ tricks: ['double'], dice: [[2, 3, 3], [4, 4], [5, 6]], bids: [{ who: 2, q: 2, f: 4 }] });
   ev = ok(E.act(S, { t: 'liar', double: true }));
-  deq(find(ev, 'lose'), { t: 'lose', who: 0, id: 'me', n: 2, left: 1 });
+  deq(find(ev, 'lose'), { t: 'lose', who: 0, id: 'me', n: 1, left: 2 });
+  deq(pays(ev).map(p => p.amount), [-3], 'the ante as usual');
   S = rig({ tricks: ['double'], dice: [[2, 3, 3], [4, 4], [5, 6]], bids: [{ who: 2, q: 2, f: 4 }] });
   assert.strictEqual(find(ok(E.act(S, { t: 'liar' })), 'lose').n, 1, 'a plain call stays for 1');
+  // Sudden: 4 for them, 2 for you.
+  S = rig({ tricks: ['double'], rule: 'sudden', dice: [[2, 3], [4, 4], [5, 6, 6, 6, 6]], bids: [{ who: 2, q: 3, f: 4 }] });
+  assert.strictEqual(find(ok(E.act(S, { t: 'liar', double: true })), 'lose').n, 4);
+  S = rig({ tricks: ['double'], rule: 'sudden', dice: [[2, 3, 3], [4, 4], [5, 6]], bids: [{ who: 2, q: 2, f: 4 }] });
+  assert.strictEqual(find(ok(E.act(S, { t: 'liar', double: true })), 'lose').n, 2);
   assert.ok(isErr(E.act(rig({ dice: [[2, 3], [4, 4], [5, 6]], bids: [{ who: 2, q: 2, f: 4 }] }), { t: 'liar', double: true })));
+  assert.ok(isErr(E.act(rig({ tricks: ['double'], dice: [[2, 3], [4, 4], [5, 6]], bids: [{ who: 2, q: 2, f: 4 }] }), { t: 'spot', double: true })));
 });
-
 test('Honest Face (direct): the caller of your good bid loses 2', () => {
   // Seat 1 calls Liar on our 1x4 only if it doubts it; make it a sure call for a bot by
   // checking the rule through the engine's own challenge path from a rigged bot turn.
@@ -1024,6 +1286,50 @@ test('the back room: prices by hour and rarity, Friends Rates, reroll, sell, 5 s
   assert.ok(E.shopView(T).offers.every(o => !o.affordable));
   // Offers never repeat a trick you hold.
   for (let k = 0; k < 20; k++) { ok(E.act(T, { t: 'reroll' })); assert.ok(T.shop.offers.every(id => !['sticky', 'snake', 'close', 'rabbit', 'nod'].includes(id)) && new Set(T.shop.offers).size === 3); }
+});
+
+test('Friends Rates: tricks cost a quarter less, and Curtis shows four offers (rerolls too), never one you hold', () => {
+  const S = E.newNight({ seed: 'fr', tricks: ['friends'] });
+  deq([0, 1, 2, 3].map(h => SIM.price(S, 'shaved', h)), [40, 85, 145, 250]);
+  // Into the back room after a table: four offers.
+  const T = rig({ tricks: ['friends'], dice: [[2], [4], []], bids: [{ who: 1, q: 2, f: 4 }] });
+  const ev = ok(E.act(T, { t: 'liar' }));
+  assert.strictEqual(T.phase, 'shop');
+  assert.strictEqual(find(ev, 'shop').offers.length, 4);
+  assert.strictEqual(E.shopView(T).offers.length, 4);
+  assert.ok(E.shopView(T).offers.every(o => o.id !== 'friends'));
+  T.cash = 1000;
+  for (let k = 0; k < 10; k++) { ok(E.act(T, { t: 'reroll' })); assert.strictEqual(new Set(T.shop.offers).size, 4); assert.ok(!T.shop.offers.includes('friends')); }
+  ok(E.act(T, { t: 'buy', i: 3 }));
+  assert.strictEqual(E.shopView(T).offers[3], null);
+  // Sold, it is three again at the next visit.
+  const U = rig({ dice: [[2], [4], []], bids: [{ who: 1, q: 2, f: 4 }] });
+  assert.strictEqual(find(ok(E.act(U, { t: 'liar' })), 'shop').offers.length, 3);
+  const W = rig({ tricks: ['friends'], dice: [[2], [4], []], bids: [{ who: 1, q: 2, f: 4 }] });
+  ok(E.act(W, { t: 'liar' })); ok(E.act(W, { t: 'sell', id: 'friends' })); W.cash = 1000; ok(E.act(W, { t: 'reroll' }));
+  assert.strictEqual(W.shop.offers.length, 3);
+});
+
+test('builds: a small fixed table of tricks that go together; an offer and a held trick name the partners you hold', () => {
+  const ids = E.TRICKS.map(t => t.id);
+  assert.ok(E.BUILDS.length >= 5);
+  E.BUILDS.forEach(b => { assert.ok(b.id && b.name && b.tricks.length >= 3, b.id); b.tricks.forEach(id => assert.ok(ids.includes(id), id)); });
+  deq(E.BUILDS.map(b => b.id), ['ones', 'sixes', 'calling', 'bluffing', 'reading']);
+  for (const id of ['loaded', 'slowroll', 'palm', 'sidebet', 'snake', 'pokerface', 'double']) assert.ok(E.BUILDS.some(b => b.tricks.includes(id)), id + ' is in a build');
+  deq(E.partners('loaded'), ['slowroll', 'palm']);
+  deq(E.partners('snake'), ['shaved', 'hothand', 'barmirror', 'nod', 'sticky', 'double']);
+  // Partners go both ways.
+  for (const a of ids) for (const b of E.partners(a)) assert.ok(E.partners(b).includes(a), a + '/' + b);
+  assert.ok(!E.partners('loaded').includes('loaded'));
+  // In the back room: the offer says which of yours it goes with.
+  const S = E.newNight({ seed: 'bld', tricks: ['shaved', 'palm'] });
+  S.phase = 'shop'; S.cash = 1000; S.shop = { hour: 1, offers: ['snake', 'loaded', 'mirror'], rerolls: 0 };
+  const v = E.shopView(S);
+  deq(v.offers.map(o => o.goesWith), [['shaved'], ['palm'], []]);
+  deq(v.held.map(h => [h.id, h.goesWith]), [['shaved', []], ['palm', []]]);
+  ok(E.act(S, { t: 'buy', i: 0 }));
+  deq(E.shopView(S).held.map(h => [h.id, h.goesWith]), [['shaved', ['snake']], ['palm', []], ['snake', ['shaved']]]);
+  deq(E.view(S).tricks.map(t => t.goesWith), [['snake'], [], ['shaved']]);
 });
 
 test('the back room opens after every table with 3 offers, deterministic from the seed', () => {
@@ -1161,6 +1467,36 @@ test('the practice hand leaves real nights alone: no open cups, no lesson flag, 
   assert.strictEqual(E.view(S).table.cups, null);
   // Engine.LESSON is data for the page and never names the tell.
   assert.ok(!JSON.stringify(E.LESSON).includes('"habit":0') && JSON.stringify(E.LESSON).includes('"habit":"tell"'));
+});
+
+// ===================================================================== saved nights
+test('a night saved before the trick rework resumes and plays on to its end under the new rules', () => {
+  const fx = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'fixtures', 'bones-night-v1.json'), 'utf8')).saves;
+  deq(Object.keys(fx), ['turn', 'ready', 'next', 'shop']);
+  for (const [k, rec] of Object.entries(fx)) {
+    assert.strictEqual(rec.v, E.VERSION, 'the same night version: the page keeps it');
+    const S = J(rec.S);
+    const v = E.view(S), L = E.legal(S);
+    assert.strictEqual(L.need, k === 'shop' ? 'shop' : k);
+    assert.strictEqual(E.advance(S).length, 1, 'nothing pending');
+    if (k === 'turn') {
+      // Palm was used under the old once-a-table rule: it stays used for this table; the Slow Roll is spent.
+      deq(v.table.palm.left, 0); assert.ok(!L.uses.includes('palm') && !L.uses.includes('slowroll'));
+      deq(v.table.myLoaded, [], 'an old round has no loaded die marked: it counts once until the next roll');
+    }
+    if (k === 'ready') assert.ok(L.uses.includes('slowroll') && v.table.slow);
+    if (k === 'shop') assert.strictEqual(v.shop.offers.length, 3, 'the offers already drawn stay');
+    let g = 0;
+    while (S.phase !== 'over') { ok(E.act(S, E.basicPolicy(S, E.view(S), E.legal(S), E))); assert.ok(++g < 5000); }
+    assert.ok(['house', 'cleaned', 'walked', 'bust'].includes(S.ending));
+  }
+  // And the next round of the old table marks the loaded six again.
+  const S = J(fx.turn.S);
+  while (S.phase === 'table' && S.table.wait !== 'next') ok(E.act(S, E.basicPolicy(S, E.view(S), E.legal(S), E)));
+  if (S.phase === 'table') {
+    ok(E.act(S, { t: 'next' }));
+    if (S.table && S.table.round && S.table.round.blindSeat !== 0) assert.strictEqual(S.table.round.loaded, 0);
+  }
 });
 
 // ===================================================================== smoke
