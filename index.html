@@ -359,6 +359,9 @@ details.card[open] > summary { margin-bottom: 10px; }
 .sheet { position: absolute; left: 6px; right: 6px; bottom: 0; z-index: 8; max-height: 78%; overflow-y: auto; overscroll-behavior: contain; padding: 14px 14px calc(12px + var(--sab)); border: 1px solid var(--border); border-bottom: 0; border-radius: 18px 18px 0 0; background: var(--surface); box-shadow: 0 -14px 34px var(--shadow); }
 .sheet h2 { margin: 0 0 2px; font: 600 22px/1.2 var(--read-font); }
 .sheet .sub { margin: 0 0 8px; color: var(--muted); font-size: 14px; line-height: 1.35; }
+/* They read you back: the line on the reveal when a read decided a call. */
+.readline { margin: 0 0 8px; padding: 6px 10px; border-left: 3px solid var(--danger); border-radius: 0 8px 8px 0; background: var(--surface-2); font: italic 14px/1.35 var(--read-font); color: var(--text); }
+.readline b { font: 700 11px/1 var(--ui-font); letter-spacing: .08em; text-transform: uppercase; color: var(--danger); font-style: normal; }
 .sheet .go { position: sticky; bottom: 0; width: 100%; min-height: 52px; margin-top: 10px; font: 700 18px/1 var(--read-font); border-radius: 12px; box-shadow: 0 -8px 14px var(--surface); }
 .had { display: grid; gap: 0; }
 .had-row { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; align-items: center; gap: 4px 10px; padding: 7px 0; border-top: 1px solid var(--border); }
@@ -1084,6 +1087,29 @@ dialog li { margin: 0 0 6px; }
   // Every trick that shares a build with id, in TRICKS order.
   const partnersOf = id => TRICKS.map(t => t.id).filter(x => x !== id && BUILDS.some(b => b.tricks.includes(id) && b.tricks.includes(x)));
   const BLUFF_P = 0.40; // the one definition: a bid is a bluff when P(true | own cup) < 0.40
+  // ----- the room reads you back -----
+  // Every bid has a shape anyone at the table can see without seeing a die: an opener is low or high (at most, or
+  // more than, the dice an average table holds of a face); a raise is the same count on a higher face, a step of one
+  // or a jump of two or more, and stays on the last bid's face or switches. When your cup is shown at a challenge,
+  // each of your bids that round is scored bluff or straight (BLUFF_P) under each of its shapes. A shape is a TELL
+  // once TELL_N bids of it are on record and its bluff rate sits TELL_GAP or more from your rate over all your bids.
+  // READS by tier: how fully a person uses a tell (tiers 1 and 2 never read you; 4, 5 and the house fully). A reader
+  // moves its estimate of your bluffing by the tell's gap, times n / (n + READ_K) (blended by sample size).
+  // The room remembers: the Book keeps your tally across nights, faded by FADE at the end of each; a night starts
+  // with PRIOR of it, at most PRIOR_CAP bids' worth. Poker Face hides it all: no tally, no read.
+  // (Tuned by tests/bones-sim.cjs: the predictable and the mixer.)
+  const SHAPE = {
+    low: { name: 'Opening low', you: 'open low', it: 'opens low' },
+    high: { name: 'Opening high', you: 'open high', it: 'opens high' },
+    face: { name: 'Same count, higher face', you: 'raise the face and not the count', it: 'raises the face and not the count' },
+    step: { name: 'Raising by one', you: 'step up by one', it: 'steps up by one' },
+    jump: { name: 'Jumping two or more', you: 'jump two or more', it: 'jumps two or more' },
+    stay: { name: 'Staying on the last face', you: 'stay on the last bid’s face', it: 'stays on the last bid’s face' },
+    switch: { name: 'Switching faces', you: 'switch faces', it: 'switches faces' }
+  };
+  const SHAPES = Object.keys(SHAPE);
+  const TELL_N = 6, TELL_GAP = 0.25, READ_K = 6, READ_GAIN = 1, FADE = 0.75, PRIOR = 0.75, PRIOR_CAP = 60;
+  const READS = { 1: 0, 2: 0, 3: 0.5, 4: 1, 5: 1 };
   // Bot arithmetic: noise per unit of missing skill, how much a good player reads
   // honest bids, how much a poor one is taken in by any bid.
   // OVER: how far below an even chance a poor player will still raise or open.
@@ -1206,6 +1232,8 @@ dialog li { margin: 0 0 6px; }
       stats: { won: 0, lost: 0, caught: 0, caughtBy: 0, spots: 0, spotMiss: 0, bluffs: 0, bids: 0, antes: 0, bought: [], maxCash: START_CASH, bestStreak: 0, rounds: 0 }
     };
     if (book && book.me) S.mem = { bids: book.me.bids | 0, bluffs: book.me.bluffs | 0 };
+    // The room's notes on how you bid: tonight's, and what it remembers from the Book (a night saved before this has none).
+    S.you = { tonight: {}, prior: priorOf(book && book.me && book.me.shapes), fired: [] };
     if (book && book.people) for (const id in book.people) if (P[id]) S.prior[id] = (book.people[id].habits || [0, 0, 0].map(() => ({ n: 0 }))).map(h => h.n | 0);
     for (const id of opts.tricks || []) if (TRICK[id] && !holds(S, id) && S.tricks.length < SLOTS) S.tricks.push({ id, paid: PRICE[TRICK[id].rarity] });
     return S;
@@ -1223,8 +1251,8 @@ dialog li { margin: 0 0 6px; }
       return { i, kind: o.kind, hour: S.hour, hourName: HOURS[S.hour].name, seats: o.seats, dice: diceOf(o.rule, S.hour), buyIn: o.buyIn, pot: o.buyIn * o.seats, ante, rule: o.rule ? clone(RULE[o.rule]) : null, people: o.people.map(pub), affordable: can || has(S, 'tab'), viaTab: !can && has(S, 'tab') };
     });
   }
-  // Cups: 4 dice at 9 and 10 PM (short, quick first tables), 5 from 11 PM; Short / Deep cups override.
-  const DICE = [4, 4, 5, 5, 5];
+  // Cups: 4 dice at every hour (quick tables), 5 at Last Call; Short / Deep cups override.
+  const DICE = [4, 4, 4, 4, 5];
   const diceOf = (rule, hour) => rule === 'short' ? 3 : rule === 'deep' ? 6 : DICE[clamp(hour | 0, 0, 4)];
   // 15% (the design's draft said 10%): a little more money on each challenge keeps a good night alive.
   const anteOf = (buyIn, rule) => Math.round(buyIn * 0.15) * (rule === 'double' ? 2 : 1);
@@ -1353,13 +1381,67 @@ dialog li { margin: 0 0 6px; }
         habit = { i, text: per.habits[i], line: per.first + ' ' + per.habits[i] + '.', underline: has(S, 'glasses') && i === per.tell && total3 >= 3 };
       }
     } else { S.stats.bids++; if (bluff) S.stats.bluffs++; }
-    R.bids.push({ who: s, q, f, p, held, bluff, habit });
+    const prev = lastBid(T);
+    R.bids.push(s === 0 ? { who: s, q, f, p, held, bluff, habit, shape: shapeOf(q, f, prev, total, wild) } : { who: s, q, f, p, held, bluff, habit });
     ev.push({ t: 'bid', who: s, id: seat.id, name: nameOf(T, s), q, f, habit: habit ? clone(habit) : null });
     if (R.blindSeat === s && !R.looked) {
       R.looked = true;
       if (s === 0) ev.push({ t: 'look', mine: seat.dice.slice() });
     }
     R.turn = nextAlive(T, s);
+  }
+
+  // ----- the room reads you back: shapes, the tally, tells, a read -----
+  // The shapes of a bid (q, f) made after `prev` (null for an opener) with `total` dice on the table.
+  function shapeOf(q, f, prev, total, wild) {
+    if (!prev) return [q > total * (wild ? 1 / 3 : 1 / 6) ? 'high' : 'low'];
+    const d = q - prev.q;
+    return [d <= 0 ? 'face' : d === 1 ? 'step' : 'jump', f === prev.f ? 'stay' : 'switch'];
+  }
+  // A tally: { all: {n, b}, <shape>: {n, b} }. Old saves and books have none: read as empty.
+  const tallyGet = (t, k) => (t && t[k]) || { n: 0, b: 0 };
+  function tallyAdd(t, shapes, bluff, w) {
+    const add = k => { const x = t[k] = t[k] || { n: 0, b: 0 }; x.n += w; if (bluff) x.b += w; };
+    add('all'); shapes.forEach(add);
+  }
+  const r2 = x => Math.round(x * 100) / 100;
+  function tallyScale(t, k) { const out = {}; for (const id in t || {}) if (t[id]) out[id] = { n: r2(t[id].n * k), b: r2(t[id].b * k) }; return out; }
+  // What a new night starts with from the Book's tally: PRIOR of it, at most PRIOR_CAP bids' worth.
+  // (Whole bids: the room's tally is always counted in bids, so the Book can show it exactly.)
+  function priorOf(shapes) {
+    const all = tallyGet(shapes, 'all').n, k = all > 0 ? Math.min(PRIOR, PRIOR_CAP / all) : 0, out = {};
+    for (const id in shapes || {}) { const x = shapes[id], n = Math.round(x.n * k); if (n > 0) out[id] = { n, b: Math.min(n, Math.round(x.b * k)) }; }
+    return out;
+  }
+  // The room's tally of you: tonight's bids plus what it remembers.
+  function roomTally(S) {
+    const Y = S.you || {}, out = {};
+    ['all'].concat(SHAPES).forEach(k => { const a = tallyGet(Y.tonight, k), b = tallyGet(Y.prior, k); if (a.n + b.n > 0) out[k] = { n: a.n + b.n, b: a.b + b.b }; });
+    return out;
+  }
+  // The shapes of a tally that have become tells: { shape, n, b, rate, all, dir: 'bluff'|'honest', text }.
+  function tellsIn(t) {
+    const all = tallyGet(t, 'all'), base = all.n ? all.b / all.n : 0, out = [];
+    for (const k of SHAPES) {
+      const x = tallyGet(t, k);
+      if (x.n < TELL_N - 1e-9) continue;
+      const rate = x.b / x.n;
+      if (Math.abs(rate - base) >= TELL_GAP - 1e-9) out.push({ shape: k, n: x.n, b: x.b, rate, all: base, dir: rate > base ? 'bluff' : 'honest', text: tellText(k, rate > base ? 'bluff' : 'honest') });
+    }
+    return out.sort((a, b) => Math.abs(b.rate - b.all) - Math.abs(a.rate - a.all));
+  }
+  const tellText = (k, dir) => dir === 'bluff' ? `you ${SHAPE[k].you} when you’ve got nothing` : `you only ${SHAPE[k].you} when you’ve got it`;
+  const tellIt = (k, dir) => dir === 'bluff' ? `${SHAPE[k].it} when bluffing` : `only ${SHAPE[k].it} when holding it`;
+  // A read: seat s, facing your bid b, finds one of its shapes is a tell. Null for tiers 1-2, under Poker Face,
+  // at the practice hand, or with no tell in its shapes. delta: how far it moves its estimate of your bluffing.
+  function readOf(S, T, s, b) {
+    if (!b || b.who !== 0 || !b.shape || s === 0 || T.lesson || has(S, 'pokerface')) return null;
+    const k = READS[P[T.seats[s].id].tier] || 0;
+    if (!k) return null;
+    const tells = tellsIn(roomTally(S)).filter(x => b.shape.includes(x.shape));
+    if (!tells.length) return null;
+    const x = tells[0];
+    return { shape: x.shape, dir: x.dir, delta: READ_GAIN * k * (x.rate - x.all) * x.n / (x.n + READ_K) };
   }
 
   // ----- the bots -----
@@ -1373,9 +1455,13 @@ dialog li { margin: 0 0 6px; }
     return b / n;
   }
 
-  function botMove(S, T, s) {
+  // noRead: the same decision without any read of you (to tell whether a read changed it).
+  function botMove(S, T, s, noRead) {
     const seat = T.seats[s], per = P[seat.id], R = T.round, wild = isWild(T), total = totalDice(T), faces = facesOf(T);
     const cur = lastBid(T);
+    // A sharp reader facing your bid weighs it by its shape, when that shape has become a tell.
+    const rd = noRead ? null : readOf(S, T, s, cur);
+    const est = j => { const e = estBluff(S, T, j); return j === 0 && rd ? clamp(e + rd.delta, 0, 1) : e; };
     const own = !ownBlind(T, s);
     const known = knownFor(T, s, own);
     const n = total - known.length, p = wild ? 1 / 3 : 1 / 6;
@@ -1393,7 +1479,7 @@ dialog li { margin: 0 0 6px; }
       const by = {};
       R.bids.forEach(x => { if (x.who !== s && x.f === f) by[x.who] = Math.max(by[x.who] || 0, x.q); });
       // A good reader also weighs how far over the table's expectation the bid went.
-      for (const j in by) b += (per.skill * (1 - estBluff(S, T, +j)) * READ * clamp(by[j] - total * p + SIZE, 0.5, 2) + (1 - per.skill) * GULL) * Math.min(1, T.seats[+j].n / 3);
+      for (const j in by) b += (per.skill * (1 - est(+j)) * READ * clamp(by[j] - total * p + SIZE, 0.5, 2) + (1 - per.skill) * GULL) * Math.min(1, T.seats[+j].n / 3);
       return b;
     };
     const exactP = (q, f) => pFrom(known, total, q, f, wild);
@@ -1443,8 +1529,8 @@ dialog li { margin: 0 0 6px; }
       const o = reach(c);
       return { t: 'bid', q: clamp(o.q, 1, total), f: o.f };
     }
-    const bidder = cur.who, est = estBluff(S, T, bidder);
-    const thr = nerve + per.skill * (est - 0.25) * 0.8;
+    const bidder = cur.who;
+    const thr = nerve + per.skill * (est(bidder) - 0.25) * 0.8;
     const pc = believe(cur.q, cur.f);
     const capped = seat.n >= T.start[s];
     const pe = clamp(pmf(n, cur.q - matches(cur.f), p) + (rnd(S) - 0.5) * noise, 0, 1);
@@ -1575,7 +1661,20 @@ dialog li { margin: 0 0 6px; }
     if (loser >= 0) { loseDice(S, T, loser, n, ev); opener = loser; }
     T.nextOpener = opener;
     // What they had.
-    const readout = { t: 'readout', bids: R.bids.map(x => ({ who: x.who, id: T.seats[x.who].id, name: nameOf(T, x.who), q: x.q, f: x.f, held: x.held, p: Math.round(x.p * 1000) / 1000, bluff: x.bluff, habit: x.habit ? x.habit.i : null, text: x.habit ? x.habit.text : null })) };
+    // Your bids carry their shapes (none under Poker Face: the room takes no notes on an honest face), and the room
+    // scores them; a read that decided a call this round is said in plain words.
+    const masked = has(S, 'pokerface');
+    const readout = { t: 'readout', bids: R.bids.map(x => {
+      const o = { who: x.who, id: T.seats[x.who].id, name: nameOf(T, x.who), q: x.q, f: x.f, held: x.held, p: Math.round(x.p * 1000) / 1000, bluff: x.bluff, habit: x.habit ? x.habit.i : null, text: x.habit ? x.habit.text : null };
+      if (x.who === 0) o.shape = x.shape && !masked ? x.shape.slice() : null;
+      return o;
+    }) };
+    if (!masked && !T.lesson) {
+      const Y = S.you = S.you || { tonight: {}, prior: {}, fired: [] };
+      Y.tonight = Y.tonight || {};
+      R.bids.forEach(x => { if (x.who === 0 && x.shape) tallyAdd(Y.tonight, x.shape, x.bluff, 1); });
+    }
+    if (R.reads && R.reads.length) readout.reads = R.reads.map(r => readLine(T, r, kind === 'liar' && caller === r.who && b.q === r.q && b.f === r.f ? !good : null));
     R.bids.forEach(x => { T.seen[x.who].n++; if (x.bluff) T.seen[x.who].b++; });
     ev.push(readout);
     const barks = barksFor(S, T, { kind, caller, bidder, good, exact, winner, loser }, ev.slice(start));
@@ -1586,6 +1685,16 @@ dialog li { margin: 0 0 6px; }
     if (me.out) return tableEnd(S, T, me.place, ev);
     if (alive(T).length === 1) return tableEnd(S, T, 1, ev);
     T.wait = 'next';
+  }
+
+  // A read said out loud at the reveal. caught: the call it decided found your bid short (null: not that call).
+  function readLine(T, r, caught) {
+    const per = P[T.seats[r.who].id], she = per.pronouns === 'she' ? 'she' : per.pronouns === 'he' ? 'he' : 'they';
+    const tell = tellText(r.shape, r.dir), right = r.kind === 'call' ? caught === true : !r.bluff;
+    const text = r.kind === 'call'
+      ? (right ? `${per.first} had you read: ${tell}.` : `${per.first} thought ${she} had you read (${tell}) and called. Not this time.`)
+      : (right ? `${per.first} let your bid stand: ${tell}.` : `${per.first} had you read and let your bid stand: ${tell}. This time you had nothing.`);
+    return { who: r.who, id: per.id, name: per.name, shape: r.shape, dir: r.dir, kind: r.kind, right, text };
   }
 
   function tableEnd(S, T, place, ev) {
@@ -1668,7 +1777,7 @@ dialog li { margin: 0 0 6px; }
       if (T.wait) break;
       if (!T.round) { startRound(S, T, ev); continue; }
       if (T.round.turn === 0) { T.wait = 'turn'; break; }
-      const s = T.round.turn, m = scripted(S, T, s) || botMove(S, T, s);
+      const s = T.round.turn, m = scripted(S, T, s) || readMove(S, T, s);
       if (m.t === 'bid') placeBid(S, T, s, m.q, m.f, ev, m.habit);
       else if (sideBetOn(S, T, s)) { callOut(S, T, s, m.t, ev); T.round.call = { caller: s, kind: m.t }; T.wait = 'side'; }
       else challenge(S, T, s, m.t, ev);
@@ -1677,6 +1786,24 @@ dialog li { margin: 0 0 6px; }
     return ev;
   }
   function need(S) { return S.phase === 'table' ? S.table.wait : S.phase; }
+  // A person's move, and whether a read of you changed it: the same decision is taken without the read on the same
+  // draws (the generator is put back), and if one calls Liar and the other does not, the read decided it. The
+  // reveal says so, once per shape a table; the night counts every one.
+  function readMove(S, T, s) {
+    const R = T.round, b = lastBid(T), rd = readOf(S, T, s, b);
+    if (!rd) return botMove(S, T, s);
+    const rng = S.rng, m0 = botMove(S, T, s, true);
+    S.rng = rng;
+    const m = botMove(S, T, s);
+    if ((m.t === 'liar') !== (m0.t === 'liar')) {
+      const Y = S.you = S.you || { tonight: {}, prior: {}, fired: [] };
+      Y.fired = Y.fired || [];
+      Y.fired.push({ id: T.seats[s].id, shape: rd.shape, dir: rd.dir, hour: T.hour });
+      T.said = T.said || {};
+      if (!T.said[rd.shape]) { T.said[rd.shape] = true; (R.reads = R.reads || []).push({ who: s, shape: rd.shape, dir: rd.dir, kind: m.t === 'liar' ? 'call' : 'stand', q: b.q, f: b.f, bluff: b.bluff }); }
+    }
+    return m;
+  }
   // The practice hand's next set move, when it is this seat's and still legal; else null (the bot plays).
   function scripted(S, T, s) {
     const R = T.round, m = R.moves && R.moves[0];
@@ -1998,14 +2125,20 @@ dialog li { margin: 0 0 6px; }
     for (const e of events || []) {
       if (e.t === 'sit') e.seats.forEach(s => { if (s.id !== 'me' && P[s.id]) { const p = page(s.id); if (p.lastNight !== e.night) { p.nights++; p.lastNight = e.night; } } });
       if (e.t === 'readout') e.bids.forEach(x => {
-        if (x.id === 'me') { b.me.bids++; if (x.bluff) b.me.bluffs++; return; }
+        if (x.id === 'me') {
+          b.me.bids++; if (x.bluff) b.me.bluffs++;
+          // How you bid, by shape (none under Poker Face), for the room to remember.
+          if (Array.isArray(x.shape) && x.shape.every(k => SHAPE[k])) tallyAdd(b.me.shapes = b.me.shapes || {}, x.shape, x.bluff, 1);
+          return;
+        }
         if (!P[x.id]) return;
         const p = page(x.id), h = x.habit == null ? p.quiet : p.habits[x.habit];
         p.bids++; if (x.bluff) p.bluffs++;
         h.n++; if (x.bluff) h.bluff++; else h.straight++;
       });
       if (e.t === 'tableEnd') e.people.forEach(id => { if (P[id]) { const p = page(id); if (e.won) p.won++; else p.lost++; } });
-      if (e.t === 'nightEnd') b.nights++;
+      // The room's memory of you fades a little every night: a habit carried on keeps costing; one dropped fades.
+      if (e.t === 'nightEnd') { b.nights++; if (b.me.shapes) b.me.shapes = tallyScale(b.me.shapes, FADE); }
     }
     return b;
   }
@@ -2020,6 +2153,37 @@ dialog li { margin: 0 0 6px; }
       rows: p.habits.map((h, i) => ({ i, habit: per.habits[i], n: h.n, bluff: h.bluff, straight: h.straight, text: per.habits[i] + ' — ' + h.n + ' time' + (h.n === 1 ? '' : 's') + ': bluff ' + h.bluff + ', straight ' + h.straight, underline: !!glasses && i === per.tell && h.n >= 3 })),
       quiet: clone(p.quiet), truth: ledger ? ledgerPhrase(id) : null
     };
+  }
+
+  // ----- the page on you: what the room knows about how you bid -----
+  // With S (a night in progress): tonight's notes plus what the room remembers; without: what a new night starts with.
+  function youPage(book, S) {
+    const t = S ? roomTally(S) : priorOf(book && book.me && book.me.shapes);
+    const all = tallyGet(t, 'all'), tells = tellsIn(t), pct = x => Math.round(100 * x) + '%';
+    const count = x => ({ n: x.n, b: x.b });
+    const rows = SHAPES.map(k => {
+      const x = tallyGet(t, k), c = count(x), tell = tells.find(y => y.shape === k);
+      return { shape: k, name: SHAPE[k].name, n: c.n, bluff: c.b, rate: x.n ? x.b / x.n : null, tell: tell ? tell.dir : null,
+        text: c.n ? `${c.n} time${c.n === 1 ? '' : 's'}, ${c.b} of them bluff${c.b === 1 ? '' : 's'} (${pct(x.b / x.n)})` : 'not seen yet', line: tell ? tell.text : null };
+    });
+    const ca = count(all);
+    return { n: ca.n, bluff: ca.b, rate: all.n ? all.b / all.n : null, text: ca.n ? `${ca.n} bid${ca.n === 1 ? '' : 's'} on record, ${ca.b} of them bluff${ca.b === 1 ? '' : 's'} (${pct(all.b / all.n)})` : 'No bids of yours on record yet',
+      rows, tells: tells.map(x => ({ shape: x.shape, dir: x.dir, text: x.text })), hidden: !!S && has(S, 'pokerface'), minN: TELL_N, gap: TELL_GAP };
+  }
+  // The night's word on your tell: the one the people used on you (or the one they had and nobody used), or none.
+  function tellSummary(S) {
+    const Y = S.you || {}, fired = Y.fired || [], tells = tellsIn(roomTally(S));
+    const c = {}; fired.forEach(r => { const k = r.shape + '|' + r.dir; c[k] = (c[k] || 0) + 1; });
+    const top = Object.keys(c).sort((a, b) => c[b] - c[a] || (a < b ? -1 : 1))[0];
+    const shape = top ? top.split('|')[0] : tells.length ? tells[0].shape : null, dir = top ? top.split('|')[1] : tells.length ? tells[0].dir : null;
+    const by = []; fired.forEach(r => { if (!by.includes(r.id)) by.push(r.id); });
+    const names = by.map(id => P[id].first), list = names.length < 2 ? names.join('') : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+    const n = fired.length, poker = has(S, 'pokerface');
+    let text;
+    if (n) text = `Your tell tonight: ${tellText(shape, dir)}. ${list} read it (${n === 1 ? 'once' : n === 2 ? 'twice' : word(n) + ' times'}).`;
+    else if (shape && !poker) text = `Your tell tonight: ${tellText(shape, dir)}. Nobody at your tables was sharp enough to use it.`;
+    else text = poker ? 'Poker Face: nobody got a read on you tonight.' : 'Nobody got a read on you tonight.';
+    return { shape, dir, reads: n, by, text, it: shape ? tellIt(shape, dir) : null };
   }
 
   // ----- barks: scripted one-liners at a reveal (deterministic, no dice drawn) -----
@@ -2085,7 +2249,8 @@ dialog li { margin: 0 0 6px; }
       beatHouse: S.ending === 'house', bust: S.ending === 'bust', reachedLastCall: S.log.some(t => t.kind === 'last') || (S.hour === 4 && S.cash >= 500),
       tables: S.log.map(t => ({ hour: t.hour, hourName: HOURS[t.hour].name, kind: t.kind, rule: t.rule, place: t.place, won: t.won, payout: t.payout, refund: t.refund, net: t.net != null ? t.net : t.payout + t.refund - (t.onTab ? 0 : t.buyIn), rounds: t.rounds, people: t.people.map(id => P[id].name) })),
       tablesWon: S.log.filter(t => t.won).length, challengesWon: st.won, challengesLost: st.lost, liarsCaught: st.caught, timesCaught: st.caughtBy,
-      spotsHit: st.spots, spotsMissed: st.spotMiss, bids: st.bids, bluffs: st.bluffs, bestStreak: st.bestStreak, maxCash: st.maxCash, rounds: st.rounds, tricksBought: st.bought.slice(), tricksHeld: S.tricks.map(t => t.id)
+      spotsHit: st.spots, spotsMissed: st.spotMiss, bids: st.bids, bluffs: st.bluffs, bestStreak: st.bestStreak, maxCash: st.maxCash, rounds: st.rounds, tricksBought: st.bought.slice(), tricksHeld: S.tricks.map(t => t.id),
+      tell: tellSummary(S)
     };
   }
   function shareLine(S) {
@@ -2119,6 +2284,11 @@ dialog li { margin: 0 0 6px; }
     if (v) parts.push(pickH(S, 'v', [`${P[v].name} was caught bluffing more than once and will hear about it at church.`, `${P[v].first} ${P[v].habits[P[v].tell]}, and this reporter suspects the visitor noticed.`, `${P[v].name} learned the hard way that the visitor counts.`]));
     if (n) parts.push(pickH(S, 'n', [`${P[n].name}, for the record, saw through the visitor's stories.`, `${P[n].first} called the visitor a liar and was right to.`]));
     if (s.spotsHit) parts.push(s.spotsHit === 1 ? 'Once the visitor called a bid spot on, and was right.' : `${word(s.spotsHit)[0].toUpperCase() + word(s.spotsHit).slice(1)} times the visitor called a bid spot on, and was right.`);
+    // The visitor's own tell, or nobody's read.
+    const tl = s.tell;
+    if (tl.reads) parts.push(`${P[tl.by[0]].name} had the visitor's number: the visitor ${tl.it}.`);
+    else if (tl.shape && !has(S, 'pokerface')) parts.push(`The visitor ${tl.it}, though nobody sharp enough sat down to notice.`);
+    else parts.push(pickH(S, 'read', ['Nobody at the Low Water could read the visitor\'s bidding.', 'Not one of the regulars got a read on the visitor.']));
     if (s.tricksBought.length) parts.push(pickH(S, 'tr', [`Curtis Pruett reports selling the visitor a ${TRICK[s.tricksBought[0]].name} in the back room, at a fair price, he says.`, `There was business in the back room too: ${s.tricksBought.map(id => TRICK[id].name).slice(0, 3).join(', ')}.`]));
     const close = {
       house: [`Then Loretta dealt her own table, and lost it. "Well, hon," she said. The visitor left with ${money(s.cash)}.`, `At Last Call the visitor beat Loretta Gaddis and Curtis Pruett both, and walked out with ${money(s.cash)}.`],
@@ -2136,6 +2306,8 @@ dialog li { margin: 0 0 6px; }
     const s = summary(S), lines = [`Night ${S.daily || S.seed}. Started with ${money(START_CASH)}. Ending: ${s.endingText || 'not over'}, cash ${money(s.cash)}.`];
     S.log.forEach(t => lines.push(`${HOURS[t.hour].name} ${t.kind} table${t.rule ? ' (' + RULE[t.rule].name + ')' : ''} with ${t.people.map(id => P[id].name).join(', ')}: finished ${t.place === 1 ? 'first' : 'place ' + t.place}${t.payout ? ', won ' + money(t.payout) : ''}${t.refund ? ', got the buy-in back' : ''}; ${t.rounds} rounds.` + (t.caught.length ? ` Caught bluffing: ${tally(t.caught)}.` : '') + (t.caughtBy.length ? ` Caught the visitor: ${tally(t.caughtBy)}.` : '') + (t.spots ? ` Spot On hits: ${t.spots}.` : '')));
     lines.push(`Challenges won ${s.challengesWon}, lost ${s.challengesLost}; best streak ${s.bestStreak}; bluffs ${s.bluffs} of ${s.bids} bids; peak cash ${money(s.maxCash)}.`);
+    const tl = s.tell;
+    lines.push(tl.reads ? `The visitor's tell: ${tl.it}. Read by ${tl.by.map(id => P[id].name).join(', ')} (${tl.reads} time${tl.reads === 1 ? '' : 's'}).` : tl.shape && !has(S, 'pokerface') ? `The visitor's tell: ${tl.it}; nobody at the visitor's tables used it.` : 'Nobody got a read on the visitor\'s bidding.');
     if (s.tricksBought.length) lines.push('Tricks bought: ' + s.tricksBought.map(id => TRICK[id].name).join(', ') + '.');
     return lines.join('\n');
   }
@@ -2189,10 +2361,11 @@ dialog li { margin: 0 0 6px; }
   const Engine = {
     VERSION, PEOPLE, TRICKS, BUILDS, partners: partnersOf, HOUSE_RULES: HOUSE_RULES.map(r => Object.freeze(r)), HOURS: clone(HOURS), START_CASH, SLOTS,
     newNight, options, sit: (S, i) => act(S, { t: 'sit', i }), act, advance, legal, isLegalBid, count, countExact, suggest,
-    view, shopView, bookApply, bookPage, summary, shareLine, column, columnFacts, talkFacts, dailySeed, playNight, basicPolicy,
+    view, shopView, bookApply, bookPage, youPage, SHAPES: SHAPES.map(k => Object.freeze({ id: k, name: SHAPE[k].name })), summary, shareLine, column, columnFacts, talkFacts, dailySeed, playNight, basicPolicy,
     lesson, LESSON: clone(LESSON),
     // For tests and the balance sim only: the hidden side of the people and the odds. Not for the UI.
-    _sim: { person: id => P[id] ? clone(P[id]) : null, tail, pmf, price: (S, id, h) => price(S, id, h), estBluff: (S, j) => estBluff(S, S.table, j), TELL, BLUFF_P }
+    _sim: { person: id => P[id] ? clone(P[id]) : null, tail, pmf, price: (S, id, h) => price(S, id, h), estBluff: (S, j) => estBluff(S, S.table, j), TELL, BLUFF_P,
+      readOf: (S, s, b) => readOf(S, S.table, s, b || lastBid(S.table)), roomTally, tellsIn, shapeOf, botMove: (S, s, noRead) => botMove(S, S.table, s, noRead), READS, TELL_N, TELL_GAP }
   };
   Game.Engine = Engine;
 })();
@@ -3215,16 +3388,19 @@ dialog li { margin: 0 0 6px; }
     habit: { at: 'bottom', text: 'Everyone has habits. Your Book tallies each one against bluffs. Tap a face to read their page.' },
     spot: { at: 'top', text: 'Spot on bets the bid is exactly right. Hit it and you win a die back and three antes.' },
     booktally: { at: 'bottom', text: 'Your Book remembers this habit. Weigh it against the Count.' },
-    bluffhabit: { at: 'bottom' }   // its text names the bluffer: "<Name> <habit>, and was bluffing. ..."
+    bluffhabit: { at: 'bottom' },  // its text names the bluffer: "<Name> <habit>, and was bluffing. ..."
+    // (the first read of you, on any night: it sits over the seats, clear of the read line at the top of the sheet)
+    read: { at: 'top', text: 'Sharp players read you back: they watch how you raise and remember what your cup showed. Mix up how you bluff, and check “What they know about you” in the Book.' }
   };
   // What the practice hand teaches by doing: a player who finished it is not told again.
   const LESSON_TAUGHT = ['dice', 'bid', 'turn', 'count'];
   const Coach = {
     on: false, queue: [], cur: null, texts: {},
     start(on) { this.on = !!on && !Settings.tipsDone; this.queue = []; this.hide(); },
-    want(id, text) {
+    // always: a tip for any night, not only the first (still never after "Skip the tips", and once).
+    want(id, text, always) {
       if (text) this.texts[id] = text;
-      if (!this.on || Settings.tipsDone || Settings.tipsSeen.includes(id) || this.queue.includes(id) || this.cur === id) return;
+      if ((!this.on && !always) || Settings.tipsDone || Settings.tipsSeen.includes(id) || this.queue.includes(id) || this.cur === id) return;
       if (Settings.lesson === 'done' && LESSON_TAUGHT.includes(id)) return;
       this.queue.push(id);
       if (!this.cur) this.next();
@@ -3879,6 +4055,13 @@ dialog li { margin: 0 0 6px; }
       }
       return box;
     },
+    /* A read that decided a call this round, in plain words: "Vada had you read: you step up by one when you've got nothing." */
+    readLine(readout) {
+      const reads = (readout && readout.reads) || [];
+      if (!reads.length) return null;
+      return el('p', { class: 'readline', id: 'read-line', dataset: { shape: reads.map(r => r.shape).join(' '), right: reads.every(r => r.right) ? 'yes' : 'no' } },
+        el('b', null, 'Read: '), reads.map(r => r.text).join(' '));
+    },
     verdict(rv, losses) {
       const who = k => (k === 0 ? 'you' : nameAt(k));
       const head = `${cap(who(rv.caller))} called ${rv.kind === 'liar' ? 'Liar on' : 'Spot on against'} ${rv.bidder === 0 ? 'your' : nameAt(rv.bidder) + '’s'} ${bidText(rv.q, rv.f)}. There ${rv.count === 1 ? 'was' : 'were'} ${rv.count}${rv.loaded != null ? ' (your loaded six counts twice)' : ''}`;
@@ -3892,10 +4075,12 @@ dialog li { margin: 0 0 6px; }
       const last = t.last; if (!last) return;
       const rows = this.hadRows(last.readout);
       const losses = TV.lastReveal === last.reveal || (TV.lastReveal && TV.lastReveal.q === last.reveal.q && TV.lastReveal.f === last.reveal.f && TV.lastReveal.count === last.reveal.count) ? TV.lastLoss : null;
-      const node = Sheet.show([el('h2', null, 'What they had'), el('p', { class: 'sub' }, this.verdict(last.reveal, losses)), rows], 'Next round', () => App.act({ t: 'next' }), 'btn-next');
+      const node = Sheet.show([el('h2', null, 'What they had'), el('p', { class: 'sub' }, this.verdict(last.reveal, losses)), this.readLine(last.readout), rows], 'Next round', () => App.act({ t: 'next' }), 'btn-next');
       // The tip names the highest bluff with a habit on the list, so the row it talks about sits clear of it at the foot.
       const told = this.hadOrder(last.readout).find(b => b.bluff && b.text);
       if (told) Coach.want('bluffhabit', `${first(told.id)} ${told.text}, and was bluffing. Your Book noted it. Watch for it.`);
+      // The first time they read you back, a word on what that means (whatever night it is).
+      if (last.readout.reads && last.readout.reads.length) Coach.want('read', null, true);
       node.dataset.seq = String(TV.revealSeq);
       node.dataset.kind = 'readout';
     },
@@ -3908,10 +4093,11 @@ dialog li { margin: 0 0 6px; }
       const big = el('div', { class: 'end-big', id: 'end-net', dataset: { sign: net > 0 ? 'up' : net < 0 ? 'down' : 'even' } }, (net > 0 ? '+' : net < 0 ? '−' : '') + money(Math.abs(net)), el('small', null, 'at this table'));
       if (e.won) kids.push(el('h2', null, TV.kind === 'last' ? 'You beat the house' : 'You took the table'), big, el('p', { class: 'sub' }, `${Engine.HOURS[e.hour].name} · first of ${e.people.length + 1}, in ${plural(e.rounds, 'round')}. ${TV.kind === 'last' ? 'Loretta folds the bar towel. “Well, hon.”' : 'Curtis is waving you over to the back room.'}`));
       else kids.push(el('h2', null, TV.kind === 'last' ? 'Loretta keeps the house' : 'Your cup is empty'), big, el('p', { class: 'sub' }, e.refund ? `${Engine.HOURS[e.hour].name} · second of four: the buy-in comes back.` : TV.kind === 'last' ? 'Everything you brought stays on her table.' : `${Engine.HOURS[e.hour].name} · ${['', 'first', 'second', 'third', 'fourth'][e.place]} of ${e.people.length + 1}. The night goes on.`));
-      if (after.readout && after.reveal) kids.push(el('h3', { class: 'kicker' }, 'The last round'), el('p', { class: 'sub' }, this.verdict(after.reveal, after.losses)), this.hadRows(after.readout));
+      if (after.readout && after.reveal) kids.push(el('h3', { class: 'kicker' }, 'The last round'), el('p', { class: 'sub' }, this.verdict(after.reveal, after.losses)), this.readLine(after.readout), this.hadRows(after.readout));
       const over = App.state && App.state.phase === 'over';
       const node = Sheet.show(kids, over ? 'How the night ended' : 'To the back room', () => App.leaveTable(), 'btn-endtable');
       node.dataset.kind = 'end';
+      if (after.readout && after.readout.reads && after.readout.reads.length) Coach.want('read', null, true);
       node.dataset.seq = String(TV.revealSeq);
     },
     /* The Book beside the table: this table's people. */

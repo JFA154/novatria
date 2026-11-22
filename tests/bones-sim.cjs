@@ -19,6 +19,16 @@
    player who spends its calls for 2 on its first Liar calls of each table), Side Bet on whoever it believes is right,
    and a buyer holding Friends Rates sells it when the slots are full and it wants
    the trick on offer.
+   The room reads you back (sharp people use the shape of your bids once a shape has
+   become a tell), measured with two more proxies, both Mathy plus deliberate bluffs on
+   PM_SHARE of its bids when a lie is there to tell:
+     Predictable  tells every lie the same way: a step of one on the last bid's face.
+     Mixer        picks the shape of each lie at random (open, same count higher face,
+                  a step, a jump; stay on the face or switch).
+   Their table win rates are measured with a warm Book (WARM nights of their own play
+   first, so the room has notes on them), and their whole nights both alone and in a run
+   of nights with the Book carried from one to the next. Every proxy's row also counts
+   the reads that changed a decision and how many nights ended with a tell on record.
    Usage: node tests/bones-sim.cjs [nights] [--rates] [--quick] [--only=id,id]
      --rates  also print every person's measured bluff rate (the engine's RATE).
      --quick  skip the per-trick ablation.
@@ -115,6 +125,9 @@ const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 
 const SIXES = ['loaded', 'slowroll', 'palm'], HOLD_JUMP = 0.75, SNAKE_K = 0, DBL_AT = 0.12, DBL_TELL_AT = 0.25;
 const BLUFF_SHARE = 0.5; // the Bluffer's share of deliberate bluffs
+const PM_SHARE = 0.3, WARM = 3; // the Predictable's and the Mixer's share of deliberate bluffs; nights of warm Book
+// The shape of a bid after prev, as the engine scores it (open low/high, face/step/jump, stay/switch).
+const shapeKey = (prev, q, f) => !prev ? 'open' : (q - prev.q <= 0 ? 'face' : q - prev.q === 1 ? 'step' : 'jump') + '/' + (f === prev.f ? 'stay' : 'switch');
 const ORDER = ['shaved', 'barmirror', 'extrabone', 'lastword', 'double', 'rabbit', 'honest', 'mirror', 'housemoney', 'loaded', 'hothand', 'close', 'cornered', 'nod', 'sticky', 'palm', 'snake', 'sidebet', 'slowroll', 'pokerface', 'tab', 'friends', 'glasses', 'ledger'];
 function bestFace(mine, faces, wild, loaded) {
   let best = faces[faces.length - 1], bc = -1;
@@ -213,7 +226,27 @@ function makeProxy(opts) {
     // The Bluffer: a share of its bids are lies that look true from outside: a face it holds
     // none of, at a count the table would believe at face value (P >= 50% for anyone), and a
     // bluff by its own cup (the Count under 40%). Opening, and raising by at most one.
-    if (bluffShare && L.canBid && (S.rng >>> 0) % 1000 < bluffShare * 1000) {
+    if (bluffShare && L.canBid && b && opts.bluffShape && (S.rng >>> 0) % 1000 < bluffShare * 1000) {
+      // The Predictable and the Mixer lie at the same moments: when a step of one on the last bid's face would be a
+      // bluff its own cup puts at 10% to 40%. The Predictable tells that lie; the Mixer tells a lie of a shape picked
+      // at random (a step or a jump, the face kept or switched, or the same count on a higher face).
+      const lies = [];
+      for (let q = L.minBid.q; q <= Math.min(L.maxQ, b.q + 2); q++) for (const f of L.faces) {
+        if (!E.isLegalBid(S, q, f)) continue;
+        const c = E.count(S, q, f);
+        if (c < 0.4 && c >= 0.1) lies.push({ q, f, c, sh: shapeKey(b, q, f) });
+      }
+      const fixed = lies.find(x => x.sh === 'step/stay');
+      if (fixed) {
+        if (opts.bluffShape === 'fixed') return { t: 'bid', q: fixed.q, f: fixed.f };
+        // (as believable by its own cup as the Predictable's lie, near enough, so only the shape differs)
+        const good = lies.filter(x => x.c >= fixed.c - 0.05);
+        const kinds = [...new Set(good.map(x => x.sh))], k = kinds[((S.rng >>> 0) >>> 12) % kinds.length], of = good.filter(x => x.sh === k);
+        const lie = of[((S.rng >>> 0) >>> 20) % of.length];
+        return { t: 'bid', q: lie.q, f: lie.f };
+      }
+    }
+    if (bluffShare && L.canBid && !opts.bluffShape && (S.rng >>> 0) % 1000 < bluffShare * 1000) {
       let lie = null;
       for (let q = L.minBid.q; q <= Math.min(L.maxQ, L.minBid.q + 1); q++) for (const f of L.faces) {
         if (!E.isLegalBid(S, q, f) || mine.some(d => hitF(d, f, t.wild))) continue;
@@ -252,6 +285,17 @@ function makeProxy(opts) {
       const bluffNow = (S.rng >>> 0) % 100 < bluffPct;
       // Compare: when the bid in front is likelier false than its best raise is true, call.
       if (cmp && b && pick && 1 - believe(S, v, know) > countR(pick.q, pick.f) + cmp) return { t: 'liar' };
+      // The Predictable keeps its lie's shape for its lies: an honest raise that would be a step of one on the last
+      // bid's face is made another way (the likeliest other raise it believes as much, or near).
+      if (pick && b && opts.bluffShape === 'fixed' && shapeKey(b, pick.q, pick.f) === 'step/stay') {
+        let alt = null;
+        for (let q = L.minBid.q; q <= Math.min(L.maxQ, b.q + 2); q++) for (const f of L.faces) {
+          if (!E.isLegalBid(S, q, f) || shapeKey(b, q, f) === 'step/stay') continue;
+          const c = E.count(S, q, f);
+          if (c >= Math.min(likeP, E.count(S, pick.q, pick.f) - 0.1) && (!alt || c > alt.c)) alt = { q, f, c };
+        }
+        if (alt) pick = alt;
+      }
       if (pick && !bluffNow) return { t: 'bid', q: pick.q, f: pick.f };
       if (L.mustBid || bluffNow || (b && believe(S, v, know) >= 0.5)) return { t: 'bid', q: L.minBid.q, f: L.minBid.f };
     }
@@ -263,10 +307,16 @@ function makeProxy(opts) {
 let RATES = {};
 function measure(name, policy, nights, opts) {
   opts = opts || {};
-  const r = { name, nights, end: { house: 0, cleaned: 0, walked: 0, bust: 0 }, cash: [], lc500: 0, tables: {}, rounds: [], bids: {} };
+  const r = { name, nights, end: { house: 0, cleaned: 0, walked: 0, bust: 0 }, cash: [], lc500: 0, tables: {}, rounds: [], bids: {}, reads: 0, told: 0 };
+  let book = null;
   for (let i = 0; i < nights; i++) {
     const seed = (opts.seedBase || 'sim') + ':' + i;
-    const { S, events } = E.playNight(seed, policy, { tricks: opts.tricks, keepEvents: !!opts.rates });
+    // carry: the Book carried from night to night (the room remembers you), in runs of `carry` nights.
+    if (opts.carry && i % opts.carry === 0) book = null;
+    const { S, events } = E.playNight(seed, policy, { tricks: opts.tricks, keepEvents: !!opts.rates || !!opts.carry, book: opts.carry ? book : undefined });
+    if (opts.carry) book = E.bookApply(book, events);
+    r.reads += S.you && S.you.fired ? S.you.fired.length : 0;
+    if (E.summary(S).tell && E.summary(S).tell.shape) r.told++;
     r.end[S.ending]++;
     r.cash.push(S.cash);
     if (S.log.some(t => t.kind === 'last')) r.lc500++;
@@ -282,11 +332,11 @@ function measure(name, policy, nights, opts) {
 }
 // One table on its own: a fresh night moved to that hour with money to spare,
 // so every hour and kind is measured on the same footing (line-ups vary by seed).
-function tableRate(policy, h, kind, n, tricks) {
+function tableRate(policy, h, kind, n, tricks, book) {
   let w = 0;
   const rounds = [];
   for (let i = 0; i < n; i++) {
-    const S = E.newNight({ seed: 'tbl:' + h + kind + ':' + i, tricks });
+    const S = E.newNight({ seed: 'tbl:' + h + kind + ':' + i, tricks, book });
     S.hour = h; S.cash = h === 4 ? 1000 : 1e6;
     E.act(S, { t: 'sit', i: kind === 'rich' ? 1 : 0 });
     for (let g = 0; S.phase === 'table'; g++) { if (g > 5000) throw new Error('table stuck'); const ev = E.act(S, policy(S, E.view(S), E.legal(S))); if (ev[0].t === 'error') throw new Error(ev[0].msg); }
@@ -295,6 +345,12 @@ function tableRate(policy, h, kind, n, tricks) {
     rounds.push(t.rounds);
   }
   return { w: w / n, rounds };
+}
+// A Book with WARM nights of a proxy's own play in it: the room has notes on how it bids.
+function warmBook(policy, nights, base) {
+  let book = null;
+  for (let i = 0; i < nights; i++) { const { events } = E.playNight((base || 'warm') + ':' + i, policy, { book, keepEvents: true }); book = E.bookApply(book, events); }
+  return book;
 }
 const TABLES = [[0, 'easy'], [0, 'rich'], [1, 'easy'], [1, 'rich'], [2, 'easy'], [2, 'rich'], [3, 'easy'], [3, 'rich'], [4, 'last']];
 const median = a => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : 0; };
@@ -317,20 +373,28 @@ function main() {
     measure('Mathy+buy', makeProxy({ buy: true }), nights),
     measure('Reader', makeProxy({ know: { rates: true, tells: true } }), nights),
     measure('Reader-no-tells', makeProxy({ know: { rates: true } }), nights),
-    measure('Reader+buy', makeProxy({ know: { rates: true, tells: true }, buy: true }), nights)
+    measure('Reader+buy', makeProxy({ know: { rates: true, tells: true }, buy: true }), nights),
+    measure('Predictable', makeProxy({ bluff: PM_SHARE, bluffShape: 'fixed' }), nights),
+    measure('Mixer', makeProxy({ bluff: PM_SHARE, bluffShape: 'mix' }), nights),
+    measure('Pred, Book kept', makeProxy({ bluff: PM_SHARE, bluffShape: 'fixed' }), nights, { carry: 5 }),
+    measure('Mixer, Book kept', makeProxy({ bluff: PM_SHARE, bluffShape: 'mix' }), nights, { carry: 5 })
   ];
   console.log(`Bones balance sim · ${nights} nights per player · engine ${E.VERSION}`);
   const nt = Math.max(300, Math.floor(nights / 2));
-  const tp = [['Mathy', makeProxy({})], ['Reader', makeProxy({ know: { rates: true, tells: true } })], ['Rdr-no-tells', makeProxy({ know: { rates: true } })]];
-  console.log(`\nTable win rate, no tricks (${nt} tables each, played on their own)`);
-  console.log(pad('', 16) + tp.map(x => padL(x[0], 14)).join('') + padL('Reader-Mathy', 14) + padL('tells add', 11) + padL('rounds', 8));
-  const allRounds = [];
+  const pred = makeProxy({ bluff: PM_SHARE, bluffShape: 'fixed' }), mix = makeProxy({ bluff: PM_SHARE, bluffShape: 'mix' });
+  const predBook = warmBook(pred, WARM, 'warm-pred'), mixBook = warmBook(mix, WARM, 'warm-mix');
+  const tp = [['Mathy', makeProxy({})], ['Reader', makeProxy({ know: { rates: true, tells: true } })], ['Rdr-no-tells', makeProxy({ know: { rates: true } })], ['Predictable', pred, predBook], ['Mixer', mix, mixBook]];
+  console.log(`\nTable win rate, no tricks (${nt} tables each, played on their own; the Predictable and the Mixer with ${WARM} nights of their own play in the Book)`);
+  console.log(pad('', 16) + tp.map(x => padL(x[0], 13)).join('') + padL('Rdr-Mathy', 11) + padL('tells add', 11) + padL('Pred-Mix', 10) + padL('rounds', 8));
+  const allRounds = [], four = [];
   for (const [h, kind] of TABLES) {
-    const rs = tp.map(([, pol]) => tableRate(pol, h, kind, nt));
+    const rs = tp.map(([, pol, book]) => tableRate(pol, h, kind, nt, undefined, book));
     allRounds.push(...rs[0].rounds);
-    console.log(pad(E.HOURS[h].name + ' ' + kind, 16) + rs.map(r => padL(pct(r.w, 1), 14)).join('') + padL('+' + (100 * (rs[1].w - rs[0].w)).toFixed(1), 14) + padL('+' + (100 * (rs[1].w - rs[2].w)).toFixed(1), 11) + padL(median(rs[0].rounds), 8));
+    if (h >= 1 && h <= 3 && kind === 'rich') four.push(...rs[0].rounds);
+    const sg = x => (x >= 0 ? '+' : '') + (100 * x).toFixed(1);
+    console.log(pad(E.HOURS[h].name + ' ' + kind, 16) + rs.map(r => padL(pct(r.w, 1), 13)).join('') + padL(sg(rs[1].w - rs[0].w), 11) + padL(sg(rs[1].w - rs[2].w), 11) + padL(sg(rs[3].w - rs[4].w), 10) + padL(median(rs[0].rounds), 8));
   }
-  console.log(pad('median rounds per table (Mathy): ' + median(allRounds), 16));
+  console.log('median rounds per table (Mathy): ' + median(allRounds) + ' · four-seat tables: ' + median(four));
   console.log(`\nWhole nights (${nights} each)`);
   console.log(pad('', 16) + runs.map(r => padL(r.name, 18)).join(''));
   const row = (label, fn) => console.log(pad(label, 16) + runs.map(r => padL(fn(r), 18)).join(''));
@@ -343,6 +407,8 @@ function main() {
   row('median cash', r => '$' + median(r.cash));
   row('mean cash', r => '$' + Math.round(r.cash.reduce((a, b) => a + b, 0) / r.nights));
   row('median rounds', r => median(r.rounds));
+  row('reads / night', r => (r.reads / r.nights).toFixed(2));
+  row('nights w/ tell', r => pct(r.told, r.nights));
   if (!quick) {
     const n2 = Math.max(200, Math.floor(nights / 2));
     const only = (args.find(a => a.startsWith('--only=')) || '').slice(7).split(',').filter(Boolean);
