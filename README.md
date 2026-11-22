@@ -2558,7 +2558,8 @@ trick rework resumes and plays on under the new rules: a Palm already used
 that table stays used, and a loaded six counts twice from the next roll),
 `novatria.bones.book`,
 `novatria.bones.ledger` and `novatria.bones.settings` (which also notes
-whether the practice hand was done or skipped). The API key is
+whether the practice hand was done or skipped), and `novatria.bones.vibrate`
+(`on` or `off`, once the Vibration switch is used). The API key is
 `novatria.apiKey`, shared with the other games, and is written there only
 when "Remember on this device" is ticked (otherwise it is kept for the tab).
 With no theme of its own Bones follows the town game's (`novatria.settings`).
@@ -2614,6 +2615,36 @@ Poker Face +4.6 for a player who bluffs (+3.3 / +5.6), Double or Nothing
 table; unlimited, before the limit, that was +13.7 / +12.6), Friends Rates +2.8 / +4.9 for a buyer (+$301 / +$838); for scale, Reading Glasses
 +11.6 and Close Enough +11.3 by the Count.
 
+**Install it on your phone.** Bones can live on a phone's home screen
+like an app and opens full screen from there, with no network once it has
+been visited once.
+
+- **iPhone or iPad (Safari):** open Bones, tap **Share**, then **Add to
+  Home Screen**. The home screen of the game says so in one line.
+- **Android (Chrome, Edge, Samsung Internet):** tap **Add Bones to your home
+  screen** at the bottom of the game's home screen, or use the browser
+  menu's **Install app** / **Add to Home screen**.
+- **Offline.** After one visit the page, its manifest and icons are kept by
+  a small worker (`sw.js`); the game opens and plays with no signal. When the
+  phone is online it fetches the page fresh first, so a new version arrives
+  on the next open. Pearl's column and table talk still need the network
+  (and a key); the game does not.
+- **It needs https.** Installing and the offline copy only work when the
+  site is served over https (or `localhost`), as GitHub Pages serves it,
+  from the site's root or a sub-path. Opening `index.html` straight from
+  the disk (`file://`) plays as before but cannot install or work offline,
+  and shows no install line.
+- What it adds: `manifest.webmanifest`, `sw.js` and `icons/` (192 and 512,
+  a maskable 512 and a 180 px apple-touch-icon: one ivory die showing the
+  wild red 1). The worker answers only for those files and the page; the
+  other games, the Anthropic API and anything on another origin go past it
+  untouched. Bones' CSP adds only what this needs: `manifest-src 'self'`,
+  `worker-src 'self'` and `'self'` in `img-src` (for the home-screen icon).
+  Phones that can vibrate buzz briefly when a call is made, a die is lost
+  and a table is won (and tick faintly on bids), with a **Vibration** switch
+  in Settings (off by default when the phone asks for reduced motion; iPhones
+  cannot vibrate from a web page, so they show no switch).
+
 **Tests.** `node tests/bones-engine.test.cjs` (66 tests, Node only, no
 browser) loads the engine block from `index.html` into `vm` and checks the
 rules exactly: determinism and the JSON round trip, the view hiding what it
@@ -2645,7 +2676,13 @@ line of teaching never covering what it rings, nothing clipped), the lit
 dice and the tally of five, only the asked-for button live, the Count
 equal to the engine's, nothing kept after finishing or skipping, "Sit down
 for real", a reload mid-lesson, and the coach after it.
-`node tests/run.cjs bones` runs both. The simulator is not part of
+`node tests/bones-pwa.test.cjs` serves the checkout from a tiny local
+server (at the root and under `/novatria/`) and checks the manifest and its
+icons, the worker taking control, a whole night played after a reload with
+the network cut, the other games never served by the worker, other origins
+passed by, file:// and sandboxed frames left quiet, the install row on each
+platform and the Vibration switch.
+`node tests/run.cjs bones` runs all three. The simulator is not part of
 `run.cjs`: `node tests/bones-sim.cjs [nights] [--rates] [--quick]
 [--only=id,id]` (2,000 nights by default; `--rates` prints every person's
 measured bluff rate, `--quick` skips the per-trick ablation, `--only` runs
