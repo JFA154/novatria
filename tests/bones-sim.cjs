@@ -117,7 +117,7 @@ function believe(S, v, know) {
   if (!know || b.id === 'me' || c === 0 || c === 1 || !CAL) return c;
   const per = SIM.person(b.id);
   const last = v.table.history[v.table.history.length - 1], h = last.habit;
-  if (HOUSE && SIM.PATTERN[b.id] && (know.tells || know.rates)) return believeHouse(c, b.id, last, know);
+  if (HOUSE && HOUSE[b.id] && (know.tells || know.rates)) return believeHouse(c, b.id, last, know);
   let rate = null, tell = false;
   if (know.rates) rate = RATES[b.id] != null ? RATES[b.id] : per.bluff;
   if (know.ledger) { const s = v.table.seats[b.who].ledger; const m = /1 bid in (\d+)/.exec(s || ''); rate = m ? 1 / +m[1] : /every other/.test(s) ? 0.5 : 0.05; }
@@ -144,23 +144,38 @@ const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
 // HOUSE[id] = { all: cell, by: { sit: cell } }, cell = { n, b, h: { '0'|'1'|'2'|'none': [bluffs, straights] } }.
 let HOUSE = null;
 const cell = () => ({ n: 0, b: 0, h: { 0: [0, 0], 1: [0, 0], 2: [0, 0], none: [0, 0] } });
+// (On an engine from before the house's patterns, for a before-and-after run, the same model is kept unsplit.)
+const HOUSE_IDS = ['npc_loretta', 'npc_curtis'];
+const isHouse = id => SIM.PATTERN ? !!SIM.PATTERN[id] : HOUSE_IDS.includes(id);
 function houseTrain(tables) {
-  if (!SIM.PATTERN) return null; // an engine from before the house's patterns (for a before-and-after run)
   const H = {};
   const M = makeProxy({});
+  const acc = {};
   for (let i = 0; i < tables; i++) {
     const S = E.newNight({ seed: 'house:' + i });
     S.hour = 4; S.cash = 1000;
     E.act(S, { t: 'sit', i: 0 });
     for (let g = 0; S.phase === 'table' && g < 5000; g++) {
-      const ev = E.act(S, M(S, E.view(S), E.legal(S)));
+      const v = E.view(S), L = E.legal(S);
+      // The house's own calibration (as train() does for everyone): by the Count of the bid in front of you,
+      // how often their bid is a bluff, and how often it is true when it is one and when it is not.
+      if (L.need === 'turn' && v.table.bid && isHouse(v.table.bid.id)) {
+        const T = S.table, bid = T.round.bids[T.round.bids.length - 1];
+        let cnt = 0; T.seats.forEach(st => { if (!st.out) st.dice.forEach(d => { if (hitF(d, bid.f, true)) cnt++; }); });
+        const a = acc[v.table.bid.id] = acc[v.table.bid.id] || Array.from({ length: NB }, () => ({ n: 0, b: 0, tb: 0, ts: 0 }));
+        const x = a[bucketOf(E.count(S, bid.q, bid.f))];
+        x.n++; if (bid.bluff) { x.b++; if (cnt >= bid.q) x.tb++; } else if (cnt >= bid.q) x.ts++;
+      }
+      const ev = E.act(S, M(S, v, L));
       ev.forEach(e => { if (e.t === 'readout') e.bids.forEach(x => {
-        if (!x.sit || !SIM.PATTERN[x.id]) return;
-        const P0 = H[x.id] = H[x.id] || { all: cell(), by: {} };
-        for (const c of [P0.all, P0.by[x.sit] = P0.by[x.sit] || cell()]) { c.n++; if (x.bluff) c.b++; c.h[x.habit == null ? 'none' : x.habit][x.bluff ? 0 : 1]++; }
+        if (!isHouse(x.id)) return;
+        const P0 = H[x.id] = H[x.id] || { all: cell(), by: {} }, sit = x.sit || 'all';
+        for (const c of [P0.all, P0.by[sit] = P0.by[sit] || cell()]) { c.n++; if (x.bluff) c.b++; c.h[x.habit == null ? 'none' : x.habit][x.bluff ? 0 : 1]++; }
       }); });
     }
   }
+  // Thin buckets lean on the population's calibration (CAL).
+  for (const id in acc) H[id].cal = acc[id].map((x, k) => { const g = CAL[k], w = 4; return { pb: (x.b + g.pb * w) / (x.n + w), tb: (x.tb + g.tb * w) / (x.b + w), ts: (x.ts + g.ts * w) / (x.n - x.b + w) }; });
   HOUSE = H;
   return H;
 }
@@ -168,10 +183,10 @@ function houseTrain(tables) {
 // (the unstudied Reader) or in the bid's situation (the Studied).
 function believeHouse(c, id, last, know) {
   const H = HOUSE[id], cl = (know.study && last.sit && H.by[last.sit]) || H.all;
-  const cal = CAL[bucketOf(c)];
+  // Their own calibration already knows their overall rate; the Studied also knows it by situation.
+  const cal = (H.cal || CAL)[bucketOf(c)];
   let o = odds(clamp(cal.pb, 0.01, 0.99));
-  const rate = know.study ? (cl.b + 0.2) / (cl.n + 1) : (RATES[id] != null ? RATES[id] : H.all.b / H.all.n);
-  if (know.rates) o *= odds(clamp(rate, 0.01, 0.9)) / odds(AVG_RATE);
+  if (know.rates && know.study) o *= odds(clamp((cl.b + 0.2) / (cl.n + 1), 0.005, 0.95)) / odds(clamp(H.all.b / H.all.n, 0.005, 0.95));
   if (know.tells) {
     const k = last.habit ? last.habit.i : 'none', x = cl.h[k];
     const pb = (x[0] + 0.5) / (cl.b + 1), ps = (x[1] + 0.5) / (cl.n - cl.b + 1);
@@ -543,9 +558,9 @@ function lastCall(args, nights) {
   }
   // The study: a Book carried from one Last Call to the next (the player at the table plays by the Count). Usable once
   // each situation of each one's tell has STUDY_N sightings; readable once, too, its two cells point the right way by 40 points.
-  const players = 300, need = [], read = [];
+  const players = 300, need = [], read = [], need4 = [];
   for (let p = 0; p < players; p++) {
-    let book = null, u = 0, r = 0;
+    let book = null, u = 0, r = 0, u4 = 0;
     for (let k = 1; k <= 20 && (!u || !r); k++) {
       const S = E.newNight({ seed: 'study:' + p + ':' + k, book });
       S.hour = 4; S.cash = 1000;
@@ -553,14 +568,16 @@ function lastCall(args, nights) {
       const M = makeProxy({});
       while (S.phase === 'table') ev.push(...E.act(S, M(S, E.view(S), E.legal(S))));
       book = E.bookApply(book, ev);
-      const cells = Object.keys(SIM.PATTERN).map(id => E.bookPage(book, id).rows[SIM.person(id).tell].split);
+      const cells = HOUSE_IDS.map(id => E.bookPage(book, id).rows[SIM.person(id).tell].split);
       if (!u && cells.every(cs => cs.every(c => c.n >= STUDY_N))) u = k;
+      if (!u4 && cells.every(cs => cs.every(c => c.n >= STUDY_N - 1))) u4 = k;
       const rate = c => c.bluff / Math.max(1, c.n);
       if (!r && cells.every(cs => cs.every(c => c.n >= STUDY_N) && Math.abs(rate(cs[0]) - rate(cs[1])) >= 0.4)) r = k;
     }
-    need.push(u || 21); read.push(r || 21);
+    need.push(u || 21); read.push(r || 21); need4.push(u4 || 21);
   }
   const q = (a, f) => a.slice().sort((x, y) => x - y)[Math.floor(f * (a.length - 1))];
+  console.log(`  The study, 4 sightings a situation: usable after ${q(need4, 0.5)} Last Calls (quartiles ${q(need4, 0.25)}-${q(need4, 0.75)})`);
   console.log(`  The study (${players} players, a Book carried from one Last Call to the next): usable (${STUDY_N} sightings in each situation of both tells) after ${q(need, 0.5)} Last Calls (quartiles ${q(need, 0.25)}-${q(need, 0.75)}); pointing the right way by 40 points after ${q(read, 0.5)} (${q(read, 0.25)}-${q(read, 0.75)})`);
 }
 if (require.main === module) main();
