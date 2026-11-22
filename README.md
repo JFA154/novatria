@@ -2406,9 +2406,12 @@ code owns every die, rule and dollar; there is nothing for Claude to decide.
     honest player, however often they catch you bluffing, tonight or on
     nights before. They call your bids less and believe them more: it pays
     a bluffer.
-  - *Double or Nothing* (rare, manner): any Liar call may be for two dice:
-    right and the bidder loses 2, wrong and you lose only 1 (doubled under
-    Sudden).
+  - *Double or Nothing* (rare, manner): twice a table, make a Liar call for
+    two dice: right and the bidder loses 2, wrong and you lose only 1
+    (doubled under Sudden). The choice is which calls to spend it on: the
+    "Liar ×2" button says how many are left ("for two · 2 left") and goes
+    once both are used; the chip and the trick's page say so too, and the
+    next table starts with two again.
   - *Friends Rates* (common, money): tricks cost 25% less, and Curtis shows
     you four instead of three.
 - **Builds.** Some tricks go together, and the game says so where you
@@ -2586,7 +2589,8 @@ With no theme of its own Bones follows the town game's (`novatria.settings`).
   3 antes; Snake Eyes one ante per 1 on a win; a right side bet one ante;
   House Money +25% on a pot.
 - Tricks: Slow Roll 2 re-rolls a round, Palm 4 a table (faces 2 to 6),
-  Double or Nothing 2 dice for the bidder and 1 for you, Poker Face makes
+  Double or Nothing 2 dice for the bidder and 1 for you, twice a table
+  (a night saved before the limit resumes with both), Poker Face makes
   the people put your bluffing at nothing.
 - The back room: three offers drawn by rarity (common 6, uncommon 3, rare
   1), four with Friends Rates; prices common $15, uncommon $30, rare $55,
@@ -2605,11 +2609,12 @@ hour. Holding one trick all night, a proxy that uses it as a holder would
 gains, in points of house-beating rate (by the Count / reading the tells):
 Loaded Six +8.5 / +11, Slow Roll +4.6 / +4, Palm +4 / +4.4, Side Bet +2.8 /
 +4.3 (+$183 / +$457 mean cash), Snake Eyes +1.3 / +2.5 (+$127 / +$245),
-Poker Face +4.6 for a player who bluffs (+3.3 / +5.6), Double or Nothing +7
-/ +4.2, Friends Rates +2.8 / +4.9 for a buyer (+$301 / +$838); for scale, Reading Glasses
+Poker Face +4.6 for a player who bluffs (+3.3 / +5.6), Double or Nothing
++4.2 / +3.9 on sure calls (+4.3 / +9.1 pressed on its first calls of each
+table; unlimited, before the limit, that was +13.7 / +12.6), Friends Rates +2.8 / +4.9 for a buyer (+$301 / +$838); for scale, Reading Glasses
 +11.6 and Close Enough +11.3 by the Count.
 
-**Tests.** `node tests/bones-engine.test.cjs` (65 tests, Node only, no
+**Tests.** `node tests/bones-engine.test.cjs` (66 tests, Node only, no
 browser) loads the engine block from `index.html` into `vm` and checks the
 rules exactly: determinism and the JSON round trip, the view hiding what it
 must, every call and its money, every house rule, the Count against brute
@@ -2618,17 +2623,18 @@ and strength, bot bids always legal over 2,000 tables, every trick (each
 reworked trick's rule: Loaded Six counted twice on 6s and only on 6s, Slow
 Roll's keep-best, Palm's uses and faces, the Side Bet prompt and its pay,
 Snake Eyes on each kind of win, Poker Face however often you are caught,
-Double or Nothing's terms, Friends Rates' fourth offer), the builds table,
+Double or Nothing's terms and its two calls a table, Friends Rates' fourth offer), the builds table,
 the back room, the four endings, a night saved before the rework playing on,
 a few hundred whole nights, and the practice hand's script (its cups, moves,
 Counts and no money) and that real nights never see it. `node
-tests/bones.test.cjs` (31 tests, Playwright) plays the page through its own
+tests/bones.test.cjs` (32 tests, Playwright) plays the page through its own
 buttons on a phone: the file alone from `file://` with the network shut,
 whole nights to each of the four endings with the page checked against the
 engine's view after every step, a reload mid-round, storage switched off,
 the back room, each trick's control (the Side Bet prompt in one tap at 360
 px in both themes, the Loaded Six reveal, Slow Roll's one tap, Palm's
-dialog, "Goes with" in the back room), a night saved before the rework
+dialog, "Goes with" in the back room, the "Liar ×2" button counting
+down and going at none), a night saved before the rework
 resumed from Continue, a whole night holding Side Bet and Loaded Six, the
 Book, tonight's tables and the
 ledger, Claude against a stand-in API (the column, table talk, a refused
@@ -2650,8 +2656,9 @@ lift for both players (Poker Face also for a Bluffer, who tells a sensible
 lie on half its bids when one is there to tell). A proxy holding a trick
 uses it as a holder would: Slow Roll's one tap, Palm on its first move of a
 round, bids it is sure of (75%) with a cup a dice trick made stronger,
-Double or Nothing only on a sure call, a side bet on whoever it believes,
-and a buyer sells Friends Rates once the slots are full.
+Double or Nothing only on a sure call while it has calls for 2 left (and,
+measured beside it, an "always press" player who spends them on its first
+Liar calls of each table), a side bet on whoever it believes, and a buyer sells Friends Rates once the slots are full.
 
 ## Running the tests
 

@@ -279,6 +279,7 @@ details.card[open] > summary { margin-bottom: 10px; }
 .trick[data-usable] { border-color: var(--accent); color: var(--text); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent); animation: glow 2.2s ease-in-out infinite; }
 .trick[data-usable] i { background: var(--accent); }
 .trick[data-asleep] { opacity: .5; text-decoration: line-through; text-decoration-thickness: 1px; }
+.trick[data-spent] { opacity: .6; }
 .trick small { font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); text-decoration: none; }
 @keyframes glow { 50% { box-shadow: 0 0 2px color-mix(in srgb, var(--accent) 15%, transparent); } }
 .log { flex: none; min-height: 20px; padding: 3px 12px 2px; font: 13px/1.3 var(--ui-font); color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
@@ -613,7 +614,8 @@ dialog li { margin: 0 0 6px; }
            'choose': {t:'sit', i}            sit at card i of Engine.options(S)
                      {t:'walk'}              Last Call only: go home with your cash
            'table' wait 'turn':  {t:'bid', q, f} | {t:'liar'} | {t:'spot'}
-                                 {t:'liar', double:true}  (Double or Nothing)
+                                 {t:'liar', double:true}  (Double or Nothing, while
+                                       view.table.double.left > 0)
                                  {t:'use', id:'nod'}
                                  {t:'use', id:'slowroll', dice?:[indices]} (all if omitted)
                                  {t:'use', id:'slowroll', keep:'best'}  (keep your best
@@ -668,6 +670,8 @@ dialog li { margin: 0 0 6px; }
                face, the dice keep:'best' would re-roll, re-rolls left)
          palm: null | { left, loaded }  (Palm held: uses left at this table,
                the loaded six it cannot turn)
+         double: null | { left, uses }  (Double or Nothing held: calls for 2
+               left at this table, of `uses` a table)
          side: null | { kind, caller, callerId, bidder, bidderId, q, f, count,
                  exact, habit, stake, pays }  (wait 'side': the challenge between
                  two others, the Count of its bid and the habit that came with it)
@@ -686,7 +690,7 @@ dialog li { margin: 0 0 6px; }
      Engine.options(S) -> [{ i, kind, hour, hourName, seats, dice, buyIn, pot,
          ante, rule:{id,name,text}|null, people:[public person], affordable,
          viaTab }]   (one card at Last Call; [] outside phase 'choose')
-     Engine.legal(S) -> { need, mustBid, canBid, canLiar, canSpot,
+     Engine.legal(S) -> { need, mustBid, canBid, canLiar, canSpot, canDouble,
          minBid:{q,f}|null, maxQ, maxFor:{face: largest legal q}, faces,
          uses:[ids], canGo, canNext, canSide,
          sit:[i...], canWalk, buy:[i...], sell:[ids], canReroll,
@@ -757,7 +761,7 @@ dialog li { margin: 0 0 6px; }
          barmirror {ones} · nod {q, f, truth} · cornered {shown:[{seat,die,face}]}
          sticky {amount} · sidebet {pick, right, amount} · housemoney {extra}
          snake {ones, amount}
-         tab {buyIn} · honest {who, n} · double {who, n} · close {} · lastword {}
+         tab {buyIn} · honest {who, n} · double {who, n, left} · close {} · lastword {}
      {t:'bid', who, id, name, q, f, habit:{i, text, line, underline}|null}
      {t:'call', who, id, name, kind:'liar'|'spot', on:{who, id, q, f}}
      {t:'reveal', kind, caller, bidder, q, f, wild, count, good, exact,
@@ -818,8 +822,9 @@ dialog li { margin: 0 0 6px; }
      Palm: four times a table, any die but the loaded six to a face 2..6
        (never a 1); a palmed die is no longer fixed.
      Rabbit's Foot takes 1 off the first loss at a table (Sudden 2 -> 1).
-     Double or Nothing is chosen per call ({t:'liar', double:true}): right,
-       the bidder loses 2; wrong, you lose 1 (x2 under Sudden). Honest Face
+     Double or Nothing is chosen per call ({t:'liar', double:true}), twice a
+       table (a call for 2 past that is refused): right, the bidder loses 2;
+       wrong, you lose 1 (x2 under Sudden). Honest Face
        doubles the caller's loss (4 under Sudden).
      Side Bet: the prompt comes after the call and before the reveal; pick
        'bidder' = the bid is good (Liar) or not exactly right (Spot On).
@@ -1022,7 +1027,7 @@ dialog li { margin: 0 0 6px; }
     ['tab', 'A Tab', 'uncommon', 'money', 'Once a night, sit at a table you cannot afford; the buy-in comes out of your winnings (lose and you owe nothing; it is used up).'],
     ['pokerface', 'Poker Face', 'uncommon', 'manner', 'Opponents always take you for an honest player, however often they catch you bluffing.'],
     ['honest', 'Honest Face', 'uncommon', 'manner', 'When someone calls Liar on you and your bid is good, they lose 2 dice.'],
-    ['double', 'Double or Nothing', 'rare', 'manner', 'You may make any Liar call for 2 dice: right and the bidder loses 2, wrong and you lose only 1.'],
+    ['double', 'Double or Nothing', 'rare', 'manner', 'Twice a table, make a Liar call for 2 dice: right and the bidder loses 2, wrong and you lose only 1.'],
     ['close', 'Close Enough', 'common', 'manner', 'If your own bid is called and misses by exactly one, you lose no die (you still pay the ante).'],
     ['lastword', 'Last Word', 'rare', 'manner', 'Once per table, when you would be knocked out, you stay in with one die.']
   ].map(([id, name, rarity, kind, text]) => Object.freeze({ id, name, rarity, kind, text }));
@@ -1033,8 +1038,9 @@ dialog li { margin: 0 0 6px; }
   // Tuned by tests/bones-sim.cjs: Palm's uses per table (one a round), Slow Roll's re-rolls per round,
   // what the people take a Poker Face for (their estimate of how often you bluff), the offers Curtis shows.
   const PALM_USES = 4, SLOW_ROLLS = 2, POKER_EST = 0, OFFERS = 3, FRIENDS_OFFERS = 4;
-  // Side Bet: antes a wrong side bet costs (0: nothing). Double or Nothing: dice you lose on a wrong call (x2 under Sudden).
-  const SIDE_STAKE = 0, DOUBLE_RISK = 1;
+  // Side Bet: antes a wrong side bet costs (0: nothing). Double or Nothing: dice you lose on a wrong call (x2 under Sudden),
+  // and its calls per table (a limit makes the choice which calls to spend it on; tuned by tests/bones-sim.cjs).
+  const SIDE_STAKE = 0, DOUBLE_RISK = 1, DOUBLE_USES = 2;
   // Builds: tricks that work together. A trick on offer names the ones you hold from the same group.
   const BUILDS = [
     { id: 'ones', name: 'Ones', tricks: ['shaved', 'hothand', 'snake', 'barmirror'] },
@@ -1495,7 +1501,7 @@ dialog li { margin: 0 0 6px; }
     let winner = -1, loser = -1, n = L, opener;
     if (kind === 'liar') {
       if (good) { winner = bidder; loser = caller; } else { winner = caller; loser = bidder; }
-      if (caller === 0 && o.dbl) { n = (good ? DOUBLE_RISK : 2) * L; ev.push({ t: 'trick', id: 'double', who: loser, n }); }
+      if (caller === 0 && o.dbl) { n = (good ? DOUBLE_RISK : 2) * L; ev.push({ t: 'trick', id: 'double', who: loser, n, left: doubleLeft(T) }); }
       if (good && bidder === 0 && has(S, 'honest')) { n = 2 * L; ev.push({ t: 'trick', id: 'honest', who: caller, n }); }
       if (!good && bidder === 0 && count === b.q - 1 && has(S, 'close')) { n = 0; ev.push({ t: 'trick', id: 'close' }); }
     } else if (exact) { winner = caller; } else { loser = caller; }
@@ -1697,6 +1703,8 @@ dialog li { margin: 0 0 6px; }
   // Uses left (a night saved before these counted holds true for "used").
   const slowLeft = R => SLOW_ROLLS - (R.slow === true ? SLOW_ROLLS : R.slow | 0);
   const palmLeft = T => PALM_USES - (T.used.palm === true ? PALM_USES : T.used.palm | 0);
+  // Double or Nothing's calls left at this table (a night saved before it was limited has no count: all of them).
+  const doubleLeft = T => Math.max(0, DOUBLE_USES - (T.used.double | 0));
   function usesNow(S) {
     const T = S.table, out = [];
     if (S.phase !== 'table' || !T || !T.round || (T.wait !== 'turn' && T.wait !== 'ready')) return out;
@@ -1707,7 +1715,7 @@ dialog li { margin: 0 0 6px; }
     return out;
   }
   function legal(S) {
-    const L = { need: need(S), mustBid: false, canBid: false, canLiar: false, canSpot: false, minBid: null, maxQ: 0, maxFor: {}, faces: [], uses: [], canGo: false, canNext: false, canSide: false, sit: [], canWalk: false, buy: [], sell: [], canReroll: false, rerollPrice: 0, canLeave: false };
+    const L = { need: need(S), mustBid: false, canBid: false, canLiar: false, canSpot: false, canDouble: false, minBid: null, maxQ: 0, maxFor: {}, faces: [], uses: [], canGo: false, canNext: false, canSide: false, sit: [], canWalk: false, buy: [], sell: [], canReroll: false, rerollPrice: 0, canLeave: false };
     if (S.phase === 'choose') { L.sit = options(S).filter(o => o.affordable).map(o => o.i); L.canWalk = S.hour === 4; }
     if (S.phase === 'shop') {
       const v = shopView(S);
@@ -1719,7 +1727,7 @@ dialog li { margin: 0 0 6px; }
       L.uses = usesNow(S);
       if (T.wait === 'turn') {
         const b = lastBid(T);
-        L.mustBid = !b; L.canLiar = !!b; L.canSpot = !!b;
+        L.mustBid = !b; L.canLiar = !!b; L.canSpot = !!b; L.canDouble = !!b && has(S, 'double') && doubleLeft(T) > 0;
         L.minBid = minBid(T); L.canBid = !!L.minBid; L.faces = facesOf(T);
         L.faces.forEach(f => { L.maxFor[f] = maxQ(T, f); }); L.maxQ = Math.max(...L.faces.map(f => L.maxFor[f]));
       }
@@ -1827,6 +1835,8 @@ dialog li { margin: 0 0 6px; }
     if (a.t === 'liar' || a.t === 'spot') {
       if (!lastBid(T)) return err('nothing to call');
       if (a.double && (a.t !== 'liar' || !has(S, 'double'))) return err('only a Liar call with Double or Nothing can be for 2 dice');
+      if (a.double && !doubleLeft(T)) return err(`Double or Nothing is used up at this table (${DOUBLE_USES} a table): call Liar for 1`);
+      if (a.double) T.used.double = (T.used.double | 0) + 1;
       T.wait = null; challenge(S, T, 0, a.t, ev, { dbl: !!a.double }); return run(S, ev);
     }
     return err('bid, liar or spot');
@@ -1935,6 +1945,7 @@ dialog li { margin: 0 0 6px; }
         side: T.wait === 'side' && R && R.call ? sideView(S, T) : null,
         slow: R && usesNow(S).includes('slowroll') ? Object.assign(bestFace(S, T), { left: slowLeft(R) }) : null,
         palm: has(S, 'palm') ? { left: palmLeft(T), loaded: R && R.loaded != null ? R.loaded : null } : null,
+        double: has(S, 'double') ? { left: doubleLeft(T), uses: DOUBLE_USES } : null,
         bid: b ? { who: b.who, id: T.seats[b.who].id, q: b.q, f: b.f } : null,
         history: R ? R.bids.map(x => ({ who: x.who, id: T.seats[x.who].id, q: x.q, f: x.f, habit: x.habit ? clone(x.habit) : null })) : [],
         ones: R ? R.ones : null, nod: R && R.nod ? clone(R.nod) : null,
@@ -2958,7 +2969,8 @@ dialog li { margin: 0 0 6px; }
     build(root) {
       this.root = root;
       this.liar = el('button', { class: 'call liar', id: 'btn-liar', type: 'button', disabled: true, onclick: () => this.call('liar', false) }, 'Liar!');
-      this.liar2 = el('button', { class: 'call liar2', id: 'btn-liar2', type: 'button', disabled: true, hidden: true, title: 'Double or Nothing: right and the bidder loses 2 dice, wrong and you lose 1', onclick: () => this.call('liar', true) }, 'Liar ×2', el('small', null, 'for two dice'));
+      this.liar2Small = el('small', null, 'for two dice');
+      this.liar2 = el('button', { class: 'call liar2', id: 'btn-liar2', type: 'button', disabled: true, hidden: true, title: 'Double or Nothing: right and the bidder loses 2 dice, wrong and you lose 1', onclick: () => this.call('liar', true) }, 'Liar ×2', this.liar2Small);
       this.spotSmall = el('small', null, '');
       this.spot = el('button', { class: 'call spot', id: 'btn-spot', type: 'button', disabled: true, onclick: () => this.call('spot', false) }, 'Spot on', this.spotSmall);
       this.calls = el('div', { class: 'calls' }, this.liar, this.liar2, this.spot);
@@ -3013,8 +3025,11 @@ dialog li { margin: 0 0 6px; }
     render() {
       const c = this.ctx, on = !!c;
       this.root.toggleAttribute('data-calm', !on);
-      this.liar.disabled = !on || !c.canLiar; this.liar2.disabled = !on || !c.canLiar;
-      this.liar2.hidden = !(c && c.double); this.calls.toggleAttribute('data-three', !!(c && c.double));
+      // Double or Nothing: c.double = its calls for 2 left at this table; at none the button goes.
+      const dl = on && c.double > 0 ? c.double : 0;
+      this.liar.disabled = !on || !c.canLiar; this.liar2.disabled = !on || !c.canLiar || !dl;
+      this.liar2.hidden = !dl; this.calls.toggleAttribute('data-three', !!dl);
+      if (dl) { this.liar2Small.textContent = `for two · ${dl} left`; this.liar2.setAttribute('aria-label', `Liar ×2 · ${dl} left (for two dice)`); }
       this.spot.disabled = !on || !c.canSpot;
       const ex = on && c.bid ? Engine.countExact(App.state, c.bid.q, c.bid.f) : null;
       this.spotSmall.textContent = ex === null ? '' : `exactly: ${pct(ex)}`;
@@ -3036,7 +3051,7 @@ dialog li { margin: 0 0 6px; }
       this.pctEl.style.color = bandColour(p);
       this.bidBtn.setAttribute('aria-label', `Bid ${bidText(this.q, this.f)} (${pct(p)} by your dice)`);
     },
-    /* ctx: {bid, total, maxFor, faces, canBid, canLiar, canSpot, mustBid, double, minBid} */
+    /* ctx: {bid, total, maxFor, faces, canBid, canLiar, canSpot, mustBid, double (Double or Nothing's calls left; 0: none), minBid} */
     open(c) {
       const same = this.ctx && JSON.stringify(c.bid) === JSON.stringify(this.ctx.bid) && c.total === this.ctx.total;
       this.ctx = c;
@@ -3052,7 +3067,7 @@ dialog li { margin: 0 0 6px; }
       if (!same) anim(this.root, [{ transform: 'translateY(6px)' }, { transform: 'none' }], 200, { move: true });
     },
     close() { this.ctx = null; this.render(); },
-    call(kind, dbl) { if (!this.ctx) return; const a = kind === 'liar' ? (dbl ? { t: 'liar', double: true } : { t: 'liar' }) : { t: 'spot' }; this.close(); App.act(a); },
+    call(kind, dbl) { if (!this.ctx || (dbl && !(this.ctx.double > 0))) return; const a = kind === 'liar' ? (dbl ? { t: 'liar', double: true } : { t: 'liar' }) : { t: 'spot' }; this.close(); App.act(a); },
     bid() { if (!this.ctx || !this.legal(this.q, this.f)) return; const a = { t: 'bid', q: this.q, f: this.f }; this.close(); App.act(a); }
   };
 
@@ -3226,12 +3241,15 @@ dialog li { margin: 0 0 6px; }
   const Tricks = {
     root: null,
     build(root) { this.root = root; },
-    chip(t, onTable) {
+    // table: the view's table, for a trick's uses left there (Double or Nothing's calls for 2).
+    chip(t, onTable, table) {
       if (!onTable && App.state && App.state.hour === 4 && t.kind === 'dice') t = Object.assign({}, t, { asleep: true });
-      return el('button', { class: 'trick', type: 'button', dataset: { id: t.id }, 'data-usable': onTable && t.usable ? '' : null, 'data-asleep': t.asleep ? '' : null, 'aria-label': `${t.name}${t.asleep ? ' (asleep at Last Call)' : t.usable && onTable ? ' (ready to use)' : ''}`, onclick: () => Tricks.open(t.id) },
-        el('i'), t.name, t.asleep ? el('small', null, 'asleep') : null);
+      const dbl = onTable && t.id === 'double' && table && table.double ? table.double.left : null;
+      const tail = t.asleep ? 'asleep' : dbl === null ? null : dbl ? `${dbl} left` : 'used';
+      return el('button', { class: 'trick', type: 'button', dataset: { id: t.id }, 'data-usable': onTable && t.usable ? '' : null, 'data-asleep': t.asleep ? '' : null, 'data-spent': dbl === 0 ? '' : null, 'aria-label': `${t.name}${t.asleep ? ' (asleep at Last Call)' : t.usable && onTable ? ' (ready to use)' : dbl !== null ? ` (${dbl ? plural(dbl, 'call') + ' for 2 left' : 'used up'} at this table)` : ''}`, onclick: () => Tricks.open(t.id) },
+        el('i'), t.name, tail ? el('small', null, tail) : null);
     },
-    render(list) { this.root.replaceChildren(...list.slice().sort((a, b) => (b.usable ? 1 : 0) - (a.usable ? 1 : 0)).map(t => this.chip(t, true))); },
+    render(list, table) { this.root.replaceChildren(...list.slice().sort((a, b) => (b.usable ? 1 : 0) - (a.usable ? 1 : 0)).map(t => this.chip(t, true, table))); },
     /* The trick's page, with its little control when it can be used now. */
     open(id) {
       const v = App.view();
@@ -3282,7 +3300,10 @@ dialog li { margin: 0 0 6px; }
         Dialog.open(kids, [['Not now', null]], go);
         return;
       }
-      if (id === 'double' && v && v.phase === 'table' && !t.asleep) kids.push(el('p', { class: 'note' }, 'When you call, use the “Liar ×2” button.'));
+      if (id === 'double' && v && v.phase === 'table' && !t.asleep) {
+        const dl = v.table && v.table.double ? v.table.double : { left: 0, uses: 0 };
+        kids.push(el('p', { class: 'note', id: 'double-left' }, dl.left ? `${plural(dl.left, 'call')} for 2 left at this table. When you call, use the “Liar ×2” button.` : `${dl.uses === 1 ? 'Used' : dl.uses === 2 ? 'Both used' : 'All ' + word(dl.uses) + ' used'} at this table: your calls are for 1 until the next table.`));
+      }
       if ((id === 'slowroll' || id === 'palm' || id === 'nod') && !usable && v && v.phase === 'table') kids.push(el('p', { class: 'note' }, id === 'slowroll' ? 'Ready before the first bid of a round.' : id === 'palm' ? (v.table && v.table.palm && !v.table.palm.left ? 'All four used at this table.' : 'On your turn, once you see your dice.') : 'Once a table, with a bid in front of you on your turn.'));
       if (id === 'sidebet' && v && v.phase === 'table' && !t.asleep) kids.push(el('p', { class: 'note' }, v.table && v.table.kind === 'last' ? 'No antes at Loretta’s table, so no side bets.' : 'When two others go to a challenge, you are asked before the cups lift.'));
       Dialog.open(kids, buttons);
@@ -3699,13 +3720,13 @@ dialog li { margin: 0 0 6px; }
         else CountBar.set(null, t.blind ? 'Bidding blind: the Count waits on your cup' : 'Nothing bid yet');
       }
       Log.set(t.history.map(x => ({ who: nameAt(x.who), what: `${x.q} × ${x.f}s` })), `${Lesson.on ? 'Practice hand' : Engine.HOURS[t.hour].name} · round ${t.round}`);
-      Tricks.render(v.tricks);
+      Tricks.render(v.tricks, t);
       // What you must do now.
       const L = Engine.legal(App.state);
       setTurn(t.wait === 'turn' ? 0 : -1);
       if (t.wait === 'turn') {
         $('bar').hidden = true; $('picker').hidden = false; Sheet.clear();
-        Picker.open({ bid: t.bid, total: t.total, maxFor: L.maxFor, faces: t.faces, canBid: L.canBid, canLiar: L.canLiar, canSpot: L.canSpot, mustBid: L.mustBid, minBid: L.minBid, double: v.tricks.some(x => x.id === 'double' && !x.asleep) });
+        Picker.open({ bid: t.bid, total: t.total, maxFor: L.maxFor, faces: t.faces, canBid: L.canBid, canLiar: L.canLiar, canSpot: L.canSpot, mustBid: L.mustBid, minBid: L.minBid, double: t.double && v.tricks.some(x => x.id === 'double' && !x.asleep) ? t.double.left : 0 });
         say(t.bid ? `Your turn. ${bidText(t.bid.q, t.bid.f)} on the table; the Count says ${pct(t.count || 0)}.` : 'Your turn to open.');
         Coach.want('turn');
         if (t.bid && t.bid.who !== 0 && $('bookline').childElementCount && !$('bookline').hasAttribute('data-quiet')) Coach.want('booktally');

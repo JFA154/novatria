@@ -1177,7 +1177,7 @@ test('Double or Nothing: a Liar call for 2 dice: right and the bidder loses 2, w
   S = rig({ tricks: ['double'], dice: [[2, 3], [4, 4], [5, 6, 6]], bids: [{ who: 2, q: 3, f: 4 }] });
   ev = ok(E.act(S, { t: 'liar', double: true }));
   deq(find(ev, 'lose'), { t: 'lose', who: 2, id: 'npc_dewayne', n: 2, left: 1 });
-  deq(find(ev, 'trick', e => e.id === 'double'), { t: 'trick', id: 'double', who: 2, n: 2 });
+  deq(find(ev, 'trick', e => e.id === 'double'), { t: 'trick', id: 'double', who: 2, n: 2, left: 1 });
   S = rig({ tricks: ['double'], dice: [[2, 3, 3], [4, 4], [5, 6]], bids: [{ who: 2, q: 2, f: 4 }] });
   ev = ok(E.act(S, { t: 'liar', double: true }));
   deq(find(ev, 'lose'), { t: 'lose', who: 0, id: 'me', n: 1, left: 2 });
@@ -1191,6 +1191,39 @@ test('Double or Nothing: a Liar call for 2 dice: right and the bidder loses 2, w
   assert.strictEqual(find(ok(E.act(S, { t: 'liar', double: true })), 'lose').n, 2);
   assert.ok(isErr(E.act(rig({ dice: [[2, 3], [4, 4], [5, 6]], bids: [{ who: 2, q: 2, f: 4 }] }), { t: 'liar', double: true })));
   assert.ok(isErr(E.act(rig({ tricks: ['double'], dice: [[2, 3], [4, 4], [5, 6]], bids: [{ who: 2, q: 2, f: 4 }] }), { t: 'spot', double: true })));
+});
+test('Double or Nothing: twice a table; a third call for 2 is refused; the next table has both again', () => {
+  const S = rig({ tricks: ['double'], dice: [[2, 3, 3], [4, 4, 4], [5, 6, 6]], bids: [{ who: 2, q: 5, f: 4 }] });
+  deq(E.view(S).table.double, { left: 2, uses: 2 });
+  assert.ok(E.legal(S).canDouble);
+  let ev = ok(E.act(S, { t: 'liar', double: true }));
+  deq(find(ev, 'trick', e => e.id === 'double'), { t: 'trick', id: 'double', who: 2, n: 2, left: 1 });
+  assert.strictEqual(E.view(S).table.double.left, 1, 'one spent, whichever way the call went');
+  // The second: a wrong call for 2 still spends it (and costs only 1).
+  arm(S, { dice: [[2, 3, 3], [4, 4, 4], [5, 6, 6]], bids: [{ who: 2, q: 2, f: 4 }] });
+  ev = ok(E.act(S, { t: 'liar', double: true }));
+  deq(find(ev, 'trick', e => e.id === 'double'), { t: 'trick', id: 'double', who: 0, n: 1, left: 0 });
+  // None left: the call for 2 is refused with a clear error and changes nothing; a plain Liar still goes.
+  arm(S, { dice: [[2, 3, 3], [4, 4, 4], [5, 6, 6]], bids: [{ who: 2, q: 5, f: 4 }] });
+  deq(E.view(S).table.double, { left: 0, uses: 2 });
+  assert.ok(!E.legal(S).canDouble && E.legal(S).canLiar);
+  const before = J(S);
+  ev = E.act(S, { t: 'liar', double: true });
+  assert.ok(isErr(ev)); assert.match(ev[0].msg, /used up at this table/);
+  deq(S, before, 'a refused call changes nothing');
+  ev = ok(E.act(S, { t: 'liar' }));
+  assert.strictEqual(find(ev, 'lose', e => e.who === 2).n, 1);
+  assert.ok(!find(ev, 'trick', e => e.id === 'double'));
+  // The next table starts with both again.
+  const T0 = S.table;
+  for (let g = 0; !(S.phase === 'table' && S.table !== T0); g++) { assert.ok(S.phase !== 'over' && g < 5000); ok(E.act(S, E.basicPolicy(S, E.view(S), E.legal(S), E))); }
+  deq(E.view(S).table.double, { left: 2, uses: 2 });
+  // Not held: no count in the view, no call for 2.
+  const N = rig({ dice: [[2, 3], [4, 4], [5, 6]], bids: [{ who: 2, q: 2, f: 4 }] });
+  assert.strictEqual(E.view(N).table.double, null); assert.ok(!E.legal(N).canDouble);
+  // Last Call: a manner trick, so it works there too, twice.
+  const LC = rig({ hour: 4, tricks: ['double'] });
+  assert.strictEqual(E.view(LC).table.double.left, 2);
 });
 test('Honest Face (direct): the caller of your good bid loses 2', () => {
   // Seat 1 calls Liar on our 1x4 only if it doubts it; make it a sure call for a bot by
@@ -1490,6 +1523,15 @@ test('a night saved before the trick rework resumes and plays on to its end unde
     while (S.phase !== 'over') { ok(E.act(S, E.basicPolicy(S, E.view(S), E.legal(S), E))); assert.ok(++g < 5000); }
     assert.ok(['house', 'cleaned', 'walked', 'bust'].includes(S.ending));
   }
+  // A night saved before Double or Nothing was limited has no count at its table: it resumes with both calls for 2.
+  const D = J(fx.turn.S);
+  D.tricks = D.tricks.map(t => t.id === 'snake' ? { id: 'double', paid: 55 } : t);
+  assert.strictEqual(D.table.used.double, undefined);
+  deq(E.view(D).table.double, { left: 2, uses: 2 }); assert.ok(E.legal(D).canDouble);
+  const dev = ok(E.act(D, { t: 'liar', double: true }));
+  assert.strictEqual(find(dev, 'trick', e => e.id === 'double').left, 1);
+  let gd = 0;
+  while (D.phase !== 'over') { ok(E.act(D, E.basicPolicy(D, E.view(D), E.legal(D), E))); assert.ok(++gd < 5000); }
   // And the next round of the old table marks the loaded six again.
   const S = J(fx.turn.S);
   while (S.phase === 'table' && S.table.wait !== 'next') ok(E.act(S, E.basicPolicy(S, E.view(S), E.legal(S), E)));

@@ -15,7 +15,8 @@
    holding a trick uses it as a sensible holder would: Slow Roll's one tap (keep the
    best face), Palm on the first decision of a round, bids at 75% rather than 60% with
    a cup a dice trick made stronger than it looks (Loaded Six, Slow Roll, Palm),
-   Double or Nothing only on a sure call, Side Bet on whoever it believes is right,
+   Double or Nothing only on a sure call (and, as a measured variant, the "always press"
+   player who spends its calls for 2 on its first Liar calls of each table), Side Bet on whoever it believes is right,
    and a buyer holding Friends Rates sells it when the slots are full and it wants
    the trick on offer.
    Usage: node tests/bones-sim.cjs [nights] [--rates] [--quick] [--only=id,id]
@@ -203,8 +204,9 @@ function makeProxy(opts) {
         // Sure: the Count under 12% (a Reader: its own read, the Count weighed by the bidder's rate and the
         // habit shown, under 12%, or under 25% with the bidder's tell showing a bluff).
         const at = opts.dblAt || DBL_AT, tellAt = opts.dblTellAt == null ? DBL_TELL_AT : opts.dblTellAt;
-        const sure = pc < at || (!!know && !!know.tells && tellSays(v) === true && pc < tellAt);
-        return held('double') && sure ? { t: 'liar', double: true } : { t: 'liar' };
+        const sure = opts.dblAll || pc < at || (!!know && !!know.tells && tellSays(v) === true && pc < tellAt);
+        // Only while it has calls for 2 left at this table (L.canDouble; an engine without the limit lacks it).
+        return held('double') && L.canDouble !== false && sure ? { t: 'liar', double: true } : { t: 'liar' };
       }
       if (E.countExact(S, b.q, b.f) > 0.42 && pc < 0.75) return { t: 'spot' };
     }
@@ -369,6 +371,14 @@ function main() {
         const base = baseOf('Bluffer', { bluff: BLUFF_SHARE });
         const r = measure(t.id, makeProxy({ bluff: BLUFF_SHARE }), n2, { tricks: [t.id], seedBase: 'abl' });
         other = `Bluffer ${pct(base.end.house, n2)} -> ${pct(r.end.house, n2)} (${sg(+(100 * (r.end.house - base.end.house) / n2).toFixed(1))}, mean ${sg(Math.round(meanOf(r) - meanOf(base)))})`;
+      }
+      // Double or Nothing, always pressed: the call for 2 on every Liar call while any are left at the table.
+      if (t.id === 'double') {
+        other = [['Mathy', null], ['Reader', READER]].map(([name, know]) => {
+          const base = baseOf(name, { know });
+          const r = measure(t.id, makeProxy({ know, dblAll: true }), n2, { tricks: [t.id], seedBase: 'abl' });
+          return `${name} always-press ${pct(r.end.house, n2)} (${sg(+(100 * (r.end.house - base.end.house) / n2).toFixed(1))}, mean ${sg(Math.round(meanOf(r) - meanOf(base)))})`;
+        }).join(' · ');
       }
       console.log(pad(t.name + (buyer ? ' *' : ''), 20) + cols.join('') + '   ' + other);
     }

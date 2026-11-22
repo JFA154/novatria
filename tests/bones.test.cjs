@@ -303,6 +303,49 @@ s.test('each usable trick\'s control: Slow Roll picks dice, Palm a die and a fac
   assert.ok(loss.length === 1 && (loss[0].who === 0 ? loss[0].n === L || loss[0].left === 0 : loss[0].n === 2 * L || loss[0].left === 0), JSON.stringify(loss));
 });
 
+s.test('Double or Nothing: the Liar ×2 button counts its calls down and goes at none; the chip and the page say what is left', async h => {
+  const page = await open(h);
+  await startNight(page, { seed: 'pair', tricks: ['double'] });
+  const read = () => page.evaluate(() => {
+    const b = document.querySelector('#btn-liar2'), chip = document.querySelector('.tricks .trick[data-id="double"]');
+    return { left: Game.App.view().table.double.left, hidden: b.hidden, three: document.querySelector('.calls').hasAttribute('data-three'), label: b.textContent, aria: b.getAttribute('aria-label'), chip: chip.textContent, spent: chip.hasAttribute('data-spent'), table: Game.App.state.hour + '/' + Game.App.state.table.kind };
+  });
+  await playOut(page, { until: untilTurnWithBid });
+  let r = await read();
+  assert.equal(r.left, 2);
+  assert.ok(!r.hidden && r.three, JSON.stringify(r));
+  assert.equal(r.label, 'Liar ×2for two · 2 left'); assert.equal(r.aria, 'Liar ×2 · 2 left (for two dice)');
+  assert.match(r.chip, /Double or Nothing2 left$/);
+  await page.click('.tricks .trick[data-id="double"]');
+  assert.match(await page.textContent('#double-left'), /^2 calls for 2 left at this table\. When you call, use the “Liar ×2” button\.$/);
+  await page.keyboard.press('Escape');
+  const first = r.table;
+  await page.click('#btn-liar2');
+  await page.evaluate(() => Game.App.idle());
+  await playOut(page, { until: untilTurnWithBid });
+  r = await read();
+  assert.equal(r.table, first, 'still the same table');
+  assert.equal(r.left, 1);
+  assert.ok(!r.hidden && /1 left$/.test(r.label) && /1 left$/.test(r.chip), JSON.stringify(r));
+  await page.click('#btn-liar2');
+  await page.evaluate(() => Game.App.idle());
+  await playOut(page, { until: untilTurnWithBid });
+  r = await read();
+  assert.equal(r.table, first, 'still the same table');
+  assert.equal(r.left, 0);
+  assert.ok(r.hidden && !r.three, 'no Liar ×2 at none left: ' + JSON.stringify(r));
+  assert.ok(r.spent && /used$/.test(r.chip), JSON.stringify(r));
+  assert.ok(await page.isVisible('#btn-liar') && await page.isVisible('#btn-spot'));
+  await page.click('.tricks .trick[data-id="double"]');
+  assert.match(await page.textContent('#double-left'), /^Both used at this table/);
+  await page.keyboard.press('Escape');
+  // The next table: both again.
+  await playOut(page, { until: was => { const v = Game.App.view(); return v.phase === 'table' && v.table.wait === 'turn' && !!v.table.bid && Game.App.state.hour + '/' + Game.App.state.table.kind !== was; }, arg: first });
+  assert.equal(await page.evaluate(() => Game.App.state.phase), 'table', 'this seed reaches a second table');
+  r = await read();
+  assert.equal(r.left, 2); assert.ok(!r.hidden && /2 left$/.test(r.label), JSON.stringify(r));
+});
+
 // ===================================================================== the reworked tricks
 const PHONES = [{ width: 390, height: 780 }, { width: 360, height: 640 }];
 const withTheme = async (h, theme, viewport) => {
