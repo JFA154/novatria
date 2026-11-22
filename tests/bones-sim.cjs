@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 /* Bones balance sim (design section 8). Extracts the engine block from
-   bones.html by its markers, runs it in vm, and plays seeded nights with
+   index.html by its markers, runs it in vm, and plays seeded nights with
    proxy players:
      Mathy    plays by the Count alone (Liar under 38%; opens, or jumps, to
               the most of its best face the Count puts at 60%, else the
@@ -18,9 +18,9 @@ const path = require('path');
 const vm = require('vm');
 
 function loadEngine() {
-  const html = fs.readFileSync(path.resolve(__dirname, '..', 'bones.html'), 'utf8');
+  const html = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
   const a = html.indexOf('/* ==BONES:ENGINE:BEGIN== */'), b = html.indexOf('/* ==BONES:ENGINE:END== */');
-  if (a < 0 || b < 0) throw new Error('engine markers not found in bones.html');
+  if (a < 0 || b < 0) throw new Error('engine markers not found in index.html');
   const ctx = vm.createContext({});
   vm.runInContext(html.slice(a, b), ctx, { filename: 'bones-engine.js' });
   return ctx.Game.Engine;

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 'use strict';
-/* A live case of Lock-In (index.html) against the real API: not part of
+/* A live case of Lock-In (lockin.html) against the real API: not part of
    run.cjs, because it needs a key and spends a few cents.
 
      ANTHROPIC_API_KEY=… node tests/probe-lockin.cjs [model] [seed]
@@ -51,7 +51,7 @@ if (!KEY) { console.error('Set ANTHROPIC_API_KEY.'); process.exit(2); }
   });
   const page = await ctx.newPage();
   page.on('pageerror', e => console.log('  !! page error:', e.message));
-  await page.goto('file://' + path.resolve(__dirname, '..', 'index.html'));
+  await page.goto('file://' + path.resolve(__dirname, '..', 'lockin.html'));
   await page.evaluate(([k, m, seed]) => { window.sessionStorage.setItem('novatria.apiKey', k); Game.App.speed = 0; Game.App.newCase({ seed, level: 2, mode: 'claude', model: m }); document.getElementById('dlg').close(); Game.state.left = 40; }, [KEY, MODEL, SEED]);
   const c = await page.evaluate(() => Game.state.c);
   const first = id => id.replace(/^(npc|lc)_/, '').replace(/^./, x => x.toUpperCase());

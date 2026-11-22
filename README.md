@@ -1,16 +1,21 @@
 # Novatria
 
-Three games live here, each one self-contained HTML file with no build step.
+Four games live here, each one self-contained HTML file with no build step.
 
-- **`index.html`: Lock-In** (the front page; the owner: "make lock-in the
-  front page"). A detective game at the Low Water: something has been done,
-  one of the people Loretta kept back did it, and you question them one at
-  a time, with Claude playing each of them, and name one. See
-  [Lock-In](#lock-in-indexhtml) below.
-- **`lastcall.html`: Last Call** (the front page before it). A hidden-role
-  table game of lying and deduction in the same bar with the same fifty
-  people, with Claude at every other seat. Lock-In's first screen links to
-  it. See [Last Call](#last-call-lastcallhtml) below.
+- **`index.html`: Bones** (the front page). Liar's dice at the Low Water:
+  a night of tables against the same fifty people, ones wild, with the
+  exact odds from your own dice on one side and each person's habits on
+  the other. Fully playable with no API key. See [Bones](#bones-indexhtml)
+  below.
+- **`lockin.html`: Lock-In** (the front page before Bones; the owner: "make
+  lock-in the front page"). A detective game at the Low Water: something
+  has been done, one of the people Loretta kept back did it, and you
+  question them one at a time, with Claude playing each of them, and name
+  one. See [Lock-In](#lock-in-lockinhtml) below.
+- **`lastcall.html`: Last Call** (the front page before Lock-In). A
+  hidden-role table game of lying and deduction in the same bar with the
+  same fifty people, with Claude at every other seat. Bones' and Lock-In's
+  first screens link to it. See [Last Call](#last-call-lastcallhtml) below.
 - **`town.html`: the one-town text RPG** (Lockett's Ferry). It is kept here,
   whole and tested, but hidden for now: nothing on the front page links to
   it. Open the file directly to play it. Everything from the next heading
@@ -1634,7 +1639,7 @@ first turn. See Creator Mode.
 
 Behind the scenes a save carries `state.meta.rulesVersion` (11 now; a save
 without it reads as 1). The steps that bring a game up to date are listed in
-`Upgrade.MIGRATIONS` in `index.html`.
+`Upgrade.MIGRATIONS` in `town.html`.
 
 The bookkeeper's reply format gained three fields with this change (people
 hurt, arrested, gone or dead; memories a turn settled; obligations met). Since
@@ -1731,7 +1736,7 @@ quoting the sentence each value came from, and invents nothing.
   budget. Drafts save themselves on the device; Save puts the pack in the
   Library.
 - **Two packs.** Low Water, built in (`packs/low-water.json`, inlined into
-  `index.html` by `node tests/pack-inline.cjs`), and a starport sample,
+  `town.html` by `node tests/pack-inline.cjs`), and a starport sample,
   `packs/starport.json`, a second, smaller story (credits after the number,
   a security chief for the law, a brig), shipped as a file to import so the
   page stays its size.
@@ -1764,7 +1769,7 @@ ends and goal suggestions). There are two ways to change it.
   with the editor (see Creator Mode and `docs/CREATOR_GUIDE.md`). Export it
   to keep it as a file. The built-in story itself never changes in the app.
 - **By hand, for the built-in story**: edit `packs/low-water.json`, never the
-  copy in `index.html`; `node tests/pack-inline.cjs` inlines it into the page
+  copy in `town.html`; `node tests/pack-inline.cjs` inlines it into the page
   (CI runs it with `--check`, which fails when the two differ), and `node
   tests/validate-pack.cjs` validates it (`node tests/validate-pack.cjs
   my-pack.json` validates any pack file).
@@ -2167,9 +2172,9 @@ are this game's own.
   to the end** (played by the script at once, with no calls). A table you
   leave is kept: **Continue** on the first screen picks it up.
 
-## Lock-In (`index.html`)
+## Lock-In (`lockin.html`)
 
-The front page. A detective game at the Low Water, built on Last Call's
+The front page until Bones. A detective game at the Low Water, built on Last Call's
 foundation (the owner, of Last Call: "how can I make it playable and entertaining, not just
 play it once, cool, then nah"; then "what about using that foundation to
 make a different game"; then "Okay let's do the interrogation"). Something
@@ -2330,6 +2335,211 @@ What it showed:
 `ANTHROPIC_API_KEY=… node tests/probe-lockin.cjs [model] [seed]` plays that
 live case again and says what held (not part of `run.cjs`).
 
+## Bones (`index.html`)
+
+The front page. Liar's dice at the Low Water, against the same fifty people
+as Last Call and Lock-In. Everyone shakes a cup of dice and looks only under
+their own. A bid says "at least this many of a face, in all the cups
+together"; **ones are wild** (a 1 counts as any face bid). On your turn you
+**raise** (more dice, or as many of a higher face, never more than the dice
+on the table), call **"Liar!"** (the cups lift; whoever was wrong loses a
+die), or call **"Spot on!"** (a bet that the bid is exactly right: hit it
+and you win a die back, never above your starting count, and three antes;
+miss and you lose a die). The last cup with dice in it takes the pot. The
+code owns every die, rule and dollar; there is nothing for Claude to decide.
+
+- **A night.** You start with **$100**. Four hours (9 PM, 10 PM, 11 PM,
+  Midnight) offer two tables each: **the near table** (cheaper, softer, three
+  seats) and **the big table** (twice the buy-in, tougher people, four seats
+  from 10 PM and usually a house rule). Buy-ins near/big are 20/40, 40/80,
+  80/160 and 160/320. Cups hold four dice at 9 and 10 PM and five from 11 PM.
+  On a first night "Sit down" deals you straight into the 9 PM near table and
+  the choice first appears at 10 PM.
+- **Money at a table.** The ante is 15% of the buy-in (doubled under Double
+  ante). When you are in a challenge (you called, or it was your bid) the
+  loser pays the winner one ante, and a win of yours pays one more ante for
+  each challenge you won in a row before it, up to three more. Challenges
+  between two of the others move no money. Winning the table pays the pot (seats times the buy-in); second
+  of four gets the buy-in back. The end of a table says what it did to your
+  cash, all told.
+- **House rules** (one, sometimes, from 10 PM): Straight (ones not wild, and
+  1 may be bid), Short cups (3 dice), Deep cups (6), Sudden (the loser of a
+  challenge loses 2 dice), Open hand (everyone's first die face up), Blind
+  opener (the opener bids before looking) and Double ante.
+- **The back room.** After every table Curtis Pruett, who puts odds on
+  everything, sells **tricks**: three offers, five slots, rerolls and
+  selling back at half what you paid. Twenty-four tricks in four kinds:
+  dice (Shaved Die, Loaded Six, Extra Bone, Rabbit's Foot, Slow Roll, Palm,
+  Hot Hand), information (Mirror Ring, Bar Mirror, Loretta's Nod, Reading
+  Glasses, Lyman's Ledger, Cornered), money (Sticky Fingers, Side Bet, House
+  Money, Snake Eyes, Friends Rates, A Tab) and manner (Poker Face, Honest
+  Face, Double or Nothing, Close Enough, Last Word). Leaving the back room
+  without the cheaper next buy-in (and no Tab) ends the night.
+- **Last Call.** Hold **$500** after Midnight and you sit at Loretta's own
+  table: Loretta Gaddis and Curtis Pruett, five dice each, no antes, your
+  whole stack as the buy-in. Win and it triples. Loretta counts the bones:
+  dice tricks do not work there; information, money and manner tricks do.
+- **Four endings.** **Beat the house** (won at Last Call), **cleaned out at
+  Last Call** (lost it all there), **walked home** (short of $500 after
+  Midnight, or chose to walk from Last Call with your cash) and **went
+  bust** (could not afford a table).
+
+**The hook** is two kinds of evidence that disagree:
+
+- **The Count** is the exact chance the bid in front of you is true, from
+  your own dice (and anything a trick or Open hand has shown you), the other
+  dice taken as fair. It is exact, not simulated, and it never reads faces.
+  Next to Spot on it shows the chance of exactly that many. The bid picker
+  starts on a sensible raise by the Count.
+- **Habits.** Every one of the fifty has **three habits** ("turns the key
+  fob over", "says your first name"), and **one of them is their tell**:
+  for some it shows when they bluff, for others when their bid is honest.
+  A habit shows half a second before the bid it goes with, at most one a
+  bid. The others are noise that shows on about one bid in ten.
+- **The Book** tallies every habit you see against what the cups showed:
+  seen how often, with how many bluffs and how many straight bids. It sits
+  on the felt under the Count when a habit shows ("seen 3 times: 2 bluffs,
+  1 straight"), on each person's page (tap a face, or **Book** in the top
+  bar), and after every reveal in **What they had**, which lists the bids
+  that round with BLUFF or STRAIGHT and the habit that came with each. The
+  Book is kept across nights, so a regular's tell gets easier to read the
+  more you play them. The people keep a Book too: they remember how often
+  you bluff, this table and a little of the nights before.
+
+The rest of the page:
+
+- **Tonight's tables** are the same for everybody, from the date. The first
+  finish of the day is kept, with a line to copy and send ("Bones ·
+  2026-11-21 · beat the house · $2,340 · ..."); replays do not count.
+- **Lyman's ledger**: nights played, best night, the house beaten, nights
+  running without going bust, and a rank by best night (Mark, Regular at
+  $200, Hustler at $600, Shark at $1,500, Legend of the Low Water at
+  $4,000).
+- **The first night** shows short coach tips, one at a time, each placed
+  so it does not cover what it is about (tips about the people sit at the
+  foot of the table, over the bid controls); "Skip the tips" turns them off
+  for good.
+- **A night in progress is saved** after every action and picked up with
+  "Continue the night", mid-round included.
+- Phone first (360 to 430 px), dark and parchment, sound and haptics after
+  the first tap, a Fast speed, and tapping the table hurries whatever is
+  playing. It runs from `file://` with the network shut.
+
+**Claude is optional.** Bones is fully playable with no API key, and nothing
+in the game waits on a call. With a key (the one the other games remember,
+or one typed on the home screen under "Pearl's column by Claude"), Claude
+writes two things and nothing else: **Pearl Gentry's column** for the county
+weekly at the end of the night, from the night's facts (the page shows
+Pearl's templated column at once and swaps in Claude's when it lands), and
+**table talk** after a reveal (up to two lines from the people at the
+table, in place of the scripted barks; a line that lands after the round
+has moved on is dropped). A refused key or a failed call leaves the scripted
+words. The model is picked on the home screen (Claude Haiku 5.5 by
+default); requests carry no sampling parameters and ask for JSON through
+`output_config.format`.
+
+**The engine** is the block between `/* ==BONES:ENGINE:BEGIN== */` and
+`/* ==BONES:ENGINE:END== */`, and its header comment is the full contract.
+It is pure: no DOM, no clock, no unseeded randomness, and it attaches only
+`Game.Engine`. The night state `S` is plain JSON (save it with
+`JSON.stringify`, resume with `JSON.parse`), and all dice come from a
+seeded generator kept in `S.rng`, so the same seed and the same actions give
+the same night byte for byte. You are always seat 0. In brief:
+
+- `Engine.newNight({ seed, daily, book, tricks })` returns `S`.
+- `Engine.act(S, action)` is the one way to change `S`. Actions by phase:
+  `sit` and `walk` (choosing a table), `bid`, `liar` (optionally `double`),
+  `spot`, `use` (Loretta's Nod, Slow Roll, Palm), `go` and `next` (at a
+  table), `buy`, `sell`, `reroll` and `leave` (the back room). It returns
+  the events to draw, in order (`hour`, `sit`, `pay`, `roll`, `bid`,
+  `call`, `reveal`, `lose`, `readout`, `bark`, `tableEnd`, `shop`,
+  `nightEnd` and others), and every batch ends with `{ t: 'wait', need }`,
+  what you must do next. An illegal action changes nothing and returns
+  `[{ t: 'error', msg }]`.
+- Reading, never mutating: `Engine.view(S)` (everything the player may
+  see, never another cup, a person's hidden numbers or which habit is the
+  tell), `Engine.options`, `Engine.legal`, `Engine.isLegalBid`,
+  `Engine.count` and `Engine.countExact` (the Count), `Engine.suggest`,
+  `Engine.shopView`, `Engine.summary`, `Engine.shareLine`, `Engine.column`,
+  `Engine.columnFacts`, `Engine.talkFacts`, `Engine.dailySeed`.
+- The Book: `Engine.bookApply(book, events)` returns a new book;
+  `Engine.bookPage(book, id, S)` is one person's page.
+- `Engine.playNight(seed, policy, opts)` plays a whole night with a policy
+  function; `Engine.basicPolicy` plays by the Count alone.
+- Data: `Engine.PEOPLE`, `Engine.TRICKS`, `Engine.HOUSE_RULES`,
+  `Engine.HOURS`, `Engine.VERSION` (`bones-1`). `Engine._sim` exposes the
+  hidden side for the tests and the simulator; the page never uses it.
+
+The UI is one closure after the engine. It only calls `Engine.act` and
+draws the events, and exposes `window.Game` (`Game.App`, `Game.UI`).
+
+**Storage**, all in this browser: `novatria.bones.night` (the night in
+progress, dropped when `Engine.VERSION` changes), `novatria.bones.book`,
+`novatria.bones.ledger` and `novatria.bones.settings`. The API key is
+`novatria.apiKey`, shared with the other games, and is written there only
+when "Remember on this device" is ticked (otherwise it is kept for the tab).
+With no theme of its own Bones follows the town game's (`novatria.settings`).
+
+**The tuned numbers**, as the engine uses them (tuned with
+`tests/bones-sim.cjs`):
+
+- Tables by hour: near 3 seats, big 3 seats at 9 PM and 4 after. The chance
+  of a house rule is 0 at 9 PM, then 25% at the near table and 75% at the
+  big one. The people's tiers by seat: 9 PM near 1, 1 and big 1, 2; 10 PM
+  near 1, 2 and big 1, 2, 2; 11 PM near 1, 2 and big 1, 2, 3 or 4;
+  Midnight near 2, 2 and big 1 or 2, 2, 3 or 4. Tiers across the fifty:
+  14, 16, 12, 7 and 1 (Loretta is the only tier 5; Curtis is tier 4).
+- A bid is a **bluff** when the bidder's own cup puts it under 40%. The same
+  line marks bluffs for the Book, the readout and the stats.
+- **Tells** by tier, as the chance the tell shows when it applies and when
+  it does not: tier 1 85% / 8%, tier 2 72% / 12%, tier 3 60% / 15%, tier 4
+  55% / 15%, tier 5 50% / 12%. Each other habit shows on 10% of bids.
+- Bid sizing: a person wants 80% belief in their own bid when cautious,
+  down to 50% for the brashest; opens a little under that level and no
+  higher than the table would believe at face value (75%); jumps to their
+  level 85% of the time when the bid is two or more below it.
+- The people remember you: your bids from earlier nights count a quarter
+  each against your bids at this table, up to forty of them.
+- `Engine.basicPolicy` (and the page's tests): Liar under 38%, Spot on over
+  50% exact, else the raise the Count puts at 60%.
+- Money: ante 15% of the buy-in; streak bonus up to +3 antes; Spot on pays
+  3 antes (6 with Side Bet); House Money +25% on a pot.
+- The back room: three offers drawn by rarity (common 6, uncommon 3, rare
+  1); prices common $15, uncommon $30, rare $55, times 1, 2, 3.5 and 6 after
+  the 9 PM, 10 PM, 11 PM and Midnight tables (rounded to $5; Friends Rates
+  25% off); a reroll costs $10, then $20, $30; a trick sells for half what
+  was paid; five slots.
+- Last Call needs $500 and pays three times the stack.
+
+A 200-night run of the simulator (`node tests/bones-sim.cjs 200 --quick`)
+gives, for a player who plays by the Count alone and buys nothing: 17.5%
+beat the house, 29% cleaned out, 22% walked home, 31.5% bust. A player who
+also reads the tells and buys tricks sensibly beats the house 45.5% of the
+time and goes bust 19%. Reading the tells is worth about ten points of
+table win rate at every hour.
+
+**Tests.** `node tests/bones-engine.test.cjs` (56 tests, Node only, no
+browser) loads the engine block from `index.html` into `vm` and checks the
+rules exactly: determinism and the JSON round trip, the view hiding what it
+must, every call and its money, every house rule, the Count against brute
+force, the bluff line and the Book, the tells by kind and strength, bot bids
+always legal over 2,000 tables, every trick, the back room, the four endings
+and a few hundred whole nights. `node tests/bones.test.cjs` (18 tests,
+Playwright) plays the page through its own buttons on a phone: the file
+alone from `file://` with the network shut, whole nights to each of the four
+endings with the page checked against the engine's view after every step, a
+reload mid-round, storage switched off, the back room, each trick's control,
+the Book, tonight's tables and the ledger, Claude against a stand-in API
+(the column, table talk, a refused key, no key and no call), the first-night
+coach and where its tips sit, and phone widths in both themes.
+`node tests/run.cjs bones` runs both. The simulator is not part of
+`run.cjs`: `node tests/bones-sim.cjs [nights] [--rates] [--quick]` (2,000
+nights by default; `--rates` prints every person's measured bluff rate,
+`--quick` skips the per-trick ablation) plays seeded nights with proxy
+players (by the Count alone, and with the tells known, each with and
+without buying tricks) and prints table win rates by hour and how whole
+nights end.
+
 ## Running the tests
 
 ```
@@ -2340,6 +2550,8 @@ PLAYTEST_TRANSCRIPT=1 node tests/playtest.test.cjs     # print the 30-turn playt
 UI_SHOTS=/some/folder node tests/ui-fixes.test.cjs     # keep the screenshots the UI suite takes there
 ANTHROPIC_API_KEY=… node tests/probe-grammar.cjs       # the live grammar probe (needs a key; not part of run.cjs)
 ANTHROPIC_API_KEY=… node tests/probe-lockin.cjs        # a live case of Lock-In (needs a key; not part of run.cjs)
+node tests/run.cjs bones                               # Bones: the engine suite and the page suite
+node tests/bones-sim.cjs 2000 --quick                  # the Bones balance simulator (not part of run.cjs)
 ```
 
 The tests drive the game in headless Chromium with Playwright, in mock mode,
@@ -2370,7 +2582,10 @@ fails it with a message saying so; the CI checkout fetches it all).
 - `wave22-appointments`, `wave25-arrivals` and `wave26-objectives` for
   meetings kept, narrated arrivals and the Objectives tab (main's own wave
   26, built alongside the relationship branch's);
-- `lockin` for Lock-In (`index.html`): the page alone with the network
+- `bones-engine` and `bones` for Bones (`index.html`): the rules engine in
+  Node (`vm`, no browser), and the page played through its buttons on a
+  phone. See Bones above for what each covers.
+- `lockin` for Lock-In (`lockin.html`): the page alone with the network
   shut, three hundred cases with one guilty person who can never be put in
   the clear and innocents who always can, the shortest way through replayed
   through the buttons for three stars, a notes-only player closing every

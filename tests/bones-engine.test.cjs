@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 /* Bones engine tests: Node only, no browser. Extracts the engine block from
-   bones.html by its markers, runs it in vm, and checks the rules exactly.
+   index.html by its markers, runs it in vm, and checks the rules exactly.
    Most rule tests rig a table: S is plain JSON, so a test can set the cups and
    the bids in front of you, then act and read the events.
    Usage: node tests/bones-engine.test.cjs   (or node tests/run.cjs bones-engine) */
@@ -10,7 +10,7 @@ const path = require('path');
 const vm = require('vm');
 const assert = require('assert');
 
-const HTML = fs.readFileSync(path.resolve(__dirname, '..', 'bones.html'), 'utf8');
+const HTML = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
 const BEGIN = '/* ==BONES:ENGINE:BEGIN== */', END = '/* ==BONES:ENGINE:END== */';
 const BLOCK = HTML.slice(HTML.indexOf(BEGIN), HTML.indexOf(END) + END.length);
 function loadEngine() { const ctx = vm.createContext({}); vm.runInContext(BLOCK, ctx, { filename: 'bones-engine.js' }); return ctx.Game.Engine; }
@@ -78,11 +78,11 @@ test('the engine block is marked, strict, and free of browser APIs and unseeded 
   const bad = /window|document|localStorage|Math\.random|Date\.now|innerHTML|fetch/.exec(BLOCK);
   assert.strictEqual(bad, null, 'found ' + (bad && bad[0]));
   assert.ok(BLOCK.includes("'use strict'"));
-  // One plain script, and the page's own CSP copied from index.html.
+  // One plain script, and the page's own CSP copied from lockin.html.
   const scripts = HTML.match(/<script[^>]*>/g);
   deq(scripts, ['<script>']);
-  const csp = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8').split('\n')[5];
-  assert.ok(HTML.includes(csp), 'same CSP meta as index.html');
+  const csp = fs.readFileSync(path.resolve(__dirname, '..', 'lockin.html'), 'utf8').split('\n')[5];
+  assert.ok(HTML.includes(csp), 'same CSP meta as lockin.html');
   assert.ok(/<html lang="en" data-theme="dark">/.test(HTML) && /<title>Bones<\/title>/.test(HTML));
 });
 
@@ -96,7 +96,7 @@ test('the engine attaches only Game.Engine', () => {
 
 test('fifty people with exact cast fields, 3 habits, valid params, tier spread 14/16/12/7/1', () => {
   assert.strictEqual(E.PEOPLE.length, 50);
-  const idx = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8');
+  const idx = fs.readFileSync(path.resolve(__dirname, '..', 'lockin.html'), 'utf8');
   const cast = JSON.parse(idx.match(/<script type="application\/json" id="cast">([\s\S]*?)<\/script>/)[1]);
   const extra = vm.runInNewContext(idx.match(/const EXTRA_CAST = (\[[\s\S]*?\n  \]);/)[1]);
   const src = cast.concat(extra);

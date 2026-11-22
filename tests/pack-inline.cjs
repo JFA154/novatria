@@ -2,7 +2,7 @@
 'use strict';
 /* Wave 37, Creator Mode: copies packs/low-water.json, the source of truth
    for the built-in story (the owner: "convert Low Water to a JSON so it can
-   be used as a story pack. No hard coded story allowed."), into index.html
+   be used as a story pack. No hard coded story allowed."), into town.html
    as the inert <script type="application/json" id="pack-low-water"> element
    between the BEGIN and END PACK markers, so the game still runs from
    file:// with no build (plan decision A). The file is first re-formatted

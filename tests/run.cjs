@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 /* Runs tests/validate-pack.cjs (the page's own pack validator on the
-   built-in pack inlined in index.html, profile strict; wave 37, Creator
+   built-in pack inlined in town.html, profile strict; wave 37, Creator
    Mode) and tests/guide-doc.cjs --check (the guide's field list), then
    every tests/*.test.cjs file in turn, prints each test's
    PASS/FAIL line, and exits 1 if anything failed.
@@ -25,8 +25,8 @@ if ('validate-pack.cjs'.includes(filter) || !filter) {
   const r = spawnSync(process.execPath, [path.join(dir, 'validate-pack.cjs')], { cwd: root, encoding: 'utf8' });
   process.stdout.write(r.stdout || '');
   process.stderr.write(r.stderr || '');
-  if (r.status === 0) { passed += 1; console.log('  PASS  the built-in pack in index.html validates'); }
-  else { failed += 1; badFiles.push('validate-pack.cjs'); console.log('  FAIL  the built-in pack in index.html does not validate'); }
+  if (r.status === 0) { passed += 1; console.log('  PASS  the built-in pack in town.html validates'); }
+  else { failed += 1; badFiles.push('validate-pack.cjs'); console.log('  FAIL  the built-in pack in town.html does not validate'); }
 }
 /* Wave 37, Creator Mode: docs/CREATOR_GUIDE.md's field list is generated
    from Pack.SCHEMA (tests/guide-doc.cjs), as docs/CAST.md is from the pack

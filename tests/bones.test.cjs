@@ -1,5 +1,5 @@
 'use strict';
-/* Bones (bones.html): the whole game in the browser. The rules engine has
+/* Bones (index.html, the front page): the whole game in the browser. The rules engine has
    its own Node suite (tests/bones-engine.test.cjs); this one covers the page
    that plays it: the file alone from file:// with the network shut; no
    markup from strings and one fetch; the engine block the page runs is the
@@ -9,7 +9,8 @@
    each trick's little control and the passive ones; the Book in the moment,
    on the seat sheet and across a reload; tonight's tables, the share line
    and the ledger; Claude against a stand-in API (Pearl's column and table
-   talk, a refused key and a failure, no key no call); the first-night coach;
+   talk, a refused key and a failure, no key no call); the first-night coach,
+   and its tips about the people kept off their seats at 390x780 and 360x640;
    phone widths in both themes, and nothing clipped at 390x640.
    Run with: node tests/run.cjs bones.test   (or node tests/bones.test.cjs) */
 const fs = require('fs');
@@ -18,7 +19,7 @@ const vm = require('vm');
 const assert = require('assert/strict');
 const { suite, overflowReport, PHONE } = require('./helpers.cjs');
 
-const FILE = path.resolve(__dirname, '..', 'bones.html');
+const FILE = path.resolve(__dirname, '..', 'index.html');
 const URL = 'file://' + FILE;
 const HTML = fs.readFileSync(FILE, 'utf8');
 const s = suite('bones');
@@ -140,8 +141,8 @@ s.test('one self-contained file: no markup from strings, one fetch (the messages
   assert.doesNotMatch(HTML, /\b(XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts|new Worker)\b|\bimport\s*\(|^\s*(import|export)\s/m);
   assert.doesNotMatch(HTML, /temperature|top_p|top_k|tool_choice|budget_tokens/);
   assert.doesNotMatch(HTML.slice(HTML.indexOf('/* ==BONES:ENGINE:END== */')), /_sim\b/, 'the UI never reads the hidden side');
-  const csp = fs.readFileSync(path.resolve(__dirname, '..', 'index.html'), 'utf8').split('\n')[5];
-  assert.ok(HTML.includes(csp), 'the same CSP meta as index.html');
+  const csp = fs.readFileSync(path.resolve(__dirname, '..', 'lockin.html'), 'utf8').split('\n')[5];
+  assert.ok(HTML.includes(csp), 'the same CSP meta as lockin.html');
   assert.match(HTML, /'use strict'/);
   assert.match(HTML, /'anthropic-dangerous-direct-browser-access': 'true'/);
 });
@@ -526,6 +527,32 @@ s.test('the first night: Sit down deals you straight in at 9 PM; short coach tip
   await p2.click('.tcard button.sit[data-i="0"]');
   await p2.evaluate(() => Game.App.idle());
   assert.equal(await p2.isVisible('#coach'), false, 'once off, off for good');
+});
+
+s.test('the coach: a tip about the people at the top sits at the foot, clear of their faces, cups and habit lines (390x780, 360x640)', async h => {
+  for (const [width, height] of [[390, 780], [360, 640]]) {
+    const page = await open(h, { viewport: { width, height } });
+    // Only the tips about the seats and the bid, so the habit tip comes up on the first table.
+    await page.evaluate(() => { Game.App.speed = 0; Game.UI.Settings.tipsSeen = ['dice', 'count', 'turn', 'spot']; Game.App.start({ seed: 'coach-place', tips: true, first: true }); });
+    const until = () => {
+      const c = document.querySelector('#coach');
+      if (c && !c.hidden) {
+        const r = n => { const b = n.getBoundingClientRect(); return { t: b.top, b: b.bottom, l: b.left, r: b.right }; };
+        const seats = r(document.querySelector('#seats')), box = r(c);
+        (window.__placed = window.__placed || []).push({ tip: c.dataset.tip, at: c.dataset.at, box, seats, overlap: box.t < seats.b && seats.t < box.b && box.l < seats.r && seats.l < box.r });
+        document.querySelector('#btn-tip-ok').click();
+      }
+      return (window.__placed || []).some(p => p.tip === 'habit') || Game.App.state.phase !== 'table';
+    };
+    await playOut(page, { until });
+    const placed = await page.evaluate(() => window.__placed || []);
+    const habit = placed.find(p => p.tip === 'habit');
+    assert.ok(habit, `the habit tip came up at ${width}x${height}: ` + JSON.stringify(placed.map(p => p.tip)));
+    assert.equal(habit.at, 'bottom');
+    assert.equal(habit.overlap, false, `the habit tip covers the seats at ${width}x${height}: ` + JSON.stringify(habit));
+    assert.ok(habit.box.b <= height + 0.5 && habit.box.t > habit.seats.b, JSON.stringify(habit));
+    placed.filter(p => ['habit', 'booktally', 'bluffhabit', 'bid'].includes(p.tip)).forEach(p => assert.equal(p.overlap, false, `${p.tip} at ${width}x${height}: ` + JSON.stringify(p)));
+  }
 });
 
 s.test('the end of a table says what it did to your cash; the top bar holds a big stack at 360 px', async h => {

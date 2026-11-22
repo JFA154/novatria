@@ -1,6 +1,6 @@
 'use strict';
-/* Lock-In (index.html, the front page: the owner, "make lock-in the front
-   page"): the detective game at the Low Water (the owner,
+/* Lock-In (lockin.html; the front page from the owner's "make lock-in the
+   front page" until Bones was): the detective game at the Low Water (the owner,
    of Last Call: "how can I make it playable and entertaining, not just
    play it once, cool, then nah"; then "what about using that foundation to
    make a different game"; then "Okay let's do the interrogation"). The
@@ -30,7 +30,7 @@ const path = require('path');
 const assert = require('assert/strict');
 const { suite, overflowReport, PHONE } = require('./helpers.cjs');
 
-const FILE = path.resolve(__dirname, '..', 'index.html');
+const FILE = path.resolve(__dirname, '..', 'lockin.html');
 const URL = 'file://' + FILE;
 const s = suite('lockin');
 const open = (h, opts) => h.open(Object.assign({ url: URL, consent: false, viewport: PHONE, contextOptions: { reducedMotion: 'reduce' } }, opts || {}));

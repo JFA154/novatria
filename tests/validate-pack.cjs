@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Validates a Story Pack with the page's own validator (wave 37, Creator
 // Mode; plan decision B, "one validator, run in the page"): it opens
-// index.html in the installed Playwright's Chromium from file://, with every
+// town.html in the installed Playwright's Chromium from file://, with every
 // other request aborted, and evaluates Game.Pack.validate(pack, { profile }).
 // It runs the page rather than reading the content in a vm because the
 // editor checks a pack live with the same rules (Pack.SCHEMA's shape pass
