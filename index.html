@@ -116,6 +116,22 @@ h1, h2, h3 { font-family: var(--read-font); }
 .home .cta .btn.big { width: 100%; }
 .home .cta-sub { margin: 2px 0 0; text-align: center; color: var(--muted); font-size: 14px; }
 .home .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* After the house: tonight's room and how you walk in (one tap each), the feats in the ledger */
+.tonight { display: grid; gap: 10px; margin: 0 0 4px; }
+.pick { display: grid; gap: 5px; }
+.pick-l { font: 700 12px/1.2 var(--ui-font); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.pickseg { flex-wrap: nowrap; gap: 4px; }
+.pickseg .btn { flex: 1 1 0; min-width: 0; min-height: 44px; padding: 0 2px; font-size: clamp(13px, 4vw, 15px); letter-spacing: 0; white-space: nowrap; }
+.pick-d { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.pick-d b { color: var(--text); font-weight: 600; }
+.feats h3 { margin: 12px 0 6px; font: 700 12px/1.2 var(--ui-font); letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
+.feats ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.feats li { display: grid; gap: 3px; font-size: 14px; }
+.feats .f-name { font-weight: 600; }
+.feats li[data-done] .f-name { color: var(--good); }
+.feats .f-bar { display: block; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.feats .f-bar i { display: block; height: 100%; background: var(--accent); }
+.feats .f-n { color: var(--muted); font-size: 13px; }
 .home .pair .btn.big { font-size: 18px; padding: 0 10px; }
 .card { margin: 14px 0; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
 .card > h2, details.card > summary { margin: 0 0 8px; font: 700 13px/1.3 var(--ui-font); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
@@ -167,6 +183,11 @@ details.card[open] > summary { margin-bottom: 10px; }
 .rule { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); font-size: 14px; }
 .rule b { font: 700 13px/1.2 var(--ui-font); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
 .tcard .why { color: var(--danger); font-size: 14px; }
+.tcard .grudge { margin: 0; padding: 8px 10px; border-radius: 10px; border-left: 3px solid var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--surface-2)); font-size: 14px; line-height: 1.4; }
+.tcard .grudge b { color: var(--text); }
+.tcard .person[data-grudge] .nm { color: var(--danger); }
+.nighttag { margin: 0 0 6px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.nighttag b { color: var(--accent); font-weight: 600; }
 .tcard .line { font: italic 18px/1.35 var(--read-font); }
 /* The beat before Last Call: who sits down, what is at stake, what your Book holds on each of them. */
 .lcintro { display: grid; gap: 8px; margin-top: 8px; border-color: var(--accent); background: linear-gradient(160deg, var(--surface-2), var(--surface)); }
@@ -202,6 +223,7 @@ details.card[open] > summary { margin-bottom: 10px; }
 .seat-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 15px/1.15 var(--read-font); }
 .seat[data-turn] .seat-name { color: var(--accent); }
 .seat-tag { position: absolute; top: 4px; right: 6px; font: 700 9px/1 var(--ui-font); letter-spacing: .08em; color: var(--muted); }
+.seat[data-grudge]:not([data-out]) .seat-tag { color: var(--danger); }
 .seat-ledger { max-width: 100%; font: 600 10px/1.15 var(--ui-font); color: var(--accent); letter-spacing: .01em; }
 .seat[data-out] { opacity: .38; }
 .seat[data-out] .seat-face { filter: grayscale(.8); }
@@ -558,6 +580,9 @@ details.card[open] > summary { margin-bottom: 10px; }
 .ns-row[data-lost] .res b { color: var(--danger); }
 .gains { margin: 0; padding: 0 0 0 18px; }
 .gains li { margin: 0 0 4px; }
+.grudgeline { margin: 4px 0 8px; padding: 8px 10px; border-radius: 10px; border-left: 3px solid var(--danger); background: color-mix(in srgb, var(--danger) 10%, var(--surface-2)); font-size: 14px; line-height: 1.4; }
+.grudgeline[data-settled="won"] { border-left-color: var(--good); background: color-mix(in srgb, var(--good) 10%, var(--surface-2)); }
+.pp-grudge { margin: 6px 0; color: var(--danger); font-size: 14px; font-weight: 600; }
 .share { margin: 10px 0 0; padding: 10px 12px; border: 1px dashed var(--field); border-radius: 10px; font: 15px/1.4 var(--ui-font); overflow-wrap: anywhere; }
 .endbtns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
 
@@ -681,11 +706,16 @@ dialog li { margin: 0 0 6px; }
    q > q0, or q == q0 and f > f0.
 
    ENTRY POINTS
-     Engine.newNight({ seed, daily, book, tricks }) -> S
+     Engine.newNight({ seed, daily, book, tricks, room, start, grudges }) -> S
          seed: any string/number (default 'bones'); daily: 'YYYY-MM-DD' (the
          seed becomes Engine.dailySeed(daily)); book: the persisted Book (so
          bots remember how you bluff, and Reading Glasses can count habits
-         already seen); tricks: ids held from the start (tests / sims only).
+         already seen); tricks: ids held from the start (tests / sims only);
+         room: an After Hours rung 1..5 (0/none: the house night); start: a
+         way to walk in (Engine.STARTS id; none: the usual $100); grudges:
+         true for a night that carries grudges (see AFTER THE HOUSE). A daily
+         takes none of the three; a night with none of them is exactly the
+         night it always was (tests/fixtures/bones-default-nights.json).
      Engine.act(S, action) -> events        the one way to change S.
          Legal actions by phase (S.phase / view.phase):
            'choose': {t:'sit', i}            sit at card i of Engine.options(S)
@@ -726,6 +756,8 @@ dialog li { margin: 0 0 6px; }
    READING (never mutate S)
      Engine.view(S) -> {
        v, phase, hour (0..4), hourName, cash, streak, seed, daily, ending,
+       room (0..5), start ('usual' or a STARTS id), door (Loretta's door: $500,
+       more After Hours or on Curtis's tab),
        tricks: [{ id, name, text, rarity, kind, usable, asleep, goesWith }],
                usable = can be used right now; asleep = a dice trick at Last
                Call (Loretta counts the bones: dice tricks do not work there)
@@ -756,6 +788,7 @@ dialog li { margin: 0 0 6px; }
          history: [{ who, id, q, f, habit:{i, text, line, underline, sit?}|null,
                      sit? }]  (sit: the house's situation at Last Call, see THE HOUSE),
          gear: null | { who, id, text }  (Last Call: Loretta has gone quiet),
+         grudge: null | { seat, id, stake, line }  (a grudge-holder at this table),
          ones: number|null (Bar Mirror), nod: {q, f, truth}|null,
          count: Count of the bid in front of you (0..1) | null,
          cups: [[faces] per seat] | null (only in the practice hand's open round),
@@ -768,7 +801,9 @@ dialog li { margin: 0 0 6px; }
        and Lyman's Ledger's phrase are the only exceptions, granted by tricks).
      Engine.options(S) -> [{ i, kind, hour, hourName, seats, dice, buyIn, pot,
          ante, rule:{id,name,text}|null, people:[public person], affordable,
-         viaTab }]   (one card at Last Call; [] outside phase 'choose')
+         viaTab, grudge?:{ id, name, first, stake, bonus, line }, closed? }]
+         (one card at Last Call; [] outside phase 'choose'; pot includes a
+         grudge-holder's stake)
      Engine.legal(S) -> { need, mustBid, canBid, canLiar, canSpot, canDouble,
          minBid:{q,f}|null, maxQ, maxFor:{face: largest legal q}, faces,
          uses:[ids], canGo, canNext, canSide,
@@ -807,6 +842,30 @@ dialog li { margin: 0 0 6px; }
          before }   the Book on a habit shown with a bid; for the house, the tally
          in the bid's situation (when: 'when he raises').
      Engine.SITUATIONS -> [{ id, name, when }]
+
+   AFTER THE HOUSE (Engine ROOMS, STARTS, GRUDGE_*; tuned by tests/bones-sim.cjs)
+     After Hours: S.room = k plays the first k changes of Engine.ROOMS (each
+     { rung, id, name, line }); the house night (room 0) has none. Ways to walk
+     in: Engine.STARTS ({ id, name, short, cash, line }): pocket (a trick from
+     the seed, S.pocket, held not bought), marked (everyone plays you as a
+     grudge-holder does and reads you, with your whole Book of shapes), blind
+     (nobody remembers anybody: no memory of you, no habits seen before;
+     Last Call pays one stack more), tab (more cash, a dearer door).
+     Engine.door(S) is Loretta's door tonight. Grudges, on a night that carries
+     them (S.grudges): at a table's end (not Last Call) the regulars you knocked
+     out, or everyone at a table you won, are marked (tableEnd.grudge.marks); a
+     grudge-holder brought to the table (T.grudge, the sit event's grudge) is
+     settled ('won': you finished ahead, + bonus) or over ('lost'):
+     tableEnd.grudge { marks, met?, settled?, bonus? }, pay why 'grudge'. The
+     holder adds a stake to the pot and plays you, and only you, harder (puts
+     your bluffing higher, calls your bids sooner); what they see is what anyone
+     sees. newNight places up to GRUDGE_MAX from the Book (one a table, at the
+     hour and kind they lost, or the nearest free table). The Book keeps
+     book.people[id].grudge { night, hour, kind } (waiting; GRUDGE_KEEP at most,
+     faded after GRUDGE_FADE nights unmet) and .feud { met, won, lost, took,
+     gave }; Engine.grudges(book) -> { waiting:[{ id, name, first, night, hour,
+     kind, line }], settled, met }; bookPage(...).grudge -> { waiting, line, ... }
+     | null. summary(S) adds room, start, pocket, door, grudges, marks.
 
    THE PRACTICE HAND ("Learn it in a minute")
      Engine.lesson() -> { S, events }   a fixed little table for the lesson:
@@ -881,10 +940,10 @@ dialog li { margin: 0 0 6px; }
    EVENTS (in order; each carries what it needs to be drawn)
      {t:'hour', hour, hourName, options}              a new hour; cards to pick
      {t:'sit', hour, kind, night, rule, buyIn, ante, pot, onTab,
-               seats:[{seat, id, name, dice}]}
+               seats:[{seat, id, name, dice}], grudge?:{seat, id, stake, line}}
      {t:'pay', amount (signed), why, cash}            every change of cash; why =
          'buyin'|'won'|'lost'|'streak'|'spot'|'sticky'|'snake'|'pot'|'refund'|
-         'buy'|'sell'|'reroll'|'side'
+         'buy'|'sell'|'reroll'|'side'|'grudge'
      {t:'roll', round, opener, openerId, mine:[faces]|null, counts:[per seat],
                open:[{seat, face}], blind, cups?}     a round starts (cups: every
                seat's dice, only in the practice hand's open round)
@@ -915,7 +974,7 @@ dialog li { margin: 0 0 6px; }
                this round (see THE ROOM READS YOU BACK)
      {t:'bark', who, id, name, text}                  a scripted one-liner
      {t:'tableEnd', hour, kind, place, won, payout, refund, net, rounds,
-               people, cash}   net = everything this table did to your cash
+               people, cash, grudge?}   net = everything this table did to your cash
                (buy-in, antes won and lost, bonuses, pot, refund), signed
      {t:'shop', hour, offers:[...shopView offers], rerollPrice}
      {t:'buy', id, price} · {t:'sell', id, price} · {t:'reroll', price, offers}
@@ -1170,6 +1229,45 @@ dialog li { margin: 0 0 6px; }
     { name: 'Last Call', last: { seats: 3, people: [HOST, SHARK], min: 500 } }
   ];
   const START_CASH = 100, SLOTS = 5;
+  // ----- after the house: After Hours, the ways to walk in, grudges (tuned by tests/bones-sim.cjs) -----
+  // After Hours is a ladder of five rungs above the house night (S.room 1..5; 0 is the house night). Each rung adds
+  // one change and keeps every earlier one: ROOMS[k - 1] is the change rung k adds. None of it touches the house night.
+  const SHOP_X = 1.5, DOOR_HIGH = 2000;
+  const ROOMS = [
+    { id: 'shop', name: 'Curtis gets choosy', line: 'Curtis shows two tricks, not three, and charges half again.' },
+    { id: 'rules', name: 'Hard rules', line: 'Every table plays a hard house rule, 9 PM included: Sudden, Short cups or Blind opener.' },
+    { id: 'sharp', name: 'The sharp ones stay late', line: 'Everyone at every table plays a tier sharper.' },
+    { id: 'midnight', name: 'Big money only', line: 'At Midnight the near table is closed: the big table or nothing.' },
+    { id: 'door', name: 'A dearer door', line: `Loretta wants ${money(DOOR_HIGH)} to sit.` }
+  ].map(r => Object.freeze(r));
+  const RUNGS = ROOMS.length;
+  // The hard rules: the ones that make a table shorter and luckier (a strong player's edge needs rounds to show).
+  const HARD_RULES = ['sudden', 'short', 'blind'];
+  const roomOf = S => (S && S.room) | 0;
+  const inRoom = (S, id) => ROOMS.findIndex(r => r.id === id) < roomOf(S);
+  // The ways to walk in (S.start; none is the usual). Each is a trade: cash, and what comes with it.
+  //   pocket: less money and a trick in your pocket (the seed's pick among POCKET);
+  //   marked: more money, but the whole room has your number (everyone plays you as a grudge does, and reads you);
+  //   blind:  a clean Book for the night (nobody remembers anybody), and Last Call pays BLIND_X times;
+  //   tab:    more money on Curtis's tab, paid back at Loretta's door (it costs TAB_DOOR more).
+  const STARTS = [
+    { id: 'usual', name: 'The usual', short: 'Usual', cash: 100, line: '$100 and nothing else.' },
+    { id: 'pocket', name: 'A trick in your pocket', short: 'Pocket', cash: 60, line: '$60, and Curtis slips you a trick before the first table.' },
+    { id: 'marked', name: 'Marked', short: 'Marked', cash: 160, line: '$160, but the whole room has your number: they read how you bid and call you sooner.' },
+    { id: 'blind', name: 'Blind', short: 'Blind', cash: 100, line: 'A clean Book tonight: nobody remembers anybody. Beat the house blind and it pays four times.' },
+    { id: 'tab', name: 'On Curtis’s tab', short: 'Tab', cash: 200, line: '$200 on Curtis’s tab, paid back at the door: Loretta wants $500 more to sit.' }
+  ].map(s => Object.freeze(s));
+  const START = {}; STARTS.forEach(s => { START[s.id] = s; });
+  const POCKET = ['loaded', 'rabbit', 'hothand', 'ledger', 'cornered', 'sticky', 'snake', 'close', 'mirror', 'nod', 'glasses', 'slowroll', 'palm', 'sidebet', 'housemoney', 'pokerface', 'honest', 'extrabone'];
+  const BLIND_X = 4, TAB_DOOR = 500;
+  const startOf = S => (S && S.start) || 'usual';
+  // Grudges: a regular you knocked out, or whose table you won, may come back for their money on a later night (only
+  // on nights that carry grudges: newNight({ grudges: true })). At most GRUDGE_MAX a night and one a table; one not met
+  // within GRUDGE_FADE nights fades; the Book keeps at most GRUDGE_KEEP waiting. The holder brings GRUDGE_STAKE of the
+  // buy-in more to the pot, and plays you (only you) harder: they put your bluffing GRUDGE_EST higher and their call
+  // line on your bids GRUDGE_NERVE higher. Finish ahead of them and it is settled, with GRUDGE_BONUS of the buy-in on
+  // top; finish behind them and it is over too.
+  const GRUDGE_MAX = 2, GRUDGE_FADE = 5, GRUDGE_KEEP = 6, GRUDGE_STAKE = 0.5, GRUDGE_BONUS = 0.25, GRUDGE_EST = 0.3, GRUDGE_NERVE = 0.1;
   const MIRROR_MIN = 3; // Mirror Ring catches a cup only while it holds this many dice or more
   const TRICKS = [
     ['shaved', 'Shaved Die', 'rare', 'dice', 'One of your dice always lands on 1. It is wild only for your own bids.'],
@@ -1351,11 +1449,14 @@ dialog li { margin: 0 0 6px; }
   function dailySeed(date) { return 'daily:' + String(date); }
 
   // Every hour's two tables are fixed by the seed alone, so a daily is the same for all.
-  function makeOffers(seed) {
+  // After Hours (room): a tier sharper at every seat (never past 4: Loretta is the only 5), a house rule at every table.
+  function makeOffers(seed, room) {
     const R = { rng: hash(seed, 7) };
+    const sharp = inRoom({ room }, 'sharp'), rules = inRoom({ room }, 'rules');
     const pool = shuffle(R, PEOPLE.map(p => p.id).filter(id => id !== HOST && id !== SHARK));
     const take = want => {
-      const tier = Array.isArray(want) ? want[ri(R, want.length)] : want;
+      let tier = Array.isArray(want) ? want[ri(R, want.length)] : want;
+      if (sharp) tier = Math.min(4, tier + 1);
       for (let d = 0; d < 5; d++) for (const t of [tier - d, tier + d]) {
         const k = pool.findIndex(id => P[id].tier === t);
         if (k >= 0) return pool.splice(k, 1)[0];
@@ -1365,40 +1466,101 @@ dialog li { margin: 0 0 6px; }
     return HOURS.slice(0, 4).map((H, h) => ['easy', 'rich'].map(kind => {
       const c = H[kind];
       const people = c.tiers.map(take);
-      const rule = rnd(R) < c.rule ? HOUSE_RULES[ri(R, HOUSE_RULES.length)].id : null;
+      const rule = rules ? (rnd(R), HARD_RULES[ri(R, HARD_RULES.length)]) : rnd(R) < c.rule ? HOUSE_RULES[ri(R, HOUSE_RULES.length)].id : null;
       return { kind, hour: h, seats: c.seats, buyIn: c.buyIn, rule, people };
     }));
   }
 
+  /* opts.room: an After Hours rung (1..RUNGS; 0 or none, the house night); opts.start: how you walk in (a STARTS id;
+     none, the usual); opts.grudges: true on a night that carries grudges (they arise, and the Book's come back).
+     Tonight's tables (a daily) are the same for everyone, so a daily takes none of the three. A night with none of
+     them is exactly the night it always was. */
   function newNight(opts) {
     opts = opts || {};
     const seed = opts.daily ? dailySeed(opts.daily) : String(opts.seed == null ? 'bones' : opts.seed);
     const book = opts.book || null;
+    const room = opts.daily ? 0 : clamp(opts.room | 0, 0, RUNGS);
+    const start = !opts.daily && START[opts.start] && opts.start !== 'usual' ? opts.start : null;
+    const cash = start ? START[start].cash : START_CASH, blind = start === 'blind';
     const S = {
       v: VERSION, seed, daily: opts.daily || null, night: seed + '#' + ((book && book.nights) || 0),
-      phase: 'choose', hour: 0, cash: START_CASH, streak: 0, tricks: [], rng: hash(seed, 1),
-      offers: makeOffers(seed), table: null, shop: null, ending: null,
+      phase: 'choose', hour: 0, cash, streak: 0, tricks: [], rng: hash(seed, 1),
+      offers: makeOffers(seed, room), table: null, shop: null, ending: null,
       mem: { bids: 0, bluffs: 0 }, prior: {}, seenH: {}, log: [],
-      stats: { won: 0, lost: 0, caught: 0, caughtBy: 0, spots: 0, spotMiss: 0, bluffs: 0, bids: 0, antes: 0, bought: [], maxCash: START_CASH, bestStreak: 0, rounds: 0 }
+      stats: { won: 0, lost: 0, caught: 0, caughtBy: 0, spots: 0, spotMiss: 0, bluffs: 0, bids: 0, antes: 0, bought: [], maxCash: cash, bestStreak: 0, rounds: 0 }
     };
-    if (book && book.me) S.mem = { bids: book.me.bids | 0, bluffs: book.me.bluffs | 0 };
+    if (room) S.room = room;
+    if (start) S.start = start;
+    // Blind: a clean Book for the night. Nobody at the tables remembers you, and your Book shows nothing (the UI's).
+    if (book && book.me && !blind) S.mem = { bids: book.me.bids | 0, bluffs: book.me.bluffs | 0 };
     // The room's notes on how you bid: tonight's, and what it remembers from the Book (a night saved before this has none).
-    S.you = { tonight: {}, prior: priorOf(book && book.me && book.me.shapes), fired: [] };
-    if (book && book.people) for (const id in book.people) if (P[id]) S.prior[id] = (book.people[id].habits || [0, 0, 0].map(() => ({ n: 0 }))).map(h => h.n | 0);
+    // Marked: it remembers all of it, unfaded.
+    S.you = { tonight: {}, prior: blind ? {} : start === 'marked' ? priorOf(book && book.me && book.me.shapes, true) : priorOf(book && book.me && book.me.shapes), fired: [] };
+    if (book && book.people && !blind) for (const id in book.people) if (P[id]) S.prior[id] = (book.people[id].habits || [0, 0, 0].map(() => ({ n: 0 }))).map(h => h.n | 0);
     for (const id of opts.tricks || []) if (TRICK[id] && !holds(S, id) && S.tricks.length < SLOTS) S.tricks.push({ id, paid: PRICE[TRICK[id].rarity] });
+    // A trick in your pocket: the seed's pick, not bought (it counts as held, never as bought).
+    if (start === 'pocket') {
+      const can = POCKET.filter(id => !holds(S, id));
+      if (can.length && S.tricks.length < SLOTS) { const id = can[hash(seed + '|pocket', 13) % can.length]; S.tricks.push({ id, paid: PRICE[TRICK[id].rarity] }); S.pocket = id; }
+    }
+    if (opts.grudges && !opts.daily) { S.grudges = true; placeGrudges(S, book); }
     return S;
   }
+  // ----- grudges -----
+  // The grudges a Book holds that have not faded: [{ id, night, hour, kind }], the newest first.
+  function grudgesWaiting(book) {
+    const nights = (book && book.nights) | 0, out = [];
+    for (const id in (book && book.people) || {}) {
+      const g = book.people[id] && book.people[id].grudge;
+      if (g && P[id] && id !== HOST && id !== SHARK && nights - (g.night | 0) < GRUDGE_FADE) out.push({ id, night: g.night | 0, hour: clamp(g.hour | 0, 0, 3), kind: g.kind === 'rich' ? 'rich' : 'easy' });
+    }
+    return out.sort((a, b) => b.night - a.night || (a.id < b.id ? -1 : 1));
+  }
+  // Tonight's grudge-holders: at most GRUDGE_MAX, one a table. One already at a table tonight makes it theirs; else they
+  // come to the hour and kind of table they lost at (the nearest free one from there), in the seat of the one nearest
+  // their tier.
+  function placeGrudges(S, book) {
+    let n = 0;
+    const mark = (o, id) => { o.grudge = { id, stake: Math.round(o.buyIn * GRUDGE_STAKE) }; n++; };
+    for (const g of grudgesWaiting(book)) {
+      if (n >= GRUDGE_MAX) break;
+      let at = null;
+      S.offers.forEach(row => row.forEach(o => { if (o.people.includes(g.id)) at = o; }));
+      if (at) { if (!at.grudge) mark(at, g.id); continue; }
+      const k0 = g.kind === 'rich' ? 1 : 0, hours = [];
+      for (let d = 0; d < 4; d++) [g.hour + d, g.hour - d].forEach(h => { if (h >= 0 && h < 4 && !hours.includes(h)) hours.push(h); });
+      const spot = hours.flatMap(h => [S.offers[h][k0], S.offers[h][1 - k0]]).find(o => !o.grudge);
+      if (!spot) continue;
+      let j = 0;
+      spot.people.forEach((id, k) => { if (Math.abs(P[id].tier - P[g.id].tier) <= Math.abs(P[spot.people[j]].tier - P[g.id].tier)) j = k; });
+      spot.people[j] = g.id;
+      mark(spot, g.id);
+    }
+  }
+  const grudgeLine = id => `${P[id].first} is back for ${P[id].pronouns === 'she' ? 'her' : P[id].pronouns === 'he' ? 'his' : 'their'} money.`;
+  const closedAt = (S, h, kind) => h === 3 && kind === 'easy' && inRoom(S, 'midnight');
+  // Who sits at Last Call: Loretta and Curtis.
+  const lastPeople = () => HOURS[4].last.people.slice();
+  // Loretta's door: $500, more in the top rung of After Hours, more again on Curtis's tab.
+  const doorOf = S => (inRoom(S, 'door') ? DOOR_HIGH : HOURS[4].last.min) + (startOf(S) === 'tab' ? TAB_DOOR : 0);
 
   function options(S) {
     if (S.phase !== 'choose') return [];
     if (S.hour === 4) {
       const L = HOURS[4].last;
-      return [{ i: 0, kind: 'last', hour: 4, hourName: HOURS[4].name, seats: L.seats, dice: DICE[4], buyIn: S.cash, pot: S.cash * L.seats, ante: 0, rule: null, people: L.people.map(pub), affordable: S.cash >= L.min, viaTab: false }];
+      // (Blind: beat the house blind and it pays BLIND_X times the stack.)
+      const people = lastPeople(S);
+      return [{ i: 0, kind: 'last', hour: 4, hourName: HOURS[4].name, seats: people.length + 1, dice: DICE[4], buyIn: S.cash, pot: S.cash * (people.length + 1 + (startOf(S) === 'blind' ? BLIND_X - L.seats : 0)), ante: 0, rule: null, people: people.map(pub), affordable: S.cash >= doorOf(S), viaTab: false }];
     }
     return S.offers[S.hour].map((o, i) => {
       const ante = anteOf(o.buyIn, o.rule);
       const can = S.cash >= o.buyIn;
-      return { i, kind: o.kind, hour: S.hour, hourName: HOURS[S.hour].name, seats: o.seats, dice: diceOf(o.rule, S.hour, o.seats), buyIn: o.buyIn, pot: o.buyIn * o.seats, ante, rule: o.rule ? clone(RULE[o.rule]) : null, people: o.people.map(pub), affordable: can || has(S, 'tab'), viaTab: !can && has(S, 'tab') };
+      const card = { i, kind: o.kind, hour: S.hour, hourName: HOURS[S.hour].name, seats: o.seats, dice: diceOf(o.rule, S.hour, o.seats), buyIn: o.buyIn, pot: o.buyIn * o.seats, ante, rule: o.rule ? clone(RULE[o.rule]) : null, people: o.people.map(pub), affordable: can || has(S, 'tab'), viaTab: !can && has(S, 'tab') };
+      // (After Hours, big money only: at Midnight the near table is closed.)
+      if (closedAt(S, S.hour, o.kind)) { card.closed = true; card.affordable = false; card.viaTab = false; }
+      // A grudge-holder at this table: their stake makes the pot bigger.
+      if (o.grudge) { card.pot += o.grudge.stake; card.grudge = { id: o.grudge.id, name: P[o.grudge.id].name, first: P[o.grudge.id].first, stake: o.grudge.stake, bonus: Math.round(o.buyIn * GRUDGE_BONUS), line: grudgeLine(o.grudge.id) }; }
+      return card;
     });
   }
   // Cups: 4 dice at a three-seat table, 3 at a four-seat one (twelve opponent dice is a long table: tuned by
@@ -1423,7 +1585,7 @@ dialog li { margin: 0 0 6px; }
     if (!card) return 'no such table';
     if (!card.affordable) return 'cannot afford that table';
     const last = card.kind === 'last';
-    const people = last ? HOURS[4].last.people.slice() : S.offers[S.hour][i].people.slice();
+    const people = last ? lastPeople(S) : S.offers[S.hour][i].people.slice();
     const rule = card.rule ? card.rule.id : null;
     const base = card.dice, extra = holds(S, 'extrabone') && !last ? 1 : 0;
     const T = {
@@ -1434,10 +1596,13 @@ dialog li { margin: 0 0 6px; }
       round: null, roundNo: 0, wait: null, nextOpener: 0, used: {}, hot: false, last: null, cash0: S.cash,
       rec: { caught: [], caughtBy: [], spots: 0, rounds: 0 }
     };
+    if (card.grudge) T.grudge = { seat: 1 + people.indexOf(card.grudge.id), id: card.grudge.id, stake: card.grudge.stake };
     S.rng = hash(S.seed + '|table|' + S.hour + '|' + card.kind, 3);
     T.nextOpener = ri(S, T.seats.length);
     S.table = T; S.phase = 'table';
-    ev.push({ t: 'sit', hour: S.hour, kind: T.kind, night: S.night, rule: rule ? clone(RULE[rule]) : null, buyIn: T.buyIn, ante: T.ante, pot: T.pot, onTab: T.onTab, seats: T.seats.map((s, k) => ({ seat: k, id: s.id, name: nameOf(T, k), dice: s.n })) });
+    const se = { t: 'sit', hour: S.hour, kind: T.kind, night: S.night, rule: rule ? clone(RULE[rule]) : null, buyIn: T.buyIn, ante: T.ante, pot: T.pot, onTab: T.onTab, seats: T.seats.map((s, k) => ({ seat: k, id: s.id, name: nameOf(T, k), dice: s.n })) };
+    if (T.grudge) se.grudge = { seat: T.grudge.seat, id: T.grudge.id, stake: T.grudge.stake, line: grudgeLine(T.grudge.id) };
+    ev.push(se);
     if (T.onTab) { S.tricks = S.tricks.filter(t => t.id !== 'tab'); ev.push({ t: 'trick', id: 'tab', buyIn: T.buyIn }); }
     else pay(S, ev, -T.buyIn, 'buyin');
     if (extra) ev.push({ t: 'trick', id: 'extrabone', dice: T.start[0] });
@@ -1571,8 +1736,9 @@ dialog li { margin: 0 0 6px; }
   function tallyScale(t, k) { const out = {}; for (const id in t || {}) if (t[id]) out[id] = { n: r2(t[id].n * k), b: r2(t[id].b * k) }; return out; }
   // What a new night starts with from the Book's tally: PRIOR of it, at most PRIOR_CAP bids' worth.
   // (Whole bids: the room's tally is always counted in bids, so the Book can show it exactly.)
-  function priorOf(shapes) {
-    const all = tallyGet(shapes, 'all').n, k = all > 0 ? Math.min(PRIOR, PRIOR_CAP / all) : 0, out = {};
+  // (full: all of it, unfaded and uncapped: the Marked start.)
+  function priorOf(shapes, full) {
+    const all = tallyGet(shapes, 'all').n, k = all > 0 ? (full ? 1 : Math.min(PRIOR, PRIOR_CAP / all)) : 0, out = {};
     for (const id in shapes || {}) { const x = shapes[id], n = Math.round(x.n * k); if (n > 0) out[id] = { n, b: Math.min(n, Math.round(x.b * k)) }; }
     return out;
   }
@@ -1599,7 +1765,8 @@ dialog li { margin: 0 0 6px; }
   // at the practice hand, or with no tell in its shapes. delta: how far it moves its estimate of your bluffing.
   function readOf(S, T, s, b) {
     if (!b || b.who !== 0 || !b.shape || s === 0 || T.lesson || has(S, 'pokerface')) return null;
-    const k = READS[P[T.seats[s].id].tier] || 0;
+    // (Marked: the whole room has your number, so everyone reads you as the sharp ones do.)
+    const k = startOf(S) === 'marked' ? 1 : READS[P[T.seats[s].id].tier] || 0;
     if (!k) return null;
     const tells = tellsIn(roomTally(S)).filter(x => b.shape.includes(x.shape));
     if (!tells.length) return null;
@@ -1624,7 +1791,10 @@ dialog li { margin: 0 0 6px; }
     const cur = lastBid(T);
     // A sharp reader facing your bid weighs it by its shape, when that shape has become a tell.
     const rd = noRead ? null : readOf(S, T, s, cur);
-    const est = j => { const e = estBluff(S, T, j); return j === 0 && rd ? clamp(e + rd.delta, 0, 1) : e; };
+    // A grudge-holder (and, on a Marked night, everyone) plays you harder, and only you: puts your bluffing higher and
+    // calls your bids sooner. What they see is what anyone sees.
+    const hard = (!!T.grudge && T.grudge.seat === s) || startOf(S) === 'marked';
+    const est = j => { const e = estBluff(S, T, j) + (j === 0 && hard ? GRUDGE_EST : 0); return j === 0 && rd ? clamp(e + rd.delta, 0, 1) : e; };
     const own = !ownBlind(T, s);
     const known = knownFor(T, s, own);
     const n = total - known.length, p = wild ? 1 / 3 : 1 / 6;
@@ -1697,7 +1867,7 @@ dialog li { margin: 0 0 6px; }
     }
     const bidder = cur.who;
     // (A read also moves its call line directly: READ_THR of the read's shift.)
-    const thr = nerve + per.skill * (est(bidder) - 0.25) * 0.8 + (rd && bidder === 0 ? READ_THR * rd.delta : 0);
+    const thr = nerve + per.skill * (est(bidder) - 0.25) * 0.8 + (rd && bidder === 0 ? READ_THR * rd.delta : 0) + (hard && bidder === 0 ? GRUDGE_NERVE : 0);
     const pc = believe(cur.q, cur.f);
     const capped = seat.n >= T.start[s];
     const pe = clamp(pmf(n, cur.q - matches(cur.f), p) + (rnd(S) - 0.5) * noise, 0, 1);
@@ -1826,6 +1996,8 @@ dialog li { margin: 0 0 6px; }
       opener = caller;
     }
     if (loser >= 0) { loseDice(S, T, loser, n, ev); opener = loser; }
+    // A night that carries grudges remembers who you knocked out (your call was right, or they called your good bid).
+    if (S.grudges && loser > 0 && T.seats[loser].out && !T.lesson && (winner === 0 || (bidder === 0 && caller === loser))) (T.ko = T.ko || []).push(T.seats[loser].id);
     T.nextOpener = opener;
     // What they had.
     // Your bids carry their shapes (none under Poker Face: the room takes no notes on an honest face), and the room
@@ -1882,12 +2054,28 @@ dialog li { margin: 0 0 6px; }
       if (T.onTab) payout -= T.buyIn;
       pay(S, ev, payout, 'pot');
     } else if (place === 2 && T.seats.length === 4 && !T.onTab) { refund = T.buyIn; pay(S, ev, refund, 'refund'); }
+    // Grudges (a night that carries them): the one brought to this table is settled (you finished ahead of them: a
+    // little extra) or over (they finished ahead of you); and the ones you made here, every regular you knocked out, or
+    // everyone at a table you won.
+    let G = null;
+    if (S.grudges && T.kind !== 'last' && !T.lesson) {
+      G = { marks: [] };
+      if (T.grudge) {
+        const hs = T.seats[T.grudge.seat], me = T.seats[0];
+        const ahead = won || (hs.out && (!me.out || hs.place > me.place));
+        G.met = T.grudge.id; G.settled = ahead ? 'won' : 'lost'; G.bonus = 0;
+        if (ahead) G.bonus = pay(S, ev, Math.round(T.buyIn * GRUDGE_BONUS), 'grudge');
+      }
+      (won ? T.seats.slice(1).map(s => s.id) : T.ko || []).forEach(id => { if (id !== G.met && !G.marks.includes(id)) G.marks.push(id); });
+    }
     const people = T.seats.slice(1).map(s => s.id);
     // Everything this table did to your cash: buy-in, antes, bonuses, pot, refund.
     // (A night saved before tables kept cash0 falls back to buy-in, pot and refund alone.)
     const net = T.cash0 != null ? S.cash - T.cash0 : payout + refund - (T.onTab ? 0 : T.buyIn);
     S.log.push({ hour: T.hour, kind: T.kind, rule: T.rule, people, place, won, payout, refund, net, buyIn: T.buyIn, onTab: T.onTab, rounds: T.rec.rounds, caught: T.rec.caught, caughtBy: T.rec.caughtBy, spots: T.rec.spots, cash: S.cash });
-    ev.push({ t: 'tableEnd', hour: T.hour, kind: T.kind, place, won, payout, refund, net, rounds: T.rec.rounds, people, cash: S.cash });
+    const te = { t: 'tableEnd', hour: T.hour, kind: T.kind, place, won, payout, refund, net, rounds: T.rec.rounds, people, cash: S.cash };
+    if (G) { te.grudge = G; S.log[S.log.length - 1].grudge = clone(G); }
+    ev.push(te);
     S.table = null;
     if (T.kind === 'last') return endNight(S, won ? 'house' : 'cleaned', ev);
     openShop(S, ev);
@@ -1900,13 +2088,13 @@ dialog li { margin: 0 0 6px; }
 
   // ----- the back room -----
   function price(S, id, hour) {
-    const raw = PRICE[TRICK[id].rarity] * PRICE_HOUR[clamp(hour, 0, 3)] * (has(S, 'friends') ? 0.75 : 1);
+    const raw = PRICE[TRICK[id].rarity] * PRICE_HOUR[clamp(hour, 0, 3)] * (has(S, 'friends') ? 0.75 : 1) * (inRoom(S, 'shop') ? SHOP_X : 1);
     return Math.max(5, Math.round(raw / 5) * 5);
   }
-  // Curtis's offers: three, four with Friends Rates (never a trick you hold, rarer ones less often).
+  // Curtis's offers: three, four with Friends Rates (never a trick you hold, rarer ones less often); one fewer After Hours.
   function drawOffers(S) {
     let pool = TRICKS.filter(t => !holds(S, t.id)).map(t => t.id);
-    const out = [], want = holds(S, 'friends') ? FRIENDS_OFFERS : OFFERS;
+    const out = [], want = (holds(S, 'friends') ? FRIENDS_OFFERS : OFFERS) - (inRoom(S, 'shop') ? 1 : 0);
     while (out.length < want && pool.length) {
       const tot = sum(pool.map(id => WEIGHT[TRICK[id].rarity]));
       let x = rnd(S) * tot, k = 0;
@@ -1937,9 +2125,9 @@ dialog li { margin: 0 0 6px; }
     S.shop = null;
     S.hour++;
     if (S.hour === 4) {
-      if (S.cash < HOURS[4].last.min) return endNight(S, 'walked', ev);
+      if (S.cash < doorOf(S)) return endNight(S, 'walked', ev);
     } else {
-      const cheapest = Math.min(...S.offers[S.hour].map(o => o.buyIn));
+      const cheapest = Math.min(...S.offers[S.hour].filter(o => !closedAt(S, S.hour, o.kind)).map(o => o.buyIn));
       if (S.cash < cheapest && !has(S, 'tab')) return endNight(S, 'bust', ev);
     }
     S.phase = 'choose';
@@ -2259,6 +2447,7 @@ dialog li { margin: 0 0 6px; }
   function view(S) {
     const v = {
       v: VERSION, phase: S.phase, hour: S.hour, hourName: HOURS[S.hour] ? HOURS[S.hour].name : '', cash: S.cash, streak: S.streak, seed: S.seed, daily: S.daily, ending: S.ending,
+      room: roomOf(S), start: startOf(S), door: doorOf(S),
       tricks: S.tricks.map(t => Object.assign({ usable: usesNow(S).includes(t.id), asleep: !has(S, t.id) }, clone(TRICK[t.id]), { goesWith: goesWith(S, t.id) })),
       options: S.phase === 'choose' ? options(S) : null, shop: shopView(S), table: null
     };
@@ -2286,6 +2475,7 @@ dialog li { margin: 0 0 6px; }
         bid: b ? { who: b.who, id: T.seats[b.who].id, q: b.q, f: b.f } : null,
         history: R ? R.bids.map(x => { const o = { who: x.who, id: T.seats[x.who].id, q: x.q, f: x.f, habit: x.habit ? clone(x.habit) : null }; if (x.sit) o.sit = x.sit; return o; }) : [],
         gear: T.gear ? { who: T.gear.who, id: HOST, text: GEAR_LINE } : null,
+        grudge: T.grudge ? { seat: T.grudge.seat, id: T.grudge.id, stake: T.grudge.stake, line: grudgeLine(T.grudge.id) } : null,
         ones: R ? R.ones : null, nod: R && R.nod ? clone(R.nod) : null,
         count: b ? count(S, b.q, b.f) : null,
         cups: R && R.open ? T.seats.map(s => s.out ? [] : s.dice.slice()) : null,
@@ -2321,10 +2511,52 @@ dialog li { margin: 0 0 6px; }
         if (pt && x.sit === 'quiet') { const g = p.gear = p.gear || { n: 0, bluff: 0, straight: 0 }; g.n++; if (x.bluff) g.bluff++; else g.straight++; }
       });
       if (e.t === 'tableEnd') e.people.forEach(id => { if (P[id]) { const p = page(id); if (e.won) p.won++; else p.lost++; } });
+      // Grudges (a night that carries them): the one at this table settled or over, and the new ones.
+      if (e.t === 'tableEnd' && e.grudge) feudApply(b, page, e);
       // The room's memory of you fades a little every night: a habit carried on keeps costing; one dropped fades.
-      if (e.t === 'nightEnd') { b.nights++; if (b.me.shapes) b.me.shapes = tallyScale(b.me.shapes, FADE); }
+      if (e.t === 'nightEnd') { b.nights++; if (b.me.shapes) b.me.shapes = tallyScale(b.me.shapes, FADE); fadeGrudges(b); }
     }
     return b;
+  }
+  // A person's feud with you: { met: grudge tables, won (settled your way), lost, took ($ off them), gave ($ to them) }.
+  const feud0 = () => ({ met: 0, won: 0, lost: 0, took: 0, gave: 0 });
+  function feudApply(b, page, e) {
+    const G = e.grudge, net = e.net | 0;
+    if (G.met && P[G.met]) {
+      const p = page(G.met), f = p.feud = Object.assign(feud0(), p.feud);
+      f.met++;
+      if (G.settled === 'won') { f.won++; f.took += Math.max(0, net); } else { f.lost++; f.gave += Math.max(0, -net); }
+      delete p.grudge;
+    }
+    (G.marks || []).forEach(id => {
+      if (!P[id] || id === HOST || id === SHARK) return;
+      const p = page(id), f = p.feud = Object.assign(feud0(), p.feud);
+      if (e.won) f.took += Math.max(0, net);
+      p.grudge = { night: b.nights, hour: e.hour, kind: e.kind };
+    });
+    // Bounded: the newest GRUDGE_KEEP waiting.
+    const waiting = Object.keys(b.people).filter(id => b.people[id].grudge).sort((x, y) => b.people[y].grudge.night - b.people[x].grudge.night || (x < y ? -1 : 1));
+    waiting.slice(GRUDGE_KEEP).forEach(id => { delete b.people[id].grudge; });
+  }
+  // A grudge not met within GRUDGE_FADE nights fades.
+  function fadeGrudges(b) {
+    for (const id in b.people) { const p = b.people[id], g = p && p.grudge; if (g && b.nights - (g.night | 0) >= GRUDGE_FADE) { delete p.grudge; p.feud = Object.assign(feud0(), p.feud); } }
+  }
+  // The Book on grudges: the ones waiting (newest first) and how many you have settled, all told.
+  function grudgeBook(book) {
+    let settled = 0, met = 0;
+    for (const id in (book && book.people) || {}) { const f = book.people[id] && book.people[id].feud; if (f) { settled += f.won | 0; met += f.met | 0; } }
+    return { waiting: grudgesWaiting(book).map(g => Object.assign(g, { name: P[g.id].name, first: P[g.id].first, line: grudgeLine(g.id) })), settled, met };
+  }
+  // The one line on a person's page: nights met, money taken off them or lost to them, and where it stands.
+  function feudLine(book, id) {
+    const p = book && book.people && book.people[id];
+    if (!p || (!p.feud && !p.grudge)) return null;
+    const f = Object.assign(feud0(), p.feud), her = P[id].pronouns === 'she' ? 'her' : P[id].pronouns === 'he' ? 'him' : 'them';
+    const waiting = !!p.grudge && grudgesWaiting(book).some(g => g.id === id);
+    const state = waiting ? `${P[id].pronouns === 'she' ? 'she wants' : P[id].pronouns === 'he' ? 'he wants' : 'they want'} it back` : f.won || f.lost ? `settled ${f.won}, lost ${f.lost}` : 'it faded';
+    return { waiting, met: f.met, won: f.won, lost: f.lost, took: f.took, gave: f.gave,
+      line: `Grudge: ${p.nights | 0} night${(p.nights | 0) === 1 ? '' : 's'} met · you took ${money(f.took)} off ${her}, lost ${money(f.gave)} to ${her} · ${state}.` };
   }
   const times = n => n + ' time' + (n === 1 ? '' : 's');
   const zeroTally = () => ({ n: 0, bluff: 0, straight: 0 });
@@ -2349,7 +2581,9 @@ dialog li { margin: 0 0 6px; }
       quiet: clone(p.quiet), truth: ledger ? ledgerPhrase(id) : null,
       // The house: what the Book splits their habits by, and Loretta's bids once she went quiet.
       split: pt ? pt.keys.map(k => ({ key: k, name: SIT[k].name, when: SIT[k].when })) : null,
-      gear: id === HOST ? Object.assign(zeroTally(), clone(p.gear || {})) : null
+      gear: id === HOST ? Object.assign(zeroTally(), clone(p.gear || {})) : null,
+      // A grudge, if there has been one: the history in one line.
+      grudge: feudLine(book, id)
     };
   }
   /* What the Book says about a habit shown with a bid, for the felt: { sit, when, n, bluff, straight, all, before }.
@@ -2417,13 +2651,13 @@ dialog li { margin: 0 0 6px; }
   /* The beat before Last Call (phase 'choose' at the last hour): who sits down, what is at stake, what the Book holds.
      -> { title, scene, stakes, people: [{ id, name, role, says, book }], you } */
   function lastCallBrief(S, book) {
-    const L = HOURS[4].last, stake = S.cash, pot = stake * L.seats, dice = holds(S, 'shaved') || S.tricks.some(t => TRICK[t.id].kind === 'dice');
+    const L = HOURS[4].last, stake = S.cash, pot = options(Object.assign({}, S, { phase: 'choose', hour: 4 }))[0].pot, door = doorOf(S), dice = holds(S, 'shaved') || S.tricks.some(t => TRICK[t.id].kind === 'dice');
     const yp = youPage(book || null, S), tl = yp.tells[0];
     return {
       title: 'Last Call',
       scene: 'The other tables are dark and the chairs are up. Loretta wipes down her own table and sits; Curtis pulls up the third chair, shuffling.',
-      stakes: stake >= L.min ? `Everything you have goes in: ${money(stake)}. Win and you walk out with ${money(pot)}; lose and it stays on her table. Five dice each, no antes${dice ? ', and your dice tricks stay in your pocket' : ''}.` : `Loretta wants ${money(L.min)} to sit. You have ${money(stake)}.`,
-      people: L.people.map(id => ({ id, name: P[id].name, role: HOUSE_LINE[id].role, says: HOUSE_LINE[id].says, book: houseBookLine(book, id) })),
+      stakes: stake >= door ? `Everything you have goes in: ${money(stake)}. Win and you walk out with ${money(pot)}; lose and it stays on her table. Five dice each, no antes${dice ? ', and your dice tricks stay in your pocket' : ''}.` : `Loretta wants ${money(door)} to sit. You have ${money(stake)}.`,
+      people: lastPeople(S).map(id => ({ id, name: P[id].name, role: HOUSE_LINE[id].role, says: HOUSE_LINE[id].says, book: houseBookLine(book, id) })),
       you: tl && !has(S, 'pokerface') ? `They already have one on you: ${tl.text}.` : 'They read how you bid from the first round.'
     };
   }
@@ -2508,7 +2742,10 @@ dialog li { margin: 0 0 6px; }
     const st = S.stats;
     return {
       seed: S.seed, daily: S.daily, over: S.phase === 'over', ending: S.ending, endingText: S.ending ? ENDING[S.ending] : null, cash: S.cash,
-      beatHouse: S.ending === 'house', bust: S.ending === 'bust', reachedLastCall: S.log.some(t => t.kind === 'last') || (S.hour === 4 && S.cash >= 500),
+      beatHouse: S.ending === 'house', bust: S.ending === 'bust', reachedLastCall: S.log.some(t => t.kind === 'last') || (S.hour === 4 && S.cash >= doorOf(S)),
+      room: roomOf(S), start: startOf(S), pocket: S.pocket || null, door: doorOf(S),
+      grudges: S.log.filter(t => t.grudge && t.grudge.met).map(t => ({ id: t.grudge.met, name: P[t.grudge.met].name, settled: t.grudge.settled, bonus: t.grudge.bonus | 0, hour: t.hour })),
+      marks: [].concat(...S.log.filter(t => t.grudge).map(t => t.grudge.marks)),
       tables: S.log.map(t => ({ hour: t.hour, hourName: HOURS[t.hour].name, kind: t.kind, rule: t.rule, place: t.place, won: t.won, payout: t.payout, refund: t.refund, net: t.net != null ? t.net : t.payout + t.refund - (t.onTab ? 0 : t.buyIn), rounds: t.rounds, people: t.people.map(id => P[id].name) })),
       tablesWon: S.log.filter(t => t.won).length, challengesWon: st.won, challengesLost: st.lost, liarsCaught: st.caught, timesCaught: st.caughtBy,
       spotsHit: st.spots, spotsMissed: st.spotMiss, bids: st.bids, bluffs: st.bluffs, bestStreak: st.bestStreak, maxCash: st.maxCash, rounds: st.rounds, tricksBought: st.bought.slice(), tricksHeld: S.tricks.map(t => t.id),
@@ -2518,7 +2755,7 @@ dialog li { margin: 0 0 6px; }
   function shareLine(S) {
     const marks = S.log.map(t => t.kind === 'last' ? (t.won ? '👑' : '💀') : t.won ? '🎲' : '⬛').join('');
     const tail2 = S.ending === 'walked' ? '🚶' : S.ending === 'bust' ? '🕳️' : '';
-    return ['Bones', S.daily || 'night ' + S.seed, S.ending ? ENDING[S.ending] : 'still playing', money(S.cash), marks + tail2].join(' · ');
+    return ['Bones', S.daily || 'night ' + S.seed].concat(roomOf(S) ? ['After Hours ' + roomOf(S)] : [], [S.ending ? ENDING[S.ending] : 'still playing', money(S.cash), marks + tail2]).join(' · ');
   }
   const pickH = (S, salt, list) => list[hash(S.seed + '|' + salt, 11) % list.length];
   const word = n => ['no', 'one', 'two', 'three', 'four', 'five', 'six'][n] || String(n);
@@ -2625,11 +2862,15 @@ dialog li { margin: 0 0 6px; }
     newNight, options, sit: (S, i) => act(S, { t: 'sit', i }), act, advance, legal, isLegalBid, count, countExact, suggest,
     view, shopView, bookApply, bookPage, youPage, SHAPES: SHAPES.map(k => Object.freeze({ id: k, name: SHAPE[k].name })), summary, shareLine, column, columnFacts, talkFacts, dailySeed, playNight, basicPolicy,
     lesson, LESSON: clone(LESSON),
-    habitTally, lastCallBrief, houseNight, SITUATIONS: Object.keys(SIT).map(k => Object.freeze({ id: k, name: SIT[k].name, when: SIT[k].when })),
+    habitTally, lastCallBrief, houseNight,
+    // After the house: the ladder, the ways to walk in, grudges.
+    ROOMS: ROOMS.map((r, i) => Object.freeze(Object.assign({ rung: i + 1 }, r))), RUNGS, STARTS, door: doorOf, grudges: grudgeBook,
+    SITUATIONS: Object.keys(SIT).map(k => Object.freeze({ id: k, name: SIT[k].name, when: SIT[k].when })),
     // For tests and the balance sim only: the hidden side of the people and the odds. Not for the UI.
     _sim: { person: id => P[id] ? clone(P[id]) : null, tail, pmf, price: (S, id, h) => price(S, id, h), estBluff: (S, j) => estBluff(S, S.table, j), TELL, BLUFF_P,
       readOf: (S, s, b) => readOf(S, S.table, s, b || lastBid(S.table)), readLine, roomTally, tellsIn, shapeOf, botMove: (S, s, noRead) => botMove(S, S.table, s, noRead), READS, TELL_N, TELL_GAP,
-      PATTERN: clone(PATTERN), GEAR_AT, GEAR_NERVE, sitOf: (S, s) => sitOf(S.table, s, !lastBid(S.table)) }
+      PATTERN: clone(PATTERN), GEAR_AT, GEAR_NERVE, sitOf: (S, s) => sitOf(S.table, s, !lastBid(S.table)),
+      GRUDGE: { MAX: GRUDGE_MAX, FADE: GRUDGE_FADE, KEEP: GRUDGE_KEEP, STAKE: GRUDGE_STAKE, BONUS: GRUDGE_BONUS, EST: GRUDGE_EST, NERVE: GRUDGE_NERVE }, DOOR_HIGH, SHOP_X, BLIND_X, TAB_DOOR, POCKET: POCKET.slice() }
   };
   Game.Engine = Engine;
 })();
@@ -3051,19 +3292,52 @@ dialog li { margin: 0 0 6px; }
   };
 
   const RANKS = [[0, 'Mark'], [200, 'Regular'], [600, 'Hustler'], [1500, 'Shark'], [4000, 'Legend of the Low Water']];
+  /* After the house (all of it earned, none of it shown before): the feats, each of which opens a way to walk in.
+     progress(): { n, of } where a feat counts toward a number; done(S, rec): the night just ended did it. */
+  const FEATS = [
+    { id: 'clean', start: 'pocket', name: 'Beat the house without buying a trick', done: (S) => S.ending === 'house' && !S.stats.bought.length },
+    { id: 'quiet', start: 'blind', name: 'Win Last Call after Loretta goes quiet', done: (S, r) => S.ending === 'house' && !!(r && r.quiet) },
+    { id: 'pages', start: 'marked', name: 'Fill 25 pages of the Book', of: 25, count: () => Book.metIds().length },
+    { id: 'settle', start: 'tab', name: 'Settle three grudges', of: 3, count: () => Engine.grudges(Book.data).settled }
+  ];
+  const START_BY = {}; Engine.STARTS.forEach(s => { START_BY[s.id] = s; });
+  // The home screen's picks for a new night: the room (default: the highest open) and the way in (default: the usual).
+  const Pick = {
+    r: null, s: null,
+    room() { const open = Ledger.open(); return this.r === null || this.r > open ? open : this.r; },
+    start() { return this.s && Ledger.starts().some(x => x.id === this.s) ? this.s : 'usual'; }
+  };
   const Ledger = {
     data: null,
-    blank() { return { v: 1, nights: 0, best: 0, bestEnding: null, house: 0, streak: 0, bestStreak: 0, busts: 0, total: 0, daily: {} }; },
+    // rung: the best After Hours rung beaten (0: none); feats: { id: the night it was done }.
+    blank() { return { v: 1, nights: 0, best: 0, bestEnding: null, house: 0, streak: 0, bestStreak: 0, busts: 0, total: 0, daily: {}, rung: 0, feats: {} }; },
+    // After Hours is open once the house has been beaten (on any night on record): the rungs up to one past the best beaten.
+    open() { const L = this.data; return L && L.house > 0 ? Math.min(Engine.RUNGS, (L.rung | 0) + 1) : 0; },
+    // The feats count once the house has been beaten; a counted one is marked done as soon as it is reached.
+    feats() {
+      const L = this.data;
+      if (!L || !(L.house > 0)) return [];
+      return FEATS.map(f => {
+        const n = f.count ? Math.min(f.of, f.count()) : null;
+        if (f.count && n >= f.of && !L.feats[f.id]) { L.feats[f.id] = L.nights; this.save(); }
+        return { id: f.id, name: f.name, start: START_BY[f.start], done: !!L.feats[f.id], n, of: f.of || null };
+      });
+    },
+    // The ways to walk in that are open: the usual, and one for each feat done.
+    starts() { const done = this.feats().filter(f => f.done).map(f => f.start.id); return Engine.STARTS.filter(s => s.id === 'usual' || done.includes(s.id)); },
     load() {
       const l = readJson(KEYS.ledger);
       this.data = l && l.v === 1 && isObj(l.daily) ? Object.assign(this.blank(), l) : this.blank();
+      // (A ledger kept before After Hours has neither: none beaten, no feats; a beaten house opens the first rung.)
+      this.data.rung = clamp(this.data.rung | 0, 0, Engine.RUNGS);
+      if (!isObj(this.data.feats)) this.data.feats = {};
       return this.data;
     },
     save() { store.set(KEYS.ledger, JSON.stringify(this.data)); },
     rank(best) { let r = 0; for (let i = 0; i < RANKS.length; i++) if (best >= RANKS[i][0]) r = i; return { i: r, name: RANKS[r][1], next: RANKS[r + 1] || null }; },
-    /* A night just ended: the record, and what it added. */
-    record(S) {
-      const L = this.data, before = this.rank(L.best);
+    /* A night just ended: the record, and what it added. r: the night's record in progress (rec: Loretta gone quiet). */
+    record(S, r) {
+      const L = this.data, before = this.rank(L.best), openBefore = this.open(), startsBefore = this.starts().map(s => s.id);
       const newBest = S.cash > L.best || L.nights === 0;
       L.nights++; L.total += S.cash;
       if (S.cash > L.best) { L.best = S.cash; L.bestEnding = S.ending; }
@@ -3071,8 +3345,16 @@ dialog li { margin: 0 0 6px; }
       if (S.ending === 'bust') { L.busts++; L.streak = 0; } else { L.streak++; L.bestStreak = Math.max(L.bestStreak, L.streak); }
       let daily = null;
       if (S.daily && !L.daily[S.daily]) { daily = L.daily[S.daily] = { cash: S.cash, ending: S.ending, share: Engine.shareLine(S) }; }
+      // After Hours: a rung beaten is on record (the best of them); a feat done tonight is kept.
+      const room = S.room | 0, rungBeaten = S.ending === 'house' && room > 0 ? room : 0, firstRung = rungBeaten > (L.rung | 0);
+      if (firstRung) L.rung = rungBeaten;
+      const feats = [];
+      if (L.house > 0) FEATS.forEach(f => { if (!L.feats[f.id] && f.done && f.done(S, r)) { L.feats[f.id] = L.nights; feats.push(f.id); } });
       this.save();
-      return { newBest: newBest && S.cash > 0, rankBefore: before, rankAfter: this.rank(L.best), daily };
+      const opened = this.open() > openBefore ? this.open() : 0;
+      const counted = this.feats().filter(f => f.done && !startsBefore.includes(f.start.id) && !feats.includes(f.id)).map(f => f.id);
+      const newStarts = this.starts().filter(s => !startsBefore.includes(s.id)).map(s => s.id);
+      return { newBest: newBest && S.cash > 0, rankBefore: before, rankAfter: this.rank(L.best), daily, rungBeaten, firstRung, opened, feats: feats.concat(counted), newStarts };
     }
   };
 
@@ -3188,7 +3470,7 @@ dialog li { margin: 0 0 6px; }
       this.shown = [];
       this.renderTray();
     }
-    label() { this.root.setAttribute('aria-label', `${this.p.name}: ${this.out ? 'out' : plural(this.n, 'die', 'dice')}. Open ${pron(this.id)[2]} page in your Book.`); this.root.dataset.dice = String(this.out ? 0 : this.n); }
+    label() { this.root.setAttribute('aria-label', `${this.p.name}: ${this.out ? 'out' : plural(this.n, 'die', 'dice')}.${this.grudge ? ' ' + this.grudge : ''} Open ${pron(this.id)[2]} page in your Book.`); this.root.dataset.dice = String(this.out ? 0 : this.n); }
     /* shown: [{i, face, why}] face-up dice (Open hand, Mirror Ring, Cornered). */
     renderTray(shown) {
       if (shown) this.shown = shown;
@@ -3227,7 +3509,9 @@ dialog li { margin: 0 0 6px; }
       anim(this.faceBox, [{ transform: 'scale(.86)' }, { transform: 'scale(1.06)' }, { transform: 'scale(1)' }], 300, { move: true });
     }
     setTurn(on) { this.root.toggleAttribute('data-turn', !!on); }
-    setOut(on) { this.out = !!on; this.root.toggleAttribute('data-out', !!on); this.tag.textContent = on ? 'OUT' : ''; if (on) { this.mood = ''; this.setMood('asleep'); } this.label(); }
+    setOut(on) { this.out = !!on; this.root.toggleAttribute('data-out', !!on); this.tag.textContent = on ? 'OUT' : this.grudge ? 'GRUDGE' : ''; if (on) { this.mood = ''; this.setMood('asleep'); } this.label(); }
+    /* Back for their money: the seat's tag says so (and its label). */
+    setGrudge(line) { this.grudge = line || null; this.root.toggleAttribute('data-grudge', !!line); if (!this.out) this.tag.textContent = line ? 'GRUDGE' : ''; this.tag.title = line || ''; this.label(); }
     clearTalk() { this.bubble.setAttribute('data-empty', ''); this.bubble.replaceChildren(); delete this.bubble.dataset.kind; delete this.bubble.dataset.by; this.bubble.removeAttribute('aria-label'); this.setHabit(''); }
     /* The habit line under the face (kept whole in its title: on a short screen it keeps to one line). */
     setHabit(text, under) { this.habitEl.textContent = text || ''; if (text) this.habitEl.title = text; else this.habitEl.removeAttribute('title'); this.habitEl.toggleAttribute('data-under', !!(text && under)); Fit.soon(); }
@@ -3972,7 +4256,7 @@ dialog li { margin: 0 0 6px; }
     },
     error(e) { Toast.show(cap(e.msg)); },
     sit(e) {
-      Table.setup({ hour: e.hour, kind: e.kind, rule: e.rule, ante: e.ante, buyIn: e.buyIn, seats: e.seats.map(s => ({ seat: s.seat, id: s.id, dice: s.dice, start: s.dice })) });
+      Table.setup({ hour: e.hour, kind: e.kind, rule: e.rule, ante: e.ante, buyIn: e.buyIn, pot: e.pot, grudge: e.grudge || null, seats: e.seats.map(s => ({ seat: s.seat, id: s.id, dice: s.dice, start: s.dice })) });
       bookShown = Engine.bookApply(bookShown, [e]);
       Table.setPeople();
       BidBanner.quiet(e.kind === 'last' ? 'Loretta deals' : 'Take a seat');
@@ -4227,13 +4511,17 @@ dialog li { margin: 0 0 6px; }
       TV.total = TV.counts.reduce((a, b) => a + b, 0);
       TV.bid = null; TV.my = []; TV.fixed = []; TV.loaded = []; TV.open = []; TV.peek = []; TV.ones = null; TV.nod = null; TV.other = null; TV.ended = null; TV.lastReveal = null; TV.lastReadout = null; TV.gear = null;
       TV.seats = t.seats.map(s => (s.seat === 0 ? null : new Seat(s.seat, s.id, s.dice, s.start)));
+      // A grudge-holder's seat says so.
+      TV.grudge = t.grudge || null;
+      if (t.grudge && TV.seats[t.grudge.seat]) TV.seats[t.grudge.seat].setGrudge(t.grudge.line);
       const seatsRoot = $('seats');
       seatsRoot.style.setProperty('--n', t.seats.length - 1);
       seatsRoot.replaceChildren(...TV.seats.filter(Boolean).map(s => s.root));
       $('t-hour').replaceChildren(...tableHour(t.hour));
       const rt = $('ruletag');
       rt.hidden = !t.rule; rt.textContent = t.rule ? t.rule.name : ''; rt.setAttribute('aria-label', t.rule ? `House rule: ${t.rule.name}. What it means` : '');
-      $('antetag').textContent = Lesson.on ? 'Practice hand · no money on it' : t.kind === 'last' ? `Loretta’s table · pot ${money(t.buyIn * t.seats.length)}` : `Ante ${money(t.ante)} · pot ${money(t.buyIn * t.seats.length)}`;
+      const pot = t.pot != null ? t.pot : t.buyIn * t.seats.length;
+      $('antetag').textContent = Lesson.on ? 'Practice hand · no money on it' : t.kind === 'last' ? `Loretta’s table · pot ${money(pot)}` : `Ante ${money(t.ante)} · pot ${money(pot)}`;
       Picker.setFaces(TV.faces); Picker.close();
       $('bar').hidden = true; $('picker').hidden = false;
       MyCup.set(new Array(TV.start[0]).fill(0), TV.start[0], { down: true });
@@ -4247,7 +4535,7 @@ dialog li { margin: 0 0 6px; }
       if (!t) return;
       this.build();
       const key = `${App.state.night}|${t.hour}|${t.kind}`;
-      if (TV.key !== key) this.setup({ hour: t.hour, kind: t.kind, rule: t.rule, ante: t.ante, buyIn: t.buyIn, seats: t.seats.map(s => ({ seat: s.seat, id: s.id, dice: s.dice, start: s.start })) });
+      if (TV.key !== key) this.setup({ hour: t.hour, kind: t.kind, rule: t.rule, ante: t.ante, buyIn: t.buyIn, pot: t.pot, grudge: t.grudge || null, seats: t.seats.map(s => ({ seat: s.seat, id: s.id, dice: s.dice, start: s.start })) });
       Cash.set(v.cash); Streak.set(v.streak);
       $('t-hour').replaceChildren(...tableHour(v.hour));
       TV.total = t.total; TV.counts = t.seats.map(s => s.dice);
@@ -4421,6 +4709,14 @@ dialog li { margin: 0 0 6px; }
       const big = el('div', { class: 'end-big', id: 'end-net', dataset: { sign: net > 0 ? 'up' : net < 0 ? 'down' : 'even' } }, (net > 0 ? '+' : net < 0 ? '−' : '') + money(Math.abs(net)), el('small', null, 'at this table'));
       if (e.won) kids.push(el('h2', null, TV.kind === 'last' ? 'You beat the house' : 'You took the table'), big, el('p', { class: 'sub' }, `${Engine.HOURS[e.hour].name} · first of ${e.people.length + 1}, in ${plural(e.rounds, 'round')}. ${TV.kind === 'last' ? 'Loretta folds the bar towel. “Well, hon.”' : 'Curtis is waving you over to the back room.'}`));
       else kids.push(el('h2', null, TV.kind === 'last' ? 'Loretta keeps the house' : 'Your cup is empty'), big, el('p', { class: 'sub' }, e.refund ? `${Engine.HOURS[e.hour].name} · second of four: the buy-in comes back.` : TV.kind === 'last' ? 'Everything you brought stays on her table.' : `${Engine.HOURS[e.hour].name} · ${['', 'first', 'second', 'third', 'fourth'][e.place]} of ${e.people.length + 1}. The night goes on.`));
+      // A grudge at this table settled or over, and the ones you made here.
+      const g = e.grudge;
+      if (g && (g.met || g.marks.length)) {
+        const who = id => first(id), list = ids => ids.length < 2 ? ids.map(who).join('') : `${ids.slice(0, -1).map(who).join(', ')} and ${who(ids[ids.length - 1])}`;
+        kids.push(el('p', { class: 'grudgeline', id: 'end-grudge', 'data-settled': g.met ? g.settled : null },
+          g.met ? (g.settled === 'won' ? [el('b', null, `Settled with ${who(g.met)}: +${money(g.bonus)}. `), `${cap(pron(g.met)[0])} won’t be back for it.`] : [el('b', null, `${who(g.met)} got ${pron(g.met)[2]} money back. `), 'The grudge is over.']) : null,
+          g.marks.length ? `${g.met ? ' ' : ''}${list(g.marks)} will remember this.` : null));
+      }
       if (after.readout && after.reveal) kids.push(el('h3', { class: 'kicker' }, 'The last round'), el('p', { class: 'sub' }, this.verdict(after.reveal, after.losses)), this.readLine(after.readout), this.hadRows(after.readout));
       const over = App.state && App.state.phase === 'over';
       const node = Sheet.show(kids, over ? 'How the night ended' : 'To the back room', () => App.leaveTable(), 'btn-endtable');
@@ -4468,7 +4764,7 @@ dialog li { margin: 0 0 6px; }
       if (o.compact) {
         return el('div', { class: 'bpage', dataset: { id } },
           el('div', { class: 'bpage-head' }, mini(id), el('div', null, el('div', { class: 'bpage-name' }, p.name), el('div', { class: 'bpage-stat' }, stat))),
-          rows, quiet, gear, pg.truth ? el('p', { class: 'truth' }, `Lyman’s Ledger: ${pg.truth}`) : null, splitNote);
+          rows, quiet, gear, pg.truth ? el('p', { class: 'truth' }, `Lyman’s Ledger: ${pg.truth}`) : null, splitNote, pg.grudge ? el('p', { class: 'pp-grudge' }, pg.grudge.line) : null);
       }
       return [
         el('div', { class: 'pp-head' }, mini(id), el('div', null, el('h2', { id: 'dlg-title' }, p.name), el('p', { class: 'pp-look' }, `${p.age}. ${p.look}`))),
@@ -4476,13 +4772,14 @@ dialog li { margin: 0 0 6px; }
         rows, quiet, gear, splitNote,
         pg.truth ? el('p', { class: 'truth' }, `Lyman’s Ledger: ${pg.truth}`) : null,
         el('p', { class: 'pp-rec' }, pg.met ? `Tables with ${pron(id)[1]}: you won ${pg.won}, lost ${pg.lost} · ${plural(pg.nights, 'night')} at a table together.` : 'You have not sat with them yet.'),
+        pg.grudge ? el('p', { class: 'pp-grudge', id: 'pp-grudge', 'data-waiting': pg.grudge.waiting ? '' : null }, pg.grudge.line) : null,
         el('p', { class: 'note' }, 'The Book never says which habit is the tell. Watch which one comes with the bluffs.')
       ];
     },
     open(id) {
       if (!PEOPLE[id]) return;
       const live = App.state && App.state.phase === 'table';
-      Dialog.open(this.page(id, live ? bookShown : Book.data, live ? App.state : null), [['Close', null]]);
+      Dialog.open(this.page(id, live ? bookShown : App.state && App.state.phase !== 'over' ? bookNow() : Book.data, live ? App.state : null), [['Close', null]]);
     },
     /* The page on you: what the room knows about how you bid. Each shape of a bid with its tally in plain words, the
        ones that have become tells marked, and what to do about it. S: a night in progress (tonight's notes and what
@@ -4546,7 +4843,7 @@ dialog li { margin: 0 0 6px; }
     bust: { stamp: 'BUST', kind: 'danger', line: 'The money ran out before the tables did.' }
   };
   // The goal, always in sight between tables: Loretta's $500.
-  const goalLine = cash => { const need = Engine.HOURS[4].last.min, ok = cash >= need; return el('p', { class: 'goal', id: 'goal-line', 'data-ok': ok ? '' : null }, `Last Call needs ${money(need)} · you have ${money(cash)}`); };
+  const goalLine = (cash, door) => { const need = door || Engine.HOURS[4].last.min, ok = cash >= need; return el('p', { class: 'goal', id: 'goal-line', 'data-ok': ok ? '' : null }, `Last Call needs ${money(need)} · you have ${money(cash)}`); };
   // What a table did to your cash, signed: +$104, −$29.
   const signed = n => (n > 0 ? '+' : n < 0 ? '−' : '') + money(Math.abs(n || 0));
   const tableName = (kind, people) => kind === 'last' ? 'Loretta’s table' : `${first(people[0])}’s table`;
@@ -4573,6 +4870,8 @@ dialog li { margin: 0 0 6px; }
       const learnFirst = firstVisit && !Settings.lesson;
       const today = dayKey(App.now()), done = L.daily[today];
       const cta = el('div', { class: 'cta' });
+      // After the house: tonight's room and how you walk in, for "A new night" (tonight's tables take neither).
+      const open = Ledger.open(), starts = Ledger.starts(), veteran = !firstVisit && (open > 0 || starts.length > 1);
       if (learnFirst) {
         cta.append(el('button', { class: 'btn primary big', id: 'btn-learn', type: 'button', onclick: () => Lesson.start() }, 'Learn it in a minute'),
           el('p', { class: 'cta-sub', id: 'learn-note' }, 'Never played liar’s dice? One practice hand with the cups open. It costs nothing.'),
@@ -4587,15 +4886,19 @@ dialog li { margin: 0 0 6px; }
           cta.append(el('button', { class: 'btn primary big', id: 'btn-continue', type: 'button', onclick: () => App.resume() }, 'Continue the night'),
             el('p', { class: 'cta-sub', id: 'continue-note' }, `${v.hourName} · ${money(v.cash)}${v.phase === 'table' ? ' · mid-table' : v.phase === 'shop' ? ' · in the back room' : ''}${saved.S.daily ? ' · tonight’s tables' : ''}`));
         }
+        if (veteran) cta.append(this.tonight(open, starts));
         cta.append(el('div', { class: 'pair' },
-          el('button', { class: `btn ${saved ? '' : 'primary'} big`, id: 'btn-daily', type: 'button', onclick: () => App.confirmNew(() => App.start({ daily: true })) }, done ? 'Tonight’s again' : 'Tonight’s tables'),
-          el('button', { class: 'btn big', id: 'btn-sit', type: 'button', onclick: () => App.confirmNew(() => App.start({})) }, 'A new night')));
-        cta.append(el('p', { class: 'cta-sub', id: 'daily-note' }, done ? `Tonight’s tables: ${Engine.shareLine ? (done.ending === 'house' ? 'you beat the house' : done.ending === 'cleaned' ? 'cleaned out at Last Call' : done.ending === 'walked' ? 'walked home' : 'went bust') : ''} with ${money(done.cash)}. Replays don’t count.` : 'Tonight’s tables: the same people and the same dice for everyone, today.'));
+          el('button', { class: `btn ${saved || veteran ? '' : 'primary'} big`, id: 'btn-daily', type: 'button', onclick: () => App.confirmNew(() => App.start({ daily: true })) }, done ? 'Tonight’s again' : 'Tonight’s tables'),
+          // (With a room or a way in picked above, the new night is the one to press.)
+          el('button', { class: `btn ${veteran && !saved ? 'primary' : ''} big`, id: 'btn-sit', type: 'button', onclick: () => App.confirmNew(() => App.start({})) }, 'A new night')));
+        cta.append(el('p', { class: 'cta-sub', id: 'daily-note' }, done ? `Tonight’s tables: ${Engine.shareLine ? (done.ending === 'house' ? 'you beat the house' : done.ending === 'cleaned' ? 'cleaned out at Last Call' : done.ending === 'walked' ? 'walked home' : 'went bust') : ''} with ${money(done.cash)}. Replays don’t count.` : veteran ? 'Tonight’s tables: the same for everyone, today, so no room, start or grudges.' : 'Tonight’s tables: the same people and the same dice for everyone, today.'));
         if (done) cta.append(el('div', { class: 'row', style: 'justify-content:center' }, el('button', { class: 'btn', id: 'btn-share-daily', type: 'button', onclick: () => App.copy(done.share, 'share-daily-note') }, 'Copy today’s result'), el('span', { class: 'note', id: 'share-daily-note', role: 'status' })));
       }
-      const dice = el('div', { class: 'hero-dice', 'aria-hidden': 'true' }, [6, 1, 4, 1, 6].map(f => Dice.node(f, { label: false, wild: true })));
+      // (Once there is a room or a way in to pick, the picks take the dice's place.)
+      const dice = veteran ? null : el('div', { class: 'hero-dice', 'aria-hidden': 'true' }, [6, 1, 4, 1, 6].map(f => Dice.node(f, { label: false, wild: true })));
       const rank = Ledger.rank(L.best);
       const met = Book.metIds();
+      const feats = Ledger.feats(), waiting = L.house > 0 ? Engine.grudges(Book.data).waiting : [];
       const info = Claude.keyInfo();
       const keyInput = el('input', { class: 'input', id: 'f-key', type: 'password', autocomplete: 'off', spellcheck: 'false', placeholder: info.key ? `Using the key ending …${info.key.slice(-4)} (type to use another)` : 'sk-ant-…' });
       const keep = el('input', { type: 'checkbox', id: 'f-keep', checked: !!store.get(TOWN_KEY) });
@@ -4619,19 +4922,26 @@ dialog li { margin: 0 0 6px; }
             el('li', null, el('b', null, 'Your turn. '), 'Raise to a bigger bid (more dice, or as many of a higher face), or call Liar! on the bid in front of you. Lose all your dice and you are out. The last cup with dice wins the table’s money.'),
             el('li', null, el('b', null, 'The Count '), 'is the chance the bid in front of you is true, worked out from your own dice. Low means it is probably a lie.'),
             el('li', null, el('b', null, 'Tells and the Book. '), 'Everyone has habits that show when they bid, and one of them tends to come with their bluffs. Your Book counts each habit against what the cups showed, night after night. The sharp ones read you back, from how you raise when you bluff.'),
-            el('li', null, el('b', null, 'The night. '), 'You start with $100. Each hour you pay to sit at one of two tables; win it and you take its pot. Between tables, Curtis sells tricks in the back room. Have $500 at Last Call and you play the house: win and your money triples.')),
+            el('li', null, el('b', null, 'The night. '), 'You start with $100. Each hour you pay to sit at one of two tables; win it and you take its pot. Between tables, Curtis sells tricks in the back room. Have $500 at Last Call and you play the house: win and your money triples.'),
+            L.house > 0 ? el('li', { id: 'how-after' }, el('b', null, 'After the house. '), 'After Hours is a ladder of five harder nights, each rung one change more; beat the house on a rung to open the next. The regulars you beat may come back with a grudge and a bigger stake. Feats open new ways to walk in.') : null),
           learnFirst ? null : el('button', { class: 'btn', id: 'btn-replay-lesson', type: 'button', style: 'margin-top:6px', onclick: () => Lesson.start() }, 'Replay the practice hand')),
         el('section', { class: 'card', id: 'home-ledger' },
           el('h2', null, 'Lyman’s ledger'),
           L.nights ? [
             el('p', { class: 'stat-line' }, `${rank.name}`),
             el('div', { class: 'ranks', 'aria-hidden': 'true' }, RANKS.map((r, i) => el('span', { 'data-on': i <= rank.i ? '' : null }))),
-            el('p', { class: 'note', id: 'ledger-line' }, [`${plural(L.nights, 'night')} played`, `best night ${money(L.best)}`, L.house ? `the house beaten ${L.house === 1 ? 'once' : plural(L.house, 'time')}` : 'the house not beaten yet', L.streak > 1 ? `${L.streak} nights running without going bust` : L.bestStreak > 1 ? `best run ${L.bestStreak} nights without going bust` : null, rank.next ? `“${rank.next[1]}” at a ${money(rank.next[0])} night` : null].filter(Boolean).join(' · '))
+            el('p', { class: 'note', id: 'ledger-line' }, [`${plural(L.nights, 'night')} played`, `best night ${money(L.best)}`, L.house ? `the house beaten ${L.house === 1 ? 'once' : plural(L.house, 'time')}` : 'the house not beaten yet', L.rung ? `After Hours ${L.rung} beaten` : null, L.streak > 1 ? `${L.streak} nights running without going bust` : L.bestStreak > 1 ? `best run ${L.bestStreak} nights without going bust` : null, rank.next ? `“${rank.next[1]}” at a ${money(rank.next[0])} night` : null].filter(Boolean).join(' · ')),
+            // The feats, once the house has been beaten: each opens a way to walk in.
+            feats.length ? el('div', { class: 'feats', id: 'home-feats' }, el('h3', null, 'Feats'), el('ul', null, feats.map(f => el('li', { dataset: { id: f.id }, 'data-done': f.done ? '' : null },
+              el('span', { class: 'f-name' }, f.done ? '✓ ' : '', f.name),
+              f.of && !f.done ? el('span', { class: 'f-bar', 'aria-hidden': 'true' }, el('i', { style: `width:${Math.round(100 * f.n / f.of)}%` })) : null,
+              el('span', { class: 'f-n' }, f.done ? `Done: “${f.start.name}” is open` : cap(`${f.of ? `${f.n} of ${f.of} · ` : ''}opens “${f.start.name}”`)))))) : null
           ] : el('p', { class: 'note' }, 'Lyman keeps the tab: nights played, your best night, the house beaten, and a rank from Mark to Legend of the Low Water.')),
         el('section', { class: 'card', id: 'home-book' },
           el('h2', null, 'The Book'),
           met.length ? el('div', { class: 'book-strip', 'aria-hidden': 'true' }, met.slice(0, 9).map(id => mini(id))) : null,
           el('p', { class: 'note' }, met.length ? `${met.length} of 50 regulars met. Every bid you see goes in their page, with the habit that came with it.` : 'Fifty regulars, each with three habits and one tell. Their pages fill in as you play them.'),
+          waiting.length ? el('p', { class: 'note', id: 'home-grudges' }, el('b', null, 'Back for their money: '), `${waiting.map(g => g.first).join(', ')}. ${waiting.length > 1 ? 'They turn up at your tables, two a night at most.' : `${cap(pron(waiting[0].id)[0])}’ll turn up at one of your tables.`}`) : null,
           el('button', { class: 'btn', id: 'btn-book', type: 'button', onclick: () => this.book() }, 'Open the Book')),
         el('details', { class: 'card', id: 'home-claude' },
           el('summary', null, 'Pearl’s column by Claude (optional)'),
@@ -4651,7 +4961,29 @@ dialog li { margin: 0 0 6px; }
           Settings.tipsDone || Settings.tipsSeen.length ? el('button', { class: 'linkbtn', type: 'button', onclick: () => { Settings.tipsDone = false; Settings.tipsSeen = []; Settings.save(); this.home(); } }, 'Show the first-table tips again') : null),
         Phone.row(),
         el('p', { class: 'others' }, 'Also at the Low Water: ', el('a', { href: 'lockin.html' }, 'Lock-In'), ' · ', el('a', { href: 'lastcall.html' }, 'Last Call'))));
-      if (!Motion.reduce && Speed.k) [...dice.children].forEach((d, i) => anim(d, [{ transform: `translateY(-30px) rotate(${(i % 2 ? 1 : -1) * 200}deg)`, opacity: 0 }, { transform: 'none', opacity: 1 }], 560, { delay: 80 + i * 70, move: true }));
+      if (dice && !Motion.reduce && Speed.k) [...dice.children].forEach((d, i) => anim(d, [{ transform: `translateY(-30px) rotate(${(i % 2 ? 1 : -1) * 200}deg)`, opacity: 0 }, { transform: 'none', opacity: 1 }], 560, { delay: 80 + i * 70, move: true }));
+    },
+
+    /* Tonight's room (the house night or an open rung of After Hours) and how you walk in, one tap each. */
+    tonight(open, starts) {
+      const room = Pick.room(), st = Pick.start(), rows = [];
+      const again = (sel) => { this.home(); const b = document.querySelector(sel); if (b) { try { b.focus({ preventScroll: true }); } catch (e) { /* ok */ } } };
+      if (open) {
+        const R = room ? Engine.ROOMS[room - 1] : null, ks = [];
+        for (let k = 0; k <= open; k++) ks.push(k);
+        rows.push(el('div', { class: 'pick', id: 'home-room' },
+          el('span', { class: 'pick-l', id: 'l-room' }, 'After Hours'),
+          el('div', { class: 'seg pickseg', role: 'group', 'aria-labelledby': 'l-room' }, ks.map(k => el('button', { class: 'btn', type: 'button', dataset: { room: String(k) }, 'aria-pressed': String(k === room), 'aria-label': k ? `After Hours ${k}: ${Engine.ROOMS[k - 1].name}` : 'The house night', onclick: () => { Pick.r = k; again(`[data-room="${k}"]`); } }, k ? String(k) : 'House'))),
+          el('p', { class: 'pick-d', id: 'room-line' }, R ? [el('b', null, `${R.name}. `), R.line, room > 1 ? ` (And ${room === 2 ? 'the rung below' : `the ${word(room - 1)} below`}.)` : ''] : 'The house night, as it always was.')));
+      }
+      if (starts.length > 1) {
+        const S0 = START_BY[st];
+        rows.push(el('div', { class: 'pick', id: 'home-start' },
+          el('span', { class: 'pick-l', id: 'l-start' }, 'Walk in'),
+          el('div', { class: 'seg pickseg', role: 'group', 'aria-labelledby': 'l-start' }, starts.map(x => el('button', { class: 'btn', type: 'button', dataset: { start: x.id }, 'aria-pressed': String(x.id === st), 'aria-label': x.name, onclick: () => { Pick.s = x.id; again(`[data-start="${x.id}"]`); } }, x.short))),
+          el('p', { class: 'pick-d', id: 'start-line' }, el('b', null, `${S0.name}. `), S0.line)));
+      }
+      return el('div', { class: 'tonight', id: 'home-tonight' }, rows);
     },
 
     // ----- Choose a table -----
@@ -4669,9 +5001,10 @@ dialog li { margin: 0 0 6px; }
       root.replaceChildren(pageBar('Bones', hourLabel(v.hour), true), el('div', { class: 'page-in' },
         el('h1', { class: 'hourhead', id: 'choose-title' }, `${v.hourName} · `, el('small', null, money(v.cash))),
         hours,
+        this.nightTag(S, v),
         el('p', { class: 'note' }, S.hour === 4 ? 'Last Call. Loretta’s table, and nobody else’s.' : `${HOUR_LINE[S.hour]} Choose a table.`),
         S.hour === 4 ? this.lcIntro(S) : null,
-        S.hour < 4 ? goalLine(v.cash) : null,
+        S.hour < 4 ? goalLine(v.cash, v.door) : null,
         // The coach's word on the choice: at 10 PM on a first night (9 PM dealt you straight in), else at 9 PM.
         Night.rec && Night.rec.coach && !Settings.tipsDone && S.hour === (Night.rec.first ? 1 : 0) ? el('p', { class: 'note', id: 'first-hint', style: 'color:var(--accent)' }, 'Your pick now. The near table is cheaper and softer; the big one pays double and plays tougher.') : null,
         el('div', { class: 'cards', dataset: { n: String(cards.length) } }, cards),
@@ -4679,9 +5012,16 @@ dialog li { margin: 0 0 6px; }
         L.canWalk ? el('button', { class: 'btn leave', id: 'btn-walk', type: 'button', onclick: () => App.act({ t: 'walk' }) }, `Walk home with ${money(v.cash)}`) : null));
       focusHead(root);
     },
+    /* After the house: tonight's room and how you walked in, one line (none on the house night, the usual way). */
+    nightTag(S, v) {
+      const bits = [];
+      if (v.room) bits.push(el('b', null, `After Hours ${v.room}`), ` · ${Engine.ROOMS.slice(0, v.room).map(r => r.name).join(' · ')}`);
+      if (v.start !== 'usual') { const st = START_BY[v.start]; bits.push(bits.length ? '. ' : '', el('b', null, st.name), S.pocket ? ` (${TRICK_INFO[S.pocket].name})` : '', `: ${st.line}`); }
+      return bits.length ? el('p', { class: 'nighttag', id: 'night-tag' }, bits) : null;
+    },
     /* The beat before Last Call, in the bar's voice: the scene, the stakes, the two of them and what your Book holds. */
     lcIntro(S) {
-      const b = Engine.lastCallBrief(S, Book.data);
+      const b = Engine.lastCallBrief(S, bookNow());
       return el('section', { class: 'card lcintro', id: 'lc-intro', 'aria-labelledby': 'lc-intro-title' },
         el('h2', { id: 'lc-intro-title' }, b.title),
         el('p', { class: 'lc-scene' }, b.scene),
@@ -4692,7 +5032,7 @@ dialog li { margin: 0 0 6px; }
         el('p', { class: 'note lc-you', id: 'lc-you' }, b.you));
     },
     bookNote(id) {
-      const pg = Engine.bookPage(Book.data, id);
+      const pg = Engine.bookPage(bookNow(), id);
       if (!pg.met) return el('span', { class: 'bk', 'data-new': '' }, 'never met');
       if (!pg.bids) return el('span', { class: 'bk' }, 'met, no bids seen yet');
       const top = pg.rows.filter(r => r.n >= 2).sort((a, b) => b.n - a.n)[0];
@@ -4701,11 +5041,13 @@ dialog li { margin: 0 0 6px; }
     tableCard(o, L, v) {
       const can = L.sit.includes(o.i);
       const last = o.kind === 'last';
-      const why = !o.affordable ? `You have ${money(v.cash)}; this table needs ${money(o.buyIn)}.` : o.viaTab ? 'On your Tab: the buy-in comes out of a win (lose and you owe nothing).' : '';
+      const why = o.closed ? 'Closed: after hours, Midnight is the big table or nothing.' : !o.affordable ? `You have ${money(v.cash)}; this table needs ${money(o.buyIn)}.` : o.viaTab ? 'On your Tab: the buy-in comes out of a win (lose and you owe nothing).' : '';
       return el('section', { class: 'tcard', dataset: { kind: o.kind, i: String(o.i) }, 'data-off': can ? null : '' },
         el('div', { class: 'tcard-head' }, el('h2', null, last ? 'Loretta’s table' : o.kind === 'rich' ? 'The big table' : 'The near table'), el('span', { class: 'money' }, last ? 'all in' : money(o.buyIn))),
         last ? el('p', { class: 'line' }, '“Bring what you’ve got, hon.”') : null,
-        last ? null : el('div', { class: 'people' }, o.people.map(p => el('button', { class: 'person', type: 'button', 'aria-label': `${p.name}: open the Book`, onclick: () => People.open(p.id) }, mini(p.id), el('span', null, el('span', { class: 'nm' }, p.name), el('br'), this.bookNote(p.id))))),
+        last ? null : el('div', { class: 'people' }, o.people.map(p => el('button', { class: 'person', type: 'button', 'aria-label': `${p.name}: open the Book`, 'data-grudge': o.grudge && o.grudge.id === p.id ? '' : null, onclick: () => People.open(p.id) }, mini(p.id), el('span', null, el('span', { class: 'nm' }, p.name), el('br'), this.bookNote(p.id))))),
+        // A grudge-holder at this table: back for their money, with a bigger stake in the pot.
+        o.grudge ? el('p', { class: 'grudge', dataset: { id: o.grudge.id } }, el('b', null, o.grudge.line), ` ${pron(o.grudge.id)[0] === 'she' ? 'She' : pron(o.grudge.id)[0] === 'he' ? 'He' : 'They'} put${pron(o.grudge.id)[0] === 'they' ? '' : 's'} ${money(o.grudge.stake)} more in the pot, and ${pron(o.grudge.id)[1] === 'them' ? 'they’ll' : pron(o.grudge.id)[0] + '’ll'} call you sooner. Finish ahead of ${pron(o.grudge.id)[1]} for ${money(o.grudge.bonus)} on top.`) : null,
         el('div', { class: 'facts' },
           el('span', null, el('b', null, String(o.seats)), ' seats'), el('span', null, el('b', null, String(o.dice)), ' dice each'),
           el('span', null, 'buy-in ', el('b', null, money(o.buyIn))), el('span', null, 'pot ', el('b', null, money(o.pot))),
@@ -4714,7 +5056,7 @@ dialog li { margin: 0 0 6px; }
         last ? el('p', { class: 'note', style: 'margin:0' }, `Win and your ${money(o.buyIn)} becomes ${money(o.pot)}. Lose and Loretta keeps it all. Dice tricks sleep at her table.`) : null,
         o.rule ? el('div', { class: 'rule' }, el('b', null, `House rule: ${o.rule.name}`), el('span', null, o.rule.text)) : null,
         why ? el('p', { class: 'why', style: 'margin:0' }, why) : null,
-        el('button', { class: `btn ${can ? 'primary' : ''} big sit`, type: 'button', dataset: { i: String(o.i) }, disabled: !can, onclick: () => App.act({ t: 'sit', i: o.i }) }, last ? `Sit down with ${money(o.buyIn)}` : can ? `Sit down · ${money(o.buyIn)}` : 'Can’t afford it'));
+        el('button', { class: `btn ${can ? 'primary' : ''} big sit`, type: 'button', dataset: { i: String(o.i) }, disabled: !can, onclick: () => App.act({ t: 'sit', i: o.i }) }, last ? `Sit down with ${money(o.buyIn)}` : can ? `Sit down · ${money(o.buyIn)}` : o.closed ? 'Closed after hours' : 'Can’t afford it'));
     },
 
     // ----- The back room -----
@@ -4742,14 +5084,16 @@ dialog li { margin: 0 0 6px; }
         h.goesWith && h.goesWith.length ? el('span', { class: 'goes' }, `Goes with your ${listNames(h.goesWith)}.`) : null,
         el('button', { class: 'btn sell', type: 'button', dataset: { id: h.id }, onclick: () => App.act({ t: 'sell', id: h.id }) }, `Sell · +${money(h.sell)}`)));
       const nextH = S.hour + 1;
-      const need = nextH >= 4 ? Engine.HOURS[4].last.min : Engine.HOURS[nextH].easy.buyIn;
+      // (After Hours may close Midnight's near table: then the big one is the cheapest seat.)
+      const nearShut = nextH === 3 && v.room > Engine.ROOMS.findIndex(r => r.id === 'midnight') && Engine.ROOMS.some(r => r.id === 'midnight');
+      const need = nextH >= 4 ? v.door : Engine.HOURS[nextH][nearShut ? 'rich' : 'easy'].buyIn;
       const short = v.cash < need && !(nextH < 4 && v.tricks.some(x => x.id === 'tab'));
       const nextNote = nextH >= 4 ? (v.cash >= need ? `Next: Last Call. You have the ${money(need)} Loretta wants.` : `Next: Last Call, and Loretta wants ${money(need)}. Short of it, you walk home with what you have.`)
         : short ? `Next: ${Engine.HOURS[nextH].name}, and the cheapest seat is ${money(need)}. Leave with less and the night is over.` : `Next: ${Engine.HOURS[nextH].name}, tables from ${money(need)}.`;
       root.replaceChildren(pageBar('Bones', [el('span', { class: 'hl' }, `The back room · ${Engine.HOURS[sv0.hour].name}`), el('span', { class: 'hs' }, 'Back room')], true), el('div', { class: 'page-in' },
         el('h1', { class: 'hourhead', id: 'shop-title' }, 'The back room · ', el('small', null, money(v.cash))),
         result,
-        goalLine(v.cash),
+        goalLine(v.cash, v.door),
         el('div', { class: 'curtis' }, mini(SHARK), el('div', null, el('p', null, `“${PATTER[hash(S.seed + '|' + S.hour, 9) % PATTER.length]}”`), el('small', null, 'Curtis Pruett, who puts odds on everything'))),
         el('h3', { class: 'kicker' }, 'On offer'),
         el('div', { class: 'offers', dataset: { n: String(offers.length) } }, offers),
@@ -4766,7 +5110,8 @@ dialog li { margin: 0 0 6px; }
       const S = App.state, sum = Engine.summary(S), info = UI.endInfo || {};
       const root = $('screen-over');
       const E = ENDINGS[S.ending] || ENDINGS.walked;
-      const line = S.ending === 'walked' ? (S.log.length && S.log[S.log.length - 1].kind !== 'last' && S.hour === 4 && S.cash >= Engine.HOURS[4].last.min ? 'You had Loretta’s $500 and kept it. She shrugged and poured you one for the road.' : 'Short of the $500 Loretta wants at Last Call, you walked home with what you had.') : E.line;
+      const door = Engine.door(S);
+      const line = S.ending === 'walked' ? (S.log.length && S.log[S.log.length - 1].kind !== 'last' && S.hour === 4 && S.cash >= door ? `You had Loretta’s ${money(door)} and kept it. She shrugged and poured you one for the road.` : `Short of the ${money(door)} Loretta wants at Last Call, you walked home with what you had.`) : E.line;
       const stamp = el('div', { class: 'stamp', dataset: { kind: E.kind } }, el('b', null, E.stamp));
       stamp.style.transform = 'rotate(-5deg)';
       stamp.firstChild.style.fontSize = `min(56px, ${Math.round(560 / (E.stamp.length * .74 + .3)) / 10}vw)`;
@@ -4783,7 +5128,11 @@ dialog li { margin: 0 0 6px; }
       if (info.newBest) gains.push(`A new best night: ${money(S.cash)}.`);
       if (info.rankAfter && info.rankBefore && info.rankAfter.i > info.rankBefore.i) gains.push(`A new rank: ${info.rankAfter.name}.`);
       if (info.newlyMet && info.newlyMet.length) gains.push(`New pages in the Book: ${info.newlyMet.map(first).join(', ')}.`);
-      if (S.ending === 'house') gains.push(`The house beaten: ${Ledger.data.house === 1 ? 'the first time' : plural(Ledger.data.house, 'time')}.`);
+      if (S.ending === 'house') gains.push(`The house beaten: ${Ledger.data.house === 1 ? 'the first time' : plural(Ledger.data.house, 'time')}${info.rungBeaten ? `, on After Hours ${info.rungBeaten}${info.firstRung ? ' for the first time' : ''}` : ''}.`);
+      // After the house: a rung opened, feats done (and the ways in they open), grudges settled.
+      if (info.opened) { const R = Engine.ROOMS[info.opened - 1]; gains.push(el('span', { id: 'gain-room' }, el('b', null, info.opened === 1 ? 'After Hours is open. ' : `After Hours ${info.opened} is open. `), `${R.name}. ${R.line}`)); }
+      (info.feats || []).forEach(id => { const f = FEATS.find(x => x.id === id); gains.push(el('span', { dataset: { feat: id } }, el('b', null, `A feat: ${f.name}. `), `A new way to walk in: “${START_BY[f.start].name}”.`)); });
+      sum.grudges.forEach(g => gains.push(g.settled === 'won' ? `Settled with ${first(g.id)} (+${money(g.bonus)}).` : `${first(g.id)} got ${pron(g.id)[2]} money back.`));
       if (info.daily) gains.push('Tonight’s tables: your result is in for today.');
       gains.push(`${plural(Ledger.data.nights, 'night')} in Lyman’s ledger · best ${money(Ledger.data.best)} · ${Ledger.rank(Ledger.data.best).name}.`);
       const share = Engine.shareLine(S);
@@ -4791,6 +5140,7 @@ dialog li { margin: 0 0 6px; }
         el('h1', { class: 'visually-hidden', id: 'over-title' }, `The end of the night: ${E.stamp.toLowerCase()}`),
         el('div', { class: 'over-stamp' }, stamp),
         el('p', { class: 'over-line' }, line),
+        S.room || S.start ? this.nightTag(S, Engine.view(S)) : null,
         el('p', { class: 'over-cash', id: 'over-cash' }, money(S.cash), el('small', null, 'walked out with')),
         column,
         el('div', { class: 'row' }, el('button', { class: 'btn', id: 'btn-copy-column', type: 'button', onclick: () => App.copy(`${$('col-head').textContent}\n\n${$('col-body').textContent}\n${$('col-by').textContent}`, 'copy-col-note') }, 'Copy the column'), el('span', { class: 'note', id: 'copy-col-note', role: 'status' })),
@@ -4800,7 +5150,7 @@ dialog li { margin: 0 0 6px; }
         el('p', { class: 'telline', id: 'tell-line', 'data-read': sum.tell && sum.tell.reads ? '' : null }, sum.tell ? sum.tell.text : 'Nobody got a read on you tonight.'),
         // A Last Call, won or lost, is study: what the Book gained on the house tonight.
         sum.house ? [el('h3', { class: 'kicker' }, 'What the Book gained on the house'), sum.house.lines.length ? el('ul', { class: 'gains', id: 'house-line' }, sum.house.lines.map(l => el('li', null, l))) : el('p', { class: 'houseline', id: 'house-line' }, sum.house.text)] : null,
-        el('h3', { class: 'kicker' }, 'What the ledger gained'), el('ul', { class: 'gains' }, gains.map(g => el('li', null, g))),
+        el('h3', { class: 'kicker' }, 'What the ledger gained'), el('ul', { class: 'gains', id: 'gains' }, gains.map(g => el('li', null, g))),
         el('p', { class: 'share', id: 'share-line' }, share),
         el('div', { class: 'row', style: 'margin-top:8px' }, el('button', { class: 'btn', id: 'btn-share', type: 'button', onclick: () => App.copy(share, 'share-note') }, 'Copy the result'), el('span', { class: 'note', id: 'share-note', role: 'status' })),
         el('div', { class: 'endbtns' }, el('button', { class: 'btn primary big', id: 'btn-again', type: 'button', onclick: () => App.start({}) }, 'Another night'), el('button', { class: 'btn big', id: 'btn-home', type: 'button', onclick: () => App.home() }, 'Home'))));
@@ -4876,7 +5226,11 @@ dialog li { margin: 0 0 6px; }
           el('li', null, b('The night. '), 'You start with $100. Each hour from 9 PM to Midnight you pay to sit at the near table or the big one. After each table Curtis sells tricks in the back room: five slots, and a trick sells back for half. Short of the cheapest seat, the night is over.'),
           el('li', null, b('Last Call. '), 'Hold $500 after Midnight and you play Loretta and Curtis with everything you have: win and it triples, lose and it is gone. Dice tricks do not work at her table, and there are no antes there.'),
           el('li', null, b('The house. '), 'Loretta’s and Curtis’s habits mean different things in different spots: hers, whether she is ahead of you on dice; his, whether he opens the round or raises. Your Book splits their pages that way, night after night. Down to her last two dice, Loretta goes quiet.'),
-          el('li', null, b('They read you back. '), 'Sharp players and the house watch how you raise (a step of one, a jump, a new face) and remember what your cup showed. Bluff the same way every time and they will call it. Your Book’s page, “What they know about you”, shows what they have. Poker Face hides it.')),
+          el('li', null, b('They read you back. '), 'Sharp players and the house watch how you raise (a step of one, a jump, a new face) and remember what your cup showed. Bluff the same way every time and they will call it. Your Book’s page, “What they know about you”, shows what they have. Poker Face hides it.'),
+          // After the house (said only once it is earned).
+          Ledger.data.house > 0 ? el('li', { id: 'rules-after' }, b('After Hours. '), `Five rungs above the house night, each one change harder and keeping the ones below. ${Engine.ROOMS.map(r => `${r.rung}: ${r.line}`).join(' ')} Beat the house on a rung to open the next.`) : null,
+          Ledger.data.house > 0 ? el('li', { id: 'rules-grudges' }, b('Grudges. '), 'A regular you knock out, or whose table you win, may come back on a later night: one a table, two a night at most. They bring half the buy-in more to the pot and call your bids sooner (only yours). Finish ahead of them for a quarter of the buy-in on top; either way it is over. Not met in five nights, it fades.') : null,
+          Ledger.data.house > 0 ? el('li', { id: 'rules-starts' }, b('Ways to walk in. '), 'Each feat on Lyman’s ledger opens one: ' + Engine.STARTS.filter(x => x.id !== 'usual').map(x => `${x.name} (${x.line.replace(/\.$/, '')})`).join('; ') + '. Tonight’s tables take no room, no start and no grudges.') : null),
         el('p', { class: 'note' }, 'The Count is the chance the bid is true from your dice (and anything a trick shows you), the other dice fair. People are not fair. That is the game.')
       ], [['Close', null, 'primary']]);
     }
@@ -4950,6 +5304,8 @@ dialog li { margin: 0 0 6px; }
   let queue = Promise.resolve();
   let navGen = 0;      // bumped when the player leaves for the home screen mid-animation
   const persist = () => { if (rec) Night.save(rec); };
+  // The Book the night plays with: yours, or on a Blind night tonight's own (it starts clean; yours still keeps it all).
+  const bookNow = () => (rec && rec.nightBook && rec.S && rec.S.start === 'blind' ? rec.nightBook : Book.data);
   // Kept in memory too, so a night survives leaving to the home screen with storage switched off.
   const nightSave = Night.save.bind(Night), nightLoad = Night.load.bind(Night), nightClear = Night.clear.bind(Night);
   Night.save = r => { Night.mem = r; nightSave(r); };
@@ -4966,21 +5322,30 @@ dialog li { margin: 0 0 6px; }
     idle() { return queue.then(() => undefined); },
     now: () => new Date(),
     view() { return rec ? Engine.view(rec.S) : null; },
-    /* A new night: { seed, daily (true for tonight's, or 'YYYY-MM-DD'), tips (the first-table coach), tricks (tests) }. */
+    /* A new night: { seed, daily (true for tonight's, or 'YYYY-MM-DD'), tips (the first-table coach), tricks (tests),
+       room (an After Hours rung; default: the home screen's pick), start (a way to walk in; default: the home screen's
+       pick), grudges (false: none tonight) }. Rooms, starts and grudges only once the house has been beaten, and never
+       on tonight's tables (the same for everyone). */
     start(opts) {
       opts = opts || {};
       Stage.reset(); Dialog.close(); navGen++; Lesson.off();
       const daily = opts.daily === true ? dayKey(App.now()) : typeof opts.daily === 'string' ? opts.daily : null;
       const seed = opts.seed !== undefined ? opts.seed : daily ? undefined : ((Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0).toString(36);
-      const S = Engine.newNight({ seed, daily, book: Book.data, tricks: opts.tricks });
+      const after = !daily && Ledger.data.house > 0;
+      const room = after ? clamp(opts.room !== undefined ? opts.room | 0 : Pick.room(), 0, Ledger.open()) : 0;
+      const startId = after ? (opts.start !== undefined ? opts.start : Pick.start()) : null;
+      const start = startId && Ledger.starts().some(x => x.id === startId) ? startId : null;
+      const S = Engine.newNight({ seed, daily, book: Book.data, tricks: opts.tricks, room, start, grudges: after && opts.grudges !== false });
       const coach = opts.tips === undefined ? !Settings.tipsDone && !Ledger.data.nights : !!opts.tips;
       // A player's very first night deals them straight into the 9 PM near table; the choice waits for 10 PM.
       const firstNight = opts.first !== undefined ? !!opts.first : opts.tips === undefined && !Ledger.data.nights;
       rec = { v: Engine.VERSION, S, coach, first: firstNight, metBefore: Book.metIds(), started: Date.now() };
+      // Blind: a clean Book for the night (tonight's own pages, from nothing).
+      if (S.start === 'blind') rec.nightBook = Engine.bookApply(null, []);
       Night.rec = rec;
       if (!Settings.played) { Settings.played = true; Settings.save(); }
       UI.after = null; UI.endInfo = null; TV.key = '';
-      bookShown = Book.data;
+      bookShown = bookNow();
       persist();
       if (firstNight && S.phase === 'choose' && S.hour === 0) App.act({ t: 'sit', i: 0 });
       else Screens.render();
@@ -4991,7 +5356,7 @@ dialog li { margin: 0 0 6px; }
       if (!r) { App.home(); return false; }
       Stage.reset(); Dialog.close(); navGen++; Lesson.off();
       rec = r; Night.rec = rec; UI.after = null; TV.key = '';
-      bookShown = Book.data;
+      bookShown = bookNow();
       Screens.render();
       return true;
     },
@@ -5000,14 +5365,17 @@ dialog li { margin: 0 0 6px; }
       if (Lesson.on) return Lesson.act(action);
       const run = async () => {
         if (!rec) return [{ t: 'error', msg: 'no night in progress' }];
-        const S = rec.S, nav = navGen, bookBefore = Book.data;
+        const S = rec.S, nav = navGen, bookBefore = bookNow();
         let ev;
         try { ev = Engine.act(S, action); } catch (err) { ev = [{ t: 'error', msg: String(err && err.message) }]; }
         if (!ev.length || ev[0].t === 'error') { if (Screens.cur === 'table') Toast.show(cap(ev[0] ? ev[0].msg : 'nothing happened')).catch(() => {}); return ev; }
         UI.after = null;
         Book.apply(ev);
+        if (rec.nightBook) rec.nightBook = Engine.bookApply(rec.nightBook, ev);
+        // (Loretta gone quiet tonight: a feat's fact.)
+        if (ev.some(e => e.t === 'gear')) rec.quiet = true;
         if (ev.some(e => e.t === 'nightEnd')) {
-          UI.endInfo = Object.assign(Ledger.record(S), { newlyMet: Book.metIds().filter(id => !rec.metBefore.includes(id)) });
+          UI.endInfo = Object.assign(Ledger.record(S, rec), { newlyMet: Book.metIds().filter(id => !rec.metBefore.includes(id)) });
           Night.clear();
         } else persist();
         if (ev.some(e => e.t === 'sit')) show('table');
@@ -5015,7 +5383,7 @@ dialog li { margin: 0 0 6px; }
         bookShown = bookBefore;
         try { if (Screens.cur === 'table') await play(ev); } catch (err) { if (err !== ABORT) console.error(err); }
         busy = false;
-        bookShown = Book.data;
+        bookShown = bookNow();
         if (nav !== navGen || !rec || rec.S !== S) return ev;
         const te = ev.find(e => e.t === 'tableEnd');
         if (te) UI.after = { e: te, reveal: ev.find(e => e.t === 'reveal') || null, readout: ev.find(e => e.t === 'readout') || null, losses: TV.lastLoss.slice() };
@@ -5291,7 +5659,7 @@ dialog li { margin: 0 0 6px; }
     App,
     Book: { get data() { return Book.data; }, page: id => Engine.bookPage(Book.data, id), met: id => Book.met(id) },
     Ledger: { get data() { return Ledger.data; }, rank: best => Ledger.rank(best), RANKS: RANKS.map(r => r.slice()) },
-    UI: { Settings, Coach, Talk, Column, Claude, Table, Screens, TV, Picker, Tricks, People, Menu, Lesson, show, get after() { return UI.after; } }
+    UI: { Settings, Coach, Talk, Column, Claude, Table, Screens, TV, Picker, Tricks, People, Menu, Lesson, Ledger, Book, Pick, show, get after() { return UI.after; } }
   });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

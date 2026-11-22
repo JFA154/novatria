@@ -2473,6 +2473,72 @@ code owns every die, rule and dollar; there is nothing for Claude to decide.
   Last Call** (lost it all there), **walked home** (short of $500 after
   Midnight, or chose to walk from Last Call with your cash) and **went
   bust** (could not afford a table).
+- **After the house.** Three things give a player who has beaten the house
+  a reason to come back. None of them shows before it is earned: the first
+  visit, and every night before the first house win, are as they were (no
+  room to pick, no way in, no feats, no grudges, no sentence about them in
+  How it works or the rules). A ledger that already has the house beaten on
+  record opens After Hours at once.
+  - **After Hours** is a ladder of five harder nights above the house night.
+    Beating the house on a rung opens the next; each rung adds one change
+    and keeps the ones below. In the bar's words (`Engine.ROOMS`):
+    1. *Curtis gets choosy.* Curtis shows two tricks, not three, and charges
+       half again (three with Friends Rates).
+    2. *Hard rules.* Every table plays a hard house rule, 9 PM included:
+       Sudden, Short cups or Blind opener (the rules that make a table
+       shorter and luckier, where a strong player's edge has fewer rounds
+       to show).
+    3. *The sharp ones stay late.* Everyone at every table plays a tier
+       sharper (never past tier 4).
+    4. *Big money only.* At Midnight the near table is closed: the big table
+       or nothing (leaving the 11 PM back room short of its buy-in is bust).
+    5. *A dearer door.* Loretta wants $2,000 to sit.
+
+    The home screen picks tonight's room with one tap ("After Hours": House,
+    1, 2 ... up to the highest open, which is the default) and says the
+    rung's change in one line. The table choice, the end of the night and
+    the share line name the rung ("Bones · night x · After Hours 3 · beat
+    the house · ..."). Lyman's ledger keeps the best rung beaten ("After
+    Hours 2 beaten"), and the end of the night says when a rung opens.
+  - **Grudges.** A regular you knock out (your Liar call was right on their
+    bid, or they called your good bid and it took their last die), or anyone
+    at a table you win, may come back on a later night for their money. The
+    Book keeps them (six at most, the newest); a night brings back two at
+    most, one a table, at the hour and kind of table where they lost (or the
+    nearest free one), in the seat of the regular nearest their tier. The
+    table card says so ("Vada is back for her money. She puts $10 more in
+    the pot, and she'll call you sooner. Finish ahead of her for $5 on
+    top."), the name is marked, and at the table her seat wears GRUDGE. The
+    holder brings half the buy-in more to the pot, and plays you, and only
+    you, harder: she puts your bluffing 0.3 higher and her call line on your
+    bids 0.1 higher, so she calls you sooner and believes you less; her play
+    toward everyone else, and everything she can see, is as ever. Finish
+    ahead of her at that table and it is settled, with a quarter of the
+    buy-in on top ("Settled with Vada: +$5. She won't be back for it.");
+    finish behind her and it is over too ("Vada got her money back."). A
+    grudge not met in five nights fades. The Book's page for that person
+    has the history in one line ("Grudge: 3 nights met · you took $340 off
+    her, lost $0 to her · settled 1, lost 0."), and the home screen's Book
+    card says who is waiting ("Back for their money: Vada, Colt."). Never
+    the house, never at Last Call.
+  - **Ways to walk in.** Each feat on Lyman's ledger opens one way to start
+    a night, picked with one tap on the home screen ("Walk in", the usual
+    by default):
+
+    | Start | The trade | Opened by |
+    |---|---|---|
+    | The usual | $100 and nothing else. | always |
+    | A trick in your pocket | $60, and Curtis slips you a trick (the seed's pick of eighteen; held, never counted as bought). | Beat the house without buying a trick |
+    | Marked | $160, but the whole room has your number: everyone plays you as a grudge-holder does, reads the shape of your bids (tiers 1 and 2 too) and remembers all of your Book's notes on you, unfaded. | Fill 25 pages of the Book |
+    | Blind | A clean Book tonight: nobody at the tables remembers you, and your Book shows nothing but tonight's pages (it still keeps the night). Beat the house blind and Last Call pays four times, not three. | Win Last Call after Loretta goes quiet |
+    | On Curtis's tab | $200, paid back at the door: Loretta wants $500 more to sit. | Settle three grudges |
+
+    The feats show under Lyman's ledger once the house has been beaten, with
+    progress where they count ("Fill 25 pages of the Book · 18 of 25 ·
+    opens "Marked""), and the end of the night says when one is done.
+  - **Tonight's tables** take none of the three: no room, no start, no
+    grudges, so the daily stays the same night for everyone (the engine
+    ignores all three for a daily, and the page never asks for them).
 
 **The hook** is two kinds of evidence that disagree:
 
@@ -2558,14 +2624,17 @@ The rest of the page:
   money, the table, the house rules, the night, Last Call (no antes, dice
   tricks asleep), the house (their habits mean different things in different
   spots, the Book splits them, Loretta goes quiet on her last two dice) and
-  the room reading you back.
+  the room reading you back; once the house has been beaten, also After
+  Hours (each rung's line), grudges and the ways to walk in (How it works
+  gains one sentence on them then too).
 - **Tonight's tables** are the same for everybody, from the date. The first
   finish of the day is kept, with a line to copy and send ("Bones ·
   2026-11-21 · beat the house · $2,340 · ..."); replays do not count.
-- **Lyman's ledger**: nights played, best night, the house beaten, nights
-  running without going bust, and a rank by best night (Mark, Regular at
-  $200, Hustler at $600, Shark at $1,500, Legend of the Low Water at
-  $4,000).
+- **Lyman's ledger**: nights played, best night, the house beaten, the best
+  After Hours rung beaten, nights running without going bust, and a rank by
+  best night (Mark, Regular at $200, Hustler at $600, Shark at $1,500,
+  Legend of the Low Water at $4,000); once the house is beaten, the feats
+  under it.
 - **The first night** shows short coach tips, one at a time, each placed
   so it does not cover what it is about (tips about the people sit at the
   foot of the table, over the bid controls); "Skip the tips" turns them off
@@ -2600,7 +2669,12 @@ It is pure: no DOM, no clock, no unseeded randomness, and it attaches only
 seeded generator kept in `S.rng`, so the same seed and the same actions give
 the same night byte for byte. You are always seat 0. In brief:
 
-- `Engine.newNight({ seed, daily, book, tricks })` returns `S`.
+- `Engine.newNight({ seed, daily, book, tricks, room, start, grudges })`
+  returns `S` (`room`: an After Hours rung; `start`: a way to walk in;
+  `grudges: true`: a night that carries grudges; a daily takes none of the
+  three, and a night with none of them is the night it always was, checked
+  against nights recorded before they existed,
+  `tests/fixtures/bones-default-nights.json`).
 - `Engine.act(S, action)` is the one way to change `S`. Actions by phase:
   `sit` and `walk` (choosing a table), `bid`, `liar` (optionally `double`),
   `spot`, `use` (Loretta's Nod, Slow Roll with `dice` or `keep: 'best'`,
@@ -2628,6 +2702,14 @@ the same night byte for byte. You are always seat 0. In brief:
   house bid carries its `sit`.
 - `Engine.playNight(seed, policy, opts)` plays a whole night with a policy
   function; `Engine.basicPolicy` plays by the Count alone.
+- After the house: `Engine.ROOMS` (the rungs: `rung`, `id`, `name`,
+  `line`), `Engine.STARTS` (`id`, `name`, `short`, `cash`, `line`),
+  `Engine.door(S)` (Loretta's door tonight), `Engine.grudges(book)` (the
+  grudges waiting and how many settled); `view.room`, `view.start`,
+  `view.door` and `view.table.grudge`; a grudge-holder on a table card
+  (`options(S)[i].grudge`), on the `sit` event and in `tableEnd.grudge`
+  (`marks`, `met`, `settled`, `bonus`; a settled grudge pays `why: 'grudge'`);
+  `bookPage(...).grudge` is the history line.
 - `Engine.lesson()` returns `{ S, events }` for the practice hand: a fixed
   three-seat table with set cups and set moves for the people
   (`Engine.LESSON`), its first round open (`view.table.cups`), played on
@@ -2645,11 +2727,16 @@ progress, dropped when `Engine.VERSION` changes; a night saved before the
 trick rework resumes and plays on under the new rules: a Palm already used
 that table stays used, and a loaded six counts twice from the next roll),
 `novatria.bones.book` (which also keeps your bids by shape, for the room to
-remember, and the house's habits split by situation; a Book or a night
-saved before either has none and carries on, the house's old tallies shown
-as seen before the split),
-`novatria.bones.ledger` and `novatria.bones.settings` (which also notes
-whether the practice hand was done or skipped), and `novatria.bones.vibrate`
+remember, the house's habits split by situation, and grudges: a page's
+`grudge` waiting and its `feud` history; a Book or a night saved before
+any of these has none and carries on, the house's old tallies shown as seen
+before the split), the night in progress also keeping, on a Blind night,
+tonight's own clean Book,
+`novatria.bones.ledger` (which also keeps the best After Hours rung beaten,
+`rung`, and the feats done, `feats`; a ledger kept before them has neither
+and opens After Hours at once if the house was beaten) and
+`novatria.bones.settings` (which also notes whether the practice hand was
+done or skipped), and `novatria.bones.vibrate`
 (`on` or `off`, once the Vibration switch is used). The API key is
 `novatria.apiKey`, shared with the other games, and is written there only
 when "Remember on this device" is ticked (otherwise it is kept for the tab).
@@ -2697,6 +2784,16 @@ With no theme of its own Bones follows the town game's (`novatria.settings`).
   (rounded to $5; Friends Rates 25% off); a reroll costs $10, then $20, $30;
   a trick sells for half what was paid; five slots.
 - Last Call needs $500 and pays three times the stack.
+- After the house (`Engine.ROOMS`, `STARTS`, `GRUDGE_*`): After Hours shows
+  two offers (three with Friends Rates) at 1.5 times the price; the hard rules
+  are Sudden, Short cups and Blind opener, one at every table; a tier sharper
+  means each seat's asked-for tier plus one, never past 4; at Midnight only
+  the big table; the door $2,000. The starts: $60 and a trick from eighteen
+  (the seed's pick), $160 Marked, $100 Blind (Last Call pays four stacks),
+  $200 on the tab (the door $500 more). A grudge-holder brings half the
+  buy-in to the pot, puts your bluffing 0.3 higher and its call line on your
+  bids 0.1 higher; settling pays a quarter of the buy-in; two a night, one a
+  table, six kept, gone after five nights unmet.
 - The house at Last Call (`PATTERN`, the chances as drawn; an idle habit
   now and then shows in a tell's place): Loretta's glasses show on 95% of her
   bluffs and 8% of her straight bids when level or behind, 3% and 65% when
@@ -2734,16 +2831,87 @@ reads (tiers 1 and 2 only); it ends 60% of its nights with a tell on
 record and is read about once every two or three nights. Played by the
 Count, a player has a tell on about one night in ten and is hardly ever
 read; the Reader proxy's natural play carries one on a third of its nights.
-Holding one trick all night, a proxy that uses it as a holder would
-gains, in points of house-beating rate (by the Count / reading the tells):
-Loaded Six +8.5 / +11, Slow Roll +4.6 / +4, Palm +4 / +4.4, Side Bet +2.8 /
-+4.3 (+$183 / +$457 mean cash), Snake Eyes +1.3 / +2.5 (+$127 / +$245),
-Poker Face +4.6 for a player who bluffs (+3.3 / +5.6), Double or Nothing
-+4.2 / +3.9 on sure calls (+4.3 / +9.1 pressed on its first calls of each
-table; unlimited, before the limit, that was +13.7 / +12.6), Friends Rates +2.8 / +4.9 for a buyer (+$301 / +$838); for scale, Reading Glasses
-+11.6 and Close Enough +11.3 by the Count. (Those lifts were measured with
-five-dice cups from 11 PM and before the room read you back; now, with
-four, Poker Face measures +2.5 / +7.6 and +2.4 for a player who bluffs.)
+
+Holding one trick all night, a proxy that uses it as a holder would gains,
+in points of house-beating rate and in mean cash at the end of the night
+(`node tests/bones-sim.cjs`, the full run, 1,000 nights a trick, measured on
+the file as it stands; * on the buyer, against the buyer without it):
+
+| Trick | By the Count | Reading the tells |
+|---|---|---|
+| Shaved Die | +5.1 (+$432) | +9.6 (+$920) |
+| Loaded Six | +7.7 (+$561) | +11.6 (+$1,267) |
+| Extra Bone | +6.8 (+$505) | +6.9 (+$714) |
+| Rabbit's Foot | +8.0 (+$532) | +6.5 (+$610) |
+| Slow Roll | +4.8 (+$245) | +3.2 (+$213) |
+| Palm | +3.6 (+$274) | +2.6 (+$277) |
+| Hot Hand | +2.6 (+$122) | +3.2 (+$364) |
+| Mirror Ring | +10.2 (+$484) | +6.3 (+$447) |
+| Bar Mirror | +8.4 (+$452) | +18.8 (+$1,367) |
+| Loretta's Nod | +4.9 (+$295) | +5.0 (+$448) |
+| Reading Glasses | +6.2 (+$368) | 0 (the Reader already knows the tells) |
+| Lyman's Ledger | +5.6 (+$327) | 0 (it already knows the rates) |
+| Cornered | +6.8 (+$412) | +4.8 (+$364) |
+| Sticky Fingers | +3.7 (+$279) | +2.2 (+$310) |
+| Side Bet | +3.0 (+$159) | +3.0 (+$269) |
+| House Money | +1.4 (+$342) | +1.0 (+$582) |
+| Snake Eyes | +1.8 (+$113) | +1.6 (+$167) |
+| Friends Rates * | +4.0 (+$293) | +5.4 (+$703) |
+| A Tab * | +3.1 (−$37) | +0.3 (−$111) |
+| Poker Face | +4.9 (+$273) | +10.6 (+$515); a Bluffer +3.9 (+$240) |
+| Honest Face | +7.0 (+$326) | +8.7 (+$367) |
+| Double or Nothing | +5.8 (+$237) | +3.7 (+$114); always pressed +6.2 / +7.8 |
+| Close Enough | +11.7 (+$638) | +29.7 (+$1,760) |
+| Last Word | +12.2 (+$719) | +12.8 (+$742) |
+
+None is negative and none is above +14 by the Count; for the reader Close
+Enough (+29.7) and Bar Mirror (+18.8) stand well above the rest (not retuned
+here).
+
+After the house (`node tests/bones-sim.cjs 2000 --rooms`, `--grudges`,
+`--starts`; 2,000 nights a row). **After Hours**, beating the house by rung
+(in brackets, the step from the rung below):
+
+| | House night | 1 Curtis gets choosy | 2 Hard rules | 3 Sharp ones stay late | 4 Big money only | 5 A dearer door |
+|---|---|---|---|---|---|---|
+| Mathy | 13.3% | 13.3% (0.0) | 11.9% (−1.4) | 8.7% (−3.3) | 7.7% (−1.0) | 2.7% (−5.0) |
+| Mathy+buy | 27.6% | 23.6% (−4.0) | 21.3% (−2.3) | 17.3% (−4.1) | 11.8% (−5.5) | 6.8% (−5.0) |
+| Reader | 21.9% | 21.9% (0.0) | 18.5% (−3.4) | 14.9% (−3.6) | 13.9% (−1.0) | 5.3% (−8.6) |
+| Reader+buy | 45.5% | 38.5% (−7.0) | 32.4% (−6.1) | 27.8% (−4.6) | 17.4% (−10.4) | 10.1% (−7.3) |
+| Studied+buy | 51.1% | 41.9% (−9.3) | 35.6% (−6.3) | 30.4% (−5.3) | 19.2% (−11.2) | 10.8% (−8.3) |
+
+The house-night column is the house night's own figures to the decimal (no
+room, start or grudge changes a default night). Each change was measured on
+its own first (Studied+buy, from 50% at 1,000 nights: the shop −7, hard
+rules −9, a tier sharper −9, Midnight's near table closed −11, a $1,000 door
+−11) and put in
+the order that gives the evenest staircase; the door's amount was set last
+($2,000 brings the top rung to about 10%: the closed near table at Midnight
+makes stacks bigger, so a dearer door matters less after it). Loretta going
+quiet a die sooner with Curtis silent (−5, she stops bluffing sooner too),
+every table a house rule of any kind (−3, and +5 for Mathy+buy: long
+tables suit the stronger player), no habit at all at Last Call (−3 at rung
+4) and a fourth chair there (−3 at rung 4) were tried and left out. **Grudges**: a table with a grudge-holder is 6.4
+points harder for Mathy (49.5% to 43.1% over all eight tables: −3.9 to −6.7
+by table, −11.2 at the Midnight big table), and a won one pays more ($640
+against $529 on average); over runs of ten nights with the Book carried
+(about 0.9 grudges met a night, 66 to 85% settled your way), beating the
+house moves +0.2 (Mathy), +0.4 (Mathy+buy), +0.9 (Reader+buy) and +2.2
+(Studied+buy; +1.4 at 1,000 nights). **Ways to walk in** (in brackets,
+against the usual):
+
+| | Usual | Pocket | Marked | Blind | Tab |
+|---|---|---|---|---|---|
+| Mathy | 13.3% | 13.7% (+0.3) | 8.7% (−4.7) | 13.3% (0.0) | 11.4% (−1.9) |
+| Mathy+buy | 27.6% | 26.1% (−1.6) | 31.9% (+4.3) | 27.6% (0.0) | 30.3% (+2.6) |
+| Reader | 21.9% | 23.4% (+1.4) | 10.3% (−11.6) | 13.3% (−8.6) | 19.6% (−2.3) |
+| Reader+buy | 45.5% | 43.2% (−2.3) | 44.1% (−1.4) | 27.6% (−17.9) | 43.9% (−1.6) |
+| Studied+buy | 51.1% | 47.5% (−3.7) | 46.8% (−4.4) | 27.6% (−23.5) | 50.0% (−1.1) |
+
+Each suits someone and costs someone else: the pocket trick a player who
+does not buy, Marked and the tab a buyer, Blind a player who reads nothing
+anyway (the same rate, and Last Call pays four stacks); a reader on a Blind
+night plays by the Count, since what it knows of the people is its Book.
 
 **Install it on your phone.** Bones can live on a phone's home screen
 like an app and opens full screen from there, with no network once it has
@@ -2775,7 +2943,7 @@ been visited once.
   in Settings (off by default when the phone asks for reduced motion; iPhones
   cannot vibrate from a web page, so they show no switch).
 
-**Tests.** `node tests/bones-engine.test.cjs` (84 tests, Node only, no
+**Tests.** `node tests/bones-engine.test.cjs` (97 tests, Node only, no
 browser) loads the engine block from `index.html` into `vm` and checks the
 rules exactly: determinism and the JSON round trip, the view hiding what it
 must, every call and its money, every house rule, the Count against brute
@@ -2806,8 +2974,19 @@ without it), the end-of-night line on the house, fairness (the house's moves
 and habits the same with your faces, or the other one's, changed) and a Last
 Call saved before the patterns resuming with an old Book
 (`tests/fixtures/bones-lastcall-v1.json`, written by the engine before this
-change). `node
-tests/bones.test.cjs` (39 tests, Playwright) plays the page through its own
+change); and after the house: a default night exactly as recorded before
+After Hours, grudges and starts existed (`tests/fixtures/bones-default-nights.json`:
+plain nights, nights holding tricks, tonight's tables and a run with the Book
+carried, each night's dice, cash, every event and the final state hashed),
+each rung's change there from its own rung up and not below, the share line,
+the daily taking none of the three, each start's cash and what comes with
+it, Marked and grudge-holders playing you harder and only you (the same move
+on another's bid, more calls on yours, never seeing your dice), grudges
+arising (knocked out, or a table won; never the house), coming back (two a
+night, one a table, at their table, a bigger pot), settling both ways with
+the bonus and the Book's history line, fading after five nights, six kept,
+and an old Book with grudges on. `node
+tests/bones.test.cjs` (47 tests, Playwright) plays the page through its own
 buttons on a phone: the file alone from `file://` with the network shut,
 whole nights to each of the four endings with the page checked against the
 engine's view after every step, a reload mid-round, storage switched off,
@@ -2839,7 +3018,16 @@ a Last Call saved before the patterns resumed from Continue with an old
 Book, the beat before it at 320 to 430 px in both themes, and Last Call
 cells in the layout matrix (the habit line with two-figure tallies, Loretta
 gone quiet with the Nod's line beside it, a reveal) from 320x568 to
-430x932.
+430x932; and after the house: nothing of it shown before it is earned (and
+the first visit as it was), a house win through the buttons opening After
+Hours (the end of the night, home's one-tap room defaulting to the highest
+open) and an After Hours night through the buttons, beating a rung (the
+ledger's best rung, the next opened), the feats with progress and each one
+done by what it names, each way in picked with one tap, a grudge through
+the buttons (the card, the seat, the bigger pot, the end of the table, the
+Book's line), tonight's tables ignoring the picks, home's picks fitting
+from 320x568 with a night to continue in both themes, and grudge seats in
+the layout matrix from 320x568 to 430x932.
 `node tests/bones-pwa.test.cjs` serves the checkout from a tiny local
 server (at the root and under `/novatria/`) and checks the manifest and its
 icons, the worker taking control, a whole night played after a reload with
@@ -2848,9 +3036,10 @@ passed by, file:// and sandboxed frames left quiet, the install row on each
 platform and the Vibration switch.
 `node tests/run.cjs bones` runs all three. The simulator is not part of
 `run.cjs`: `node tests/bones-sim.cjs [nights] [--rates] [--quick]
-[--only=id,id] [--lc=N]` (2,000 nights by default; `--rates` prints every person's
+[--only=id,id] [--lc=N] [--rooms] [--grudges] [--starts]` (2,000 nights by default; `--rates` prints every person's
 measured bluff rate, `--quick` skips the per-trick ablation, `--only` runs
-it for just those tricks) plays seeded nights with proxy players (by the
+it for just those tricks; `--rooms`, `--grudges` and `--starts` run only
+the after-the-house sections) plays seeded nights with proxy players (by the
 Count alone, and with the tells known, each with and without buying tricks)
 and prints table win rates by hour, how whole nights end (also for the
 **Studied**, the Reader who has studied the house), a **Last Call** section

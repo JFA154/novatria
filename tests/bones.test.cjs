@@ -1386,6 +1386,217 @@ s.test('the beat before Last Call fits a phone in both themes: nothing spills or
   }
 });
 
+// ===================================================================== after the house: After Hours, grudges, ways in
+/* A page with this ledger and Book on disk (and the first-visit things done), reloaded so the home screen reads them. */
+async function withRecord(h, o) {
+  const page = await open(h, { viewport: o.viewport || PHONE });
+  await page.evaluate(o => {
+    localStorage.setItem('novatria.bones.settings', JSON.stringify({ v: 1, theme: o.theme || 'dark', played: true, lesson: 'done', tipsDone: true }));
+    if (o.ledger) localStorage.setItem('novatria.bones.ledger', JSON.stringify(o.ledger));
+    if (o.book) localStorage.setItem('novatria.bones.book', JSON.stringify({ v: 'bones-1', book: o.book }));
+    if (o.night) localStorage.setItem('novatria.bones.night', JSON.stringify(o.night));
+  }, o);
+  await page.reload();
+  await page.waitForFunction(() => window.Game && Game.App);
+  await page.evaluate(() => { Game.App.speed = 0; });
+  return page;
+}
+// A ledger as it was kept before After Hours (no rung, no feats), with the house beaten n times.
+const OLD_LEDGER = n => ({ v: 1, nights: 6, best: 1800, bestEnding: 'house', house: n, streak: 2, bestStreak: 4, busts: 1, total: 3000, daily: {} });
+const ALL_FEATS = { clean: 3, quiet: 4, pages: 5, settle: 6 };
+const homeBits = () => ({
+  room: !!document.querySelector('#home-room'), start: !!document.querySelector('#home-start'), feats: !!document.querySelector('#home-feats'),
+  grudges: !!document.querySelector('#home-grudges'), how: !!document.querySelector('#how-after'), dice: !!document.querySelector('.hero-dice'),
+  rooms: [...document.querySelectorAll('#home-room [data-room]')].map(b => b.dataset.room + (b.getAttribute('aria-pressed') === 'true' ? '*' : '')),
+  starts: [...document.querySelectorAll('#home-start [data-start]')].map(b => b.dataset.start + (b.getAttribute('aria-pressed') === 'true' ? '*' : ''))
+});
+
+s.test('nothing after the house shows before it is earned: no room, no way in, no feats, no grudges, no rules about them', async h => {
+  const E = engineInNode();
+  // A Book that would hold grudges, had they been earned.
+  let book = null; for (let i = 0; i < 6; i++) book = E.bookApply(book, E.playNight('pre' + i, null, { grudges: true, keepEvents: true }).events);
+  const page = await withRecord(h, { ledger: OLD_LEDGER(0), book: JSON.parse(JSON.stringify(book)) });
+  assert.deepEqual(await page.evaluate(homeBits), { room: false, start: false, feats: false, grudges: false, how: false, dice: true, rooms: [], starts: [] });
+  // The night it deals is the house night, whatever is asked: no room, no start, no grudges.
+  await page.evaluate(() => Game.App.start({ room: 3, start: 'marked', tips: false }));
+  assert.deepEqual(await page.evaluate(() => { const S = Game.App.state; return [S.room || 0, S.start || null, !!S.grudges, Game.Engine.view(S).door, !!document.querySelector('#night-tag')]; }), [0, null, false, 500, false]);
+  await page.evaluate(() => Game.UI.Menu.rules());
+  assert.equal(await page.evaluate(() => !!document.querySelector('#rules-after, #rules-grudges, #rules-starts')), false);
+  // The first visit stays as it was (the practice hand first, the dice, How it works open).
+  const first = await open(h);
+  assert.deepEqual(await first.evaluate(homeBits), { room: false, start: false, feats: false, grudges: false, how: false, dice: true, rooms: [], starts: [] });
+  assert.ok(await first.isVisible('#btn-learn'));
+});
+
+s.test('a house win through the buttons opens After Hours: the end of the night says so, home offers it (the highest open by default), and an After Hours night plays through the buttons', async h => {
+  const E = engineInNode();
+  let seed = null;
+  for (let i = 0; i < 400 && !seed; i++) if (E.playNight('n' + i).S.ending === 'house') seed = 'n' + i;
+  const page = await withRecord(h, {});
+  await startNight(page, { seed });
+  assert.equal(await playOut(page, { check: true }), 'over');
+  assert.equal(await page.evaluate(() => Game.App.state.ending), 'house');
+  // The end of the night: After Hours is open, with its first rung's line; the ledger has it.
+  assert.match(await page.textContent('#gain-room'), new RegExp('^After Hours is open\\. ' + E.ROOMS[0].name + '\\. ' + E.ROOMS[0].line.replace(/[$.]/g, '\\$&')));
+  assert.deepEqual(await page.evaluate(() => [Game.UI.Ledger.data.house, Game.UI.Ledger.data.rung, Game.UI.Ledger.open()]), [1, 0, 1]);
+  // The feat a trick-less win earns says so too: a new way in.
+  assert.ok(await page.isVisible('#gains li [data-feat="clean"]'));
+  await page.click('#btn-home');
+  const bits = await page.evaluate(homeBits);
+  assert.deepEqual([bits.room, bits.feats, bits.how, bits.dice, bits.rooms], [true, true, true, false, ['0', '1*']]);
+  // (Blind too, when Loretta went quiet before that win.)
+  assert.deepEqual(bits.starts.filter(x => x !== 'blind'), ['usual*', 'pocket']);
+  assert.match(await page.textContent('#room-line'), new RegExp(E.ROOMS[0].name));
+  assert.equal(await page.evaluate(() => document.querySelector('#btn-sit').className.includes('primary')), true);
+  // One tap picks the house night, another After Hours again; the line follows.
+  await page.click('#home-room [data-room="0"]');
+  assert.equal(await page.textContent('#room-line'), 'The house night, as it always was.');
+  await page.click('#home-room [data-room="1"]');
+  await page.click('#btn-sit');
+  await page.evaluate(() => { Game.App.speed = 0; });
+  assert.equal(await page.evaluate(() => Game.App.state.room), 1);
+  assert.match(await page.textContent('#night-tag'), /^After Hours 1 · /);
+  assert.equal(await playOut(page, { check: true }), 'over');
+  assert.match(await page.textContent('#share-line'), / · After Hours 1 · /);
+  assert.deepEqual(await overflowReport(page, PHONE.width), []);
+});
+
+s.test('beating the house on a rung: the ledger keeps the best rung, the end of the night opens the next, and home defaults to it', async h => {
+  const E = engineInNode();
+  let seed = null;
+  for (let i = 0; i < 600 && !seed; i++) if (E.playNight('r1-' + i, null, { room: 1 }).S.ending === 'house') seed = 'r1-' + i;
+  assert.ok(seed, 'a seed that beats rung 1 by the Count');
+  const page = await withRecord(h, { ledger: OLD_LEDGER(1) });
+  assert.deepEqual((await page.evaluate(homeBits)).rooms, ['0', '1*'], 'an old ledger with the house beaten: After Hours open at once');
+  await startNight(page, { seed, room: 1 });
+  assert.equal(await playOut(page, { check: true }), 'over');
+  assert.equal(await page.evaluate(() => Game.App.state.ending), 'house');
+  assert.match(await page.textContent('#gains'), /The house beaten: 2 times, on After Hours 1 for the first time\./);
+  assert.match(await page.textContent('#gain-room'), new RegExp('^After Hours 2 is open\\. ' + E.ROOMS[1].name));
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('novatria.bones.ledger')).rung), 1);
+  await page.click('#btn-home');
+  assert.deepEqual((await page.evaluate(homeBits)).rooms, ['0', '1', '2*']);
+  assert.match(await page.textContent('#ledger-line'), /After Hours 1 beaten/);
+});
+
+s.test('ways to walk in: the feats on the ledger with progress, each opening one; one tap picks it, and the night starts that way', async h => {
+  const E = engineInNode();
+  // 18 pages in the Book and two grudges settled: progress on two feats, none done.
+  const book = { v: 1, nights: 9, me: { bids: 0, bluffs: 0 }, people: {} };
+  E.PEOPLE.filter(p => !/loretta|curtis/.test(p.id)).slice(0, 18).forEach((p, k) => { book.people[p.id] = { bids: 2, bluffs: 0, habits: [0, 1, 2].map(() => ({ n: 0, bluff: 0, straight: 0 })), quiet: { n: 2, bluff: 0, straight: 2 }, won: 1, lost: 0, nights: 1, lastNight: 'x' }; if (k < 2) book.people[p.id].feud = { met: 1, won: 1, lost: 0, took: 100, gave: 0 }; });
+  const page = await withRecord(h, { ledger: OLD_LEDGER(1), book });
+  const feats = () => page.evaluate(() => [...document.querySelectorAll('#home-feats li')].map(li => li.dataset.id + (li.hasAttribute('data-done') ? '+' : '') + ': ' + li.querySelector('.f-n').textContent));
+  assert.deepEqual(await feats(), ['clean: Opens “A trick in your pocket”', 'quiet: Opens “Blind”', 'pages: 18 of 25 · opens “Marked”', 'settle: 2 of 3 · opens “On Curtis’s tab”']);
+  assert.equal(await page.evaluate(() => !!document.querySelector('#home-start')), false, 'no way in to pick yet');
+  // All done (a ledger with every feat): the five ways in, the usual picked.
+  const all = await withRecord(h, { ledger: Object.assign(OLD_LEDGER(1), { feats: ALL_FEATS }) });
+  assert.deepEqual((await all.evaluate(homeBits)).starts, ['usual*', 'pocket', 'marked', 'blind', 'tab']);
+  for (const id of ['pocket', 'marked', 'blind', 'tab', 'usual']) {
+    await all.click(`#home-start [data-start="${id}"]`);
+    const st = E.STARTS.find(x => x.id === id);
+    assert.equal(await all.textContent('#start-line'), `${st.name}. ${st.line}`);
+    await all.click('#btn-sit');
+    if (await all.isVisible('#btn-confirm-new')) await all.click('#btn-confirm-new');
+    await all.evaluate(() => Game.App.idle());
+    const got = await all.evaluate(() => { const S = Game.App.state, v = Game.Engine.view(S); return { start: v.start, cash: v.cash, tricks: v.tricks.map(t => t.id), door: v.door, tag: (document.querySelector('#night-tag') || {}).textContent || '' }; });
+    assert.equal(got.start, id); assert.equal(got.cash, st.cash);
+    if (id === 'pocket') assert.equal(got.tricks.length, 1);
+    if (id === 'tab') assert.equal(got.door, 1000);
+    if (id !== 'usual') assert.ok(got.tag.includes(st.name), got.tag);
+    // Blind: nobody remembers anybody tonight.
+    if (id === 'blind') assert.deepEqual(await all.evaluate(() => [Game.App.state.mem.bids, Object.keys(Game.App.state.prior).length]), [0, 0]);
+    await all.evaluate(() => Game.App.home());
+  }
+});
+
+s.test('each feat is done by what it names, opens its way in, and is kept: a trick-less house win, a win after Loretta went quiet, 25 pages, three grudges settled', async h => {
+  const E = engineInNode();
+  const book = { v: 1, nights: 9, me: { bids: 0, bluffs: 0 }, people: {} };
+  E.PEOPLE.filter(p => !/loretta|curtis/.test(p.id)).slice(0, 24).forEach((p, k) => { book.people[p.id] = { bids: 1, bluffs: 0, habits: [0, 1, 2].map(() => ({ n: 0, bluff: 0, straight: 0 })), quiet: { n: 1, bluff: 0, straight: 1 }, won: 1, lost: 0, nights: 1, lastNight: 'x' }; if (k < 3) book.people[p.id].feud = { met: 1, won: k < 2 ? 1 : 0, lost: k < 2 ? 0 : 1, took: 50, gave: 0 }; });
+  const page = await withRecord(h, { ledger: OLD_LEDGER(1), book });
+  const night = (ending, bought) => ({ ending, cash: 2000, daily: null, room: 0, stats: { bought: bought || [] } });
+  const r = await page.evaluate(([a, b, c]) => {
+    const L = Game.UI.Ledger, out = [];
+    out.push(L.record(a, {}).feats);          // a house win after buying a trick: none
+    out.push(L.record(b, {}).feats);          // a house win, nothing bought: clean
+    out.push(L.record(c, { quiet: true }).feats); // a cleaned-out night after Loretta went quiet: not a win
+    out.push(L.record(Object.assign({}, b), { quiet: true }).feats); // a win after she went quiet: quiet
+    return { feats: out, kept: Object.keys(JSON.parse(localStorage.getItem('novatria.bones.ledger')).feats).sort(), starts: L.starts().map(x => x.id) };
+  }, [night('house', ['nod']), night('house'), night('cleaned')]);
+  assert.deepEqual(r.feats, [[], ['clean'], [], ['quiet']]);
+  assert.deepEqual(r.kept, ['clean', 'quiet']);
+  assert.deepEqual(r.starts, ['usual', 'pocket', 'blind']);
+  // The counted ones: 24 pages and two settled (not yet), then a 25th page and a third settled.
+  await page.evaluate(() => Game.App.home());
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#home-feats li')].map(li => li.dataset.id + (li.hasAttribute('data-done') ? '+' : ''))), ['clean+', 'quiet+', 'pages', 'settle']);
+  const more = JSON.parse(JSON.stringify(book));
+  const extra = E.PEOPLE.filter(p => !/loretta|curtis/.test(p.id))[24].id;
+  more.people[extra] = Object.assign({}, more.people[Object.keys(more.people)[5]]);
+  more.people[Object.keys(more.people)[2]].feud = { met: 2, won: 1, lost: 1, took: 50, gave: 0 };
+  await page.evaluate(b => { localStorage.setItem('novatria.bones.book', JSON.stringify({ v: 'bones-1', book: b })); }, more);
+  await page.reload(); await page.waitForFunction(() => window.Game && Game.App);
+  assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('#home-feats li')].map(li => li.dataset.id + (li.hasAttribute('data-done') ? '+' : ''))), ['clean+', 'quiet+', 'pages+', 'settle+']);
+  assert.deepEqual((await page.evaluate(homeBits)).starts, ['usual*', 'pocket', 'marked', 'blind', 'tab']);
+  assert.deepEqual(Object.keys(await page.evaluate(() => JSON.parse(localStorage.getItem('novatria.bones.ledger')).feats)).sort(), ['clean', 'pages', 'quiet', 'settle'], 'kept once reached');
+});
+
+s.test('a grudge through the buttons: the card says who is back and the bigger pot, the seat wears it, the end of the table settles it, and the Book has the line', async h => {
+  const E = engineInNode();
+  // A Book with one grudge waiting from the 9 PM near table; a seed where the holder is not at a table already.
+  const holder = 'npc_vada';
+  const book = { v: 1, nights: 5, me: { bids: 0, bluffs: 0 }, people: { [holder]: { bids: 4, bluffs: 1, habits: [0, 1, 2].map(() => ({ n: 0, bluff: 0, straight: 0 })), quiet: { n: 4, bluff: 1, straight: 3 }, won: 1, lost: 0, nights: 2, lastNight: 'x', grudge: { night: 4, hour: 0, kind: 'easy' }, feud: { met: 0, won: 0, lost: 0, took: 60, gave: 0 } } } };
+  let seed = null;
+  for (let i = 0; i < 50 && !seed; i++) { const S = E.newNight({ seed: 'gr' + i, book, grudges: true }); if (S.offers[0][0].grudge && S.offers[0][0].grudge.id === holder) seed = 'gr' + i; }
+  const page = await withRecord(h, { ledger: OLD_LEDGER(1), book });
+  assert.match(await page.textContent('#home-grudges'), /^Back for their money: Vada\./);
+  await startNight(page, { seed, room: 0 });
+  const card = await page.evaluate(() => { const c = document.querySelector('.tcard[data-i="0"]'); return { g: c.querySelector('.grudge').textContent, person: c.querySelector('.person[data-grudge] .nm').textContent, pot: [...c.querySelectorAll('.facts span')].find(x => /^pot/.test(x.textContent)).textContent }; });
+  assert.match(card.g, /^Vada is back for her money\. She puts \$10 more in the pot, and she’ll call you sooner\. Finish ahead of her for \$5 on top\.$/);
+  assert.equal(card.person, 'Vada Sturdivant');
+  assert.equal(card.pot, 'pot $70');
+  assert.equal(await page.evaluate(() => !!document.querySelector('.tcard[data-i="1"] .grudge')), false, 'one table');
+  await page.click('.tcard button.sit[data-i="0"]');
+  await page.evaluate(() => Game.App.idle());
+  const seat = await page.evaluate(() => { const s = [...document.querySelectorAll('.seat')].find(n => n.dataset.id === 'npc_vada'); return { tag: s.querySelector('.seat-tag').textContent, label: s.getAttribute('aria-label'), ante: document.querySelector('#antetag').textContent }; });
+  assert.equal(seat.tag, 'GRUDGE'); assert.match(seat.label, /Vada is back for her money\./); assert.match(seat.ante, /pot \$70$/);
+  // Play the table out through the buttons; its end says how it went.
+  await playOut(page, { check: true, until: () => !!Game.UI.after });
+  const end = await page.evaluate(() => { const n = document.querySelector('#end-grudge'); return { text: n.textContent, settled: n.dataset.settled, log: Game.App.state.log[0].grudge }; });
+  assert.ok(end.settled === 'won' || end.settled === 'lost');
+  assert.match(end.text, end.settled === 'won' ? /^Settled with Vada: \+\$5\. She won’t be back for it\./ : /^Vada got her money back\. The grudge is over\./);
+  // The Book's page: the history in one line.
+  await page.click('#btn-endtable');
+  await page.evaluate(() => Game.UI.People.open('npc_vada'));
+  assert.match(await page.textContent('#pp-grudge'), new RegExp(`^Grudge: 3 nights met · you took \\$[\\d,]+ off her, lost \\$[\\d,]+ to her · settled ${end.settled === 'won' ? 1 : 0}, lost ${end.settled === 'won' ? 0 : 1}\\.$`));
+});
+
+s.test('tonight\'s tables ignore the room, the way in and grudges, whatever is picked on the home screen', async h => {
+  const holder = 'npc_vada';
+  const book = { v: 1, nights: 5, me: { bids: 0, bluffs: 0 }, people: { [holder]: { bids: 0, bluffs: 0, habits: [0, 1, 2].map(() => ({ n: 0, bluff: 0, straight: 0 })), quiet: { n: 0, bluff: 0, straight: 0 }, won: 1, lost: 0, nights: 1, lastNight: 'x', grudge: { night: 4, hour: 0, kind: 'easy' } } } };
+  const page = await withRecord(h, { ledger: Object.assign(OLD_LEDGER(2), { rung: 3, feats: ALL_FEATS }), book });
+  await page.click('#home-room [data-room="4"]');
+  await page.click('#home-start [data-start="marked"]');
+  assert.match(await page.textContent('#daily-note'), /no room, start or grudges/);
+  await page.click('#btn-daily');
+  const got = await page.evaluate(() => { const S = Game.App.state; return { room: S.room || 0, start: S.start || null, grudges: !!S.grudges, cash: S.cash, marked: S.offers.flat().some(o => o.grudge), daily: !!S.daily, same: JSON.stringify(S.offers) === JSON.stringify(Game.Engine.newNight({ daily: S.daily }).offers) }; });
+  assert.deepEqual(got, { room: 0, start: null, grudges: false, cash: 100, marked: false, daily: true, same: true });
+});
+
+s.test('home after the house fits a phone: the picks and "A new night" on the first screen from 320x568, both themes, with a night to continue', async h => {
+  const E = engineInNode();
+  const S = E.newNight({ seed: 'fit-home', room: 2 }); E.act(S, { t: 'sit', i: 0 });
+  for (const theme of ['dark', 'parchment']) for (const [w, hh] of [[320, 568], [360, 640], [390, 780], [430, 932]]) for (const night of [null, { v: 'bones-1', S: JSON.parse(JSON.stringify(S)), coach: false, first: false, metBefore: [], started: 0 }]) {
+    const page = await withRecord(h, { theme, viewport: { width: w, height: hh }, ledger: Object.assign(OLD_LEDGER(3), { rung: 4, feats: ALL_FEATS }), night });
+    const m = await page.evaluate(() => { const r = s => document.querySelector(s).getBoundingClientRect(); const small = [...document.querySelectorAll('#home-tonight button')].filter(b => b.getBoundingClientRect().height < 43.5 || b.scrollWidth > b.clientWidth + 1).length; return { sit: r('#btn-sit').bottom, room: r('#home-room').bottom, start: r('#home-start').bottom, rooms: document.querySelectorAll('#home-room [data-room]').length, small, H: innerHeight }; });
+    const label = `${theme} ${w}x${hh}${night ? ' continue' : ''}`;
+    assert.equal(m.rooms, 6, label);
+    assert.ok(m.sit <= m.H, `${label}: "A new night" at ${Math.round(m.sit)} of ${m.H}`);
+    assert.equal(m.small, 0, label + ': 44 px taps, labels whole');
+    assert.deepEqual(await overflowReport(page, w), [], label);
+    await page.close();
+  }
+});
+
 // ===================================================================== the table's layout, by measurement
 /* A table set as asked, after startNight (the tricks): o = { opps (2|3), rule, long (the longest names and habit
    lines in the cast), moment: 'turn' (a bid on the table, a habit under every opponent) | 'open' | 'theirs' (an
@@ -1407,6 +1618,8 @@ const TABLE_SCENE = async o => {
   const longHabits = E.PEOPLE.flatMap(p => p.habits.map((text, i) => ({ text, i }))).sort((a, b) => b.text.length - a.text.length);
   if (o.long) { const names = E.PEOPLE.filter(p => p.id !== 'npc_loretta').sort((a, b) => b.first.length - a.first.length); T.seats.forEach((s, k) => { if (k) s.id = names[k - 1].id; }); }
   if (o.ids) T.seats.forEach((s, k) => { if (k && o.ids[k - 1]) s.id = o.ids[k - 1]; });
+  // A grudge-holder in the first seat (back for their money: the seat's tag, a bigger pot on the felt).
+  if (o.grudge) { T.grudge = { seat: 1, id: T.seats[1].id, stake: 160 }; T.pot += 160; }
   const habitFor = k => { const p = E.PEOPLE.find(x => x.id === T.seats[k].id); if (o.sits && o.sits[k - 1] === 'quiet') return null; if (o.habits) return { i: Math.max(0, p.habits.indexOf(o.habits[k - 1])), text: o.habits[k - 1], line: '', underline: false }; const h = o.long ? longHabits[k - 1] : { text: p.habits[0], i: 0 }; return { i: h.i, text: h.text, line: '', underline: false }; };
   if (['turn', 'reveal', 'theirs', 'side'].includes(o.moment)) {
     const bids = [];
@@ -1539,6 +1752,13 @@ for (const vp of [[320, 568], [360, 640], [390, 780], [430, 932]]) {
     { vp, tricks: ['ledger', 'mirror'], o: { opps: 2, moment: 'reveal', long: true, read: LONG_READ.slice(0, 1), coach: 'read' } });
 }
 
+// Grudges: a grudge-holder's seat (its tag) with the longest names, at your turn and at a reveal, from 320x568 up.
+for (const vp of [[320, 568], [360, 640], [390, 780], [430, 932]]) {
+  LAYOUT_CELLS.push(
+    { vp, tricks: INFO5, o: { opps: 3, rule: 'double', moment: 'turn', long: true, grudge: true } },
+    { vp, tricks: ['ledger', 'mirror'], o: { opps: 2, moment: 'reveal', long: true, grudge: true } });
+}
+
 // Last Call: the house's habit line quoting the tally for the situation in front of you (a Book with two-figure
 // tallies, so the line is its longest), and Loretta gone quiet (the gear line on the felt, "says nothing" under her).
 const HOUSE_HABITS = ['lets her glasses drop on their chain', 'names the odds out loud'];
@@ -1563,7 +1783,7 @@ s.test('the table never overlaps itself: with any tricks, names and moment, from
         if (c.o.book) { await page.evaluate(b => localStorage.setItem('novatria.bones.book', JSON.stringify({ v: 'bones-1', book: b })), HOUSE_BOOK); await page.reload(); await page.waitForFunction(() => window.Game && Game.App); }
         for (const d of cells.filter(x => !x.page && (!!x.o.css === !!c.o.css) && (!!x.o.book === !!c.o.book))) {
           d.page = true;
-          const label = `${theme} ${k} ${d.tricks.join('+') || 'no tricks'} ${d.o.opps}o ${d.o.moment}${d.o.coach ? ' coach:' + d.o.coach : ''}${d.o.hour === 4 ? ' Last Call' + (d.o.gear ? ' quiet' : '') : ''}`;
+          const label = `${theme} ${k} ${d.tricks.join('+') || 'no tricks'} ${d.o.opps}o ${d.o.moment}${d.o.coach ? ' coach:' + d.o.coach : ''}${d.o.hour === 4 ? ' Last Call' + (d.o.gear ? ' quiet' : '') : ''}${d.o.grudge ? ' grudge' : ''}`;
           await startNight(page, { seed: 'fit-' + label, tricks: d.tricks });
           const st = await page.evaluate(TABLE_SCENE, d.o).catch(e => { throw new Error(label + ": " + e.message); });
           if (d.o.coach) assert.ok(st.coach, 'the coach tip is up: ' + label);
@@ -1574,6 +1794,7 @@ s.test('the table never overlaps itself: with any tricks, names and moment, from
             assert.match(bl, d.o.gear ? /^Curtis names the odds out loud · when he opens: seen \d+ times: \d+ bluffs?, \d+ straight$/ : /^Curtis names the odds out loud · when he raises: seen \d+ times: \d+ bluffs?, \d+ straight$/, label);
           }
           if (d.o.gear) { assert.equal(await page.textContent('#gear-line'), 'Loretta has gone quiet', label); if (d.o.moment === 'turn') assert.equal(await page.textContent('.seat[data-seat="1"] .habit'), 'says nothing', label); }
+          if (d.o.grudge) { assert.equal(await page.textContent('.seat[data-seat="1"] .seat-tag'), 'GRUDGE', label); assert.match(await page.textContent('#antetag'), /pot \$/, label); }
           const m = await page.evaluate(TABLE_LAYOUT);
           assert.deepEqual(m.bad, [], label);
           if (m.scrolls) scrolled.push(label);

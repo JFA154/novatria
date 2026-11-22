@@ -44,10 +44,19 @@
    first, so the room has notes on them), and their whole nights both alone and in a run
    of nights with the Book carried from one to the next. Every proxy's row also counts
    the reads that changed a decision and how many nights ended with a tell on record.
-   Usage: node tests/bones-sim.cjs [nights] [--rates] [--quick] [--only=id,id]
+   Usage: node tests/bones-sim.cjs [nights] [--rates] [--quick] [--only=id,id] [--rooms] [--grudges] [--starts]
      --rates  also print every person's measured bluff rate (the engine's RATE).
      --quick  skip the per-trick ablation.
      --only   run the ablation for just these tricks.
+     After the house (any of these runs only those sections, after the same training passes):
+     --rooms    every After Hours rung (0, the house night, to 5) for Mathy, Mathy+buy, the Reader, Reader+buy and
+                Studied+buy: how often each beats the house, and the step from the rung below.
+     --grudges  one table with a grudge-holder against the same table without (Mathy, every hour and kind: the win
+                rate and what a won table paid), and runs of consecutive nights with the Book carried from one to the
+                next (so grudges arise, come back, settle and fade) against the same runs without grudges.
+     --starts   every way to walk in against the usual $100, for the same five players. A Blind night has no Book,
+                so a proxy that knows the people (the Reader, the Studied) plays it by the Count.
+     With none of the three, the output is what it was: no room, no start and no grudges anywhere.
      --lc=N   tables per player for the Last Call section (default: nights, at least 2000).
    The Last Call section plays LC tables for Mathy, the Reader and the Studied, with the gear's numbers, and
    counts how many Last Calls a Book takes before its split pages on the house are usable (STUDY_N sightings in
@@ -224,22 +233,25 @@ function tellSays(v) {
 const lookOf = (total, q, f, wild) => SIM.tail(total, q, wild ? 1 / 3 : 1 / 6);
 
 function makeProxy(opts) {
-  const know = opts.know || null, buys = !!opts.buy, thr = opts.thr || 0.38, likeP = opts.like || 0.5, cmp = opts.cmp || 0, openP = opts.open || 0.5, jumpAt = opts.jump || 0.6;
+  const know0 = opts.know || null, buys = !!opts.buy, thr = opts.thr || 0.38, likeP = opts.like || 0.5, cmp = opts.cmp || 0, openP = opts.open || 0.5, jumpAt = opts.jump || 0.6;
   // bluff: a share (0..1) of its bids that are deliberate, sensible bluffs (the Bluffer).
   const bluffShare = opts.bluff || 0;
   return function policy(S, v, L) {
+    // A Blind night (a clean Book): whatever it knows of the people it knows from the Book, so tonight it plays by the Count.
+    const know = S.start === 'blind' ? null : know0;
     if (S.phase === 'choose') {
       if (!L.sit.length) return { t: 'walk' };
       const o = v.options;
       if (o.length === 1) return { t: 'sit', i: 0 };
       const rich = o.find(c => c.kind === 'rich'), easy = o.find(c => c.kind === 'easy');
-      const pickRich = rich.affordable && !rich.viaTab && S.cash >= rich.buyIn * (opts.richX || 2);
+      // (After Hours may close the near table at Midnight: then the big one.)
+      const pickRich = (rich.affordable && !rich.viaTab && S.cash >= rich.buyIn * (opts.richX || 2)) || !!easy.closed;
       return { t: 'sit', i: pickRich ? rich.i : easy.affordable ? easy.i : rich.i };
     }
     if (S.phase === 'shop') {
       if (buys) {
         const sv = v.shop;
-        const nextEasy = S.hour < 3 ? Math.min(...E.HOURS[S.hour + 1].easy ? [E.HOURS[S.hour + 1].easy.buyIn] : [0]) : 500;
+        const nextEasy = S.hour < 3 ? Math.min(...E.HOURS[S.hour + 1].easy ? [E.HOURS[S.hour + 1].easy.buyIn] : [0]) : (v.door || 500);
         const reserve = nextEasy * 1.25;
         const friends = S.tricks.some(x => x.id === 'friends');
         const top = friends && opts.friendsTop ? opts.friendsTop : (opts.buyTop || 16);
@@ -386,18 +398,20 @@ function makeProxy(opts) {
 let RATES = {};
 function measure(name, policy, nights, opts) {
   opts = opts || {};
-  const r = { name, nights, end: { house: 0, cleaned: 0, walked: 0, bust: 0 }, cash: [], lc500: 0, tables: {}, rounds: [], bids: {}, reads: 0, told: 0 };
+  const r = { name, nights, end: { house: 0, cleaned: 0, walked: 0, bust: 0 }, cash: [], lc500: 0, tables: {}, rounds: [], bids: {}, reads: 0, told: 0, grudges: { met: 0, won: 0, made: 0 } };
   let book = null;
   for (let i = 0; i < nights; i++) {
     const seed = (opts.seedBase || 'sim') + ':' + i;
     // carry: the Book carried from night to night (the room remembers you), in runs of `carry` nights.
     if (opts.carry && i % opts.carry === 0) book = null;
-    const { S, events } = E.playNight(seed, policy, { tricks: opts.tricks, keepEvents: !!opts.rates || !!opts.carry, book: opts.carry ? book : undefined });
+    // night: more of newNight's options (an After Hours room, a start, grudges).
+    const { S, events } = E.playNight(seed, policy, Object.assign({ tricks: opts.tricks, keepEvents: !!opts.rates || !!opts.carry, book: opts.carry ? book : undefined }, opts.night || {}));
     if (opts.carry) book = E.bookApply(book, events);
     r.reads += S.you && S.you.fired ? S.you.fired.length : 0;
     if (E.summary(S).tell && E.summary(S).tell.shape) r.told++;
     r.end[S.ending]++;
     r.cash.push(S.cash);
+    S.log.forEach(t => { if (t.grudge) { if (t.grudge.met) { r.grudges.met++; if (t.grudge.settled === 'won') r.grudges.won++; } r.grudges.made += t.grudge.marks.length; } });
     if (S.log.some(t => t.kind === 'last')) r.lc500++;
     S.log.forEach(t => {
       const k = E.HOURS[t.hour].name + ' ' + t.kind;
@@ -449,6 +463,15 @@ function main() {
   train(Math.max(300, Math.floor(nights / 3)));
   houseTrain(Math.max(1500, nights));
   const STUDY = { rates: true, tells: true, study: true };
+  // After the house: only the sections asked for.
+  if (args.some(a => /^--(rooms|grudges|starts)$/.test(a))) {
+    console.log(`Bones balance sim · after the house · ${nights} nights per row · engine ${E.VERSION}`);
+    if (args.includes('--rooms')) rooms(nights, STUDY);
+    if (args.includes('--grudges')) grudges(nights, STUDY);
+    if (args.includes('--starts')) starts(nights, STUDY);
+    console.log(`\n${((Date.now() - t0) / 1000).toFixed(1)} s`);
+    return;
+  }
   const runs = [
     measure('Mathy', makeProxy({}), nights),
     measure('Mathy+buy', makeProxy({ buy: true }), nights),
@@ -540,6 +563,81 @@ function main() {
   }
   lastCall(args, nights);
   console.log(`\n${((Date.now() - t0) / 1000).toFixed(1)} s`);
+}
+// ----- After the house: the After Hours ladder, grudges, the ways to walk in -----
+const READER_K = { rates: true, tells: true };
+const sgn = x => (x >= 0 ? '+' : '') + x.toFixed(1);
+// Every rung of After Hours, for each player: how often it beats the house (and the step down from the rung below).
+function rooms(nights, STUDY) {
+  const players = [['Mathy', {}], ['Mathy+buy', { buy: true }], ['Reader', { know: READER_K }], ['Reader+buy', { know: READER_K, buy: true }], ['Studied+buy', { know: STUDY, buy: true }]];
+  console.log(`\nAfter Hours: beat the house by rung (${nights} nights each; rung 0 is the house night; in brackets, the step from the rung below)`);
+  E.ROOMS.forEach(r => console.log(`  rung ${r.rung}: ${r.name}. ${r.line}`));
+  console.log(pad('', 14) + [0, 1, 2, 3, 4, 5].map(k => padL('rung ' + k, 16)).join(''));
+  for (const [name, o] of players) {
+    let prev = null;
+    const cells = [0, 1, 2, 3, 4, 5].map(k => {
+      const r = measure(name, makeProxy(o), nights, { night: k ? { room: k } : {} });
+      const h = 100 * r.end.house / nights, c = pct(r.end.house, nights) + (prev == null ? '' : ` (${sgn(h - prev)})`);
+      prev = h;
+      return padL(c, 16);
+    });
+    console.log(pad(name, 14) + cells.join(''));
+  }
+}
+// One table with a grudge-holder against the same table without (the same seeds): the holder is the person in the
+// first seat, playing you harder; the pot carries their stake; finishing ahead of them pays the bonus.
+function grudgeTable(policy, h, kind, n, on) {
+  let w = 0, paid = 0;
+  for (let i = 0; i < n; i++) {
+    const S = E.newNight({ seed: 'gt:' + h + kind + ':' + i });
+    S.hour = h; S.cash = 1e6;
+    const k = kind === 'rich' ? 1 : 0, o = S.offers[h][k];
+    if (on) { S.grudges = true; o.grudge = { id: o.people[0], stake: Math.round(o.buyIn * SIM.GRUDGE.STAKE) }; }
+    const c0 = S.cash;
+    E.act(S, { t: 'sit', i: k });
+    for (let g = 0; S.phase === 'table'; g++) { if (g > 5000) throw new Error('table stuck'); const ev = E.act(S, policy(S, E.view(S), E.legal(S))); if (ev[0].t === 'error') throw new Error(ev[0].msg); }
+    const t = S.log[S.log.length - 1];
+    if (t.won) { w++; paid += S.cash - c0; }
+  }
+  return { w: w / n, paid: w ? paid / w : 0 };
+}
+function grudges(nights, STUDY) {
+  const nt = Math.max(300, Math.floor(nights / 2));
+  console.log(`\nGrudges: one table with a grudge-holder against the same table without (${nt} tables each; Mathy; won: what a won table did to your cash)`);
+  console.log(pad('', 16) + padL('without', 10) + padL('with', 10) + padL('change', 9) + padL('won: without', 15) + padL('with', 9));
+  const M = makeProxy({}), tot = [0, 0, 0, 0];
+  for (const [h, kind] of TABLES.slice(0, 8)) {
+    const a = grudgeTable(M, h, kind, nt, false), b = grudgeTable(M, h, kind, nt, true);
+    tot[0] += a.w; tot[1] += b.w; tot[2] += a.paid; tot[3] += b.paid;
+    console.log(pad(E.HOURS[h].name + ' ' + kind, 16) + padL(pct(a.w, 1), 10) + padL(pct(b.w, 1), 10) + padL(sgn(100 * (b.w - a.w)), 9) + padL('+$' + Math.round(a.paid), 15) + padL('+$' + Math.round(b.paid), 9));
+  }
+  console.log(pad('all tables', 16) + padL(pct(tot[0] / 8, 1), 10) + padL(pct(tot[1] / 8, 1), 10) + padL(sgn(100 * (tot[1] - tot[0]) / 8), 9) + padL('+$' + Math.round(tot[2] / 8), 15) + padL('+$' + Math.round(tot[3] / 8), 9));
+  // Consecutive nights: the Book carried through runs of RUN nights, grudges arising and coming back, against the same
+  // runs with no grudges (the Book carried all the same).
+  const RUN = 10;
+  console.log(`\nGrudges over consecutive nights (${nights} nights each, the Book carried through runs of ${RUN}): beat the house without and with`);
+  console.log(pad('', 14) + padL('without', 10) + padL('with', 10) + padL('change', 9) + padL('met/night', 11) + padL('settled', 9) + padL('made/night', 12));
+  for (const [name, o] of [['Mathy', {}], ['Mathy+buy', { buy: true }], ['Reader+buy', { know: READER_K, buy: true }], ['Studied+buy', { know: STUDY, buy: true }]]) {
+    const a = measure(name, makeProxy(o), nights, { carry: RUN, seedBase: 'gn' }), b = measure(name, makeProxy(o), nights, { carry: RUN, seedBase: 'gn', night: { grudges: true } });
+    console.log(pad(name, 14) + padL(pct(a.end.house, nights), 10) + padL(pct(b.end.house, nights), 10) + padL(sgn(100 * (b.end.house - a.end.house) / nights), 9) + padL((b.grudges.met / nights).toFixed(2), 11) + padL(pct(b.grudges.won, b.grudges.met), 9) + padL((b.grudges.made / nights).toFixed(2), 12));
+  }
+}
+// Each way to walk in against the usual $100, for each player.
+function starts(nights, STUDY) {
+  const players = [['Mathy', {}], ['Mathy+buy', { buy: true }], ['Reader', { know: READER_K }], ['Reader+buy', { know: READER_K, buy: true }], ['Studied+buy', { know: STUDY, buy: true }]];
+  console.log(`\nWays to walk in: beat the house (${nights} nights each; in brackets, against the usual start)`);
+  E.STARTS.forEach(s => console.log(`  ${s.short}: ${s.line}`));
+  console.log(pad('', 14) + E.STARTS.map(s => padL(s.short, 15)).join('') + padL('mean $ (usual)', 16));
+  for (const [name, o] of players) {
+    let base = null, mean0 = 0;
+    const cells = E.STARTS.map(st => {
+      const r = measure(name, makeProxy(o), nights, { night: st.id === 'usual' ? {} : { start: st.id } });
+      const h = 100 * r.end.house / nights;
+      if (base == null) { base = h; mean0 = r.cash.reduce((a, b) => a + b, 0) / nights; return padL(pct(r.end.house, nights), 15); }
+      return padL(`${pct(r.end.house, nights)} (${sgn(h - base)})`, 15);
+    });
+    console.log(pad(name, 14) + cells.join('') + padL('$' + Math.round(mean0), 16));
+  }
 }
 // ----- Last Call as a boss fight: the three readers, the gear, and how long the study takes -----
 const STUDY_N = 5;

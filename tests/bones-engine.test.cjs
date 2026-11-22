@@ -2077,6 +2077,364 @@ test('a night saved before the trick rework resumes and plays on to its end unde
   }
 });
 
+// ===================================================================== after the house: After Hours, grudges, starts
+const rungOf = id => E.ROOMS.findIndex(r => r.id === id) + 1;
+// A whole night at a table of its own, by the Count, with these newNight options; the events too.
+const night = (seed, o) => E.playNight(seed, E.basicPolicy, Object.assign({ keepEvents: true }, o || {}));
+// A Book with grudges waiting: from a Book carried through nights that carry them (the real way they arise).
+function grudgeBook(n, seed) {
+  let book = null;
+  for (let i = 0; i < (n || 30); i++) { const { events } = night((seed || 'gb') + i, { book, grudges: true }); book = E.bookApply(book, events); }
+  return book;
+}
+
+test('a default night is exactly the night recorded before After Hours, grudges and starts: the same dice, cash, events and state', () => {
+  // tests/fixtures/bones-default-nights.json was written by the engine before this change (Engine.playNight with
+  // basicPolicy: plain nights, nights holding tricks, tonight's tables and a run of nights with the Book carried).
+  const fx = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'fixtures', 'bones-default-nights.json'), 'utf8')).nights;
+  const fnv = t => { let h = 2166136261; for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619) >>> 0; return h.toString(16); };
+  let book = null, n = 0;
+  for (const r of fx) {
+    if (r.label === 'bookhash') { assert.strictEqual(fnv(JSON.stringify(book)), r.book, 'the Book carried through the run'); continue; }
+    const o = r.label === 'tricks' ? { tricks: [['loaded', 'glasses'], ['sidebet'], ['double', 'nod'], ['pokerface'], ['slowroll', 'palm'], ['ledger', 'mirror'], ['extrabone', 'rabbit'], ['snake', 'shaved']][+r.seed.split(':')[1]] }
+      : r.label === 'daily' ? { daily: ['2026-11-21', '2026-11-22', '2026-12-25'][fx.filter(x => x.label === 'daily').indexOf(r)] } : r.label === 'book' ? { book } : {};
+    const { S, events } = E.playNight(r.seed, E.basicPolicy, Object.assign({ keepEvents: true }, o));
+    const got = { ending: S.ending, cash: S.cash, tables: S.log.map(t => [t.hour, t.kind, t.place, t.net]), events: events.length, ev: fnv(JSON.stringify(events)), state: fnv(JSON.stringify(S)) };
+    deq(got, { ending: r.ending, cash: r.cash, tables: r.tables, events: r.events, ev: r.ev, state: r.state }, r.label + ' ' + (r.seed || 'daily'));
+    if (r.label === 'book') book = E.bookApply(book, events);
+    n++;
+  }
+  assert.ok(n >= 40, n + ' nights replayed');
+  // Room 0, the usual start and grudges off are all the house night; a daily takes none of the three.
+  for (const o of [{ room: 0 }, { start: 'usual' }, { grudges: false }, { room: 0, start: 'usual', grudges: false }]) deq(E.newNight(Object.assign({ seed: 'same' }, o)), E.newNight({ seed: 'same' }), JSON.stringify(o));
+});
+
+test('After Hours: five rungs, one named change each, every rung keeping the ones below; the house night has none of them', () => {
+  assert.strictEqual(E.RUNGS, 5);
+  assert.strictEqual(E.ROOMS.length, 5);
+  deq(E.ROOMS.map(r => r.id).slice().sort(), ['door', 'midnight', 'rules', 'sharp', 'shop']);
+  E.ROOMS.forEach((r, i) => { assert.strictEqual(r.rung, i + 1); assert.ok(r.name && r.line && /^[A-Z].*\.$/.test(r.line) && r.line.length <= 100, r.line); });
+  // The room is clamped and kept in the state; the view says it.
+  for (const [k, want] of [[0, 0], [3, 3], [9, 5], [-2, 0]]) { const S = E.newNight({ seed: 'rm', room: k }); assert.strictEqual(E.view(S).room, want); assert.strictEqual(S.room || 0, want); }
+  // Each change is there from its own rung up, and not on the rung below it.
+  const sharpAt = rungOf('sharp'), rulesAt = rungOf('rules'), shopAt = rungOf('shop'), midAt = rungOf('midnight'), doorAt = rungOf('door');
+  const tiers = S => S.offers[0][0].people.map(id => SIM.person(id).tier);
+  for (let i = 0; i < 40; i++) {
+    const seed = 'ah' + i;
+    // 9 PM's near table asks for tiers 1 and 1: a tier sharper, 2 and 2.
+    assert.ok(tiers(E.newNight({ seed, room: sharpAt })).every(t => t === 2), 'sharper at 9 PM');
+    assert.ok(tiers(E.newNight({ seed, room: sharpAt - 1 })).every(t => t === 1), 'not on the rung below');
+    assert.ok(tiers(E.newNight({ seed })).every(t => t === 1), 'the house night: tier 1 at 9 PM near');
+    // Every table a hard house rule from its rung, 9 PM included; never at 9 PM below it or on the house night.
+    E.newNight({ seed, room: rulesAt }).offers.flat().forEach(o => assert.ok(['sudden', 'short', 'blind'].includes(o.rule), 'rule ' + o.rule));
+    assert.ok(E.newNight({ seed }).offers[0].every(o => !o.rule));
+    assert.ok(E.newNight({ seed, room: rulesAt - 1 }).offers[0].every(o => !o.rule));
+  }
+  // The door: dearer from its rung, $500 below it.
+  assert.ok(SIM.DOOR_HIGH > 500);
+  assert.strictEqual(E.door(E.newNight({ seed: 'd', room: doorAt })), SIM.DOOR_HIGH);
+  assert.strictEqual(E.door(E.newNight({ seed: 'd', room: doorAt - 1 })), 500);
+  assert.strictEqual(E.door(E.newNight({ seed: 'd' })), 500);
+  const W = E.newNight({ seed: 'door', room: doorAt }); W.hour = 4; W.cash = SIM.DOOR_HIGH - 100;
+  assert.strictEqual(E.options(W)[0].affordable, false, '$100 short of the door');
+  assert.strictEqual(E.view(W).door, SIM.DOOR_HIGH);
+  W.hour = 3; W.phase = 'shop'; W.shop = { hour: 3, offers: [null, null, null], rerolls: 0 };
+  ok(E.act(W, { t: 'leave' })); assert.strictEqual(W.ending, 'walked');
+  // Curtis: two offers (three with Friends Rates), half again the price, from his rung.
+  const sh = E.newNight({ seed: 'shop', room: shopAt }); sh.hour = 1; sh.cash = 1e5;
+  E.act(sh, { t: 'sit', i: 0 }); finishTable(sh);
+  assert.strictEqual(sh.phase, 'shop'); assert.strictEqual(sh.shop.offers.length, 2);
+  sh.shop.offers.forEach(id => { const base = { common: 15, uncommon: 30, rare: 55 }[E.TRICKS.find(t => t.id === id).rarity] * 2 * 1.5; assert.strictEqual(SIM.price(sh, id, 1), Math.max(5, Math.round(base / 5) * 5)); });
+  const fr = E.newNight({ seed: 'shop', room: shopAt, tricks: ['friends'] }); fr.hour = 1; fr.cash = 1e5; E.act(fr, { t: 'sit', i: 0 }); finishTable(fr);
+  assert.strictEqual(fr.shop.offers.length, 3);
+  const plain = E.newNight({ seed: 'shop' }); plain.hour = 1; plain.cash = 1e5; E.act(plain, { t: 'sit', i: 0 }); finishTable(plain);
+  assert.strictEqual(plain.shop.offers.length, 3);
+  // Big money only: at Midnight the near table is closed (not sat, not counted as the cheapest seat); below the rung it is open.
+  const mid = room => { const S = E.newNight({ seed: 'mid', room }); S.hour = 3; S.cash = 250; return S; };
+  const shut = E.options(mid(midAt)), open = E.options(mid(midAt - 1));
+  assert.ok(shut[0].closed && !shut[0].affordable && shut[1].kind === 'rich' && !shut[1].closed);
+  assert.ok(!open[0].closed && open[0].affordable);
+  deq(E.legal(mid(midAt)).sit, [], '$250 sits nowhere at Midnight: the big table wants $320');
+  assert.ok(isErr(E.act(mid(midAt), { t: 'sit', i: 0 })), 'the closed table cannot be sat');
+  const M2 = mid(midAt); M2.hour = 2; M2.phase = 'shop'; M2.shop = { hour: 2, offers: [null, null], rerolls: 0 };
+  ok(E.act(M2, { t: 'leave' })); assert.strictEqual(M2.ending, 'bust', '$250 short of the big table: bust at Midnight');
+  const M3 = mid(midAt - 1); M3.hour = 2; M3.phase = 'shop'; M3.shop = { hour: 2, offers: [null, null, null], rerolls: 0 };
+  ok(E.act(M3, { t: 'leave' })); assert.strictEqual(M3.phase, 'choose', 'below the rung $250 sits at the near table');
+  const M4 = mid(midAt); M4.cash = 400; ok(E.act(M4, { t: 'sit', i: 1 })); assert.strictEqual(M4.table.kind, 'rich');
+  // The top rung has all five at once.
+  const top = E.newNight({ seed: 'top', room: 5 });
+  assert.ok(tiers(top).every(t => t === 2) && top.offers.flat().every(o => o.rule) && E.door(top) === SIM.DOOR_HIGH);
+});
+
+test('After Hours nights play to an end, and the share line says the rung (the house night\'s does not)', () => {
+  for (let k = 1; k <= 5; k++) for (let i = 0; i < 25; i++) {
+    const { S } = night('ahn' + k + ':' + i, { room: k });
+    assert.ok(['house', 'cleaned', 'walked', 'bust'].includes(S.ending));
+    assert.match(E.shareLine(S), new RegExp(`^Bones · night ahn${k}:${i} · After Hours ${k} · `));
+    assert.strictEqual(E.summary(S).room, k);
+  }
+  assert.doesNotMatch(E.shareLine(night('plainshare').S), /After Hours/);
+});
+
+test('tonight\'s tables take no room, no start and no grudges: the same night for everyone', () => {
+  const book = grudgeBook(20);
+  assert.ok(E.grudges(book).waiting.length, 'grudges waiting in this Book');
+  const a = E.newNight({ daily: '2026-11-22' });
+  const b = E.newNight({ daily: '2026-11-22', room: 5, start: 'marked', grudges: true });
+  deq(b, a);
+  const c = E.newNight({ daily: '2026-11-22', room: 3, start: 'pocket', grudges: true, book });
+  assert.ok(!c.room && !c.start && !c.grudges && !c.pocket);
+  deq(c.offers, a.offers, 'the same tables whatever the Book holds');
+  // Played out: the same as a plain daily.
+  const p = night(null, { daily: '2026-11-22', book }), q = night(null, { daily: '2026-11-22', room: 4, start: 'tab', grudges: true, book });
+  deq(q.S.log.map(t => [t.place, t.net]), p.S.log.map(t => [t.place, t.net]));
+  assert.strictEqual(q.S.cash, p.S.cash);
+});
+
+test('ways to walk in: each start\'s cash and what comes with it; the usual is the house night\'s', () => {
+  const ids = E.STARTS.map(s => s.id);
+  deq(ids, ['usual', 'pocket', 'marked', 'blind', 'tab']);
+  E.STARTS.forEach(s => assert.ok(s.name && s.short && s.short.length <= 7 && s.line.length <= 110, s.id));
+  const cash = id => E.newNight({ seed: 'st', start: id }).cash;
+  assert.strictEqual(cash('usual'), 100);
+  E.STARTS.forEach(s => assert.strictEqual(cash(s.id), s.cash));
+  assert.ok(cash('pocket') < 100 && cash('marked') > 100 && cash('tab') > 100 && cash('blind') === 100);
+  // Pocket: a trick in hand from the seed (the same every time for a seed), held but never bought.
+  const P1 = E.newNight({ seed: 'pk1', start: 'pocket' }), P2 = E.newNight({ seed: 'pk1', start: 'pocket' });
+  assert.strictEqual(P1.tricks.length, 1); deq(P1.tricks, P2.tricks); assert.strictEqual(P1.pocket, P1.tricks[0].id);
+  assert.ok(SIM.POCKET.includes(P1.pocket));
+  const seen = new Set(); for (let i = 0; i < 60; i++) seen.add(E.newNight({ seed: 'pk' + i, start: 'pocket' }).pocket);
+  assert.ok(seen.size >= 8, 'the pick varies by seed: ' + [...seen]);
+  const pn = night('pkn', { start: 'pocket' }).S;
+  assert.ok(!E.summary(pn).tricksBought.includes(pn.pocket) || pn.stats.bought.filter(x => x === pn.pocket).length === 0);
+  assert.strictEqual(E.summary(pn).pocket, pn.pocket);
+  // Tab: Loretta wants $500 more; with the top rung, that much more again.
+  assert.strictEqual(E.door(E.newNight({ seed: 't', start: 'tab' })), 1000);
+  assert.strictEqual(E.door(E.newNight({ seed: 't', start: 'tab', room: rungOf('door') })), SIM.DOOR_HIGH + 500);
+  const T = E.newNight({ seed: 'tab', start: 'tab' }); T.hour = 4; T.cash = 900;
+  assert.strictEqual(E.options(T)[0].affordable, false);
+  T.cash = 1000; assert.strictEqual(E.options(T)[0].affordable, true);
+  // Blind: nobody remembers anybody (no notes on you, no memory of your bluffing, no habits seen before), and
+  // Last Call pays four times.
+  const book = grudgeBook(8, 'bl');
+  const B = E.newNight({ seed: 'b', start: 'blind', book }), N = E.newNight({ seed: 'b', book });
+  assert.ok(N.mem.bids > 0 && Object.keys(N.prior).length > 0);
+  deq(B.mem, { bids: 0, bluffs: 0 }); deq(B.prior, {}); deq(B.you.prior, {});
+  const L = E.newNight({ seed: 'b', start: 'blind' }); L.hour = 4; L.cash = 600;
+  assert.strictEqual(E.options(L)[0].pot, 2400);
+  ok(E.act(L, { t: 'sit', i: 0 })); assert.strictEqual(L.table.pot, 2400);
+  // Marked: the room remembers all of your notes, unfaded; everyone reads you (tier 1 and 2 too).
+  const shapesBook = { v: 1, nights: 3, me: { bids: 80, bluffs: 30, shapes: { all: { n: 80, b: 30 }, step: { n: 30, b: 25 }, stay: { n: 40, b: 20 } } }, people: {} };
+  const M = E.newNight({ seed: 'm', start: 'marked', book: shapesBook }), U = E.newNight({ seed: 'm', book: shapesBook });
+  assert.strictEqual(M.you.prior.all.n, 80); assert.strictEqual(U.you.prior.all.n, 60);
+  const rgM = rig({ people: ['npc_jolene', 'npc_colt'] }); rgM.start = 'marked'; rgM.you = { tonight: {}, prior: M.you.prior, fired: [] };
+  const rgU = rig({ people: ['npc_jolene', 'npc_colt'] }); rgU.you = { tonight: {}, prior: M.you.prior, fired: [] };
+  const bid = { who: 0, q: 3, f: 4, shape: ['step', 'stay'] };
+  assert.ok(SIM.readOf(rgM, 1, bid), 'tier 1 reads you on a Marked night');
+  assert.strictEqual(SIM.readOf(rgU, 1, bid), null, 'and not otherwise');
+});
+
+test('Marked and grudges play you harder, and only you: the same decision on another\'s bid; sooner calls on yours', () => {
+  // The same draws, with the holder at seat 1 (or a Marked night) and without: on a bid of another seat's, the move is the
+  // same every time; on your bid, some change, and every change is toward a call.
+  let same = 0, n = 0, changed = 0, toCall = 0, softer = 0, calls0 = 0, calls1 = 0;
+  for (let i = 0; i < 400; i++) {
+    const dice = [[1 + (i % 6), 2 + (i % 3), 4, 5], [1 + (i * 7 % 6), 3, 1 + (i * 5 % 6), 6], [2, 4, 1 + (i % 4), 5]];
+    for (const who of [0, 2]) {
+      const A = rig({ seed: 'hard' + i, dice, people: ['npc_tammy', 'npc_carter'] });
+      A.table.round.bids = [{ who, q: 3 + (i % 3), f: 2 + (i % 5), p: 0.5, held: 1, bluff: false, habit: null, shape: who === 0 ? ['low'] : undefined }];
+      A.table.round.turn = 1; A.table.wait = null;
+      const G = J(A); G.table.grudge = { seat: 1, id: 'npc_tammy', stake: 10 };
+      const M = J(A); M.start = 'marked';
+      const m0 = SIM.botMove(J(A), 1), mg = SIM.botMove(G, 1), mm = SIM.botMove(M, 1);
+      if (who === 2) { n += 2; if (JSON.stringify(m0) === JSON.stringify(mg)) same++; if (JSON.stringify(m0) === JSON.stringify(mm)) same++; }
+      else for (const m of [mg, mm]) { calls0 += m0.t === 'liar'; calls1 += m.t === 'liar'; if (JSON.stringify(m0) !== JSON.stringify(m)) { changed++; if (m.t === 'liar' && m0.t !== 'liar') toCall++; if (m0.t === 'liar' && m.t !== 'liar') softer++; } }
+    }
+  }
+  assert.strictEqual(same, n, 'another seat\'s bid: the same move');
+  assert.ok(changed > 20, changed + ' of your bids met another move');
+  // They call your bids sooner: hardly ever a call of theirs taken back (only where believing you less shifts the order of
+  // their draws), and more calls in all (the rest of the changes are their own raises, sized as they believe you less).
+  assert.ok(softer <= changed * 0.05, `${softer} of ${changed} changes are a call taken back`);
+  assert.ok(toCall >= changed * 0.4 && calls1 > calls0 + 20, `${toCall} of ${changed} changes are calls; calls ${calls0} -> ${calls1}`);
+  // A seat that is not the holder plays as ever.
+  const A = rig({ seed: 'nh', dice: [[2, 3, 4, 5], [1, 3, 5, 6], [2, 2, 4, 6]], people: ['npc_tammy', 'npc_carter'] });
+  A.table.round.bids = [{ who: 0, q: 4, f: 3, p: 0.5, held: 1, bluff: false, habit: null, shape: ['low'] }]; A.table.round.turn = 2; A.table.wait = null;
+  const G = J(A); G.table.grudge = { seat: 1, id: 'npc_tammy', stake: 10 };
+  deq(SIM.botMove(J(A), 2), SIM.botMove(G, 2));
+});
+
+test('grudges arise from a regular you knock out or a table you win, only on a night that carries them', () => {
+  let marks = 0, ko = 0, wins = 0;
+  for (let i = 0; i < 80; i++) {
+    const { S, events } = night('ga' + i, { grudges: true });
+    events.filter(e => e.t === 'tableEnd').forEach(e => {
+      if (e.kind === 'last') { assert.strictEqual(e.grudge, undefined, 'never at Last Call'); return; }
+      assert.ok(e.grudge && Array.isArray(e.grudge.marks));
+      if (e.won) { wins++; deq(e.grudge.marks.slice().sort(), e.people.slice().sort(), 'a table you won: everyone at it'); }
+      else {
+        // Not won: only the ones you knocked out (your call was right on their bid, or they called your good bid).
+        e.grudge.marks.forEach(id => assert.ok(e.people.includes(id)));
+        ko += e.grudge.marks.length;
+      }
+      marks += e.grudge.marks.length;
+    });
+    // The log carries it too; the summary lists them.
+    assert.deepStrictEqual(J(E.summary(S).marks).length, S.log.filter(t => t.grudge).reduce((a, t) => a + t.grudge.marks.length, 0));
+  }
+  assert.ok(wins > 20 && ko > 5 && marks > 50, `${wins} wins, ${ko} knocked out, ${marks} marks`);
+  // A night that does not carry them makes none, and changes nothing.
+  const plain = night('ga0');
+  assert.ok(plain.events.filter(e => e.t === 'tableEnd').every(e => e.grudge === undefined));
+  assert.ok(plain.S.log.every(t => t.grudge === undefined));
+  // The Book keeps them: a page with a grudge waiting, from the hour and kind of the table.
+  const book = E.bookApply(null, night('ga1', { grudges: true }).events.concat(night('ga2', { grudges: true }).events));
+  const w = E.grudges(book).waiting;
+  assert.ok(w.length >= 1 && w.length <= SIM.GRUDGE.KEEP);
+  w.forEach(g => { assert.ok(book.people[g.id].grudge); assert.ok(g.hour >= 0 && g.hour <= 3 && ['easy', 'rich'].includes(g.kind)); assert.match(g.line, /^\w+ is back for (her|his|their) money\.$/); });
+});
+
+test('grudges come back: one a table, two a night at most, at the hour they lost (or the nearest free table), with a bigger pot', () => {
+  for (let i = 0; i < 60; i++) {
+    const book = grudgeBook(6, 'gc' + i + ':');
+    const S = E.newNight({ seed: 'come' + i, book, grudges: true });
+    const marked = S.offers.flat().filter(o => o.grudge);
+    const waiting = E.grudges(book).waiting;
+    assert.strictEqual(marked.length, Math.min(SIM.GRUDGE.MAX, waiting.length), 'two a night at most');
+    marked.forEach(o => {
+      assert.ok(o.people.includes(o.grudge.id), 'the holder sits at that table');
+      assert.strictEqual(o.grudge.stake, Math.round(o.buyIn * SIM.GRUDGE.STAKE));
+      assert.strictEqual(S.offers.flat().filter(x => x.people.includes(o.grudge.id)).length, 1, 'one table each');
+    });
+    // Only ones the Book holds, the newest first (one already at a table that has a grudge waits for another night).
+    marked.forEach(o => assert.ok(waiting.some(g => g.id === o.grudge.id)));
+    if (marked.length) assert.ok(waiting.slice(0, 2 + marked.length).some(g => g.id === marked[0].grudge.id) || marked.some(o => o.grudge.id === waiting[0].id));
+    // The card says so, and its pot carries the stake.
+    for (let h = 0; h < 4; h++) {
+      S.hour = h;
+      E.options(S).forEach((c, k) => {
+        const o = S.offers[h][k];
+        if (!o.grudge) { assert.strictEqual(c.grudge, undefined); assert.strictEqual(c.pot, o.buyIn * o.seats); return; }
+        assert.strictEqual(c.pot, o.buyIn * o.seats + o.grudge.stake);
+        assert.strictEqual(c.grudge.id, o.grudge.id); assert.match(c.grudge.line, /is back for (her|his|their) money\./);
+        assert.strictEqual(c.grudge.bonus, Math.round(o.buyIn * SIM.GRUDGE.BONUS));
+      });
+    }
+    S.hour = 0;
+  }
+  // Placed at their own table: a grudge from the 11 PM big table comes to the 11 PM big table (when free).
+  const id = 'npc_vada';
+  const book = { v: 1, nights: 4, me: { bids: 0, bluffs: 0 }, people: { [id]: { bids: 0, bluffs: 0, habits: [0, 1, 2].map(() => ({ n: 0, bluff: 0, straight: 0 })), quiet: { n: 0, bluff: 0, straight: 0 }, won: 0, lost: 1, nights: 1, lastNight: 'x', grudge: { night: 3, hour: 2, kind: 'rich' } } } };
+  for (let i = 0; i < 20; i++) {
+    const S = E.newNight({ seed: 'vada' + i, book, grudges: true });
+    const o = S.offers.flat().find(x => x.grudge);
+    const already = E.newNight({ seed: 'vada' + i }).offers.flat().find(x => x.people.includes(id));
+    if (already) { assert.strictEqual(o.people.includes(id), true); continue; }
+    assert.deepStrictEqual([o.hour, o.kind], [2, 'rich']);
+  }
+  // Without grudges on, the Book's grudges stay home.
+  assert.ok(E.newNight({ seed: 'vada0', book }).offers.flat().every(o => !o.grudge));
+});
+
+test('a grudge settles: finish ahead of the holder and it pays a little extra; finish behind and it is over too', () => {
+  let won = 0, lost = 0;
+  for (let i = 0; i < 160 && (won < 6 || lost < 6); i++) {
+    const S = E.newNight({ seed: 'gs' + i }); S.hour = 1; S.cash = 1e5; S.grudges = true;
+    const o = S.offers[1][0]; o.grudge = { id: o.people[0], stake: Math.round(o.buyIn * SIM.GRUDGE.STAKE) };
+    const c0 = S.cash;
+    const ev = ok(E.act(S, { t: 'sit', i: 0 }));
+    assert.strictEqual(S.table.pot, o.buyIn * 3 + o.grudge.stake);
+    assert.ok(find(ev, 'sit').grudge && find(ev, 'sit').grudge.seat === 1);
+    deq(E.view(S).table.grudge, { seat: 1, id: o.people[0], stake: o.grudge.stake, line: find(ev, 'sit').grudge.line });
+    while (S.phase === 'table') ev.push(...ok(E.act(S, E.basicPolicy(S, E.view(S), E.legal(S), E))));
+    const te = find(ev, 'tableEnd'), g = te.grudge, me = te.place, holderOut = ev.find(e => e.t === 'out' && e.id === o.people[0]);
+    assert.strictEqual(g.met, o.people[0]);
+    const ahead = te.won || (holderOut && holderOut.place > me);
+    assert.strictEqual(g.settled, ahead ? 'won' : 'lost');
+    const bonus = pays(ev, 'grudge');
+    if (ahead) { won++; assert.strictEqual(bonus.length, 1); assert.strictEqual(bonus[0].amount, Math.round(o.buyIn * SIM.GRUDGE.BONUS)); assert.strictEqual(g.bonus, bonus[0].amount); }
+    else { lost++; assert.strictEqual(bonus.length, 0); assert.strictEqual(g.bonus, 0); }
+    if (te.won) assert.strictEqual(find(ev, 'pay', e => e.why === 'pot').amount, o.buyIn * 3 + o.grudge.stake, 'the pot carries the stake');
+    assert.strictEqual(te.net, S.cash - c0 + 0, 'the net counts the bonus');
+    assert.ok(!g.marks.includes(g.met), 'a settled grudge is not made again at the same table');
+    // In the Book: over either way, with the history.
+    const pre = { v: 1, nights: 2, me: { bids: 0, bluffs: 0 }, people: { [g.met]: { bids: 0, bluffs: 0, habits: [0, 1, 2].map(() => ({ n: 0, bluff: 0, straight: 0 })), quiet: { n: 0, bluff: 0, straight: 0 }, won: 0, lost: 0, nights: 1, lastNight: 'a', grudge: { night: 1, hour: 1, kind: 'easy' } } } };
+    const b = E.bookApply(pre, ev);
+    assert.strictEqual(b.people[g.met].grudge, undefined);
+    const f = b.people[g.met].feud;
+    assert.strictEqual(f.met, 1); assert.strictEqual(f.won, ahead ? 1 : 0); assert.strictEqual(f.lost, ahead ? 0 : 1);
+    if (ahead) assert.strictEqual(f.took, Math.max(0, te.net)); else assert.strictEqual(f.gave, Math.max(0, -te.net));
+    const pg = E.bookPage(b, g.met);
+    assert.match(pg.grudge.line, /^Grudge: \d+ nights? met · you took \$[\d,]+ off (her|him|them), lost \$[\d,]+ to (her|him|them) · settled \d, lost \d\.$/);
+    assert.strictEqual(E.grudges(b).settled, ahead ? 1 : 0);
+  }
+  assert.ok(won >= 6 && lost >= 6, `${won} settled, ${lost} lost`);
+});
+
+test('grudges fade when not met for five nights, the Book keeps six at most, and a page with none has no grudge line', () => {
+  const page = g => ({ bids: 0, bluffs: 0, habits: [0, 1, 2].map(() => ({ n: 0, bluff: 0, straight: 0 })), quiet: { n: 0, bluff: 0, straight: 0 }, won: 0, lost: 1, nights: 1, lastNight: 'x', grudge: g });
+  let b = { v: 1, nights: 10, me: { bids: 0, bluffs: 0 }, people: { npc_vada: page({ night: 10, hour: 0, kind: 'easy' }), npc_colt: page({ night: 6, hour: 1, kind: 'rich' }) } };
+  deq(E.grudges(b).waiting.map(g => g.id), ['npc_vada', 'npc_colt']);
+  assert.match(E.bookPage(b, 'npc_colt').grudge.line, /he wants it back\.$/);
+  b = E.bookApply(b, [{ t: 'nightEnd', ending: 'walked', cash: 0, share: '' }]); // night 11: Colt, unmet since 6, fades
+  deq(E.grudges(b).waiting.map(g => g.id), ['npc_vada']);
+  assert.strictEqual(b.people.npc_colt.grudge, undefined);
+  assert.match(E.bookPage(b, 'npc_colt').grudge.line, /it faded\.$/);
+  for (let k = 0; k < 4; k++) b = E.bookApply(b, [{ t: 'nightEnd', ending: 'walked', cash: 0, share: '' }]);
+  deq(E.grudges(b).waiting, []);
+  // At most GRUDGE_KEEP waiting: the newest kept.
+  const ids = ['npc_vada', 'npc_colt', 'npc_ray', 'npc_june', 'npc_royce', 'npc_jolene', 'npc_travis', 'npc_lyman'];
+  const ev = [{ t: 'tableEnd', hour: 1, kind: 'rich', place: 1, won: true, payout: 0, refund: 0, net: 100, rounds: 5, people: ids.slice(0, 3), cash: 0, grudge: { marks: ids.slice(0, 3) } }, { t: 'tableEnd', hour: 2, kind: 'rich', place: 1, won: true, payout: 0, refund: 0, net: 100, rounds: 5, people: ids.slice(3), cash: 0, grudge: { marks: ids.slice(3) } }];
+  const c = E.bookApply(null, ev);
+  assert.strictEqual(E.grudges(c).waiting.length, SIM.GRUDGE.KEEP);
+  assert.strictEqual(E.bookPage(c, 'npc_marcus').grudge, null);
+  assert.strictEqual(E.bookPage(E.bookApply(null, []), 'npc_vada').grudge, null);
+  // The house never holds one.
+  const d = E.bookApply(null, [{ t: 'tableEnd', hour: 4, kind: 'last', place: 1, won: true, payout: 0, refund: 0, net: 100, rounds: 5, people: ['npc_loretta', 'npc_curtis'], cash: 0, grudge: { marks: ['npc_loretta', 'npc_curtis'] } }]);
+  deq(E.grudges(d).waiting, []);
+});
+
+test('grudges are fair: the holder never sees your dice (the same moves with your faces changed)', () => {
+  let checked = 0;
+  for (let i = 0; i < 200; i++) {
+    const A = rig({ seed: 'gf' + i, dice: [[1 + (i % 6), 2, 1 + (i * 3 % 6), 5], [1 + (i * 7 % 6), 3, 4, 6], [2, 4, 1 + (i % 4), 5]], people: ['npc_tammy', 'npc_carter'] });
+    A.table.grudge = { seat: 1, id: 'npc_tammy', stake: 10 };
+    A.table.round.bids = [{ who: 0, q: 3 + (i % 3), f: 2 + (i % 5), p: 0.5, held: 1, bluff: false, habit: null, shape: ['low'] }]; A.table.round.turn = 1; A.table.wait = null;
+    const B = J(A); B.table.seats[0].dice = B.table.seats[0].dice.map(d => 1 + (d % 6));
+    deq(SIM.botMove(J(A), 1), SIM.botMove(B, 1)); checked++;
+  }
+  assert.strictEqual(checked, 200);
+});
+
+test('nights that carry grudges, over a run with the Book kept: they arise, come back, settle and fade, and every night ends', () => {
+  let book = null, met = 0, settled = 0, faded = 0, appeared = 0;
+  for (let i = 0; i < 40; i++) {
+    const before = E.grudges(book).waiting.map(g => g.id);
+    const { S, events } = night('run' + i, { book, grudges: true });
+    appeared += S.offers.flat().filter(o => o.grudge).length;
+    const sum = E.summary(S);
+    met += sum.grudges.length; settled += sum.grudges.filter(g => g.settled === 'won').length;
+    book = E.bookApply(book, events);
+    const after = E.grudges(book).waiting.map(g => g.id);
+    faded += before.filter(id => !after.includes(id) && !sum.grudges.some(g => g.id === id) && !book.people[id].grudge).length;
+    assert.ok(after.length <= SIM.GRUDGE.KEEP);
+  }
+  assert.ok(appeared > 20 && met > 10 && settled > 3, `${appeared} came, ${met} met, ${settled} settled`);
+  assert.strictEqual(E.grudges(book).settled, settled);
+  assert.ok(faded >= 1, faded + ' faded');
+});
+
+test('an old Book (kept before grudges) and an old ledger-less player carry on: grudges on with a Book that has none', () => {
+  const fx = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'fixtures', 'bones-lastcall-v1.json'), 'utf8'));
+  const book = fx.book || (fx.data && fx.data.book) || null;
+  const S = E.newNight({ seed: 'oldbook', book, grudges: true, room: 2, start: 'marked' });
+  assert.ok(S.offers.flat().every(o => !o.grudge), 'an old Book has no grudges waiting');
+  const { S: S2, events } = E.playNight('oldbook', E.basicPolicy, { book, grudges: true, room: 2, keepEvents: true });
+  assert.ok(S2.phase === 'over');
+  const b = E.bookApply(book, events);
+  assert.ok(b.people && b.me);
+});
+
 // ===================================================================== smoke
 test('a few hundred nights finish without throwing and with sane distributions', () => {
   const end = { house: 0, cleaned: 0, walked: 0, bust: 0 }, rounds = [];
