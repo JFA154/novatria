@@ -12,7 +12,7 @@
 /* ==BONES:ENGINE:BEGIN== */
 /* ===========================================================================
    BONES ENGINE: the rules, the people, the bots, the back room, the Book.
-   Pure calculation: no DOM, no clock, no Math.random. Runs unchanged in
+   Pure calculation: no DOM, no clock, no unseeded randomness. Runs unchanged in
    Node's vm. Attaches itself as Game.Engine and nothing else.
 
    ---------------------------------------------------------------------------
@@ -40,7 +40,9 @@
            'choose': {t:'sit', i}            sit at card i of Engine.options(S)
                      {t:'walk'}              Last Call only: go home with your cash
            'table' wait 'turn':  {t:'bid', q, f} | {t:'liar'} | {t:'spot'}
-                                 {t:'use', id:'nod'} | {t:'use', id:'slowroll'}
+                                 {t:'liar', double:true}  (Double or Nothing)
+                                 {t:'use', id:'nod'}
+                                 {t:'use', id:'slowroll', dice?:[indices]} (all if omitted)
                                  {t:'use', id:'palm', die, face}
            'table' wait 'ready': {t:'go'} (also the two uses: slowroll, palm)
                       ('ready' only happens when you hold Slow Roll and are
@@ -63,7 +65,9 @@
    READING (never mutate S)
      Engine.view(S) -> {
        v, phase, hour (0..4), hourName, cash, streak, seed, daily, ending,
-       tricks: [{ id, name, text, rarity, kind, usable }],   usable = can act now
+       tricks: [{ id, name, text, rarity, kind, usable, asleep }],
+               usable = can be used right now; asleep = a dice trick at Last
+               Call (Loretta counts the bones: dice tricks do not work there)
        options: (phase 'choose') same as Engine.options(S),
        shop:    (phase 'shop') same as Engine.shopView(S),
        table: null | {
@@ -75,6 +79,8 @@
                    shown:[{i, face, why:'open'|'mirror'|'cornered'}],
                    ledger: 'bluffs about 1 bid in 3' | null }],
          myDice: [faces] | null (null while you bid blind),
+         myFixed: [die indices]: your fixed 1s (Shaved Die / Hot Hand), wild
+                  only for your own bids,
          blind (bool), bid: {who, id, q, f} | null,
          history: [{ who, id, q, f, habit:{i, text, line, underline}|null }],
          ones: number|null (Bar Mirror), nod: {q, f, truth}|null,
@@ -96,6 +102,8 @@
      Engine.isLegalBid(S, q, f) -> bool
      Engine.count(S, q, f) -> P(at least q f's on the table) from your cup and
          what tricks showed you, other dice fair. Exact. null off-table.
+         (q,f) equal to the bid in front of you is judged as its bidder's bid
+         (your fixed 1s are plain for it); any other (q,f) as your own raise.
      Engine.countExact(S, q, f) -> P(exactly q), same footing (for Spot On).
      Engine.shopView(S) -> { hour, offers:[{ i, id, name, text, rarity, kind,
          price, affordable }|null], held:[{ id, name, text, sell }],
@@ -130,7 +138,7 @@
      {t:'look', mine}                                 a blind opener sees the cup
      {t:'trick', id, ...}                             a trick did something:
          shaved/loaded/hothand {die} · extrabone {dice} · rabbit {saved}
-         slowroll {mine} · palm {die, face, mine} · mirror {seat, who, die, face}
+         slowroll {dice, mine} · palm {die, face, mine} · mirror {seat, who, die, face}
          barmirror {ones} · nod {q, f, truth} · cornered {shown:[{seat,die,face}]}
          sticky {amount} · sidebet {} · housemoney {extra} · snake {amount}
          tab {buyIn} · honest {who, n} · double {who, n} · close {} · lastword {}
@@ -152,7 +160,7 @@
      {t:'wait', need}                                 always last
 
    MONEY (exact rules; see design 1-2)
-     ante = round(buyIn / 10) (x2 under Double ante; 0 at Last Call, where
+     ante = round(buyIn x 0.15) (x2 under Double ante; 0 at Last Call, where
      only the pot moves). When you are caller or bidder in a Liar call, or
      you call Spot On, the loser pays the winner one ante (never below $0).
      A win pays ante x (1 + min(streak, 3)), streak = wins in a row before it.
@@ -161,6 +169,37 @@
      the pot (seats x buy-in; +25% House Money; minus the buy-in if on a Tab).
      2nd of 4: your buy-in back. Next round's opener: whoever lost the
      challenge (after a correct Spot On, the caller); if out, the next seat.
+
+   THE NIGHT (tuned by tests/bones-sim.cjs; see Engine.HOURS)
+     $100 to start. 9 PM, 10 PM, 11 PM, Midnight: two tables each (easy 3
+     seats; rich about double the buy-in, 4 seats from 10 PM, usually a house
+     rule). Buy-ins easy/rich: 20/40, 40/80, 80/160, 160/320. After every
+     table, the back room. Leaving it short of the cheaper buy-in (and no
+     Tab) = 'bust'. Last Call: Loretta + Curtis, 3 seats, 5 dice, needs $500,
+     buy-in = all your cash, win = x3 ('house'), lose = $0 ('cleaned'); short
+     of $500, or {t:'walk'}, = 'walked'. Loretta counts the bones: DICE tricks
+     (Shaved Die, Loaded Six, Extra Bone, Rabbit's Foot, Slow Roll, Palm, Hot
+     Hand) do not work at Last Call; info, money and manner tricks do.
+
+   TRICK RULINGS (where the one-line text needs a decision)
+     Shaved Die / Hot Hand: the fixed 1 is wild only for your own bids; on
+       anyone else's bid it is a plain 1 (view.table.myFixed marks it).
+       With Shaved + Loaded, die 0 is the 1, die 1 the 6.
+     Slow Roll: {dice:[...]} re-rolls just those; fixed dice land as fixed.
+     Palm: any face 1..6 on any die; a palmed die is no longer fixed.
+     Rabbit's Foot takes 1 off the first loss at a table (Sudden 2 -> 1).
+     Double or Nothing is chosen per call ({t:'liar', double:true}); it and
+       Honest Face double the loss (4 under Sudden).
+     Close Enough: a Liar call on your bid that finds exactly q-1.
+     Last Word: you stay in with 1 die, once per table (after Rabbit's Foot).
+     Hot Hand follows any challenge you win (Liar or Spot On). Snake Eyes pays
+       on every roll you see (a Slow Roll included). Sell = half the price
+       paid. Friends Rates discounts tricks, not rerolls. A Tab is spent when
+       you sit on it. Reading Glasses counts sightings in the Book plus
+       tonight. Loretta's Nod lasts the round (Palm cancels it).
+
+   Engine._sim exposes the hidden side (people's parameters, the odds) for
+   tests and the balance sim. The UI must not use it.
    =========================================================================== */
 (function () {
   'use strict';
@@ -243,7 +282,7 @@
     ["npc_gerald", "Gerald Overstreet", 61, "he", "Big, slow man of sixty-one in house slippers and a mill union jacket, with a police scanner clipped to his belt and turned up loud.", "Slow and deliberate; makes sure he heard right.",
       1, 0.16, 0.26, 0.25, 0.3, 0.2, ["turns down the scanner", "says the scanner says", "shuffles his house slippers"], 0, "bluff", "warm"],
     ["npc_lamar", "Lamar Haskins", 58, "he", "Thick, weathered man of fifty-eight in a seed company cap and mud-caked boots, with a farmer's tan that stops at his sleeves.", "Slow and careful; takes his time over a hard question.",
-      1, 0.1, 0.32, 0.35, 0.15, -0.5, ["glances at the window to check the sky", "rubs the line of his farmer's tan", "takes off his seed cap and puts it back"], 2, "bluff", "meek"],
+      1, 0.1, 0.32, 0.35, 0.15, -0.5, ["glances outside to check the sky", "rubs the line of his farmer's tan", "takes off his seed cap and puts it back"], 2, "bluff", "meek"],
     ["npc_trent", "Trent Haskins", 24, "he", "Broad, easygoing man of twenty-four in a sleeveless camo shirt and a feed-store cap turned backward, with a sunburned neck and a cooler always in reach.", "Easy and friendly; laughs off a hard question.",
       1, 0.42, 0.3, 0.2, 0.25, 0.6, ["says gotta run", "turns his cap around", "reaches for the cooler"], 2, "bluff", "brash"],
     ["npc_leon", "Leon Varner", 47, "he", "Heavy man of forty-seven in a golf shirt and wraparound sunglasses, with a clipboard under one arm and a tow truck he never turns off.", "Polite and even; never raises his voice.",
@@ -292,7 +331,9 @@
       2, 0.12, 0.44, 0.55, 0.3, -0.2, ["folds her arms", "pats her grey curls", "says mm-mm"], 0, "strong", "prim"]
   ];
   // Tell strength by tier: P(shown | it applies), P(shown | it does not).
-  const TELL = { 1: [0.85, 0.08], 2: [0.70, 0.12], 3: [0.55, 0.18], 4: [0.42, 0.20], 5: [0.35, 0.15] };
+  // (Tuned by tests/bones-sim.cjs: tiers 3-5 a little louder than the design's draft, so reading
+  // the sharks pays at Last Call too.)
+  const TELL = { 1: [0.85, 0.08], 2: [0.72, 0.12], 3: [0.60, 0.15], 4: [0.55, 0.15], 5: [0.50, 0.12] };
   const IDLE = 0.10; // each idle habit shows on ~10% of bids, ~20% for the pair
   const P = {};
   const PEOPLE = ROWS.map(r => {
@@ -314,23 +355,23 @@
     { id: 'double', name: 'Double ante', text: 'Antes are doubled.' }
   ];
   const RULE = {}; HOUSE_RULES.forEach(r => { RULE[r.id] = r; });
-  // tiers: the people's tiers, one per seat after yours; rule: chance of a house rule.
+  // tiers: the people's tiers, one per seat after yours ([3, 4] = either); rule: chance of a house rule.
   const HOURS = [
     { name: '9 PM', easy: { buyIn: 20, seats: 3, tiers: [1, 1], rule: 0 }, rich: { buyIn: 40, seats: 3, tiers: [1, 2], rule: 0.5 } },
-    { name: '10 PM', easy: { buyIn: 50, seats: 3, tiers: [1, 2], rule: 0.25 }, rich: { buyIn: 100, seats: 4, tiers: [1, 2, 3], rule: 0.75 } },
-    { name: '11 PM', easy: { buyIn: 120, seats: 3, tiers: [2, 2], rule: 0.25 }, rich: { buyIn: 240, seats: 4, tiers: [2, 3, 3], rule: 0.75 } },
-    { name: 'Midnight', easy: { buyIn: 250, seats: 3, tiers: [2, 3], rule: 0.3 }, rich: { buyIn: 500, seats: 4, tiers: [3, 3, 4], rule: 0.8 } },
+    { name: '10 PM', easy: { buyIn: 40, seats: 3, tiers: [1, 2], rule: 0.25 }, rich: { buyIn: 80, seats: 4, tiers: [1, 2, 2], rule: 0.75 } },
+    { name: '11 PM', easy: { buyIn: 80, seats: 3, tiers: [1, 2], rule: 0.25 }, rich: { buyIn: 160, seats: 4, tiers: [1, 2, [3, 4]], rule: 0.75 } },
+    { name: 'Midnight', easy: { buyIn: 160, seats: 3, tiers: [2, 2], rule: 0.25 }, rich: { buyIn: 320, seats: 4, tiers: [[1, 2], 2, [3, 4]], rule: 0.75 } },
     { name: 'Last Call', last: { seats: 3, people: [HOST, SHARK], min: 500 } }
   ];
   const START_CASH = 100, SLOTS = 5;
   const TRICKS = [
-    ['shaved', 'Shaved Die', 'rare', 'dice', 'One of your dice always lands on 1.'],
+    ['shaved', 'Shaved Die', 'rare', 'dice', 'One of your dice always lands on 1. It is wild only for your own bids.'],
     ['loaded', 'Loaded Six', 'common', 'dice', 'One of your dice always lands on 6.'],
     ['extrabone', 'Extra Bone', 'uncommon', 'dice', 'You start every table with one more die than the others.'],
     ['rabbit', 'Rabbit\'s Foot', 'common', 'dice', 'The first die you would lose at each table, you keep.'],
-    ['slowroll', 'Slow Roll', 'uncommon', 'dice', 'Once per round, before the first bid, you may re-roll your whole cup.'],
+    ['slowroll', 'Slow Roll', 'uncommon', 'dice', 'Once per round, before the first bid, you may re-roll any of your dice.'],
     ['palm', 'Palm', 'uncommon', 'dice', 'Once per table, turn one of your dice to any face you like.'],
-    ['hothand', 'Hot Hand', 'common', 'dice', 'After you win a challenge, one of your dice next round is a guaranteed 1.'],
+    ['hothand', 'Hot Hand', 'common', 'dice', 'After you win a challenge, one of your dice next round is a guaranteed 1, wild only for your own bids.'],
     ['mirror', 'Mirror Ring', 'uncommon', 'info', 'Each round you see one die under the cup of the player on your left.'],
     ['barmirror', 'Bar Mirror', 'rare', 'info', 'At the start of each round you are told how many 1s are on the table.'],
     ['nod', 'Loretta\'s Nod', 'uncommon', 'info', 'Once per table, ask if the bid in front of you is true; you get the truth.'],
@@ -345,7 +386,7 @@
     ['tab', 'A Tab', 'uncommon', 'money', 'Once a night, sit at a table you cannot afford; the buy-in comes out of your winnings (lose and you owe nothing; it is used up).'],
     ['pokerface', 'Poker Face', 'uncommon', 'manner', 'Opponents never learn how often you bluff (they treat you as average).'],
     ['honest', 'Honest Face', 'uncommon', 'manner', 'When someone calls Liar on you and your bid is good, they lose 2 dice.'],
-    ['double', 'Double or Nothing', 'rare', 'manner', 'Your Liar calls are for 2 dice: right and the bidder loses 2, wrong and you lose 2.'],
+    ['double', 'Double or Nothing', 'rare', 'manner', 'You may make any Liar call for 2 dice: right and the bidder loses 2, wrong and you lose 2.'],
     ['close', 'Close Enough', 'common', 'manner', 'If your own bid is called and misses by exactly one, you lose no die (you still pay the ante).'],
     ['lastword', 'Last Word', 'rare', 'manner', 'Once per table, when you would be knocked out, you stay in with one die.']
   ].map(([id, name, rarity, kind, text]) => Object.freeze({ id, name, rarity, kind, text }));
@@ -358,7 +399,7 @@
   // honest bids, how much a poor one is taken in by any bid.
   // OVER: how far below an even chance a poor player will still raise or open.
   // LOOK: the face value a good liar wants a lie to have.
-  const NOISE = 0.25, READ = 0.7, GULL = 0.8, OVER = 0.3, LOOK = 0.5;
+  const NOISE = 0.25, READ = 0.7, GULL = 0.8, OVER = 0.4, LOOK = 0.5;
 
   // ----- probability -----
   // P(Bin(n,p) >= k), exact.
@@ -385,10 +426,19 @@
   const alive = T => T.seats.map((s, i) => i).filter(i => !T.seats[i].out);
   const higher = (q, f, b) => !b || q > b.q || (q === b.q && f > b.f);
   const lastBid = T => T.round && T.round.bids.length ? T.round.bids[T.round.bids.length - 1] : null;
-  const has = (S, id) => S.tricks.some(t => t.id === id);
+  const holds = (S, id) => S.tricks.some(t => t.id === id);
+  // A trick working right now: Loretta counts the bones, so dice tricks sleep at Last Call.
+  const has = (S, id) => holds(S, id) && !(S.table && S.table.kind === 'last' && TRICK[id].kind === 'dice');
   const nameOf = (T, s) => T.seats[s].id === 'me' ? 'You' : P[T.seats[s].id].name;
   function nextAlive(T, s) { const n = T.seats.length; for (let k = 1; k <= n; k++) { const j = (s + k) % n; if (!T.seats[j].out) return j; } return s; }
-  function countFace(T, f) { const w = isWild(T); let c = 0; T.seats.forEach(s => { if (!s.out) s.dice.forEach(d => { if (hit(d, f, w)) c++; }); }); return c; }
+  // How many dice show f for a bid made by seat `by`. Your fixed 1s (Shaved Die, Hot
+  // Hand) are wild only for your own bids: on anyone else's they are a plain 1.
+  function countFace(T, f, by) {
+    const w = isWild(T), fixed = (T.round && T.round.fixed) || [];
+    let c = 0;
+    T.seats.forEach((s, k) => { if (!s.out) s.dice.forEach((d, i) => { if (hit(d, f, w) && !(k === 0 && by !== 0 && w && d === 1 && fixed.includes(i))) c++; }); });
+    return c;
+  }
   // Dice everyone can see: the face-up first die under Open hand.
   function publicDice(T, except) {
     const out = [];
@@ -411,7 +461,8 @@
   function makeOffers(seed) {
     const R = { rng: hash(seed, 7) };
     const pool = shuffle(R, PEOPLE.map(p => p.id).filter(id => id !== HOST && id !== SHARK));
-    const take = tier => {
+    const take = want => {
+      const tier = Array.isArray(want) ? want[ri(R, want.length)] : want;
       for (let d = 0; d < 5; d++) for (const t of [tier - d, tier + d]) {
         const k = pool.findIndex(id => P[id].tier === t);
         if (k >= 0) return pool.splice(k, 1)[0];
@@ -439,7 +490,7 @@
     };
     if (book && book.me) S.mem = { bids: book.me.bids | 0, bluffs: book.me.bluffs | 0 };
     if (book && book.people) for (const id in book.people) if (P[id]) S.prior[id] = (book.people[id].habits || [0, 0, 0].map(() => ({ n: 0 }))).map(h => h.n | 0);
-    for (const id of opts.tricks || []) if (TRICK[id] && !has(S, id) && S.tricks.length < SLOTS) S.tricks.push({ id, paid: PRICE[TRICK[id].rarity] });
+    for (const id of opts.tricks || []) if (TRICK[id] && !holds(S, id) && S.tricks.length < SLOTS) S.tricks.push({ id, paid: PRICE[TRICK[id].rarity] });
     return S;
   }
 
@@ -456,7 +507,8 @@
     });
   }
   const diceOf = rule => rule === 'short' ? 3 : rule === 'deep' ? 6 : 5;
-  const anteOf = (buyIn, rule) => Math.round(buyIn / 10) * (rule === 'double' ? 2 : 1);
+  // 15% (the design's draft said 10%): a little more money on each challenge keeps a good night alive.
+  const anteOf = (buyIn, rule) => Math.round(buyIn * 0.15) * (rule === 'double' ? 2 : 1);
 
   function pay(S, ev, amount, why) {
     if (amount < 0) amount = -Math.min(S.cash, -amount); // money never goes negative
@@ -474,7 +526,7 @@
     const last = card.kind === 'last';
     const people = last ? HOURS[4].last.people.slice() : S.offers[S.hour][i].people.slice();
     const rule = card.rule ? card.rule.id : null;
-    const base = card.dice, extra = has(S, 'extrabone') ? 1 : 0;
+    const base = card.dice, extra = holds(S, 'extrabone') && !last ? 1 : 0;
     const T = {
       hour: S.hour, kind: card.kind, rule, buyIn: card.buyIn, ante: last ? 0 : card.ante, pot: card.pot, onTab: card.viaTab,
       start: [base + extra].concat(people.map(() => base)),
@@ -499,7 +551,8 @@
     me.dice = [];
     for (let k = 0; k < me.n; k++) me.dice.push(1 + ri(S, 6));
     let slot = 0;
-    const fix = (id, face) => { if (slot < me.n) { me.dice[slot] = face; ev.push({ t: 'trick', id, die: slot }); slot++; } };
+    T.round.fixed = []; T.round.pinned = {};
+    const fix = (id, face) => { if (slot < me.n) { me.dice[slot] = face; T.round.pinned[slot] = face; if (face === 1) T.round.fixed.push(slot); ev.push({ t: 'trick', id, die: slot }); slot++; } };
     if (has(S, 'shaved')) fix('shaved', 1);
     if (has(S, 'loaded')) fix('loaded', 6);
     if (hot) fix('hothand', 1);
@@ -591,6 +644,8 @@
     const bluffy = clamp(per.bluff + per.tilt * 0.05 * lost, 0.02, 0.7);
     const nerve = clamp(per.nerve + per.tilt * 0.03 * lost, 0.1, 0.6);
     const noise = (1 - per.skill) * NOISE;
+    // A poor player overreaches; a careful one less so (their mistake is calling too late).
+    const over = OVER * (1 - per.skill) * (0.5 + per.bluff);
     const matches = f => known.filter(d => hit(d, f, wild)).length;
     // Faces others have bid read as evidence: a good player weighs it by how honest
     // the bidder has been; a poor one swallows it whole (and so calls too late).
@@ -614,7 +669,7 @@
       const order = shuffle(S, faces).sort((a, b) => matches(b) - matches(a));
       const f = rnd(S) < bluffy ? order[order.length - 1] : order[0];
       let q = 1;
-      for (let k = 1; k <= total; k++) if (believe(k, f) >= 0.55 - OVER * (1 - per.skill)) q = k;
+      for (let k = 1; k <= total; k++) if (believe(k, f) >= 0.55 - over) q = k;
       if (f !== order[0]) q = Math.max(1, matches(f) + Math.round(n * p) + 1);
       return { t: 'bid', q: clamp(q, 1, total), f };
     }
@@ -640,7 +695,7 @@
         if (c) return { t: 'bid', q: c.q, f: c.f };
       }
     }
-    const good = cands.filter(c => c.b >= 0.5 - OVER * (1 - per.skill));
+    const good = cands.filter(c => c.b >= 0.5 - over);
     if (good.length) {
       const minQ = good[0].q;
       let c = good[0];
@@ -670,17 +725,17 @@
     }
   }
 
-  function challenge(S, T, caller, kind, ev) {
+  function challenge(S, T, caller, kind, ev, dbl) {
     const R = T.round, b = lastBid(T), bidder = b.who, wild = isWild(T), L = T.rule === 'sudden' ? 2 : 1;
     ev.push({ t: 'call', who: caller, id: T.seats[caller].id, name: nameOf(T, caller), kind, on: { who: bidder, id: T.seats[bidder].id, q: b.q, f: b.f } });
-    const count = countFace(T, b.f), good = count >= b.q, exact = count === b.q;
+    const count = countFace(T, b.f, bidder), good = count >= b.q, exact = count === b.q;
     const reveal = { t: 'reveal', kind, caller, bidder, q: b.q, f: b.f, wild, count, good, exact, cups: alive(T).map(k => ({ who: k, id: T.seats[k].id, dice: T.seats[k].dice.slice() })) };
     ev.push(reveal);
     const start = ev.length;
     let winner = -1, loser = -1, n = L, opener;
     if (kind === 'liar') {
       if (good) { winner = bidder; loser = caller; } else { winner = caller; loser = bidder; }
-      if (caller === 0 && has(S, 'double')) { n = 2 * L; ev.push({ t: 'trick', id: 'double', who: loser, n }); }
+      if (caller === 0 && dbl) { n = 2 * L; ev.push({ t: 'trick', id: 'double', who: loser, n }); }
       if (good && bidder === 0 && has(S, 'honest')) { n = 2 * L; ev.push({ t: 'trick', id: 'honest', who: caller, n }); }
       if (!good && bidder === 0 && count === b.q - 1 && has(S, 'close')) { n = 0; ev.push({ t: 'trick', id: 'close' }); }
     } else if (exact) { winner = caller; } else { loser = caller; }
@@ -755,7 +810,7 @@
     return Math.max(5, Math.round(raw / 5) * 5);
   }
   function draw3(S) {
-    let pool = TRICKS.filter(t => !has(S, t.id)).map(t => t.id);
+    let pool = TRICKS.filter(t => !holds(S, t.id)).map(t => t.id);
     const out = [];
     while (out.length < 3 && pool.length) {
       const tot = sum(pool.map(id => WEIGHT[TRICK[id].rarity]));
@@ -901,19 +956,23 @@
       if (!usesNow(S).includes(a.id)) return err('cannot use that now');
       const me = T.seats[0];
       if (a.id === 'slowroll') {
+        // Re-roll the dice named (all of them by default); a loaded die still lands as it must.
+        const pick = a.dice == null ? null : a.dice;
+        if (pick && (!Array.isArray(pick) || !pick.length || pick.some(i => !Number.isInteger(i) || i < 0 || i >= me.n) || new Set(pick).size !== pick.length)) return err('slow roll which dice?');
         R.slow = true;
-        rollMine(S, T, ev, R.hot);
-        ev.push({ t: 'trick', id: 'slowroll', mine: me.dice.slice() });
+        if (!pick) rollMine(S, T, ev, R.hot);
+        else pick.slice().sort((x, y) => x - y).forEach(i => { me.dice[i] = R.pinned[i] != null ? R.pinned[i] : 1 + ri(S, 6); });
+        ev.push({ t: 'trick', id: 'slowroll', dice: pick ? pick.slice() : me.dice.map((d, i) => i), mine: me.dice.slice() });
         snakeCheck(S, T, ev);
         if (R.ones != null) { R.ones = countOnes(T); ev.push({ t: 'trick', id: 'barmirror', ones: R.ones }); }
       } else if (a.id === 'palm') {
         if (!Number.isInteger(a.die) || a.die < 0 || a.die >= me.n || !Number.isInteger(a.face) || a.face < 1 || a.face > 6) return err('palm which die to which face?');
-        T.used.palm = true; me.dice[a.die] = a.face; R.nod = null;
+        T.used.palm = true; me.dice[a.die] = a.face; R.nod = null; R.fixed = R.fixed.filter(i => i !== a.die); delete R.pinned[a.die];
         ev.push({ t: 'trick', id: 'palm', die: a.die, face: a.face, mine: me.dice.slice() });
         if (R.ones != null) { R.ones = countOnes(T); ev.push({ t: 'trick', id: 'barmirror', ones: R.ones }); }
       } else if (a.id === 'nod') {
         const b = lastBid(T);
-        T.used.nod = true; R.nod = { q: b.q, f: b.f, truth: countFace(T, b.f) >= b.q };
+        T.used.nod = true; R.nod = { q: b.q, f: b.f, truth: countFace(T, b.f, b.who) >= b.q };
         ev.push(Object.assign({ t: 'trick', id: 'nod' }, R.nod));
       }
       ev.push({ t: 'wait', need: T.wait });
@@ -928,7 +987,8 @@
     }
     if (a.t === 'liar' || a.t === 'spot') {
       if (!lastBid(T)) return err('nothing to call');
-      T.wait = null; challenge(S, T, 0, a.t, ev); return run(S, ev);
+      if (a.double && (a.t !== 'liar' || !has(S, 'double'))) return err('only a Liar call with Double or Nothing can be for 2 dice');
+      T.wait = null; challenge(S, T, 0, a.t, ev, !!a.double); return run(S, ev);
     }
     return err('bid, liar or spot');
   }
@@ -951,7 +1011,11 @@
       if (!R.nod.truth && q >= R.nod.q) return 0;
     }
     if (q > total) return 0;
-    const known = knownMine(S, T), km = known.filter(d => hit(d, f, wild)).length, n = total - known.length;
+    const known = knownMine(S, T), n = total - known.length;
+    // The bid in front is judged as its bidder's: your fixed 1s do not help it.
+    const b = lastBid(T), theirs = b && b.who !== 0 && b.q === q && b.f === f;
+    const plain = theirs && wild && !ownBlind(T, 0) ? R.fixed.filter(i => T.seats[0].dice[i] === 1).length : 0;
+    const km = known.filter(d => hit(d, f, wild)).length - plain;
     const fn = exact ? pmf : tail;
     if (R.ones != null) {
       const u = R.ones - known.filter(d => d === 1).length, m = n - u;
@@ -965,7 +1029,17 @@
 
   // ----- the view: only what the human may see -----
   // Each person's long-run share of bids that are bluffs, measured by tests/bones-sim.cjs.
-  const RATE = {/*@RATE@*/};
+  const RATE = {
+    lc_alma: 0.17, lc_cora: 0.3, lc_dale: 0.18, lc_enzo: 0.42, lc_greta: 0.26, lc_hattie: 0.19,
+    lc_ines: 0.27, lc_malik: 0.19, lc_otis: 0.29, lc_priya: 0.23, lc_ruben: 0.28, lc_wes: 0.4,
+    lc_yolanda: 0.18, npc_annette: 0.16, npc_boyd: 0.17, npc_brianna: 0.25, npc_burl: 0.4, npc_carter: 0.34,
+    npc_colt: 0.49, npc_curtis: 0.2, npc_darlene: 0.14, npc_dewayne: 0.16, npc_dwight: 0.19,
+    npc_elbert: 0.34, npc_gerald: 0.3, npc_glenda: 0.28, npc_hollis: 0.26, npc_jodie: 0.28, npc_jolene: 0.23,
+    npc_june: 0.19, npc_lamar: 0.2, npc_leon: 0.21, npc_loretta: 0.13, npc_lorna: 0.3, npc_lyman: 0.15,
+    npc_marcus: 0.14, npc_mavis: 0.23, npc_nadine: 0.24, npc_nikki: 0.19, npc_odessa: 0.17, npc_pearl: 0.22,
+    npc_ray: 0.22, npc_royce: 0.24, npc_shayla: 0.4, npc_tammy: 0.31, npc_travis: 0.41, npc_trent: 0.46,
+    npc_vada: 0.23, npc_virgil: 0.15, npc_wade: 0.22
+  };
   function ledgerPhrase(id) {
     const r = RATE[id] != null ? RATE[id] : P[id].bluff;
     if (r >= 0.42) return 'bluffs about every other bid';
@@ -975,7 +1049,7 @@
   function view(S) {
     const v = {
       v: VERSION, phase: S.phase, hour: S.hour, hourName: HOURS[S.hour] ? HOURS[S.hour].name : '', cash: S.cash, streak: S.streak, seed: S.seed, daily: S.daily, ending: S.ending,
-      tricks: S.tricks.map(t => Object.assign({ usable: usesNow(S).includes(t.id) }, clone(TRICK[t.id]))),
+      tricks: S.tricks.map(t => Object.assign({ usable: usesNow(S).includes(t.id), asleep: !has(S, t.id) }, clone(TRICK[t.id]))),
       options: S.phase === 'choose' ? options(S) : null, shop: shopView(S), table: null
     };
     const T = S.table;
@@ -993,7 +1067,7 @@
           }
           return { seat: k, id: s.id, name: nameOf(T, k), isMe: k === 0, dice: s.out ? 0 : s.n, start: T.start[k], out: s.out, lastBid: mine.length ? { q: mine[mine.length - 1].q, f: mine[mine.length - 1].f } : null, shown, ledger: k !== 0 && has(S, 'ledger') ? ledgerPhrase(s.id) : null };
         }),
-        myDice: R && !blind ? T.seats[0].dice.slice() : null, blind,
+        myDice: R && !blind ? T.seats[0].dice.slice() : null, blind, myFixed: R && !blind ? R.fixed.slice() : [],
         bid: b ? { who: b.who, id: T.seats[b.who].id, q: b.q, f: b.f } : null,
         history: R ? R.bids.map(x => ({ who: x.who, id: T.seats[x.who].id, q: x.q, f: x.f, habit: x.habit ? clone(x.habit) : null })) : [],
         ones: R ? R.ones : null, nod: R && R.nod ? clone(R.nod) : null,
@@ -1039,14 +1113,14 @@
 
   // ----- barks: scripted one-liners at a reveal (deterministic, no dice drawn) -----
   const BARKS = {
-    brash: { caught: ['Aw, come on!', 'Okay, okay, you got me.', 'That was a good lie, though.'], held: ['Told you!', 'Should\'ve believed me!', 'Pay up, ha!'], right: ['Knew it! Knew it!', 'Caught you, ha!', 'Nobody fools me.'], wrong: ['No way. No way.', 'That\'s rigged.', 'Huh. Okay.'], spotWin: ['Right on the nose!', 'Who\'s the man?'], spotLose: ['Worth a shot.', 'Almost had it.'], out: ['I\'m done? I\'m done.', 'Next time, man.'] },
-    dry: { caught: ['Fair.', 'That\'s on me.', 'Noted.'], held: ['It was there.', 'Count \'em.'], right: ['Thought so.', 'Didn\'t add up.'], wrong: ['Hm.', 'Well. There it is.'], spotWin: ['Exactly that many.'], spotLose: ['Close.'], out: ['That\'s me.', 'Evening.'] },
-    warm: { caught: ['Oh, you caught me fair.', 'Well, bless it.', 'Guilty as charged.'], held: ['I wouldn\'t fib to you.', 'Every one of \'em, see?'], right: ['Oh, I had a feeling.', 'Now, now. Nice try.'], wrong: ['Well, shame on me.', 'I should\'ve trusted you.'], spotWin: ['Well, would you look at that!', 'Just exactly right.'], spotLose: ['Oh, so close.', 'That\'s what I get.'], out: ['Y\'all have fun now.', 'That\'s plenty for me.'] },
-    prim: { caught: ['That was ill-advised.', 'I stand corrected.'], held: ['I said what I meant.', 'Precisely as stated.'], right: ['I thought as much.', 'The arithmetic was against you.'], wrong: ['I misjudged it.', 'Correct, as it happens.'], spotWin: ['Exactly so.'], spotLose: ['Off by a hair.'], out: ['Good night to you all.', 'I shall watch.'] },
-    sour: { caught: ['Course I did.', 'Figures.'], held: ['Nobody ever believes me.', 'Told you. Nobody listens.'], right: ['Knew it. Always do.', 'Lying costs.'], wrong: ['Course it was there.', 'Just my luck.'], spotWin: ['About time.'], spotLose: ['Typical.'], out: ['Fine. I\'m out.', 'Should\'ve stayed home.'] },
-    slick: { caught: ['Can\'t win \'em all.', 'Worth a try, friend.'], held: ['Never doubt a sure thing.', 'That\'s money.'], right: ['That one paid.', 'I\'ll take that.'], wrong: ['Hm. Cost me.', 'You earned that one.'], spotWin: ['Right on the number.'], spotLose: ['Long shot. Missed.'], out: ['I\'ll cash out.', 'Always tomorrow.'] },
-    meek: { caught: ['Sorry, sorry.', 'Oh no. Sorry.'], held: ['Oh! It was true.', 'I didn\'t mean to.'], right: ['Oh! I was right?', 'Sorry, I just thought...'], wrong: ['Sorry. My mistake.', 'Oh. Oh no.'], spotWin: ['Oh my gosh.'], spotLose: ['I knew I shouldn\'t.'], out: ['Thanks for letting me play.', 'Sorry. Thank you.'] },
-    host: { caught: ['Well, hon. You got me.', 'Don\'t get used to it, hon.'], held: ['What are you drinking, hon?', 'Count again, hon.'], right: ['Nice try, hon.', 'I\'ve seen that face before.'], wrong: ['Hm. Good for you, hon.'], spotWin: ['Right on the money.'], spotLose: ['Even I miss, hon.'], out: ['House is closed, hon.'] }
+    brash: { caught: ['Aw, come on!', 'Okay, okay, you got me.', 'That was a good lie, though.', 'Lucky. That\'s all that was.'], held: ['Told you!', 'Should\'ve believed me!', 'Pay up, ha!', 'Read \'em and weep!'], right: ['Knew it! Knew it!', 'Caught you, ha!', 'Nobody fools me.', 'Busted!'], wrong: ['No way. No way.', 'That\'s rigged.', 'Huh. Okay.', 'Come on, really?'], spotWin: ['Right on the nose!', 'Who\'s the man?', 'Called it!'], spotLose: ['Worth a shot.', 'Almost had it.', 'Eh, close.'], out: ['I\'m done? I\'m done.', 'Next time, man.', 'Whatever. I\'m out.'] },
+    dry: { caught: ['Fair.', 'That\'s on me.', 'Noted.', 'Well caught.'], held: ['It was there.', 'Count \'em.', 'Said so.'], right: ['Thought so.', 'Didn\'t add up.', 'No.'], wrong: ['Hm.', 'Well. There it is.', 'My mistake.'], spotWin: ['Exactly that many.', 'On the number.'], spotLose: ['Close.', 'Not quite.'], out: ['That\'s me.', 'Evening.', 'Done.'] },
+    warm: { caught: ['Oh, you caught me fair.', 'Well, bless it.', 'Guilty as charged.', 'Shame on me, honey.'], held: ['I wouldn\'t fib to you.', 'Every one of \'em, see?', 'Told you true.'], right: ['Oh, I had a feeling.', 'Now, now. Nice try.', 'Not tonight, sweetheart.'], wrong: ['Well, shame on me.', 'I should\'ve trusted you.', 'Oh, there they are.'], spotWin: ['Well, would you look at that!', 'Just exactly right.'], spotLose: ['Oh, so close.', 'That\'s what I get.'], out: ['Y\'all have fun now.', 'That\'s plenty for me.', 'I\'ll go watch.'] },
+    prim: { caught: ['That was ill-advised.', 'I stand corrected.', 'A fair cop.', 'I overreached.'], held: ['I said what I meant.', 'Precisely as stated.', 'As I said.'], right: ['I thought as much.', 'The arithmetic was against you.', 'Hardly.'], wrong: ['I misjudged it.', 'Correct, as it happens.', 'I see. Well.'], spotWin: ['Exactly so.', 'To the die.'], spotLose: ['Off by a hair.', 'A near thing.'], out: ['Good night to you all.', 'I shall watch.', 'That will do.'] },
+    sour: { caught: ['Course I did.', 'Figures.', 'Typical.', 'Should\'ve known.'], held: ['Nobody ever believes me.', 'Told you. Nobody listens.', 'There. Happy?'], right: ['Knew it. Always do.', 'Lying costs.', 'Don\'t try that on me.'], wrong: ['Course it was there.', 'Just my luck.', 'Naturally.'], spotWin: ['About time.', 'Once in a blue moon.'], spotLose: ['Typical.', 'Never works.'], out: ['Fine. I\'m out.', 'Should\'ve stayed home.', 'That\'s my night.'] },
+    slick: { caught: ['Can\'t win \'em all.', 'Worth a try, friend.', 'Cost of doing business.', 'You\'ve got eyes, friend.'], held: ['Never doubt a sure thing.', 'That\'s money.', 'Told you it was good.'], right: ['That one paid.', 'I\'ll take that.', 'Nice try, friend.'], wrong: ['Hm. Cost me.', 'You earned that one.', 'Fair enough.'], spotWin: ['Right on the number.', 'Pays nicely.'], spotLose: ['Long shot. Missed.', 'Worth the price.'], out: ['I\'ll cash out.', 'Always tomorrow.', 'Good doing business.'] },
+    meek: { caught: ['Sorry, sorry.', 'Oh no. Sorry.', 'I knew I shouldn\'t.', 'Oh, I\'m awful at this.'], held: ['Oh! It was true.', 'I didn\'t mean to.', 'Oh, sorry, it was there.'], right: ['Oh! I was right?', 'Sorry, I just thought...', 'Oh my.'], wrong: ['Sorry. My mistake.', 'Oh. Oh no.', 'I\'m sorry.'], spotWin: ['Oh my gosh.', 'Really?'], spotLose: ['I knew I shouldn\'t.', 'Sorry.'], out: ['Thanks for letting me play.', 'Sorry. Thank you.', 'Thank you, thank you.'] },
+    host: { caught: ['Well, hon. You got me.', 'Don\'t get used to it, hon.', 'Even the house slips.'], held: ['What are you drinking, hon?', 'Count again, hon.', 'House is good for it.'], right: ['Nice try, hon.', 'I\'ve seen that face before.', 'Not at my table, hon.'], wrong: ['Hm. Good for you, hon.', 'Well, look at you.'], spotWin: ['Right on the money.', 'House knows its count.'], spotLose: ['Even I miss, hon.'], out: ['House is closed, hon.'] }
   };
   const SAYS = {
     npc_curtis: { held: ['Paid two to one, that.'], right: ['Five to two you were lying. Paid.'], caught: ['Ten to one I\'d get away with it. Didn\'t.'], wrong: ['Long odds. They hit.'], spotWin: ['Exact. Pays three to one.'] },
@@ -1077,7 +1151,11 @@
     const own = (SAYS[id] && SAYS[id][sit]) || [];
     const lines = own.concat(BARKS[per.style][sit] || []);
     if (!lines.length) return null;
-    return lines[hash(S.seed + '|' + T.hour + '|' + T.roundNo + '|' + s + '|' + sit + salt) % lines.length];
+    let k = hash(S.seed + '|' + T.hour + '|' + T.roundNo + '|' + s + '|' + sit + salt) % lines.length;
+    // Never the same line twice running from the same person.
+    T.barked = T.barked || {};
+    if (lines.length > 1 && lines[k] === T.barked[s]) k = (k + 1) % lines.length;
+    return (T.barked[s] = lines[k]);
   }
   function barksFor(S, T, c, after) {
     const out = [];
@@ -1121,7 +1199,7 @@
     const headline = pickH(S, 'head', heads[end]);
     const open = pickH(S, 'open', [
       `A visitor sat down at the Low Water with ${money(START_CASH)} and a cup of bones.`,
-      `The dice were loud on Friday night at the Low Water, and one newcomer was in the middle of it.`,
+      `The dice were loud at the Low Water last night, and one newcomer was in the middle of it.`,
       `Ask anyone who was there: the visitor in the corner seat played ${word(Math.min(6, s.tables.length))} tables and never once looked bored.`
     ]);
     const parts = [open];
@@ -1129,7 +1207,7 @@
     else parts.push(pickH(S, 'nowin', ['Not one table went the visitor\'s way.', 'The tables were not kind.']));
     if (v) parts.push(pickH(S, 'v', [`${P[v].name} was caught bluffing more than once and will hear about it at church.`, `${P[v].first} ${P[v].habits[P[v].tell]}, and this reporter suspects the visitor noticed.`, `${P[v].name} learned the hard way that the visitor counts.`]));
     if (n) parts.push(pickH(S, 'n', [`${P[n].name}, for the record, saw through the visitor's stories.`, `${P[n].first} called the visitor a liar and was right to.`]));
-    if (s.spotsHit) parts.push(`${word(s.spotsHit)[0].toUpperCase() + word(s.spotsHit).slice(1)} times the visitor called a bid spot on, and was.`);
+    if (s.spotsHit) parts.push(s.spotsHit === 1 ? 'Once the visitor called a bid spot on, and was right.' : `${word(s.spotsHit)[0].toUpperCase() + word(s.spotsHit).slice(1)} times the visitor called a bid spot on, and was right.`);
     if (s.tricksBought.length) parts.push(pickH(S, 'tr', [`Curtis Pruett reports selling the visitor a ${TRICK[s.tricksBought[0]].name} in the back room, at a fair price, he says.`, `There was business in the back room too: ${s.tricksBought.map(id => TRICK[id].name).slice(0, 3).join(', ')}.`]));
     const close = {
       house: [`Then Loretta dealt her own table, and lost it. "Well, hon," she said. The visitor left with ${money(s.cash)}.`, `At Last Call the visitor beat Loretta Gaddis and Curtis Pruett both, and walked out with ${money(s.cash)}.`],
@@ -1140,10 +1218,12 @@
     parts.push(pickH(S, 'close', close[end]));
     return { headline, body: parts.join(' '), byline: 'By Pearl Gentry' };
   }
+  // 'Colt twice, Nadine' from a list of ids.
+  const tally = ids => { const c = {}; ids.forEach(id => { c[id] = (c[id] || 0) + 1; }); return Object.keys(c).map(id => P[id].first + (c[id] === 1 ? '' : c[id] === 2 ? ' twice' : ' ' + word(c[id]) + ' times')).join(', '); };
   const bidText = (q, f) => word(q) + ' ' + f + (q === 1 ? '' : 's');
   function columnFacts(S) {
     const s = summary(S), lines = [`Night ${S.daily || S.seed}. Started with ${money(START_CASH)}. Ending: ${s.endingText || 'not over'}, cash ${money(s.cash)}.`];
-    S.log.forEach(t => lines.push(`${HOURS[t.hour].name} ${t.kind} table${t.rule ? ' (' + RULE[t.rule].name + ')' : ''} with ${t.people.map(id => P[id].name).join(', ')}: finished ${t.place === 1 ? 'first' : 'place ' + t.place}${t.payout ? ', won ' + money(t.payout) : ''}${t.refund ? ', got the buy-in back' : ''}; ${t.rounds} rounds.` + (t.caught.length ? ` Caught bluffing: ${t.caught.map(id => P[id].first).join(', ')}.` : '') + (t.caughtBy.length ? ` Caught the visitor: ${t.caughtBy.map(id => P[id].first).join(', ')}.` : '') + (t.spots ? ` Spot On hits: ${t.spots}.` : '')));
+    S.log.forEach(t => lines.push(`${HOURS[t.hour].name} ${t.kind} table${t.rule ? ' (' + RULE[t.rule].name + ')' : ''} with ${t.people.map(id => P[id].name).join(', ')}: finished ${t.place === 1 ? 'first' : 'place ' + t.place}${t.payout ? ', won ' + money(t.payout) : ''}${t.refund ? ', got the buy-in back' : ''}; ${t.rounds} rounds.` + (t.caught.length ? ` Caught bluffing: ${tally(t.caught)}.` : '') + (t.caughtBy.length ? ` Caught the visitor: ${tally(t.caughtBy)}.` : '') + (t.spots ? ` Spot On hits: ${t.spots}.` : '')));
     lines.push(`Challenges won ${s.challengesWon}, lost ${s.challengesLost}; best streak ${s.bestStreak}; bluffs ${s.bluffs} of ${s.bids} bids; peak cash ${money(s.maxCash)}.`);
     if (s.tricksBought.length) lines.push('Tricks bought: ' + s.tricksBought.map(id => TRICK[id].name).join(', ') + '.');
     return lines.join('\n');
@@ -1160,7 +1240,7 @@
     events.filter(e => e.t === 'lose').forEach(e => lines.push(`${nm(e)} lost ${word(e.n)} ${e.n === 1 ? 'die' : 'dice'} (${e.left} left).`));
     events.filter(e => e.t === 'gain').forEach(e => lines.push(`${nm(e)} won a die back.`));
     events.filter(e => e.t === 'out').forEach(e => lines.push(`${nm(e)} is out of the game.`));
-    return lines.join('\n');
+    return lines.map(l => l[0].toUpperCase() + l.slice(1)).join('\n');
   }
 
   // ----- a plain by-the-Count player, and a whole-night driver -----
@@ -1197,7 +1277,7 @@
     newNight, options, sit: (S, i) => act(S, { t: 'sit', i }), act, advance, legal, isLegalBid, count, countExact,
     view, shopView, bookApply, bookPage, summary, shareLine, column, columnFacts, talkFacts, dailySeed, playNight, basicPolicy,
     // For tests and the balance sim only: the hidden side of the people and the odds. Not for the UI.
-    _sim: { person: id => P[id] ? clone(P[id]) : null, tail, pmf, price: (S, id, h) => price(S, id, h), TELL, BLUFF_P }
+    _sim: { person: id => P[id] ? clone(P[id]) : null, tail, pmf, price: (S, id, h) => price(S, id, h), estBluff: (S, j) => estBluff(S, S.table, j), TELL, BLUFF_P }
   };
   Game.Engine = Engine;
 })();

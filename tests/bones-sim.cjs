@@ -110,7 +110,7 @@ function bestFace(mine, faces, wild) {
 }
 
 function makeProxy(opts) {
-  const know = opts.know || null, buys = !!opts.buy, thr = opts.thr || 0.38;
+  const know = opts.know || null, buys = !!opts.buy, thr = opts.thr || 0.38, likeP = opts.like || 0.5, cmp = opts.cmp || 0, openP = opts.open || 0.85;
   return function policy(S, v, L) {
     if (S.phase === 'choose') {
       if (!L.sit.length) return { t: 'walk' };
@@ -134,35 +134,49 @@ function makeProxy(opts) {
     if (L.need === 'next') return { t: 'next' };
     const mine = t.myDice || [];
     if (L.uses.includes('slowroll')) {
-      const { c } = bestFace(mine, t.faces, t.wild);
-      if (c <= Math.floor(mine.length / 3)) return { t: 'use', id: 'slowroll' };
+      // Keep the best face (and wilds); re-roll the rest.
+      const { f } = bestFace(mine, t.faces, t.wild);
+      const dice = mine.map((d, i) => i).filter(i => !hitF(mine[i], f, t.wild) && !(t.myFixed || []).includes(i));
+      if (dice.length) return { t: 'use', id: 'slowroll', dice };
     }
     if (L.need === 'ready') return { t: 'go' };
-    if (L.uses.includes('palm') && mine.length && mine.length <= 2) {
-      const { f } = bestFace(mine, t.faces, t.wild);
-      const target = t.wild ? 1 : f;
-      const k = mine.findIndex(d => !hitF(d, f, t.wild));
-      if (k >= 0) return { t: 'use', id: 'palm', die: k, face: target };
-    }
+
     const b = t.bid;
+    // A holder plays to the trick: Side Bet makes Spot On worth more, Double or
+    // Nothing makes a wrong Liar dearer, Poker Face makes a bluff cheaper.
+    const held = id => v.tricks.some(x => x.id === id && !x.asleep);
+    const spotAt = held('sidebet') ? 0.38 : 0.42, bluffPct = held('pokerface') ? 15 : 5;
     if (b) {
       const pc = believe(S, v, know);
       if (L.uses.includes('nod') && pc > 0.3 && pc < 0.6) return { t: 'use', id: 'nod' };
-      if (pc < thr) return { t: 'liar' };
-      if (E.countExact(S, b.q, b.f) > 0.42 && pc < 0.75) return { t: 'spot' };
+      if (pc < thr) return held('double') && pc < 0.15 ? { t: 'liar', double: true } : { t: 'liar' };
+      if (E.countExact(S, b.q, b.f) > spotAt && pc < 0.75) return { t: 'spot' };
     }
-    // Raises: the smallest it likes, preferring its best face at that size.
+    // Raises: the smallest it likes, preferring its best face at that size. A reader
+    // also trusts a face the bidder seems to really hold (same uplift, in odds, as
+    // its belief in the bid in front over the bare Count).
+    let lift = 1;
+    if (know && b && b.id !== 'me') { const c0 = E.count(S, b.q, b.f), c1 = believe(S, v, know); if (c0 > 0.02 && c0 < 0.98) lift = odds(clamp(c1, 0.02, 0.98)) / odds(c0); }
+    const countR = (q, f) => { const c = E.count(S, q, f); if (lift === 1 || f !== b.f || c <= 0 || c >= 1) return c; const o = odds(c) * lift; return o / (1 + o); };
     if (L.canBid) {
-      const want = b ? 0.5 : 0.55;
+      const want = b ? likeP : openP;
       let pick = null;
       for (let q = L.minBid.q; q <= Math.min(L.maxQ, L.minBid.q + 2) && !pick; q++) {
         let bestC = -1;
-        for (const f of L.faces) if (E.isLegalBid(S, q, f)) { const c = E.count(S, q, f); if (c >= want && c > bestC) { bestC = c; pick = { q, f }; } }
+        for (const f of L.faces) if (E.isLegalBid(S, q, f)) { const c = countR(q, f); if (c >= want && c > bestC) { bestC = c; pick = { q, f }; } }
       }
       if (!b && pick) { // open as high as it still likes
         while (pick.q < L.maxQ && E.count(S, pick.q + 1, pick.f) >= want) pick.q++;
       }
-      const bluffNow = (S.rng >>> 0) % 100 < 5;
+      // Squeezed with Palm in hand: turn a stray die to the face we'd raise, then decide again.
+      if (!pick && L.uses.includes('palm') && mine.length) {
+        const f = b ? b.f : bestFace(mine, t.faces, t.wild).f;
+        const k = mine.findIndex(d => !hitF(d, f, t.wild));
+        if (k >= 0) return { t: 'use', id: 'palm', die: k, face: f };
+      }
+      const bluffNow = (S.rng >>> 0) % 100 < bluffPct;
+      // Compare: when the bid in front is likelier false than its best raise is true, call.
+      if (cmp && b && pick && 1 - believe(S, v, know) > countR(pick.q, pick.f) + cmp) return { t: 'liar' };
       if (pick && !bluffNow) return { t: 'bid', q: pick.q, f: pick.f };
       if (L.mustBid || bluffNow || (b && believe(S, v, know) >= 0.5)) return { t: 'bid', q: L.minBid.q, f: L.minBid.f };
     }
@@ -261,13 +275,17 @@ function main() {
     console.log(`\nPer-trick lift: Mathy holding only that trick from the start (${n2} nights each; base house ${pct(b2.end.house, n2)}, LC ${pct(b2.lc500, n2)}, median $${median(b2.cash)})`);
     console.log(pad('trick', 20) + padL('house', 9) + padL('lift', 8) + padL('LC>=500', 9) + padL('lift', 8) + padL('mean $', 9) + padL('lift', 8));
     const meanOf = r => r.cash.reduce((a, b) => a + b, 0) / r.nights;
+    const bb = measure('base+buy', makeProxy({ buy: true }), n2, { seedBase: 'abl' });
     for (const t of E.TRICKS) {
       const know = t.id === 'ledger' ? { ledger: true } : t.id === 'glasses' ? { glasses: true } : null;
-      const r = measure(t.id, makeProxy({ know }), n2, { tricks: [t.id], seedBase: 'abl' });
-      const dh = 100 * (r.end.house - b2.end.house) / n2, dl = 100 * (r.lc500 - b2.lc500) / n2, dm = meanOf(r) - meanOf(b2);
-      console.log(pad(t.name, 20) + padL(pct(r.end.house, n2), 9) + padL((dh >= 0 ? '+' : '') + dh.toFixed(1), 8) + padL(pct(r.lc500, n2), 9) + padL((dl >= 0 ? '+' : '') + dl.toFixed(1), 8) + padL('$' + Math.round(meanOf(r)), 9) + padL((dm >= 0 ? '+' : '') + Math.round(dm), 8));
+      // Friends Rates and A Tab only do anything for a buyer / someone short: compare buyers.
+      const buyer = t.id === 'friends' || t.id === 'tab';
+      const base = buyer ? bb : b2;
+      const r = measure(t.id, makeProxy({ know, buy: buyer }), n2, { tricks: [t.id], seedBase: 'abl' });
+      const dh = 100 * (r.end.house - base.end.house) / n2, dl = 100 * (r.lc500 - base.lc500) / n2, dm = meanOf(r) - meanOf(base);
+      console.log(pad(t.name + (buyer ? ' *' : ''), 20) + padL(pct(r.end.house, n2), 9) + padL((dh >= 0 ? '+' : '') + dh.toFixed(1), 8) + padL(pct(r.lc500, n2), 9) + padL((dl >= 0 ? '+' : '') + dl.toFixed(1), 8) + padL('$' + Math.round(meanOf(r)), 9) + padL((dm >= 0 ? '+' : '') + Math.round(dm), 8));
     }
-    void base;
+    console.log('  * measured on the trick buyer (Mathy+buy) against Mathy+buy without it');
   }
   if (args.includes('--rates')) {
     console.log('\nMeasured bluff rates (share of bids that were bluffs):');
@@ -276,4 +294,4 @@ function main() {
   console.log(`\n${((Date.now() - t0) / 1000).toFixed(1)} s`);
 }
 if (require.main === module) main();
-module.exports = { loadEngine, makeProxy, measure, train, tableRate, TABLES, getRates: () => RATES, setRates: r => { RATES = r; } };
+module.exports = { loadEngine, makeProxy, measure, train, tableRate, TABLES, believe, getRates: () => RATES, setRates: r => { RATES = r; } };
