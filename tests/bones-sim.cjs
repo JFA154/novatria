@@ -7,7 +7,18 @@
               the most of its best face the Count puts at 60%, else the
               smallest raise it likes; rarely bluffs).
      Reader   Mathy + knows each person's tell and bluff rate, and weighs the
-              bid in front of it by them (Bayes on the habit shown).
+              bid in front of it by them (Bayes on the habit shown). Against
+              the house at Last Call it has not studied them: it knows how often
+              each of their habits came with a bluff over all their bids (what an
+              unsplit Book would say), not in which situation.
+     Studied  the Reader that has studied the house: for Loretta and Curtis it
+              weighs each habit (and no habit) and their bluff rate by the
+              situation the bid was made in (Loretta level or behind you, ahead
+              of you, or gone quiet; Curtis opening or raising), as the Book's
+              split pages show them. Against everyone else it is the Reader.
+   The house's numbers both use are measured, not given: a training pass of Last
+   Call tables (houseTrain) counts every revealed house bid by situation, habit
+   and bluff, as a Book kept long enough would.
    each with and without a sensible trick buyer, plus a per-trick ablation
    (Mathy holding only trick X from the start, buying nothing).
    The per-trick ablation is run for Mathy and the Reader (and Poker Face also for
@@ -33,7 +44,11 @@
    Usage: node tests/bones-sim.cjs [nights] [--rates] [--quick] [--only=id,id]
      --rates  also print every person's measured bluff rate (the engine's RATE).
      --quick  skip the per-trick ablation.
-     --only   run the ablation for just these tricks. */
+     --only   run the ablation for just these tricks.
+     --lc=N   tables per player for the Last Call section (default: nights, at least 2000).
+   The Last Call section plays LC tables for Mathy, the Reader and the Studied, with the gear's numbers, and
+   counts how many Last Calls a Book takes before its split pages on the house are usable (STUDY_N sightings in
+   each situation of each one's tell). */
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -101,7 +116,8 @@ function believe(S, v, know) {
   const c = E.count(S, b.q, b.f);
   if (!know || b.id === 'me' || c === 0 || c === 1 || !CAL) return c;
   const per = SIM.person(b.id);
-  const h = v.table.history[v.table.history.length - 1].habit;
+  const last = v.table.history[v.table.history.length - 1], h = last.habit;
+  if (HOUSE && SIM.PATTERN[b.id] && (know.tells || know.rates)) return believeHouse(c, b.id, last, know);
   let rate = null, tell = false;
   if (know.rates) rate = RATES[b.id] != null ? RATES[b.id] : per.bluff;
   if (know.ledger) { const s = v.table.seats[b.who].ledger; const m = /1 bid in (\d+)/.exec(s || ''); rate = m ? 1 / +m[1] : /every other/.test(s) ? 0.5 : 0.05; }
@@ -123,6 +139,47 @@ function believe(S, v, know) {
   return post * cal.tb + (1 - post) * cal.ts;
 }
 const clamp = (x, a, b) => x < a ? a : x > b ? b : x;
+
+// ----- the house at Last Call, as a Book kept long enough would know it -----
+// HOUSE[id] = { all: cell, by: { sit: cell } }, cell = { n, b, h: { '0'|'1'|'2'|'none': [bluffs, straights] } }.
+let HOUSE = null;
+const cell = () => ({ n: 0, b: 0, h: { 0: [0, 0], 1: [0, 0], 2: [0, 0], none: [0, 0] } });
+function houseTrain(tables) {
+  if (!SIM.PATTERN) return null; // an engine from before the house's patterns (for a before-and-after run)
+  const H = {};
+  const M = makeProxy({});
+  for (let i = 0; i < tables; i++) {
+    const S = E.newNight({ seed: 'house:' + i });
+    S.hour = 4; S.cash = 1000;
+    E.act(S, { t: 'sit', i: 0 });
+    for (let g = 0; S.phase === 'table' && g < 5000; g++) {
+      const ev = E.act(S, M(S, E.view(S), E.legal(S)));
+      ev.forEach(e => { if (e.t === 'readout') e.bids.forEach(x => {
+        if (!x.sit || !SIM.PATTERN[x.id]) return;
+        const P0 = H[x.id] = H[x.id] || { all: cell(), by: {} };
+        for (const c of [P0.all, P0.by[x.sit] = P0.by[x.sit] || cell()]) { c.n++; if (x.bluff) c.b++; c.h[x.habit == null ? 'none' : x.habit][x.bluff ? 0 : 1]++; }
+      }); });
+    }
+  }
+  HOUSE = H;
+  return H;
+}
+// The bid in front, from the house: the calibrated prior, their bluff rate and the habit shown (or none), pooled
+// (the unstudied Reader) or in the bid's situation (the Studied).
+function believeHouse(c, id, last, know) {
+  const H = HOUSE[id], cl = (know.study && last.sit && H.by[last.sit]) || H.all;
+  const cal = CAL[bucketOf(c)];
+  let o = odds(clamp(cal.pb, 0.01, 0.99));
+  const rate = know.study ? (cl.b + 0.2) / (cl.n + 1) : (RATES[id] != null ? RATES[id] : H.all.b / H.all.n);
+  if (know.rates) o *= odds(clamp(rate, 0.01, 0.9)) / odds(AVG_RATE);
+  if (know.tells) {
+    const k = last.habit ? last.habit.i : 'none', x = cl.h[k];
+    const pb = (x[0] + 0.5) / (cl.b + 1), ps = (x[1] + 0.5) / (cl.n - cl.b + 1);
+    o *= pb / ps;
+  }
+  const post = o / (1 + o);
+  return post * cal.tb + (1 - post) * cal.ts;
+}
 
 const SIXES = ['loaded', 'slowroll', 'palm'], HOLD_JUMP = 0.75, SNAKE_K = 0, DBL_AT = 0.12, DBL_TELL_AT = 0.25;
 const BLUFF_SHARE = 0.5; // the Bluffer's share of deliberate bluffs
@@ -372,12 +429,16 @@ function main() {
   RATES = {};
   for (const id in rateRun.bids) RATES[id] = rateRun.bids[id].b / rateRun.bids[id].n;
   train(Math.max(300, Math.floor(nights / 3)));
+  houseTrain(Math.max(1500, nights));
+  const STUDY = { rates: true, tells: true, study: true };
   const runs = [
     measure('Mathy', makeProxy({}), nights),
     measure('Mathy+buy', makeProxy({ buy: true }), nights),
     measure('Reader', makeProxy({ know: { rates: true, tells: true } }), nights),
     measure('Reader-no-tells', makeProxy({ know: { rates: true } }), nights),
     measure('Reader+buy', makeProxy({ know: { rates: true, tells: true }, buy: true }), nights),
+    measure('Studied', makeProxy({ know: STUDY }), nights),
+    measure('Studied+buy', makeProxy({ know: STUDY, buy: true }), nights),
     measure('Predictable', makeProxy({ bluff: PM_SHARE, bluffShape: 'fixed' }), nights),
     measure('Mixer', makeProxy({ bluff: PM_SHARE, bluffShape: 'mix' }), nights),
     measure('Pred, Book kept', makeProxy({ bluff: PM_SHARE, bluffShape: 'fixed' }), nights, { carry: 5 }),
@@ -459,7 +520,48 @@ function main() {
     console.log('\nMeasured bluff rates (share of bids that were bluffs):');
     console.log(JSON.stringify(Object.keys(RATES).sort().reduce((o, id) => { o[id] = Math.round(RATES[id] * 100) / 100; return o; }, {})));
   }
+  lastCall(args, nights);
   console.log(`\n${((Date.now() - t0) / 1000).toFixed(1)} s`);
 }
+// ----- Last Call as a boss fight: the three readers, the gear, and how long the study takes -----
+const STUDY_N = 5;
+function lastCall(args, nights) {
+  const n = +((args.find(a => a.startsWith('--lc=')) || '').slice(5)) || Math.max(2000, nights);
+  if (!HOUSE) houseTrain(Math.max(1500, nights));
+  const before = !SIM.PATTERN;
+  const se = p => (100 * Math.sqrt(p * (1 - p) / n)).toFixed(1);
+  console.log(`\nLast Call (${n} tables each; ± one standard error)`);
+  const rows = [['Mathy', makeProxy({})], ['Reader (unstudied)', makeProxy({ know: { rates: true, tells: true } })], ['Studied', makeProxy({ know: { rates: true, tells: true, study: true } })]].slice(0, before ? 2 : 3);
+  const res = rows.map(([name, pol]) => { const r = tableRate(pol, 4, 'last', n); console.log(pad(name, 22) + padL(pct(r.w, 1), 8) + ' ± ' + se(r.w) + padL('median rounds ' + median(r.rounds), 20)); return r.w; });
+  if (before) return;
+  console.log(`  Studied - Mathy: ${(100 * (res[2] - res[0])).toFixed(1)} points · Reader - Mathy: ${(100 * (res[1] - res[0])).toFixed(1)} points`);
+  // The house's numbers by situation (from the training pass): bluff rate, and how often the tell shows on a bluff and on a straight bid.
+  for (const id in HOUSE) {
+    const per = SIM.person(id), H = HOUSE[id];
+    const line = (name, c) => `${name} ${c.n} bids, bluff ${pct(c.b, c.n)}, tell on bluffs ${pct(c.h[per.tell][0], c.b)} / on straight ${pct(c.h[per.tell][1], c.n - c.b)}`;
+    console.log('  ' + per.name + ': ' + [line('all', H.all)].concat(Object.keys(H.by).map(k => line(k, H.by[k]))).join(' · '));
+  }
+  // The study: a Book carried from one Last Call to the next (the player at the table plays by the Count). Usable once
+  // each situation of each one's tell has STUDY_N sightings; readable once, too, its two cells point the right way by 40 points.
+  const players = 300, need = [], read = [];
+  for (let p = 0; p < players; p++) {
+    let book = null, u = 0, r = 0;
+    for (let k = 1; k <= 20 && (!u || !r); k++) {
+      const S = E.newNight({ seed: 'study:' + p + ':' + k, book });
+      S.hour = 4; S.cash = 1000;
+      const ev = E.act(S, { t: 'sit', i: 0 });
+      const M = makeProxy({});
+      while (S.phase === 'table') ev.push(...E.act(S, M(S, E.view(S), E.legal(S))));
+      book = E.bookApply(book, ev);
+      const cells = Object.keys(SIM.PATTERN).map(id => E.bookPage(book, id).rows[SIM.person(id).tell].split);
+      if (!u && cells.every(cs => cs.every(c => c.n >= STUDY_N))) u = k;
+      const rate = c => c.bluff / Math.max(1, c.n);
+      if (!r && cells.every(cs => cs.every(c => c.n >= STUDY_N) && Math.abs(rate(cs[0]) - rate(cs[1])) >= 0.4)) r = k;
+    }
+    need.push(u || 21); read.push(r || 21);
+  }
+  const q = (a, f) => a.slice().sort((x, y) => x - y)[Math.floor(f * (a.length - 1))];
+  console.log(`  The study (${players} players, a Book carried from one Last Call to the next): usable (${STUDY_N} sightings in each situation of both tells) after ${q(need, 0.5)} Last Calls (quartiles ${q(need, 0.25)}-${q(need, 0.75)}); pointing the right way by 40 points after ${q(read, 0.5)} (${q(read, 0.25)}-${q(read, 0.75)})`);
+}
 if (require.main === module) main();
-module.exports = { loadEngine, makeProxy, measure, train, tableRate, TABLES, believe, getRates: () => RATES, setRates: r => { RATES = r; } };
+module.exports = { loadEngine, makeProxy, measure, train, houseTrain, lastCall, tableRate, TABLES, believe, getRates: () => RATES, setRates: r => { RATES = r; } };

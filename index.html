@@ -877,8 +877,9 @@ dialog li { margin: 0 0 6px; }
    THE NIGHT (tuned by tests/bones-sim.cjs; see Engine.HOURS)
      $100 to start. 9 PM, 10 PM, 11 PM, Midnight: two tables each (easy 3
      seats; rich about double the buy-in, 4 seats from 10 PM, usually a house
-     rule from 10 PM; both 9 PM tables are plain). Cups: 4 dice at every
-     hour, 5 at Last Call (Short cups 3, Deep cups 6).
+     rule from 10 PM; both 9 PM tables are plain). Cups: 4 dice at a
+     three-seat table, 3 at a four-seat one, 5 at Last Call (Short cups one
+     fewer, Deep cups two more: 3 / 6 at three seats, 2 / 5 at four).
      Buy-ins easy/rich: 20/40, 40/80, 80/160, 160/320. After every
      table, the back room. Leaving it short of the cheaper buy-in (and no
      Tab) = 'bust'. Last Call: Loretta + Curtis, 3 seats, 5 dice, needs $500,
@@ -1009,7 +1010,7 @@ dialog li { margin: 0 0 6px; }
     ["npc_leon", "Leon Varner", 47, "he", "Heavy man of forty-seven in a golf shirt and wraparound sunglasses, with a clipboard under one arm and a tow truck he never turns off.", "Polite and even; never raises his voice.",
       4, 0.22, 0.42, 0.85, 0.3, -0.2, ["pushes his wraparound sunglasses up", "taps the clipboard", "mentions a late fee"], 2, "strong", "slick"],
     ["npc_curtis", "Curtis Pruett", 52, "he", "Dapper man of fifty-two in a short-sleeved dress shirt and a bolo tie, with a pinky ring and a deck of cards he shuffles one-handed.", "Thinks in odds; likes a wager.",
-      4, 0.3, 0.4, 0.95, 0.5, 0, ["shuffles the deck one-handed", "turns his pinky ring", "names the odds out loud"], 1, "bluff", "slick"],
+      4, 0.3, 0.4, 0.95, 0.5, 0, ["shuffles the deck one-handed", "turns his pinky ring", "names the odds out loud"], 2, "bluff", "slick"],
     ["npc_boyd", "Boyd Teague", 50, "he", "Big, quiet man of fifty in a pressed denim shirt, with a healed scar through one eyebrow and knuckles like walnuts.", "Says very little, all of it polite.",
       4, 0.18, 0.44, 0.88, 0.25, 0.3, ["says your full name", "cracks his walnut knuckles", "touches the scar through his eyebrow"], 2, "bluff", "dry"],
     ["npc_jodie", "Jodie Strayhorn", 29, "she", "Wiry woman of twenty-nine with bleached hair growing out dark, a Low Water apron and a fading bruise she covers with makeup.", "Quick and bright; careful the second she is pressed.",
@@ -1056,6 +1057,27 @@ dialog li { margin: 0 0 6px; }
   // the sharks pays at Last Call too.)
   const TELL = { 1: [0.85, 0.08], 2: [0.72, 0.12], 3: [0.60, 0.15], 4: [0.55, 0.15], 5: [0.50, 0.12] };
   const IDLE = 0.10; // each idle habit shows on ~10% of bids, ~20% for the pair
+  // ----- the house at Last Call: patterns with conditions, and a change of gear -----
+  // Loretta's and Curtis's tells (their `tell` habit) mean something only in a situation anyone at the table can see,
+  // and the Book splits every habit of theirs by it. axis 'lead': whether she holds more dice than you ('ahead') or
+  // not ('behind': level or behind); axis 'move': whether he opens the round ('open') or raises ('raise').
+  // show[sit] = [P(shown | bluff), P(shown | straight)]; bluff[sit], where given, is how often they bluff there;
+  // opens, where given, the chance an opener of theirs is a deliberate bluff (Curtis likes a sporting open).
+  // Their other two habits are idle (IDLE). Outside Last Call they never sit down, so this is Last Call's alone.
+  // The gear: when Loretta is down to GEAR_AT dice at her table she goes quiet (announced once, at the next deal): no
+  // habit shows, she stops bluffing (she bids what her own cup backs, or calls) and her call line moves by GEAR_NERVE.
+  // (Tuned by tests/bones-sim.cjs: the studied player and the unstudied Reader at Last Call.)
+  const PATTERN = {
+    npc_loretta: { axis: 'lead', keys: ['behind', 'ahead'], show: { behind: [0.9, 0.06], ahead: [0.06, 0.5] }, bluff: { behind: 0.45, ahead: 0.2 } },
+    npc_curtis: { axis: 'move', keys: ['open', 'raise'], show: { open: [0.06, 0.75], raise: [0.75, 0.06] }, opens: 0.4 }
+  };
+  const SIT = {
+    behind: { name: 'level or behind you', when: 'when she’s level or behind you' }, ahead: { name: 'ahead of you', when: 'when she’s ahead of you' },
+    open: { name: 'opening a round', when: 'when he opens' }, raise: { name: 'raising', when: 'when he raises' },
+    quiet: { name: 'gone quiet', when: 'since she went quiet' }
+  };
+  const GEAR_AT = 2, GEAR_NERVE = 0.1;
+  const GEAR_LINE = 'Loretta’s down to her last two dice. She sets the bar towel down and stops talking.';
   const P = {};
   const PEOPLE = ROWS.map(r => {
     const [id, name, age, pronouns, look, voice, tier, bluff, nerve, skill, spot, tilt, habits, tell, kind, style] = r;
@@ -1068,8 +1090,8 @@ dialog li { margin: 0 0 6px; }
   // ----- house rules, hours, tricks -----
   const HOUSE_RULES = [
     { id: 'straight', name: 'Straight', text: 'Ones are not wild (and may be bid).' },
-    { id: 'short', name: 'Short cups', text: '3 dice each.' },
-    { id: 'deep', name: 'Deep cups', text: '6 dice each.' },
+    { id: 'short', name: 'Short cups', text: 'One die fewer in every cup.' },
+    { id: 'deep', name: 'Deep cups', text: 'Two more dice in every cup.' },
     { id: 'sudden', name: 'Sudden', text: 'The loser of a challenge loses 2 dice.' },
     { id: 'open', name: 'Open hand', text: 'Every player\'s first die is rolled face up for all to see.' },
     { id: 'blind', name: 'Blind opener', text: 'The opener of each round must bid before looking under the cup.' },
@@ -1244,6 +1266,23 @@ dialog li { margin: 0 0 6px; }
     return tail(total - known.length, q - m, wild ? 1 / 3 : 1 / 6);
   }
   const ownBlind = (T, s) => T.round.blindSeat === s && !T.round.looked;
+  // The house's situation for a bid by seat s (null for anyone else, or away from Last Call): Loretta's lead on you in
+  // dice, or 'quiet' once she has changed gear; Curtis opening or raising. All of it public. (A table saved before the
+  // patterns has no gear flag: it reads as not quiet until the next deal sets it.)
+  function sitOf(T, s, opening) {
+    const id = T.seats[s].id, pt = T.kind === 'last' && PATTERN[id];
+    if (!pt) return null;
+    if (id === HOST && T.gear) return 'quiet';
+    return pt.axis === 'lead' ? (T.seats[s].n > T.seats[0].n ? 'ahead' : 'behind') : opening ? 'open' : 'raise';
+  }
+  // Loretta down to her last GEAR_AT dice at her own table: she changes gear, said once, as the next round is dealt.
+  function gearCheck(S, T, ev) {
+    if (T.kind !== 'last' || T.gear || T.lesson) return;
+    const k = T.seats.findIndex(x => x.id === HOST);
+    if (k < 1 || T.seats[k].out || T.seats[k].n > GEAR_AT || T.seats[0].out) return;
+    T.gear = { who: k, round: T.roundNo + 1 };
+    ev.push({ t: 'gear', who: k, id: HOST, name: P[HOST].name, text: GEAR_LINE });
+  }
 
   // ----- the night -----
   function dailySeed(date) { return 'daily:' + String(date); }
@@ -1296,12 +1335,14 @@ dialog li { margin: 0 0 6px; }
     return S.offers[S.hour].map((o, i) => {
       const ante = anteOf(o.buyIn, o.rule);
       const can = S.cash >= o.buyIn;
-      return { i, kind: o.kind, hour: S.hour, hourName: HOURS[S.hour].name, seats: o.seats, dice: diceOf(o.rule, S.hour), buyIn: o.buyIn, pot: o.buyIn * o.seats, ante, rule: o.rule ? clone(RULE[o.rule]) : null, people: o.people.map(pub), affordable: can || has(S, 'tab'), viaTab: !can && has(S, 'tab') };
+      return { i, kind: o.kind, hour: S.hour, hourName: HOURS[S.hour].name, seats: o.seats, dice: diceOf(o.rule, S.hour, o.seats), buyIn: o.buyIn, pot: o.buyIn * o.seats, ante, rule: o.rule ? clone(RULE[o.rule]) : null, people: o.people.map(pub), affordable: can || has(S, 'tab'), viaTab: !can && has(S, 'tab') };
     });
   }
-  // Cups: 4 dice at every hour (quick tables), 5 at Last Call; Short / Deep cups override.
-  const DICE = [4, 4, 4, 4, 5];
-  const diceOf = (rule, hour) => rule === 'short' ? 3 : rule === 'deep' ? 6 : DICE[clamp(hour | 0, 0, 4)];
+  // Cups: 4 dice at a three-seat table, 3 at a four-seat one (twelve opponent dice is a long table: tuned by
+  // tests/bones-sim.cjs for about ten rounds a table), 5 at Last Call. Short cups one die fewer, Deep cups two more
+  // (so 3 / 6 at three seats, 2 / 5 at four).
+  const DICE = [4, 4, 4, 4, 5], DICE_FOUR = 3, SHORT = -1, DEEP = 2;
+  const diceOf = (rule, hour, seats) => { const base = (hour | 0) < 4 && seats >= 4 ? DICE_FOUR : DICE[clamp(hour | 0, 0, 4)]; return base + (rule === 'short' ? SHORT : rule === 'deep' ? DEEP : 0); };
   // 15% (the design's draft said 10%): a little more money on each challenge keeps a good night alive.
   const anteOf = (buyIn, rule) => Math.round(buyIn * 0.15) * (rule === 'double' ? 2 : 1);
 
@@ -1365,6 +1406,7 @@ dialog li { margin: 0 0 6px; }
   }
 
   function startRound(S, T, ev) {
+    gearCheck(S, T, ev);
     T.roundNo++; T.rec.rounds++; S.stats.rounds++;
     T.last = null;
     let opener = T.nextOpener;
@@ -1413,11 +1455,17 @@ dialog li { margin: 0 0 6px; }
     const held = seat.dice.filter(d => hit(d, f, wild)).length + twice;
     const bluff = p < BLUFF_P;
     let habit = null;
+    // The house's situation (null for everyone else): it decides what the tell means, and the Book splits by it.
+    const sit = s === 0 ? null : sitOf(T, s, !lastBid(T));
     if (seat.id !== 'me') {
-      const per = P[seat.id], st = TELL[per.tier], applies = per.kind === 'bluff' ? bluff : !bluff;
+      const per = P[seat.id], st = TELL[per.tier], applies = per.kind === 'bluff' ? bluff : !bluff, pt = sit && PATTERN[seat.id];
       const cand = [];
       if (forced !== undefined) { if (forced !== null) cand.push(forced); }
-      else {
+      else if (sit === 'quiet') { /* Loretta has stopped talking: no habit shows */ }
+      else if (pt) {
+        if (rnd(S) < pt.show[sit][bluff ? 0 : 1]) cand.push(per.tell);
+        for (let k = 0; k < 3; k++) if (k !== per.tell && rnd(S) < IDLE) cand.push(k);
+      } else {
         if (rnd(S) < (applies ? st[0] : st[1])) cand.push(per.tell);
         for (let k = 0; k < 3; k++) if (k !== per.tell && rnd(S) < IDLE) cand.push(k);
       }
@@ -1427,11 +1475,14 @@ dialog li { margin: 0 0 6px; }
         seen[i]++;
         const total3 = seen[i] + ((S.prior[seat.id] || [])[i] || 0);
         habit = { i, text: per.habits[i], line: per.first + ' ' + per.habits[i] + '.', underline: has(S, 'glasses') && i === per.tell && total3 >= 3 };
+        if (sit) habit.sit = sit;
       }
     } else { S.stats.bids++; if (bluff) S.stats.bluffs++; }
     const prev = lastBid(T);
-    R.bids.push(s === 0 ? { who: s, q, f, p, held, bluff, habit, shape: shapeOf(q, f, prev, total, wild) } : { who: s, q, f, p, held, bluff, habit });
-    ev.push({ t: 'bid', who: s, id: seat.id, name: nameOf(T, s), q, f, habit: habit ? clone(habit) : null });
+    R.bids.push(s === 0 ? { who: s, q, f, p, held, bluff, habit, shape: shapeOf(q, f, prev, total, wild) } : sit ? { who: s, q, f, p, held, bluff, habit, sit } : { who: s, q, f, p, held, bluff, habit });
+    const be = { t: 'bid', who: s, id: seat.id, name: nameOf(T, s), q, f, habit: habit ? clone(habit) : null };
+    if (sit) be.sit = sit;
+    ev.push(be);
     if (R.blindSeat === s && !R.looked) {
       R.looked = true;
       if (s === 0) ev.push({ t: 'look', mine: seat.dice.slice() });
@@ -1514,11 +1565,14 @@ dialog li { margin: 0 0 6px; }
     const known = knownFor(T, s, own);
     const n = total - known.length, p = wild ? 1 / 3 : 1 / 6;
     const lost = seat.lost;
-    const bluffy = clamp(per.bluff + per.tilt * 0.05 * lost, 0.02, 0.7);
-    const nerve = clamp(per.nerve + per.tilt * 0.03 * lost, 0.1, 0.6);
+    // The house plays its situation (public: dice counts, opening or raising); Loretta gone quiet bluffs no more,
+    // bids only what her own cup backs (else she calls), and calls a little sooner.
+    const sit = sitOf(T, s, !cur), pt = PATTERN[seat.id], quiet = sit === 'quiet';
+    const bluffy = quiet ? 0 : clamp((pt && pt.bluff && sit && pt.bluff[sit] != null ? pt.bluff[sit] : per.bluff) + per.tilt * 0.05 * lost, 0.02, 0.7);
+    const nerve = clamp(per.nerve + per.tilt * 0.03 * lost, 0.1, 0.6) + (quiet ? GEAR_NERVE : 0);
     const noise = (1 - per.skill) * NOISE;
     // A poor player overreaches; a careful one less so (their mistake is calling too late).
-    const over = OVER * (1 - per.skill) * (0.5 + per.bluff);
+    const over = quiet ? 0 : OVER * (1 - per.skill) * (0.5 + per.bluff);
     const matches = f => known.filter(d => hit(d, f, wild)).length;
     // Faces others have bid read as evidence: a good player weighs it by how honest
     // the bidder has been; a poor one swallows it whole (and so calls too late).
@@ -1559,7 +1613,7 @@ dialog li { margin: 0 0 6px; }
       // Opening: at about its comfortable level (a little under, sometimes exactly), or a deliberate bluff.
       if (!own) { const f = faces[ri(S, faces.length)]; return { t: 'bid', q: clamp(Math.floor(total * p), 1, total), f }; }
       const order = shuffle(S, faces).sort((a, b) => matches(b) - matches(a));
-      if (rnd(S) < bluffy * OPEN_BLUFF) {
+      if (rnd(S) < (pt && pt.opens != null && sit === 'open' ? pt.opens : bluffy * OPEN_BLUFF)) {
         // A face it does not hold, at the first count that is a bluff by its own cup
         // (a good liar backs off to one that still looks true from outside).
         const f = order[order.length - 1];
@@ -1609,7 +1663,7 @@ dialog li { margin: 0 0 6px; }
     }
     if (far && rnd(S) < JUMP) {
       const j = target.q - 1 > cur.q && rnd(S) < JUMP_DROP && exactP(target.q - 1, target.f) <= TRIVIAL ? { q: target.q - 1, f: target.f } : reach(target);
-      return { t: 'bid', q: j.q, f: j.f };
+      if (!quiet || exactP(j.q, j.f) >= BLUFF_P) return { t: 'bid', q: j.q, f: j.f };
     }
     // The smallest raise it believes, passing over sure things that say nothing when it can.
     const liked = cands.filter(c => c.b >= 0.5 - over), real = liked.filter(c => c.x <= TRIVIAL);
@@ -1617,15 +1671,15 @@ dialog li { margin: 0 0 6px; }
     const backed = (real.length ? real : liked).filter(c => c.x >= BLUFF_P);
     const good = backed.length && rnd(S) >= bluffy ? backed : real.length ? real : liked;
     // With nothing its own cup backs, an honest player would sooner call than stretch.
-    if (good.length && !backed.length && rnd(S) < HONEST * (1 - bluffy / 0.5)) return { t: 'liar' };
+    if (good.length && !backed.length && (quiet || rnd(S) < HONEST * (1 - bluffy / 0.5))) return { t: 'liar' };
     if (good.length) {
       const minQ = good[0].q;
       let c = good[0];
       if (rnd(S) < per.skill) c = good.filter(g => g.q === minQ).sort((a, b) => b.b - a.b)[0];
-      if (rnd(S) < 0.08 + 0.2 * (1 - per.skill)) { const up = cands.find(k => k.f === c.f && k.q === c.q + 1); if (up) c = up; }
+      if (rnd(S) < 0.08 + 0.2 * (1 - per.skill)) { const up = cands.find(k => k.f === c.f && k.q === c.q + 1); if (up && (!quiet || up.x >= BLUFF_P)) c = up; }
       return { t: 'bid', q: c.q, f: c.f };
     }
-    if (rnd(S) < bluffy * 1.5 + 0.1) { const thin = cands.filter(c => c.q <= cur.q + 1).sort((a, b) => b.b - a.b)[0]; if (thin) return { t: 'bid', q: thin.q, f: thin.f }; }
+    if (!quiet && rnd(S) < bluffy * 1.5 + 0.1) { const thin = cands.filter(c => c.q <= cur.q + 1).sort((a, b) => b.b - a.b)[0]; if (thin) return { t: 'bid', q: thin.q, f: thin.f }; }
     return { t: 'liar' };
   }
 
@@ -1716,8 +1770,17 @@ dialog li { margin: 0 0 6px; }
     const readout = { t: 'readout', bids: R.bids.map(x => {
       const o = { who: x.who, id: T.seats[x.who].id, name: nameOf(T, x.who), q: x.q, f: x.f, held: x.held, p: Math.round(x.p * 1000) / 1000, bluff: x.bluff, habit: x.habit ? x.habit.i : null, text: x.habit ? x.habit.text : null };
       if (x.who === 0) o.shape = x.shape && !masked ? x.shape.slice() : null;
+      if (x.sit) o.sit = x.sit;
       return o;
     }) };
+    // The house tonight: what this night's reveals showed of Loretta and Curtis, by situation (for the end of the night).
+    R.bids.forEach(x => {
+      if (!x.sit) return;
+      const H = S.house = S.house || {}, id = T.seats[x.who].id, P0 = H[id] = H[id] || { bids: 0, bluffs: 0, habits: {} };
+      P0.bids++; if (x.bluff) P0.bluffs++;
+      if (x.habit) { const k = x.habit.i + '|' + x.sit, c = P0.habits[k] = P0.habits[k] || { n: 0, b: 0 }; c.n++; if (x.bluff) c.b++; }
+      else if (x.sit === 'quiet') { const c = P0.habits.quiet = P0.habits.quiet || { n: 0, b: 0 }; c.n++; if (x.bluff) c.b++; }
+    });
     if (!masked && !T.lesson) {
       const Y = S.you = S.you || { tonight: {}, prior: {}, fired: [] };
       Y.tonight = Y.tonight || {};
@@ -2156,7 +2219,8 @@ dialog li { margin: 0 0 6px; }
         palm: has(S, 'palm') ? { left: palmLeft(T), loaded: R && R.loaded != null ? R.loaded : null } : null,
         double: has(S, 'double') ? { left: doubleLeft(T), uses: DOUBLE_USES } : null,
         bid: b ? { who: b.who, id: T.seats[b.who].id, q: b.q, f: b.f } : null,
-        history: R ? R.bids.map(x => ({ who: x.who, id: T.seats[x.who].id, q: x.q, f: x.f, habit: x.habit ? clone(x.habit) : null })) : [],
+        history: R ? R.bids.map(x => { const o = { who: x.who, id: T.seats[x.who].id, q: x.q, f: x.f, habit: x.habit ? clone(x.habit) : null }; if (x.sit) o.sit = x.sit; return o; }) : [],
+        gear: T.gear ? { who: T.gear.who, id: HOST, text: GEAR_LINE } : null,
         ones: R ? R.ones : null, nod: R && R.nod ? clone(R.nod) : null,
         count: b ? count(S, b.q, b.f) : null,
         cups: R && R.open ? T.seats.map(s => s.out ? [] : s.dice.slice()) : null,
@@ -2185,6 +2249,11 @@ dialog li { margin: 0 0 6px; }
         const p = page(x.id), h = x.habit == null ? p.quiet : p.habits[x.habit];
         p.bids++; if (x.bluff) p.bluffs++;
         h.n++; if (x.bluff) h.bluff++; else h.straight++;
+        // The house: each habit split by the situation it showed in (a Book kept before the split has the totals only,
+        // and they stay); Loretta's bids once she went quiet kept on their own.
+        const pt = PATTERN[x.id];
+        if (pt && x.habit != null && pt.keys.includes(x.sit)) { const by = h.by = h.by || {}, c = by[x.sit] = by[x.sit] || { n: 0, bluff: 0, straight: 0 }; c.n++; if (x.bluff) c.bluff++; else c.straight++; }
+        if (pt && x.sit === 'quiet') { const g = p.gear = p.gear || { n: 0, bluff: 0, straight: 0 }; g.n++; if (x.bluff) g.bluff++; else g.straight++; }
       });
       if (e.t === 'tableEnd') e.people.forEach(id => { if (P[id]) { const p = page(id); if (e.won) p.won++; else p.lost++; } });
       // The room's memory of you fades a little every night: a habit carried on keeps costing; one dropped fades.
@@ -2192,17 +2261,43 @@ dialog li { margin: 0 0 6px; }
     }
     return b;
   }
+  const times = n => n + ' time' + (n === 1 ? '' : 's');
+  const zeroTally = () => ({ n: 0, bluff: 0, straight: 0 });
+  // One habit row of the house split by situation: [{ key, name, when, n, bluff, straight, text }], and what was seen
+  // before the Book split them (a Book kept before this change): { n, bluff, straight } or null.
+  function splitOf(id, h) {
+    const pt = PATTERN[id];
+    if (!pt) return { split: null, before: null };
+    const split = pt.keys.map(k => { const c = (h && h.by && h.by[k]) || zeroTally(); return { key: k, name: SIT[k].name, when: SIT[k].when, n: c.n | 0, bluff: c.bluff | 0, straight: c.straight | 0, text: `${SIT[k].name}: ${times(c.n | 0)}, bluff ${c.bluff | 0}, straight ${c.straight | 0}` }; });
+    const rest = { n: ((h && h.n) | 0) - sum(split.map(c => c.n)), bluff: ((h && h.bluff) | 0) - sum(split.map(c => c.bluff)), straight: ((h && h.straight) | 0) - sum(split.map(c => c.straight)) };
+    return { split, before: rest.n > 0 ? rest : null };
+  }
   function bookPage(book, id, S) {
     const per = P[id];
     if (!per) return null;
     const p = (book && book.people && book.people[id]) || emptyPage();
-    const glasses = S && has(S, 'glasses'), ledger = S && has(S, 'ledger');
+    const glasses = S && has(S, 'glasses'), ledger = S && has(S, 'ledger'), pt = PATTERN[id];
     return {
       id, name: per.name, met: !!(book && book.people && book.people[id]), nights: p.nights, bids: p.bids, bluffs: p.bluffs, won: p.won, lost: p.lost,
       head: per.name + ' · ' + p.bids + ' bid' + (p.bids === 1 ? '' : 's') + ' seen · bluffed ' + p.bluffs,
-      rows: p.habits.map((h, i) => ({ i, habit: per.habits[i], n: h.n, bluff: h.bluff, straight: h.straight, text: per.habits[i] + ' — ' + h.n + ' time' + (h.n === 1 ? '' : 's') + ': bluff ' + h.bluff + ', straight ' + h.straight, underline: !!glasses && i === per.tell && h.n >= 3 })),
-      quiet: clone(p.quiet), truth: ledger ? ledgerPhrase(id) : null
+      rows: p.habits.map((h, i) => Object.assign({ i, habit: per.habits[i], n: h.n, bluff: h.bluff, straight: h.straight, text: per.habits[i] + ' — ' + times(h.n) + ': bluff ' + h.bluff + ', straight ' + h.straight, underline: !!glasses && i === per.tell && h.n >= 3 }, pt ? splitOf(id, h) : {})),
+      quiet: clone(p.quiet), truth: ledger ? ledgerPhrase(id) : null,
+      // The house: what the Book splits their habits by, and Loretta's bids once she went quiet.
+      split: pt ? pt.keys.map(k => ({ key: k, name: SIT[k].name, when: SIT[k].when })) : null,
+      gear: id === HOST ? Object.assign(zeroTally(), clone(p.gear || {})) : null
     };
+  }
+  /* What the Book says about a habit shown with a bid, for the felt: { sit, when, n, bluff, straight, all, before }.
+     For the house at Last Call, n/bluff/straight are the tally in the situation of this bid (when: "when he opens");
+     all: every sighting; before: sightings from before the Book split them. For anyone else sit is null and the
+     numbers are the habit's whole tally. */
+  function habitTally(book, id, h) {
+    if (!h || !P[id] || !Number.isInteger(h.i)) return null;
+    const p = book && book.people && book.people[id], row = p && p.habits && p.habits[h.i];
+    const all = { n: row ? row.n | 0 : 0, bluff: row ? row.bluff | 0 : 0, straight: row ? row.straight | 0 : 0 };
+    if (!h.sit || !PATTERN[id] || !PATTERN[id].keys.includes(h.sit)) return Object.assign({ sit: null, when: null, all, before: null }, all);
+    const sp = splitOf(id, row), c = sp.split.find(x => x.key === h.sit);
+    return { sit: h.sit, when: SIT[h.sit].when, n: c.n, bluff: c.bluff, straight: c.straight, all, before: sp.before };
   }
 
   // ----- the page on you: what the room knows about how you bid -----
@@ -2232,6 +2327,60 @@ dialog li { margin: 0 0 6px; }
     else if (shape && !poker) text = `Your tell tonight: ${tellText(shape, dir)}. Nobody at your tables was sharp enough to use it.`;
     else text = poker ? 'Poker Face: nobody got a read on you tonight.' : 'Nobody got a read on you tonight.';
     return { shape, dir, reads: n, by, text, it: shape ? tellIt(shape, dir) : null };
+  }
+
+  // ----- Last Call: the beat before it, and what the Book gained on the house -----
+  const HOUSE_LINE = {
+    npc_loretta: { role: 'Owns the place.', says: '“Bring what you’ve got, hon.”' },
+    npc_curtis: { role: 'Puts odds on everything.', says: '“Seven to two the house. Nothing personal.”' }
+  };
+  const nBluffs = b => b === 0 ? 'no bluffs' : b === 1 ? '1 bluff' : b + ' bluffs';
+  // What the Book holds on one of the house, in a sentence or two: bids and bluffs, the habit seen most and its split.
+  function houseBookLine(book, id) {
+    const pg = bookPage(book, id), per = P[id], her = per.pronouns === 'she' ? 'her' : 'him', she = per.pronouns === 'she' ? 'She' : 'He';
+    if (!pg.met) return `Your Book has nothing on ${her} yet.`;
+    if (!pg.bids) return `Your Book has met ${her}, but no bids seen yet.`;
+    const parts = [`Your Book: ${pg.bids} of ${per.pronouns === 'she' ? 'her' : 'his'} bids seen, ${nBluffs(pg.bluffs)}.`];
+    const top = pg.rows.filter(r => r.n).sort((a, b) => b.n - a.n || a.i - b.i)[0];
+    if (top) {
+      const cells = (top.split || []).filter(c => c.n).map(c => `${c.name} ${times(c.n)}, ${nBluffs(c.bluff)}`);
+      parts.push(`${she} ${top.habit}: ${cells.length ? cells.join('; ') : 'not since the Book began splitting it'}${top.before ? ` (and ${times(top.before.n)} before that, ${nBluffs(top.before.bluff)})` : ''}.`);
+    }
+    if (pg.gear && pg.gear.n) parts.push(`Once she went quiet: ${pg.gear.n} bid${pg.gear.n === 1 ? '' : 's'}, ${nBluffs(pg.gear.bluff)}.`);
+    return parts.join(' ');
+  }
+  /* The beat before Last Call (phase 'choose' at the last hour): who sits down, what is at stake, what the Book holds.
+     -> { title, scene, stakes, people: [{ id, name, role, says, book }], you } */
+  function lastCallBrief(S, book) {
+    const L = HOURS[4].last, stake = S.cash, pot = stake * L.seats, dice = holds(S, 'shaved') || S.tricks.some(t => TRICK[t.id].kind === 'dice');
+    const yp = youPage(book || null, S), tl = yp.tells[0];
+    return {
+      title: 'Last Call',
+      scene: 'The other tables are dark and the chairs are up. Loretta wipes down her own table and sits; Curtis pulls up the third chair, shuffling.',
+      stakes: stake >= L.min ? `Everything you have goes in: ${money(stake)}. Win and you walk out with ${money(pot)}; lose and it stays on her table. Five dice each, no antes${dice ? ', and your dice tricks stay in your pocket' : ''}.` : `Loretta wants ${money(L.min)} to sit. You have ${money(stake)}.`,
+      people: L.people.map(id => ({ id, name: P[id].name, role: HOUSE_LINE[id].role, says: HOUSE_LINE[id].says, book: houseBookLine(book, id) })),
+      you: tl && !has(S, 'pokerface') ? `They already have one on you: ${tl.text}.` : 'They read how you bid from the first round.'
+    };
+  }
+  /* What tonight's reveals added to the Book on the house (S.house): null if the night never reached Last Call. */
+  function houseNight(S) {
+    const lc = (S.log || []).some(t => t.kind === 'last') || (S.table && S.table.kind === 'last');
+    if (!lc) return null;
+    const H = S.house || {}, lines = [];
+    for (const id of HOURS[4].last.people) {
+      const x = H[id];
+      if (!x || !x.bids) continue;
+      const per = P[id], bits = [];
+      const hs = {};
+      for (const k in x.habits) { if (k === 'quiet') continue; const [i, sit] = k.split('|'); (hs[i] = hs[i] || []).push({ sit, n: x.habits[k].n, b: x.habits[k].b }); }
+      Object.keys(hs).map(Number).sort((a, b) => sum(hs[b].map(c => c.n)) - sum(hs[a].map(c => c.n)) || a - b).slice(0, 2).forEach(i => {
+        const cells = (PATTERN[id].keys).map(k => hs[i].find(c => c.sit === k)).filter(Boolean).map(c => `${SIT[c.sit].name} ${times(c.n)} (${nBluffs(c.b)})`);
+        bits.push(`${per.habits[i]}: ${cells.join(', ')}`);
+      });
+      const q = x.habits.quiet;
+      lines.push(`${per.first}: ${x.bids} bid${x.bids === 1 ? '' : 's'} seen, ${nBluffs(x.bluffs)}.` + (bits.length ? ' ' + bits.map(t => t[0].toUpperCase() + t.slice(1)).join('. ') + '.' : '') + (q && q.n ? ` After she went quiet: ${q.n} bid${q.n === 1 ? '' : 's'}, ${nBluffs(q.b)}.` : ''));
+    }
+    return { lines, text: lines.length ? 'What the Book gained on the house: ' + lines.join(' ') : 'The Book gained nothing on the house tonight: no cups lifted on their bids.' };
   }
 
   // ----- barks: scripted one-liners at a reveal (deterministic, no dice drawn) -----
@@ -2298,7 +2447,7 @@ dialog li { margin: 0 0 6px; }
       tables: S.log.map(t => ({ hour: t.hour, hourName: HOURS[t.hour].name, kind: t.kind, rule: t.rule, place: t.place, won: t.won, payout: t.payout, refund: t.refund, net: t.net != null ? t.net : t.payout + t.refund - (t.onTab ? 0 : t.buyIn), rounds: t.rounds, people: t.people.map(id => P[id].name) })),
       tablesWon: S.log.filter(t => t.won).length, challengesWon: st.won, challengesLost: st.lost, liarsCaught: st.caught, timesCaught: st.caughtBy,
       spotsHit: st.spots, spotsMissed: st.spotMiss, bids: st.bids, bluffs: st.bluffs, bestStreak: st.bestStreak, maxCash: st.maxCash, rounds: st.rounds, tricksBought: st.bought.slice(), tricksHeld: S.tricks.map(t => t.id),
-      tell: tellSummary(S)
+      tell: tellSummary(S), house: houseNight(S)
     };
   }
   function shareLine(S) {
@@ -2411,9 +2560,11 @@ dialog li { margin: 0 0 6px; }
     newNight, options, sit: (S, i) => act(S, { t: 'sit', i }), act, advance, legal, isLegalBid, count, countExact, suggest,
     view, shopView, bookApply, bookPage, youPage, SHAPES: SHAPES.map(k => Object.freeze({ id: k, name: SHAPE[k].name })), summary, shareLine, column, columnFacts, talkFacts, dailySeed, playNight, basicPolicy,
     lesson, LESSON: clone(LESSON),
+    habitTally, lastCallBrief, houseNight, SITUATIONS: Object.keys(SIT).map(k => Object.freeze({ id: k, name: SIT[k].name, when: SIT[k].when })),
     // For tests and the balance sim only: the hidden side of the people and the odds. Not for the UI.
     _sim: { person: id => P[id] ? clone(P[id]) : null, tail, pmf, price: (S, id, h) => price(S, id, h), estBluff: (S, j) => estBluff(S, S.table, j), TELL, BLUFF_P,
-      readOf: (S, s, b) => readOf(S, S.table, s, b || lastBid(S.table)), readLine, roomTally, tellsIn, shapeOf, botMove: (S, s, noRead) => botMove(S, S.table, s, noRead), READS, TELL_N, TELL_GAP }
+      readOf: (S, s, b) => readOf(S, S.table, s, b || lastBid(S.table)), readLine, roomTally, tellsIn, shapeOf, botMove: (S, s, noRead) => botMove(S, S.table, s, noRead), READS, TELL_N, TELL_GAP,
+      PATTERN: clone(PATTERN), GEAR_AT, GEAR_NERVE, sitOf: (S, s) => sitOf(S.table, s, !lastBid(S.table)) }
   };
   Game.Engine = Engine;
 })();
