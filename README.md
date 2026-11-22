@@ -2352,7 +2352,9 @@ code owns every die, rule and dollar; there is nothing for Claude to decide.
   Midnight) offer two tables each: **the near table** (cheaper, softer, three
   seats) and **the big table** (twice the buy-in, tougher people, four seats
   from 10 PM and usually a house rule). Buy-ins near/big are 20/40, 40/80,
-  80/160 and 160/320. Cups hold four dice at every hour (five at Last Call).
+  80/160 and 160/320. Cups hold four dice at a three-seat table and three
+  at a four-seat one (twelve opponent dice made a long table), five at Last
+  Call.
   On a first night "Sit down" deals you straight into the 9 PM near table and
   the choice first appears at 10 PM.
 - **Money at a table.** The ante is 15% of the buy-in (doubled under Double
@@ -2363,7 +2365,8 @@ code owns every die, rule and dollar; there is nothing for Claude to decide.
   of four gets the buy-in back. The end of a table says what it did to your
   cash, all told.
 - **House rules** (one, sometimes, from 10 PM): Straight (ones not wild, and
-  1 may be bid), Short cups (3 dice), Deep cups (6), Sudden (the loser of a
+  1 may be bid), Short cups (one die fewer: 3 at three seats, 2 at four),
+  Deep cups (two more: 6 at three seats, 5 at four), Sudden (the loser of a
   challenge loses 2 dice), Open hand (everyone's first die face up), Blind
   opener (the opener bids before looking) and Double ante.
 - **The back room.** After every table Curtis Pruett, who puts odds on
@@ -2428,7 +2431,44 @@ code owns every die, rule and dollar; there is nothing for Claude to decide.
   whole stack as the buy-in. Win and it triples. Loretta counts the bones:
   dice tricks do not work there; information, money and manner tricks do
   (though the ones that pay in antes, Sticky Fingers, Snake Eyes and Side
-  Bet, have no antes to pay there).
+  Bet, have no antes to pay there). It is a fight you study across nights:
+  - **The beat before it.** After the Midnight back room, the Last Call
+    screen sets the scene in the bar's voice ("The other tables are dark and
+    the chairs are up…"), says what is at stake ("Everything you have goes
+    in: $800. Win and you walk out with $2,400; lose and it stays on her
+    table."), and for each of the two, their line and what your Book holds:
+    bids and bluffs seen, the habit seen most split by situation, and, for
+    Loretta, her bids once she went quiet. Tap a face for the whole page.
+  - **Patterns with conditions.** Each of them has one habit whose meaning
+    depends on something anyone at the table can see; their other two
+    habits are idle. **Loretta** (she owns the place) *lets her glasses
+    drop on their chain*: while she is **level with you or behind you** on
+    dice it comes with her bluffs (and she bluffs more); once she is
+    **ahead of you** it comes with her straight bids. **Curtis** (he puts
+    odds on everything) *names the odds out loud*: when he **opens** the
+    round it comes with what he holds; when he **raises**, with his
+    bluffs; and he likes a sporting, bluffed opener. Two conditions in all.
+  - **The Book learns it with you.** At Last Call their pages split every
+    habit by its situation ("lets her glasses drop on their chain · Level
+    or behind you: 14×, 12 bluffs · Ahead of you: 9×, 0 bluffs"), and the
+    felt's habit line quotes the tally for the situation in front of you:
+    "Curtis names the odds out loud · when he raises: seen 13 times: 12
+    bluffs, 1 straight". A Book kept before the split keeps its totals; the
+    page shows them as "Before the Book split them".
+  - **A change of gear.** When Loretta is down to her last two dice, the
+    next deal says so once, with a stamp: "Loretta's down to her last two
+    dice. She sets the bar towel down and stops talking." From then on no
+    habit shows with her bids ("says nothing" under her face, "Loretta has
+    gone quiet" on the felt), she stops bluffing (she bids what her own cup
+    backs, or calls) and calls a little sooner. Her page keeps those bids on
+    their own line ("gone quiet, her last two dice").
+  - **A lost one still counts.** The end of any night that reached Last
+    Call says **what the Book gained on the house**: each one's bids and
+    bluffs seen tonight, and the habits seen by situation.
+  - **Fair.** The house never sees your dice and the two share nothing
+    hidden: their moves come from their own cup, the dice counts, whether a
+    bid opens the round and what the cups showed, with the engine's seeded
+    randomness. They still read the shape of your bids at full strength.
 - **Four endings.** **Beat the house** (won at Last Call), **cleaned out at
   Last Call** (lost it all there), **walked home** (short of $500 after
   Midnight, or chose to walk from Last Call with your cash) and **went
@@ -2513,9 +2553,12 @@ The rest of the page:
   hand can be replayed from How it works and from the table's menu. Its end
   offers "Sit down for real" (a normal first night) or Back.
 - **The rules** (the table menu) say the whole game in the plain words of
-  How it works: the cups (four dice, five at Last Call), a bid, your turn,
-  Liar and Spot on, the money, the table, the house rules, the night, Last
-  Call (no antes, dice tricks asleep) and the room reading you back.
+  How it works: the cups (four dice at a three-seat table, three at a
+  four-seat one, five at Last Call), a bid, your turn, Liar and Spot on, the
+  money, the table, the house rules, the night, Last Call (no antes, dice
+  tricks asleep), the house (their habits mean different things in different
+  spots, the Book splits them, Loretta goes quiet on her last two dice) and
+  the room reading you back.
 - **Tonight's tables** are the same for everybody, from the date. The first
   finish of the day is kept, with a line to copy and send ("Bones ·
   2026-11-21 · beat the house · $2,340 · ..."); replays do not count.
@@ -2576,7 +2619,13 @@ the same night byte for byte. You are always seat 0. In brief:
   `Engine.shopView`, `Engine.summary`, `Engine.shareLine`, `Engine.column`,
   `Engine.columnFacts`, `Engine.talkFacts`, `Engine.dailySeed`.
 - The Book: `Engine.bookApply(book, events)` returns a new book;
-  `Engine.bookPage(book, id, S)` is one person's page.
+  `Engine.bookPage(book, id, S)` is one person's page (for the house, each
+  habit split by situation, what was seen before the split, and Loretta
+  gone quiet); `Engine.habitTally(book, id, habit)` is the felt's line.
+- Last Call: `Engine.lastCallBrief(S, book)` is the beat before it,
+  `Engine.houseNight(S)` (also `summary(S).house`) what the night's reveals
+  added on the house; a `gear` event says Loretta has gone quiet, and every
+  house bid carries its `sit`.
 - `Engine.playNight(seed, policy, opts)` plays a whole night with a policy
   function; `Engine.basicPolicy` plays by the Count alone.
 - `Engine.lesson()` returns `{ S, events }` for the practice hand: a fixed
@@ -2596,7 +2645,9 @@ progress, dropped when `Engine.VERSION` changes; a night saved before the
 trick rework resumes and plays on under the new rules: a Palm already used
 that table stays used, and a loaded six counts twice from the next roll),
 `novatria.bones.book` (which also keeps your bids by shape, for the room to
-remember; a Book or a night saved before that has none and carries on),
+remember, and the house's habits split by situation; a Book or a night
+saved before either has none and carries on, the house's old tallies shown
+as seen before the split),
 `novatria.bones.ledger` and `novatria.bones.settings` (which also notes
 whether the practice hand was done or skipped), and `novatria.bones.vibrate`
 (`on` or `off`, once the Vibration switch is used). The API key is
@@ -2646,14 +2697,35 @@ With no theme of its own Bones follows the town game's (`novatria.settings`).
   (rounded to $5; Friends Rates 25% off); a reroll costs $10, then $20, $30;
   a trick sells for half what was paid; five slots.
 - Last Call needs $500 and pays three times the stack.
+- The house at Last Call (`PATTERN`, the chances as drawn; an idle habit
+  now and then shows in a tell's place): Loretta's glasses show on 95% of her
+  bluffs and 8% of her straight bids when level or behind, 3% and 65% when
+  ahead; she bluffs with weight 0.45 level or behind and 0.10 ahead.
+  Curtis naming the odds shows on 3% of bluffs and 90% of straight bids
+  when he opens, 90% and 3% when he raises; a quarter of his openers set
+  out to be bluffs. Loretta's gear at two dice: no habits, no bluffs, call
+  line +0.1. Measured over Last Call reveals: Loretta bluffs 26% of her bids
+  level or behind, 14% ahead and none once quiet (16% overall); Curtis 35%
+  of his raises and 9% of his openers (24% overall).
 
-A 2,000-night run of the simulator (`node tests/bones-sim.cjs 2000`)
-gives, for a player who plays by the Count alone and buys nothing: 12.9%
-beat the house, 34.1% cleaned out, 19.2% walked home, 33.8% bust; buying
-tricks sensibly, 29.8% beat the house. A player who also reads the tells
-beats the house 21.5% of the time, and 45.4% buying tricks (18.4% bust).
+A 2,000-night run of the simulator (`node tests/bones-sim.cjs 2000
+--quick`) gives, for a player who plays by the Count alone and buys
+nothing: 13.3% beat the house, 31.3% cleaned out, 20.9% walked home, 34.5%
+bust; buying tricks sensibly, 27.6% beat the house. A player who also reads
+the tells beats the house 21.9% of the time, and 45.5% buying tricks
+(17.4% bust); one who has also studied the house, 22.4% (51.1% buying).
 Reading the tells is worth about ten points of table win rate at most
-hours. A table runs a median of 11 rounds (10 at three seats, 13 at four).
+hours. A table runs a median of 10 rounds, at three seats and at four
+(three dice a cup at four seats; with four it was 13).
+At Last Call (6,000 tables each, ± 0.6): by the Count alone 28.9% (28.7%
+before the house had patterns), the Reader, who takes each one's tell as a
+plain tell, 37.1% (37.4% before), a Reader with a long unsplit Book on them
+34.2% (34.0% before), and the player who has studied them, who reads each
+habit by its situation and knows Loretta gone quiet does not bluff, 39.9%:
+eleven points over the Count. Studying takes a Book about six Last Calls
+(quartiles 5 to 7) to hold five sightings in every situation of both tells,
+five (4 to 6) to hold four: Curtis's in two or three, Loretta's level or
+behind in five, because that one shows on her bluffs.
 The room reading you back: the Predictable (every lie a step of one on the
 last bid's face) wins 4.3 points fewer tables than the Mixer at the
 Midnight big table (32.2% to 36.5%) and at Last Call (23.7% to 28.0%), where
@@ -2703,7 +2775,7 @@ been visited once.
   in Settings (off by default when the phone asks for reduced motion; iPhones
   cannot vibrate from a web page, so they show no switch).
 
-**Tests.** `node tests/bones-engine.test.cjs` (74 tests, Node only, no
+**Tests.** `node tests/bones-engine.test.cjs` (84 tests, Node only, no
 browser) loads the engine block from `index.html` into `vm` and checks the
 rules exactly: determinism and the JSON round trip, the view hiding what it
 must, every call and its money, every house rule, the Count against brute
@@ -2723,8 +2795,19 @@ notes on you or without), the reveal's line only when a read changed the
 call (checked against the same decision without it) and once per shape a
 table, Poker Face hiding it all, the Book keeping and fading it across
 nights, the page on you, the end-of-night line and Pearl's sentence, and a
-night saved before it (no notes) playing on. `node
-tests/bones.test.cjs` (36 tests, Playwright) plays the page through its own
+night saved before it (no notes) playing on; the cups by table (four at
+three seats, three at four, Short and Deep on top of either); and Last Call:
+the house's situation from public counts only, each pattern meaning what it
+should in its situation and not in the other (and the plain old meaning away
+from Last Call), the Book's split tallies and an old Book's totals kept as
+"before", the beat before it, the gear (said once, right after a deal, no
+habits or bluffs after it, and decisions that change against the same draws
+without it), the end-of-night line on the house, fairness (the house's moves
+and habits the same with your faces, or the other one's, changed) and a Last
+Call saved before the patterns resuming with an old Book
+(`tests/fixtures/bones-lastcall-v1.json`, written by the engine before this
+change). `node
+tests/bones.test.cjs` (39 tests, Playwright) plays the page through its own
 buttons on a phone: the file alone from `file://` with the network shut,
 whole nights to each of the four endings with the page checked against the
 engine's view after every step, a reload mid-round, storage switched off,
@@ -2748,7 +2831,15 @@ in the Book, read at a reveal with the line in plain words, the tip once,
 the Book's page on you before and after, the end-of-night line and Pearl's
 column; the page on you beside the table; a Poker Face night with no read
 line; and the read line and its tip in the layout matrix from 320x568 to
-430x932 in both themes.
+430x932 in both themes; and Last Call: played through the buttons to a win
+and to a loss (the beat before it equal to the engine's, the felt's habit
+line quoting the situation's tally at every turn, the gear said once and its
+line on the felt, the end-of-night line on the house, the split Book page),
+a Last Call saved before the patterns resumed from Continue with an old
+Book, the beat before it at 320 to 430 px in both themes, and Last Call
+cells in the layout matrix (the habit line with two-figure tallies, Loretta
+gone quiet with the Nod's line beside it, a reveal) from 320x568 to
+430x932.
 `node tests/bones-pwa.test.cjs` serves the checkout from a tiny local
 server (at the root and under `/novatria/`) and checks the manifest and its
 icons, the worker taking control, a whole night played after a reload with
@@ -2757,11 +2848,16 @@ passed by, file:// and sandboxed frames left quiet, the install row on each
 platform and the Vibration switch.
 `node tests/run.cjs bones` runs all three. The simulator is not part of
 `run.cjs`: `node tests/bones-sim.cjs [nights] [--rates] [--quick]
-[--only=id,id]` (2,000 nights by default; `--rates` prints every person's
+[--only=id,id] [--lc=N]` (2,000 nights by default; `--rates` prints every person's
 measured bluff rate, `--quick` skips the per-trick ablation, `--only` runs
 it for just those tricks) plays seeded nights with proxy players (by the
 Count alone, and with the tells known, each with and without buying tricks)
-and prints table win rates by hour, how whole nights end, and each trick's
+and prints table win rates by hour, how whole nights end (also for the
+**Studied**, the Reader who has studied the house), a **Last Call** section
+(Mathy, the Reader, a Reader with a long unsplit Book on the house and the
+Studied, on `--lc=N` tables, default 2,000; the house's numbers by
+situation; and how many Last Calls a Book carried from one to the next takes
+before its split pages are usable), and each trick's
 lift for both players (Poker Face also for a Bluffer, who tells a sensible
 lie on half its bids when one is there to tell). A proxy holding a trick
 uses it as a holder would: Slow Roll's one tap, Palm on its first move of a

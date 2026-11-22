@@ -535,8 +535,9 @@ s.test('a night saved before the trick rework (and before the room read you back
 
 s.test('a whole night through real clicks holding Side Bet and Loaded Six: no page errors, the page equals the view', async h => {
   const page = await open(h);
-  // rc0 plays all five tables and beats the house (Engine.playNight with basicPolicy, as STEP plays).
-  await startNight(page, { seed: 'rc0', tricks: ['sidebet', 'loaded'] });
+  // rc1 plays all five tables and beats the house (Engine.playNight with basicPolicy, as STEP plays; rc0 did before
+  // four-seat tables went to three dice a cup).
+  await startNight(page, { seed: 'rc1', tricks: ['sidebet', 'loaded'] });
   let sides = 0;
   for (let i = 0; i < 4000; i++) {
     if (await page.evaluate(() => Game.App.state && Game.App.state.phase === 'table' && Game.App.state.table.wait === 'side')) sides++;
@@ -1288,6 +1289,103 @@ s.test('the Book on you at the table, Poker Face hiding the tell, and nobody rea
   assert.equal(await page.textContent('#tell-line'), 'Poker Face: nobody got a read on you tonight.');
 });
 
+// ===================================================================== Last Call: the boss fight
+/* To Last Call from a fresh night of this seed (Engine-side: newNight, hour 4, $800, sit), as the Node seeds were found. */
+const toLastCall = (page, seed) => startNight(page, { seed }).then(() => page.evaluate(() => { const S = Game.App.state; S.hour = 4; S.cash = 800; Game.UI.Screens.render(); }));
+/* The felt's habit line as it should read for the bid in front of you (from the engine's tally), or null to skip. */
+const HOUSE_LINE_WANT = () => {
+  const v = Game.App.view(); if (!v || v.phase !== 'table' || !v.table.bid || v.table.wait !== 'turn' || Game.UI.after) return null;
+  const last = v.table.history[v.table.history.length - 1], P = Game.Engine.PEOPLE.find(p => p.id === last.id);
+  if (!last.sit) return null;
+  if (!last.habit) return last.sit === 'quiet' ? { got: document.querySelector('#bookline').textContent, quiet: true } : { got: document.querySelector('#bookline').textContent, want: '' };
+  const t = Game.Engine.habitTally(Game.Book.data, last.id, last.habit);
+  const want = `${P.first} ${last.habit.text} · ${t.when}:` + (t.n ? ` seen ${t.n} time${t.n === 1 ? '' : 's'}: ${t.bluff} bluff${t.bluff === 1 ? '' : 's'}, ${t.straight} straight` : ` not seen before${t.all.n ? ` (${t.all.n}× all told)` : ''}`);
+  return { got: document.querySelector('#bookline').textContent, want };
+};
+
+s.test('Last Call through the buttons, won and lost: the beat before it, the habit line quoting the situation, the gear said once, the end-of-night line on the house, and the split Book page', async h => {
+  for (const [seed, ending] of [['lcp15', 'house'], ['lcp0', 'cleaned']]) {
+    const page = await open(h);
+    await toLastCall(page, seed);
+    // The beat before it: in the bar's voice, the stakes, the two of them and what the Book holds (nothing yet).
+    assert.ok(await page.isVisible('#lc-intro'), seed);
+    const brief = await page.evaluate(() => Game.Engine.lastCallBrief(Game.App.state, Game.Book.data));
+    assert.equal(await page.textContent('#lc-intro-title'), 'Last Call');
+    assert.equal(await page.textContent('#lc-stakes'), 'Everything you have goes in: $800. Win and you walk out with $2,400; lose and it stays on her table. Five dice each, no antes.');
+    assert.deepEqual(await page.$$eval('#lc-intro .lc-book', ns => ns.map(n => n.textContent)), brief.people.map(p => p.book));
+    assert.match(await page.textContent('#lc-intro'), /Loretta Gaddis · Owns the place\..*Curtis Pruett · Puts odds on everything\./);
+    assert.equal(await page.textContent('#lc-you'), 'They read how you bid from the first round.');
+    await page.click('.tcard button.sit[data-i="0"]');
+    await page.evaluate(() => { Game.UI.trace = []; });
+    let lines = 0, quiet = 0, gearSeen = false;
+    for (let i = 0; i < 4000; i++) {
+      const w = await page.evaluate(HOUSE_LINE_WANT);
+      if (w && w.quiet) { quiet++; assert.match(w.got, /^Loretta says nothing · (since she went quiet: seen \d+ times?: \d+ bluffs?, \d+ straight|your Book has nothing on her quiet yet)$/); }
+      else if (w) { if (w.want) lines++; assert.equal(w.got, w.want); }
+      if (await page.$('#gear-line')) { gearSeen = true; assert.equal(await page.textContent('#gear-line'), 'Loretta has gone quiet'); }
+      const ph = await page.evaluate(STEP);
+      assert.deepEqual(await page.evaluate(CHECK), [], `after step ${i}`);
+      if (ph === 'over' || ph === 'none') break;
+    }
+    assert.ok(lines >= 2, 'the habit line quoted the situation ' + lines);
+    assert.ok(gearSeen, 'the gear line showed');
+    assert.equal(await page.evaluate(() => Game.UI.trace.filter(e => e.t === 'gear').length), 1, 'the gear said once');
+    assert.equal(await page.evaluate(() => Game.App.state.ending), ending);
+    assert.equal(await page.evaluate(() => Game.UI.Screens.cur), 'over');
+    // The end of the night: what the Book gained on the house, won or lost.
+    const house = await page.evaluate(() => Game.Engine.summary(Game.App.state).house);
+    assert.deepEqual(await page.$$eval('#house-line li', ns => ns.map(n => n.textContent)), house.lines);
+    assert.match(house.lines[0], /^Loretta: \d+ bids? seen, /);
+    // The Book's page on her: each habit split by situation, and her bids once she went quiet.
+    await page.click('#btn-home'); await page.click('#btn-book');
+    await page.click('.gface[data-id="npc_loretta"]');
+    const dlg = await page.textContent('#dlg');
+    assert.match(dlg, /At Last Call your Book splits Loretta’s habits by situation: level or behind you or ahead of you\./);
+    assert.ok(await page.$$eval('#dlg .hsplit [data-sit="behind"]', ns => ns.length) >= 1);
+    assert.match(dlg, /gone quiet, her last two dice\d+×: bluff 0, straight \d+/);
+    await page.close();
+  }
+});
+
+s.test('a Last Call saved before the house\'s patterns, with an old Book: Continue picks it up, the old tallies show as "before", and it plays to the end', async h => {
+  const fx = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'fixtures', 'bones-lastcall-v1.json'), 'utf8'));
+  const page = await open(h);
+  await page.evaluate(o => { localStorage.setItem('novatria.bones.settings', JSON.stringify({ v: 1, played: true, tipsDone: true })); localStorage.setItem('novatria.bones.night', JSON.stringify(o.rec)); localStorage.setItem('novatria.bones.book', JSON.stringify({ v: o.rec.v, book: o.book })); }, { rec: fx.saves.lastcall, book: fx.book });
+  await page.reload();
+  await page.waitForFunction(() => window.Game && Game.App);
+  assert.ok(await page.isVisible('#btn-continue'));
+  await page.click('#btn-continue');
+  await page.evaluate(() => { Game.App.speed = 0; Game.UI.trace = []; });
+  assert.equal(await page.evaluate(() => Game.UI.Screens.cur), 'table');
+  assert.deepEqual(await page.evaluate(CHECK), []);
+  // The Book beside the table: Loretta's old tallies under "before the Book split them".
+  await page.click('#btn-bookside');
+  assert.match(await page.textContent('#bookside .bpage[data-id="npc_loretta"]'), /Before the Book split them: \d+×/);
+  await page.click('#btn-bookside');
+  assert.equal(await playOut(page, { check: true }), 'over');
+  assert.ok(await page.isVisible('#house-line'));
+  assert.ok(['house', 'cleaned'].includes(await page.evaluate(() => Game.App.state.ending)));
+});
+
+s.test('the beat before Last Call fits a phone in both themes: nothing spills or clips, the faces are 44 px, with a full Book', async h => {
+  for (const theme of ['dark', 'parchment']) for (const vp of [[320, 568], [360, 640], [390, 780], [430, 932]]) {
+    const page = await withTheme(h, theme, { width: vp[0], height: vp[1] });
+    await page.evaluate(b => localStorage.setItem('novatria.bones.book', JSON.stringify({ v: 'bones-1', book: b })), HOUSE_BOOK);
+    await page.reload(); await page.waitForFunction(() => window.Game && Game.App);
+    await toLastCall(page, 'brief-' + theme);
+    assert.match(await page.textContent('#lc-intro .lc-book[data-id="npc_loretta"]'), /^Your Book: \d+ of her bids seen, \d+ bluffs\. She lets her glasses drop on their chain: level or behind you 14 times, 11 bluffs; ahead of you 14 times, 1 bluff\. Once she went quiet: 14 bids, no bluffs\.$/);
+    assert.deepEqual(await overflowReport(page, vp[0]), [], `${theme} ${vp}`);
+    const bad = await page.evaluate(() => {
+      const out = [];
+      document.querySelectorAll('#lc-intro, #lc-intro *').forEach(n => { if (n.offsetParent === null) return; if (n.scrollWidth > n.clientWidth + 1 && getComputedStyle(n).overflowX !== 'visible') out.push('clipped ' + n.className); const r = n.getBoundingClientRect(); if (r.right > innerWidth + 1 || r.left < -1) out.push('past the edge ' + n.className); });
+      document.querySelectorAll('#lc-intro button, .tcard button.sit').forEach(b => { const r = b.getBoundingClientRect(); if (r.height < 43.5 || r.width < 43.5) out.push(`${b.className} ${Math.round(r.width)}x${Math.round(r.height)}`); });
+      return out;
+    });
+    assert.deepEqual(bad, [], `${theme} ${vp}`);
+    await page.close();
+  }
+});
+
 // ===================================================================== the table's layout, by measurement
 /* A table set as asked, after startNight (the tricks): o = { opps (2|3), rule, long (the longest names and habit
    lines in the cast), moment: 'turn' (a bid on the table, a habit under every opponent) | 'open' | 'theirs' (an
@@ -1297,7 +1395,7 @@ const TABLE_SCENE = async o => {
   const A = Game.App, E = Game.Engine;
   if (o.css) document.head.append(Object.assign(document.createElement('style'), { textContent: o.css }));
   let S = A.state;
-  S.hour = o.hour === undefined ? 1 : o.hour; S.cash = 400;
+  S.hour = o.hour === undefined ? 1 : o.hour; S.cash = S.hour === 4 ? 900 : 400;
   if (S.phase === 'choose') await A.act({ t: 'sit', i: o.opps === 3 ? 1 : 0 });
   await A.idle();
   // Bots that open may play a round out before your turn: deal again until a round is live.
@@ -1309,15 +1407,19 @@ const TABLE_SCENE = async o => {
   const longHabits = E.PEOPLE.flatMap(p => p.habits.map((text, i) => ({ text, i }))).sort((a, b) => b.text.length - a.text.length);
   if (o.long) { const names = E.PEOPLE.filter(p => p.id !== 'npc_loretta').sort((a, b) => b.first.length - a.first.length); T.seats.forEach((s, k) => { if (k) s.id = names[k - 1].id; }); }
   if (o.ids) T.seats.forEach((s, k) => { if (k && o.ids[k - 1]) s.id = o.ids[k - 1]; });
-  const habitFor = k => { const p = E.PEOPLE.find(x => x.id === T.seats[k].id); if (o.habits) return { i: Math.max(0, p.habits.indexOf(o.habits[k - 1])), text: o.habits[k - 1], line: '', underline: false }; const h = o.long ? longHabits[k - 1] : { text: p.habits[0], i: 0 }; return { i: h.i, text: h.text, line: '', underline: false }; };
+  const habitFor = k => { const p = E.PEOPLE.find(x => x.id === T.seats[k].id); if (o.sits && o.sits[k - 1] === 'quiet') return null; if (o.habits) return { i: Math.max(0, p.habits.indexOf(o.habits[k - 1])), text: o.habits[k - 1], line: '', underline: false }; const h = o.long ? longHabits[k - 1] : { text: p.habits[0], i: 0 }; return { i: h.i, text: h.text, line: '', underline: false }; };
   if (['turn', 'reveal', 'theirs', 'side'].includes(o.moment)) {
     const bids = [];
     for (let k = 1; k < n; k++) bids.push({ who: k, q: 2 + k, f: k === n - 1 ? 5 : 2 + k, p: 0.4, held: 1, bluff: false, habit: habitFor(k) });
+    // Last Call: the house's situation on each bid (and on its habit), as the engine puts it.
+    if (o.sits) bids.forEach(b => { b.sit = o.sits[b.who - 1]; if (b.habit) b.habit.sit = b.sit; });
     if (o.moment === 'theirs') bids.pop();
     R.bids = bids; R.opener = 1; R.turn = o.moment === 'theirs' ? n - 1 : 0;
     T.wait = o.moment === 'theirs' ? null : o.moment === 'side' ? 'side' : 'turn';
     if (o.moment === 'side') R.call = { caller: 1, kind: 'liar' };
   } else if (o.moment === 'open') { R.bids = []; R.turn = 0; R.opener = 0; T.wait = 'turn'; }
+  // Loretta gone quiet (her last two dice), as the engine marks it.
+  if (o.gear) { T.gear = { who: 1, round: T.roundNo }; T.seats[1].n = 2; T.seats[1].dice = T.seats[1].dice.slice(0, 2); }
   Game.UI.TV.key = ''; Game.UI.Screens.render();
   await A.idle();
   if (o.moment === 'theirs') { const st = Game.UI.TV.seats[n - 1]; st.setTurn(true); st.thinking(); }
@@ -1397,6 +1499,13 @@ const TABLE_LAYOUT = () => {
   const sheet = q('.sheet'); if (vis(sheet)) { const c = R(sheet); if (c.top < -0.5 || c.bottom > H + 0.5) bad.push('sheet off screen'); }
   return { bad: [...new Set(bad)], scrolls, fit: q('#table').dataset.fit || '-' };
 };
+/* A Book with the house in it, two-figure tallies split by situation (the longest habit lines Last Call shows). */
+const HOUSE_BOOK = (() => {
+  const E = engineInNode(), bids = [];
+  const ro = (id, who, habit, sit, bluff) => ({ who, id, q: 3, f: 4, held: 1, p: bluff ? 0.2 : 0.7, bluff, habit, text: null, sit });
+  for (let k = 0; k < 14; k++) bids.push(ro('npc_loretta', 1, 2, 'behind', k < 11), ro('npc_loretta', 1, 2, 'ahead', k < 1), ro('npc_curtis', 2, 2, 'raise', k < 12), ro('npc_curtis', 2, 2, 'open', k < 1), ro('npc_loretta', 1, null, 'quiet', false), ro('npc_loretta', 1, 0, 'ahead', k < 3), ro('npc_curtis', 2, 1, 'raise', k < 4));
+  return JSON.parse(JSON.stringify(E.bookApply(null, [{ t: 'sit', night: 'hb', seats: [{ id: 'npc_loretta' }, { id: 'npc_curtis' }] }, { t: 'readout', bids }])));
+})();
 const LONG_READ = ['Annette had you read and let your bid stand: you only raise the face and not the count when you’ve got it. This time you had nothing.', 'Darlene thought she had you read (you stay on the last bid’s face when you’ve got nothing) and called. Not this time.'];
 const NAMED = { ids: ['npc_nadine', 'npc_royce'], habits: ['pushes her reading glasses up into her curls', 'laughs to fill the silence'] };
 const INFO5 = ['ledger', 'mirror', 'barmirror', 'glasses', 'nod'];
@@ -1430,6 +1539,16 @@ for (const vp of [[320, 568], [360, 640], [390, 780], [430, 932]]) {
     { vp, tricks: ['ledger', 'mirror'], o: { opps: 2, moment: 'reveal', long: true, read: LONG_READ.slice(0, 1), coach: 'read' } });
 }
 
+// Last Call: the house's habit line quoting the tally for the situation in front of you (a Book with two-figure
+// tallies, so the line is its longest), and Loretta gone quiet (the gear line on the felt, "says nothing" under her).
+const HOUSE_HABITS = ['lets her glasses drop on their chain', 'names the odds out loud'];
+for (const vp of [[320, 568], [360, 640], [390, 780], [430, 932]]) {
+  LAYOUT_CELLS.push(
+    { vp, tricks: ['ledger', 'nod'], o: { hour: 4, opps: 2, moment: 'turn', ids: ['npc_loretta', 'npc_curtis'], habits: HOUSE_HABITS, sits: ['behind', 'raise'], book: true } },
+    { vp, tricks: ['ledger', 'nod', 'glasses'], o: { hour: 4, opps: 2, moment: 'turn', ids: ['npc_loretta', 'npc_curtis'], habits: HOUSE_HABITS, sits: ['quiet', 'open'], gear: true, book: true, nod: true } },
+    { vp, tricks: ['ledger'], o: { hour: 4, opps: 2, moment: 'reveal', ids: ['npc_loretta', 'npc_curtis'], habits: HOUSE_HABITS, sits: ['quiet', 'raise'], gear: true, book: true } });
+}
+
 s.test('the table never overlaps itself: with any tricks, names and moment, from 320x568 up, both themes, measured; the felt holds what it holds and the controls stay put', async h => {
   const scrolled = [];
   for (const theme of ['dark', 'parchment']) {
@@ -1440,13 +1559,21 @@ s.test('the table never overlaps itself: with any tricks, names and moment, from
       for (const c of cells) {
         if (c.page) continue;
         const page = await withTheme(h, theme, { width: c.vp[0], height: c.vp[1] });
-        for (const d of cells.filter(x => !x.page && (!!x.o.css === !!c.o.css))) {
+        // (a cell with the house's Book gets a page with that Book in it)
+        if (c.o.book) { await page.evaluate(b => localStorage.setItem('novatria.bones.book', JSON.stringify({ v: 'bones-1', book: b })), HOUSE_BOOK); await page.reload(); await page.waitForFunction(() => window.Game && Game.App); }
+        for (const d of cells.filter(x => !x.page && (!!x.o.css === !!c.o.css) && (!!x.o.book === !!c.o.book))) {
           d.page = true;
-          const label = `${theme} ${k} ${d.tricks.join('+') || 'no tricks'} ${d.o.opps}o ${d.o.moment}${d.o.coach ? ' coach:' + d.o.coach : ''}`;
+          const label = `${theme} ${k} ${d.tricks.join('+') || 'no tricks'} ${d.o.opps}o ${d.o.moment}${d.o.coach ? ' coach:' + d.o.coach : ''}${d.o.hour === 4 ? ' Last Call' + (d.o.gear ? ' quiet' : '') : ''}`;
           await startNight(page, { seed: 'fit-' + label, tricks: d.tricks });
           const st = await page.evaluate(TABLE_SCENE, d.o).catch(e => { throw new Error(label + ": " + e.message); });
           if (d.o.coach) assert.ok(st.coach, 'the coach tip is up: ' + label);
           if (d.o.moment === 'side') assert.equal(st.wait, 'side', label);
+          // Last Call: the habit line quotes the situation's tally, and the gear line is on the felt.
+          if (d.o.hour === 4 && d.o.moment === 'turn') {
+            const bl = await page.textContent('#bookline');
+            assert.match(bl, d.o.gear ? /^Curtis names the odds out loud · when he opens: seen \d+ times: \d+ bluffs?, \d+ straight$/ : /^Curtis names the odds out loud · when he raises: seen \d+ times: \d+ bluffs?, \d+ straight$/, label);
+          }
+          if (d.o.gear) { assert.equal(await page.textContent('#gear-line'), 'Loretta has gone quiet', label); if (d.o.moment === 'turn') assert.equal(await page.textContent('.seat[data-seat="1"] .habit'), 'says nothing', label); }
           const m = await page.evaluate(TABLE_LAYOUT);
           assert.deepEqual(m.bad, [], label);
           if (m.scrolls) scrolled.push(label);

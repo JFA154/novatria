@@ -8,9 +8,12 @@
               smallest raise it likes; rarely bluffs).
      Reader   Mathy + knows each person's tell and bluff rate, and weighs the
               bid in front of it by them (Bayes on the habit shown). Against
-              the house at Last Call it has not studied them: it knows how often
-              each of their habits came with a bluff over all their bids (what an
-              unsplit Book would say), not in which situation.
+              the house at Last Call it has not studied them: it takes each one's
+              tell as a plain tell, whatever the situation (the existing Reader,
+              unchanged).
+     Pooled   (Last Call section only) the Reader with a long unsplit Book on the
+              house: how often each of their habits (and no habit) came with a
+              bluff over all their bids, not in which situation.
      Studied  the Reader that has studied the house: for Loretta and Curtis it
               weighs each habit (and no habit) and their bluff rate by the
               situation the bid was made in (Loretta level or behind you, ahead
@@ -117,7 +120,7 @@ function believe(S, v, know) {
   if (!know || b.id === 'me' || c === 0 || c === 1 || !CAL) return c;
   const per = SIM.person(b.id);
   const last = v.table.history[v.table.history.length - 1], h = last.habit;
-  if (HOUSE && HOUSE[b.id] && (know.tells || know.rates)) return believeHouse(c, b.id, last, know);
+  if (HOUSE && HOUSE[b.id] && (know.study || know.pooled) && (know.tells || know.rates)) return believeHouse(c, b.id, last, know);
   let rate = null, tell = false;
   if (know.rates) rate = RATES[b.id] != null ? RATES[b.id] : per.bluff;
   if (know.ledger) { const s = v.table.seats[b.who].ledger; const m = /1 bid in (\d+)/.exec(s || ''); rate = m ? 1 / +m[1] : /every other/.test(s) ? 0.5 : 0.05; }
@@ -546,10 +549,10 @@ function lastCall(args, nights) {
   const before = !SIM.PATTERN;
   const se = p => (100 * Math.sqrt(p * (1 - p) / n)).toFixed(1);
   console.log(`\nLast Call (${n} tables each; ± one standard error)`);
-  const rows = [['Mathy', makeProxy({})], ['Reader (unstudied)', makeProxy({ know: { rates: true, tells: true } })], ['Studied', makeProxy({ know: { rates: true, tells: true, study: true } })]].slice(0, before ? 2 : 3);
+  const rows = [['Mathy', makeProxy({})], ['Reader (unstudied)', makeProxy({ know: { rates: true, tells: true } })], ['Pooled (unsplit Book)', makeProxy({ know: { rates: true, tells: true, pooled: true } })], ['Studied', makeProxy({ know: { rates: true, tells: true, study: true } })]].slice(0, before ? 3 : 4);
   const res = rows.map(([name, pol]) => { const r = tableRate(pol, 4, 'last', n); console.log(pad(name, 22) + padL(pct(r.w, 1), 8) + ' ± ' + se(r.w) + padL('median rounds ' + median(r.rounds), 20)); return r.w; });
   if (before) return;
-  console.log(`  Studied - Mathy: ${(100 * (res[2] - res[0])).toFixed(1)} points · Reader - Mathy: ${(100 * (res[1] - res[0])).toFixed(1)} points`);
+  console.log(`  Studied - Mathy: ${(100 * (res[3] - res[0])).toFixed(1)} points · Reader - Mathy: ${(100 * (res[1] - res[0])).toFixed(1)} points · Pooled - Mathy: ${(100 * (res[2] - res[0])).toFixed(1)} points`);
   // The house's numbers by situation (from the training pass): bluff rate, and how often the tell shows on a bluff and on a straight bid.
   for (const id in HOUSE) {
     const per = SIM.person(id), H = HOUSE[id];
@@ -558,7 +561,7 @@ function lastCall(args, nights) {
   }
   // The study: a Book carried from one Last Call to the next (the player at the table plays by the Count). Usable once
   // each situation of each one's tell has STUDY_N sightings; readable once, too, its two cells point the right way by 40 points.
-  const players = 300, need = [], read = [], need4 = [];
+  const players = 300, need = [], read = [], need4 = [], per = {};
   for (let p = 0; p < players; p++) {
     let book = null, u = 0, r = 0, u4 = 0;
     for (let k = 1; k <= 20 && (!u || !r); k++) {
@@ -571,12 +574,15 @@ function lastCall(args, nights) {
       const cells = HOUSE_IDS.map(id => E.bookPage(book, id).rows[SIM.person(id).tell].split);
       if (!u && cells.every(cs => cs.every(c => c.n >= STUDY_N))) u = k;
       if (!u4 && cells.every(cs => cs.every(c => c.n >= STUDY_N - 1))) u4 = k;
+      cells.forEach((cs, j) => cs.forEach(c => { const key = SIM.person(HOUSE_IDS[j]).first + ' ' + c.name; const a = per[key] = per[key] || []; if (a.length < p + 1 && c.n >= STUDY_N) a.push(k); }));
       const rate = c => c.bluff / Math.max(1, c.n);
       if (!r && cells.every(cs => cs.every(c => c.n >= STUDY_N) && Math.abs(rate(cs[0]) - rate(cs[1])) >= 0.4)) r = k;
     }
     need.push(u || 21); read.push(r || 21); need4.push(u4 || 21);
+    for (const key in per) while (per[key].length < p + 1) per[key].push(21);
   }
   const q = (a, f) => a.slice().sort((x, y) => x - y)[Math.floor(f * (a.length - 1))];
+  console.log('  Each situation on its own (median Last Calls to ' + STUDY_N + ' sightings): ' + Object.keys(per).map(k => `${k} ${q(per[k], 0.5)}`).join(' · '));
   console.log(`  The study, 4 sightings a situation: usable after ${q(need4, 0.5)} Last Calls (quartiles ${q(need4, 0.25)}-${q(need4, 0.75)})`);
   console.log(`  The study (${players} players, a Book carried from one Last Call to the next): usable (${STUDY_N} sightings in each situation of both tells) after ${q(need, 0.5)} Last Calls (quartiles ${q(need, 0.25)}-${q(need, 0.75)}); pointing the right way by 40 points after ${q(read, 0.5)} (${q(read, 0.25)}-${q(read, 0.75)})`);
 }

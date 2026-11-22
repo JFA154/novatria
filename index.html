@@ -168,6 +168,20 @@ details.card[open] > summary { margin-bottom: 10px; }
 .rule b { font: 700 13px/1.2 var(--ui-font); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
 .tcard .why { color: var(--danger); font-size: 14px; }
 .tcard .line { font: italic 18px/1.35 var(--read-font); }
+/* The beat before Last Call: who sits down, what is at stake, what your Book holds on each of them. */
+.lcintro { display: grid; gap: 8px; margin-top: 8px; border-color: var(--accent); background: linear-gradient(160deg, var(--surface-2), var(--surface)); }
+.lcintro > h2 { margin: 0; font: 700 24px/1.2 var(--read-font); letter-spacing: 0; text-transform: none; color: var(--text); }
+.lc-scene { margin: 0; font: italic 16px/1.45 var(--read-font); color: var(--muted); }
+.lc-stakes { margin: 0; font: 600 15px/1.4 var(--ui-font); }
+.lc-who { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 10px; align-items: start; padding-top: 8px; border-top: 1px solid var(--border); }
+.lc-face { width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%; overflow: hidden; background: none; cursor: pointer; box-shadow: 0 0 0 1px var(--border); }
+.lc-face .mini { display: block; width: 48px; height: 48px; }
+.lc-who p { margin: 0; }
+.lc-name { font-size: 15px; line-height: 1.35; }
+.lc-says { font: italic 15px/1.35 var(--read-font); }
+.lc-book { margin-top: 2px !important; font-size: 14px; line-height: 1.4; color: var(--muted); }
+.lc-you { margin: 0; }
+.houseline { margin: 0 0 6px; font: 15px/1.45 var(--read-font); }
 .held-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
 
 /* ===== The table screen (the prototype's) ===== */
@@ -245,6 +259,7 @@ details.card[open] > summary { margin-bottom: 10px; }
 .infoline { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 8px; min-height: 0; font: 600 12px/1.3 var(--ui-font); color: var(--accent); text-align: center; }
 .infoline:empty { display: none; }
 .infoline span { padding: 2px 8px; border-radius: 10px; background: color-mix(in srgb, var(--bg) 45%, transparent); }
+.infoline .gearline { color: var(--danger); }
 .mycup { display: grid; justify-items: center; gap: 4px; }
 .cupdice { --s: var(--die); display: flex; justify-content: center; gap: calc(var(--die) * .17); min-height: var(--die); max-width: 100%; }
 .cupdice[data-six] { --s: calc(var(--die) * .86); gap: 6px; }
@@ -443,6 +458,13 @@ details.card[open] > summary { margin-bottom: 10px; }
 .hrow[data-quiet] em { font-style: normal; color: var(--faint); font-size: 13px; }
 /* The page on you: a shape that has become a tell. */
 .hrow .tellnote { grid-column: 1 / -1; font-size: 13px; line-height: 1.3; color: var(--danger); }
+/* The house's pages: every habit split by the situation it showed in, and Loretta gone quiet. */
+.hrow .hsplit { grid-column: 1 / -1; display: grid; gap: 2px; margin: 2px 0 0 10px; padding-left: 8px; border-left: 2px solid var(--border); font-size: 13px; color: var(--muted); }
+.hrow .hsplit b { color: var(--text); font-variant-numeric: tabular-nums; }
+.hrow .hsplit .hc-b { color: var(--danger); }
+.hrow .hsplit [data-before] { color: var(--faint); }
+.hrow[data-gear] em { font-style: normal; color: var(--accent); font-size: 13px; }
+.splitnote { margin: 4px 0 0; font-size: 13px; line-height: 1.35; color: var(--muted); }
 .hrow .tellnote b { font-weight: 700; }
 .hrow[data-tell] em { color: var(--danger); font-style: normal; font-weight: 600; }
 .youverdict { margin: 4px 0 6px; font-size: 14px; line-height: 1.35; }
@@ -731,7 +753,9 @@ dialog li { margin: 0 0 6px; }
                  exact, habit, stake, pays }  (wait 'side': the challenge between
                  two others, the Count of its bid and the habit that came with it)
          blind (bool), bid: {who, id, q, f} | null,
-         history: [{ who, id, q, f, habit:{i, text, line, underline}|null }],
+         history: [{ who, id, q, f, habit:{i, text, line, underline, sit?}|null,
+                     sit? }]  (sit: the house's situation at Last Call, see THE HOUSE),
+         gear: null | { who, id, text }  (Last Call: Loretta has gone quiet),
          ones: number|null (Bar Mirror), nod: {q, f, truth}|null,
          count: Count of the bid in front of you (0..1) | null,
          cups: [[faces] per seat] | null (only in the practice hand's open round),
@@ -773,6 +797,16 @@ dialog li { margin: 0 0 6px; }
      Engine.columnFacts(S) -> plain text account of the night (for a prompt).
      Engine.talkFacts(S, events) -> plain text account of one reveal.
      Engine.dailySeed('2026-11-21') -> 'daily:2026-11-21'
+     Engine.lastCallBrief(S, book) -> { title, scene, stakes, people:[{ id, name,
+         role, says, book }], you }   the beat before Last Call (phase 'choose' at
+         the last hour): the bar's words, the stakes, what the Book holds on each.
+     Engine.houseNight(S) -> { lines, text } | null   what tonight's reveals added
+         to the Book on the house (null when the night never reached Last Call);
+         also summary(S).house.
+     Engine.habitTally(book, id, habit) -> { sit, when, n, bluff, straight, all,
+         before }   the Book on a habit shown with a bid; for the house, the tally
+         in the bid's situation (when: 'when he raises').
+     Engine.SITUATIONS -> [{ id, name, when }]
 
    THE PRACTICE HAND ("Learn it in a minute")
      Engine.lesson() -> { S, events }   a fixed little table for the lesson:
@@ -791,9 +825,17 @@ dialog li { margin: 0 0 6px; }
      Engine.bookApply(book|null, events) -> new book (pure; feed it every
          batch of events). Engine.bookPage(book, personId, S?) -> {
          id, name, met, nights, bids, bluffs, won, lost, head,
-         rows:[{ i, habit, n, bluff, straight, text, underline }],
+         rows:[{ i, habit, n, bluff, straight, text, underline,
+                 split?:[{ key, name, when, n, bluff, straight, text }],
+                 before?:{ n, bluff, straight }|null }],
          quiet:{ n, bluff, straight }  (bids with no habit shown),
-         truth: phrase|null }   (underline / truth only via S's tricks)
+         truth: phrase|null,   (underline / truth only via S's tricks)
+         split: [{ key, name, when }]|null  (the house: what their habits are
+                split by), gear: { n, bluff, straight }|null (Loretta: her bids
+                once she went quiet) }
+         The house's pages split each habit by situation (book.people[id]
+         .habits[i].by[sit]); a Book kept before that has the totals only, and
+         they stay, read as `before` (seen before the Book split them).
      Engine.youPage(book|null, S?) -> { n, bluff, rate, text, rows:[{ shape,
          name, n, bluff, rate, tell:'bluff'|'honest'|null, text, line }],
          tells:[{ shape, dir, text }], hidden (Poker Face), minN, gap }
@@ -815,6 +857,23 @@ dialog li { margin: 0 0 6px; }
      once per shape a table; S.you.fired counts every one. A new night starts
      with 3/4 of the Book's faded tally (at most 60 bids). Poker Face: no
      shapes kept, no tally, no read. summary(S).tell says what your tell was.
+
+   THE HOUSE AT LAST CALL (Engine PATTERN, GEAR_*; tuned by tests/bones-sim.cjs)
+     Loretta's and Curtis's tells mean something only in a situation anyone at
+     the table can see; their other habits are idle. Loretta's (lets her
+     glasses drop on their chain): 'behind' (level with you or behind you on
+     dice) it comes with her bluffs, and she bluffs more; 'ahead' (more dice
+     than you) it comes with her straight bids. Curtis's (names the odds out
+     loud): 'open' (he opens the round) it comes with what he holds; 'raise'
+     with his bluffs; and he likes a sporting, bluffed opener. Every house bid
+     carries its situation (bid event `sit`, the habit's `sit`, the readout's
+     `sit`), and the Book splits their habits by it. The gear: when Loretta is
+     down to her last two dice at her table (and you are in), the next deal
+     says so once ({t:'gear'}, right after the round's roll); from then on no habit shows with her bids
+     (sit 'quiet'), she never bluffs (she bids what her own cup backs or
+     calls) and calls a little sooner. None of it looks at your dice or at the
+     other one's: their moves come from their own cup, public counts and what
+     the cups showed, and every draw is the engine's.
 
    DATA: Engine.PEOPLE (public: id, name, first, age, pronouns, look, voice,
    habits), Engine.TRICKS, Engine.HOUSE_RULES, Engine.HOURS, Engine.VERSION.
@@ -838,7 +897,9 @@ dialog li { margin: 0 0 6px; }
          sticky {amount} · sidebet {pick, right, amount} · housemoney {extra}
          snake {ones, amount}
          tab {buyIn} · honest {who, n} · double {who, n, left} · close {} · lastword {}
-     {t:'bid', who, id, name, q, f, habit:{i, text, line, underline}|null}
+     {t:'bid', who, id, name, q, f, habit:{i, text, line, underline, sit?}|null, sit?}
+     {t:'gear', who, id, name, text}                 Loretta goes quiet (once a Last
+               Call, right after the roll of the round after she is down to two dice)
      {t:'call', who, id, name, kind:'liar'|'spot', on:{who, id, q, f}}
      {t:'reveal', kind, caller, bidder, q, f, wild, count, good, exact,
                cups:[{who, id, dice}], loaded?}   loaded: the index of your
@@ -846,7 +907,7 @@ dialog li { margin: 0 0 6px; }
      {t:'lose', who, id, n, left} · {t:'gain', who, id, left}
      {t:'out', who, id, name, place}
      {t:'readout', bids:[{who, id, name, q, f, held, p, bluff,
-               habit:i|null, text|null, shape?}], reads?}    "what they had": held =
+               habit:i|null, text|null, shape?, sit?}], reads?}    "what they had": held =
                matching dice in the bidder's cup; p = P(true) from the bidder's own
                cup; shape (your bids only): the shapes the room scored it under
                (null under Poker Face); reads: [{who, id, name, shape, dir, kind:
@@ -884,7 +945,8 @@ dialog li { margin: 0 0 6px; }
      table, the back room. Leaving it short of the cheaper buy-in (and no
      Tab) = 'bust'. Last Call: Loretta + Curtis, 3 seats, 5 dice, needs $500,
      buy-in = all your cash, win = x3 ('house'), lose = $0 ('cleaned'); short
-     of $500, or {t:'walk'}, = 'walked'. Loretta counts the bones: DICE tricks
+     of $500, or {t:'walk'}, = 'walked'. (The house's patterns and Loretta's
+     gear: THE HOUSE AT LAST CALL.) Loretta counts the bones: DICE tricks
      (Shaved Die, Loaded Six, Extra Bone, Rabbit's Foot, Slow Roll, Palm, Hot
      Hand) do not work at Last Call; info, money and manner tricks do.
 
@@ -1068,8 +1130,8 @@ dialog li { margin: 0 0 6px; }
   // habit shows, she stops bluffing (she bids what her own cup backs, or calls) and her call line moves by GEAR_NERVE.
   // (Tuned by tests/bones-sim.cjs: the studied player and the unstudied Reader at Last Call.)
   const PATTERN = {
-    npc_loretta: { axis: 'lead', keys: ['behind', 'ahead'], show: { behind: [0.9, 0.1], ahead: [0.06, 0.5] }, bluff: { behind: 0.55, ahead: 0.15 } },
-    npc_curtis: { axis: 'move', keys: ['open', 'raise'], show: { open: [0.06, 0.75], raise: [0.75, 0.06] }, opens: 0.4 }
+    npc_loretta: { axis: 'lead', keys: ['behind', 'ahead'], show: { behind: [0.95, 0.08], ahead: [0.03, 0.65] }, bluff: { behind: 0.45, ahead: 0.1 } },
+    npc_curtis: { axis: 'move', keys: ['open', 'raise'], show: { open: [0.03, 0.9], raise: [0.9, 0.03] }, opens: 0.25 }
   };
   const SIT = {
     behind: { name: 'level or behind you', when: 'when she’s level or behind you' }, ahead: { name: 'ahead of you', when: 'when she’s ahead of you' },
@@ -1275,12 +1337,13 @@ dialog li { margin: 0 0 6px; }
     if (id === HOST && T.gear) return 'quiet';
     return pt.axis === 'lead' ? (T.seats[s].n > T.seats[0].n ? 'ahead' : 'behind') : opening ? 'open' : 'raise';
   }
-  // Loretta down to her last GEAR_AT dice at her own table: she changes gear, said once, as the next round is dealt.
+  // Loretta down to her last GEAR_AT dice at her own table: she changes gear, said once, as the next round is dealt
+  // (right after its roll, before the first bid).
   function gearCheck(S, T, ev) {
     if (T.kind !== 'last' || T.gear || T.lesson) return;
     const k = T.seats.findIndex(x => x.id === HOST);
     if (k < 1 || T.seats[k].out || T.seats[k].n > GEAR_AT || T.seats[0].out) return;
-    T.gear = { who: k, round: T.roundNo + 1 };
+    T.gear = { who: k, round: T.roundNo };
     ev.push({ t: 'gear', who: k, id: HOST, name: P[HOST].name, text: GEAR_LINE });
   }
 
@@ -1406,7 +1469,6 @@ dialog li { margin: 0 0 6px; }
   }
 
   function startRound(S, T, ev) {
-    gearCheck(S, T, ev);
     T.roundNo++; T.rec.rounds++; S.stats.rounds++;
     T.last = null;
     let opener = T.nextOpener;
@@ -1426,6 +1488,8 @@ dialog li { margin: 0 0 6px; }
     const roll = { t: 'roll', round: R.no, opener, openerId: T.seats[opener].id, mine: blind ? null : T.seats[0].dice.slice(), counts: T.seats.map(s => s.out ? 0 : s.n), open: T.rule === 'open' ? alive(T).filter(k => T.seats[k].n > 0).map(k => ({ seat: k, face: T.seats[k].dice[0] })) : [], blind };
     if (R.open) roll.cups = T.seats.map(s => s.out ? [] : s.dice.slice());
     ev.push(roll);
+    // Loretta down to her last two dice: she changes gear, said as this round is dealt (before anyone bids).
+    gearCheck(S, T, ev);
     ev.push(...trickEv);
     // Information tricks.
     const shown = (seat, used) => { const s = T.seats[seat]; const free = s.dice.map((d, i) => i).filter(i => !used.includes(i) && !(T.rule === 'open' && i === 0)); return free.length ? free[ri(S, free.length)] : -1; };
@@ -2167,14 +2231,15 @@ dialog li { margin: 0 0 6px; }
   }
 
   // ----- the view: only what the human may see -----
-  // Each person's long-run share of bids that are bluffs, measured by tests/bones-sim.cjs.
+  // Each person's long-run share of bids that are bluffs, measured by tests/bones-sim.cjs (Loretta and Curtis at Last
+  // Call, the only table they sit at, from its Last Call section: their situations and Loretta's gear change it).
   const RATE = {
     lc_alma: 0.16, lc_cora: 0.3, lc_dale: 0.17, lc_enzo: 0.4, lc_greta: 0.25, lc_hattie: 0.19, lc_ines: 0.25,
     lc_malik: 0.18, lc_otis: 0.32, lc_priya: 0.22, lc_ruben: 0.25, lc_wes: 0.42, lc_yolanda: 0.17,
     npc_annette: 0.16, npc_boyd: 0.16, npc_brianna: 0.23, npc_burl: 0.4, npc_carter: 0.34, npc_colt: 0.52,
-    npc_curtis: 0.22, npc_darlene: 0.13, npc_dewayne: 0.15, npc_dwight: 0.18, npc_elbert: 0.31,
+    npc_curtis: 0.24, npc_darlene: 0.13, npc_dewayne: 0.15, npc_dwight: 0.18, npc_elbert: 0.31,
     npc_gerald: 0.31, npc_glenda: 0.31, npc_hollis: 0.25, npc_jodie: 0.25, npc_jolene: 0.23, npc_june: 0.16,
-    npc_lamar: 0.19, npc_leon: 0.2, npc_loretta: 0.18, npc_lorna: 0.33, npc_lyman: 0.16, npc_marcus: 0.17,
+    npc_lamar: 0.19, npc_leon: 0.2, npc_loretta: 0.16, npc_lorna: 0.33, npc_lyman: 0.16, npc_marcus: 0.17,
     npc_mavis: 0.18, npc_nadine: 0.24, npc_nikki: 0.23, npc_odessa: 0.14, npc_pearl: 0.2, npc_ray: 0.2,
     npc_royce: 0.21, npc_shayla: 0.42, npc_tammy: 0.26, npc_travis: 0.45, npc_trent: 0.47, npc_vada: 0.21,
     npc_virgil: 0.13, npc_wade: 0.18
@@ -2331,7 +2396,7 @@ dialog li { margin: 0 0 6px; }
 
   // ----- Last Call: the beat before it, and what the Book gained on the house -----
   const HOUSE_LINE = {
-    npc_loretta: { role: 'Owns the place.', says: '“Bring what you’ve got, hon.”' },
+    npc_loretta: { role: 'Owns the place.', says: '“Pull up a chair, hon. It’s just us now.”' },
     npc_curtis: { role: 'Puts odds on everything.', says: '“Seven to two the house. Nothing personal.”' }
   };
   const nBluffs = b => b === 0 ? 'no bluffs' : b === 1 ? '1 bluff' : b + ' bluffs';
@@ -3290,19 +3355,28 @@ dialog li { margin: 0 0 6px; }
     root: null,
     build(root) { this.root = root; },
     clear() { this.root.replaceChildren(); this.root.removeAttribute('data-quiet'); },
-    /* id: who bid; h: the habit shown with the bid ({i, text, underline}) or null; book: the Book as it stood. */
-    set(id, h, book) {
-      if (!h || !PEOPLE[id]) { this.clear(); return; }
-      const page = book && book.people && book.people[id];
-      const row = page && page.habits && page.habits[h.i];
+    /* id: who bid; h: the habit shown with the bid ({i, text, underline, sit?}) or null; book: the Book as it stood;
+       sit: the house's situation for the bid (Last Call). For Loretta and Curtis the tally quoted is the one for the
+       situation in front of you ("when he raises: seen 4 times…"); Loretta gone quiet shows what the Book has on that. */
+    set(id, h, book, sit) {
+      if (!PEOPLE[id]) { this.clear(); return; }
       const kids = [ICON.book()];
+      const tally = (n, b, st) => [' seen ', el('b', null, String(n)), n === 1 ? ' time: ' : ' times: ', el('b', { class: 'bl-bluff' }, `${b} bluff${b === 1 ? '' : 's'}`), ', ', el('b', { class: 'bl-straight' }, `${st} straight`)];
+      if (!h && sit === 'quiet') {
+        const g = Engine.bookPage(book, id).gear || { n: 0, bluff: 0, straight: 0 };
+        this.root.toggleAttribute('data-quiet', !g.n);
+        kids.push(el('span', null, el('em', null, `${PEOPLE[id].first} says nothing`), g.n ? [' · since she went quiet:'].concat(tally(g.n, g.bluff, g.straight)) : ' · your Book has nothing on her quiet yet'));
+        this.root.replaceChildren(...kids);
+        return;
+      }
+      if (!h) { this.clear(); return; }
+      const t = Engine.habitTally(book, id, h);
       const name = el('em', null, `${PEOPLE[id].first} ${h.text}`);
       if (h.underline) name.style.textDecoration = 'underline';
-      if (!row || !row.n) { this.root.setAttribute('data-quiet', ''); kids.push(el('span', null, name, ' · first time you’ve seen this')); }
-      else {
-        this.root.removeAttribute('data-quiet');
-        kids.push(el('span', null, name, ' · seen ', el('b', null, String(row.n)), row.n === 1 ? ' time: ' : ' times: ', el('b', { class: 'bl-bluff' }, `${row.bluff} bluff${row.bluff === 1 ? '' : 's'}`), ', ', el('b', { class: 'bl-straight' }, `${row.straight} straight`)));
-      }
+      this.root.toggleAttribute('data-quiet', !t.n);
+      if (t.sit) kids.push(el('span', { 'data-sit': t.sit }, name, ` · ${t.when}:`, ...(t.n ? tally(t.n, t.bluff, t.straight) : [` not seen before${t.all.n ? ` (${t.all.n}× all told)` : ''}`])));
+      else if (!t.n) kids.push(el('span', null, name, ' · first time you’ve seen this'));
+      else kids.push(el('span', null, name, ' ·', ...tally(t.n, t.bluff, t.straight)));
       this.root.replaceChildren(...kids);
     }
   };
@@ -3867,6 +3941,7 @@ dialog li { margin: 0 0 6px; }
   function infoLine() {
     const kids = [];
     if (TV.ones !== null && TV.ones !== undefined) kids.push(el('span', { title: 'Bar Mirror' }, `Bar Mirror: ${plural(TV.ones, 'one', 'ones')} on the table`));
+    if (TV.gear) kids.push(el('span', { class: 'gearline', id: 'gear-line', title: TV.gear.text }, 'Loretta has gone quiet'));
     if (TV.nod) kids.push(el('span', { title: 'Loretta’s Nod' }, TV.nod.truth ? `Loretta nods: ${bidText(TV.nod.q, TV.nod.f)} is there` : `Loretta shakes her head: not ${bidText(TV.nod.q, TV.nod.f)}`));
     $('infoline').replaceChildren(...kids);
   }
@@ -3887,6 +3962,14 @@ dialog li { margin: 0 0 6px; }
 
   const Handlers = {
     hour() {}, shop() {}, buy() {}, sell() {}, reroll() {}, nightEnd() {}, wait() {},
+    /* Loretta changes gear (her last two dice, Last Call): said once, then kept on the felt. */
+    async gear(e) {
+      TV.gear = { who: e.who, text: e.text };
+      const s = seatOf(e.who); if (s) { s.clearTalk(); s.setHabit('says nothing'); s.setMood('cold'); }
+      Log.result(e.text); infoLine();
+      await Stamp.show('SHE GOES QUIET', 'accent', e.text, 1100);
+      Stamp.clear(true);
+    },
     error(e) { Toast.show(cap(e.msg)); },
     sit(e) {
       Table.setup({ hour: e.hour, kind: e.kind, rule: e.rule, ante: e.ante, buyIn: e.buyIn, seats: e.seats.map(s => ({ seat: s.seat, id: s.id, dice: s.dice, start: s.dice })) });
@@ -3953,10 +4036,11 @@ dialog li { margin: 0 0 6px; }
         if (e.habit) {
           await wait(150 + fxRand() * 70);
           s.habit(e.habit);
-          BookLine.set(e.id, e.habit, bookShown);
+          BookLine.set(e.id, e.habit, bookShown, e.sit);
           Coach.want('habit');
           await wait(400);
-        } else { await wait(300 + fxRand() * 160); BookLine.clear(); }
+        } else if (e.sit === 'quiet') { await wait(300 + fxRand() * 160); s.setHabit('says nothing'); BookLine.set(e.id, null, bookShown, 'quiet'); }
+        else { await wait(300 + fxRand() * 160); BookLine.clear(); }
         Sfx.play('blip'); Haptic.tap(8);
         await s.sayBid(e.q, e.f);
       } else {
@@ -4141,7 +4225,7 @@ dialog li { margin: 0 0 6px; }
       TV.start = t.seats.map(s => s.start);
       TV.counts = t.seats.map(s => s.dice);
       TV.total = TV.counts.reduce((a, b) => a + b, 0);
-      TV.bid = null; TV.my = []; TV.fixed = []; TV.loaded = []; TV.open = []; TV.peek = []; TV.ones = null; TV.nod = null; TV.other = null; TV.ended = null; TV.lastReveal = null; TV.lastReadout = null;
+      TV.bid = null; TV.my = []; TV.fixed = []; TV.loaded = []; TV.open = []; TV.peek = []; TV.ones = null; TV.nod = null; TV.other = null; TV.ended = null; TV.lastReveal = null; TV.lastReadout = null; TV.gear = null;
       TV.seats = t.seats.map(s => (s.seat === 0 ? null : new Seat(s.seat, s.id, s.dice, s.start)));
       const seatsRoot = $('seats');
       seatsRoot.style.setProperty('--n', t.seats.length - 1);
@@ -4184,6 +4268,7 @@ dialog li { margin: 0 0 6px; }
           if (s.lastBid) seat.showBid(s.lastBid.q, s.lastBid.f);
           const h = t.history.filter(x => x.who === s.seat).pop();
           if (h && h.habit) seat.setHabit(h.habit.text, h.habit.underline);
+          else if (h && h.sit === 'quiet') seat.setHabit('says nothing');
         } else if (seat.bubble.hasAttribute('data-empty') || seat.bubble.dataset.kind !== 'say') {
           seat.clearTalk();
           const line = (last.lines || []).find(l => l.who === s.seat);
@@ -4197,15 +4282,15 @@ dialog li { margin: 0 0 6px; }
       else { TV.blind = t.blind; MyCup.set(new Array(me.dice).fill(0), TV.start[0], { down: true }); }
       MyCup.caption(t.blind ? 'Blind: bid, then look' : TV.wild ? '1s are wild' : 'Straight: 1s not wild');
       // The bid, the Count, the Book on the habit that came with it, what tricks tell you.
-      TV.ones = t.ones; TV.nod = t.nod; infoLine();
+      TV.ones = t.ones; TV.nod = t.nod; TV.gear = t.gear || null; infoLine();
       if (rv) {
         BidBanner.counter(rv.q, rv.f); BidBanner.tick(rv.count, rv.kind === 'spot' ? (rv.count > rv.q ? 'over' : rv.exact ? 'there' : null) : rv.good ? 'there' : null);
         BookLine.clear();
       } else if (t.bid) {
         TV.bid = { q: t.bid.q, f: t.bid.f, who: t.bid.who, id: t.bid.id };
         BidBanner.set(TV.bid, false);
-        const h = t.history.length ? t.history[t.history.length - 1].habit : null;
-        BookLine.set(t.bid.id, h, bookShown);
+        const hl = t.history.length ? t.history[t.history.length - 1] : null;
+        BookLine.set(t.bid.id, hl ? hl.habit : null, bookShown, hl ? hl.sit : null);
       } else { TV.bid = null; BidBanner.quiet(t.turn === 0 ? (t.blind ? 'You open, blind' : 'Your bid to open') : t.turn !== null ? `${nameAt(t.turn)} opens` : ' '); BookLine.clear(); }
       if (!rv) {
         if (t.count !== null) CountBar.set(t.count, t.bid && t.bid.who === 0 ? 'Your bid, by your dice: ' : 'The Count, by your dice: ');
@@ -4367,21 +4452,28 @@ dialog li { margin: 0 0 6px; }
       const o = opts || {};
       const pg = Engine.bookPage(book, id, S || undefined);
       const p = PEOPLE[id];
+      // The house: each habit's tally split by the situation it showed in (and what was seen before the Book split them).
+      const split = r => r.split && r.n ? el('div', { class: 'hsplit' }, r.split.map(c => el('span', { dataset: { sit: c.key } }, `${cap(c.name)}: `, c.n ? [el('b', null, `${c.n}×`), ', ', el('b', { class: 'hc-b' }, plural(c.bluff, 'bluff')), `, ${c.straight} straight`] : 'not seen')),
+        r.before ? el('span', { 'data-before': '' }, `Before the Book split them: ${r.before.n}×, ${plural(r.before.bluff, 'bluff')}`) : null) : null;
       const rows = pg.rows.map(r => el('div', { class: 'hrow', dataset: { k: id + '|' + r.i } },
         el('em', { 'data-under': r.underline ? '' : null, title: r.underline ? 'Reading Glasses: this one is real' : null }, r.habit),
         el('span', { class: 'n' }, r.n ? [el('b', null, `${r.n}×`), `: bluff ${r.bluff}, straight ${r.straight}`] : 'not seen'),
-        r.n ? el('span', { class: 'meter', 'aria-hidden': 'true' }, el('i', { class: 'mb', style: `width:${(r.bluff / r.n * 100).toFixed(1)}%` }), el('i', { class: 'ms', style: `width:${(r.straight / r.n * 100).toFixed(1)}%` })) : null));
+        r.n ? el('span', { class: 'meter', 'aria-hidden': 'true' }, el('i', { class: 'mb', style: `width:${(r.bluff / r.n * 100).toFixed(1)}%` }), el('i', { class: 'ms', style: `width:${(r.straight / r.n * 100).toFixed(1)}%` })) : null,
+        split(r)));
+      // Loretta once she has gone quiet (her last two dice at Last Call): no habit, but the cups still tell.
+      const gear = pg.gear && pg.gear.n ? el('div', { class: 'hrow', 'data-gear': '' }, el('em', null, 'gone quiet, her last two dice'), el('span', { class: 'n' }, el('b', null, `${pg.gear.n}×`), `: bluff ${pg.gear.bluff}, straight ${pg.gear.straight}`)) : null;
+      const splitNote = pg.split ? el('p', { class: 'splitnote' }, `At Last Call your Book splits ${first(id)}’s habits by situation: ${pg.split.map(x => x.name).join(' or ')}.`) : null;
       const quiet = pg.quiet.n ? el('div', { class: 'hrow', 'data-quiet': '' }, el('em', null, 'no habit shown'), el('span', { class: 'n' }, el('b', null, `${pg.quiet.n}×`), `: bluff ${pg.quiet.bluff}, straight ${pg.quiet.straight}`)) : null;
       const stat = pg.bids ? `${plural(pg.bids, 'bid')} seen · bluffed ${pg.bluffs}` : pg.met ? 'Sat with, no bids seen yet' : 'Never met';
       if (o.compact) {
         return el('div', { class: 'bpage', dataset: { id } },
           el('div', { class: 'bpage-head' }, mini(id), el('div', null, el('div', { class: 'bpage-name' }, p.name), el('div', { class: 'bpage-stat' }, stat))),
-          rows, quiet, pg.truth ? el('p', { class: 'truth' }, `Lyman’s Ledger: ${pg.truth}`) : null);
+          rows, quiet, gear, pg.truth ? el('p', { class: 'truth' }, `Lyman’s Ledger: ${pg.truth}`) : null, splitNote);
       }
       return [
         el('div', { class: 'pp-head' }, mini(id), el('div', null, el('h2', { id: 'dlg-title' }, p.name), el('p', { class: 'pp-look' }, `${p.age}. ${p.look}`))),
         el('p', { class: 'pp-stat' }, stat),
-        rows, quiet,
+        rows, quiet, gear, splitNote,
         pg.truth ? el('p', { class: 'truth' }, `Lyman’s Ledger: ${pg.truth}`) : null,
         el('p', { class: 'pp-rec' }, pg.met ? `Tables with ${pron(id)[1]}: you won ${pg.won}, lost ${pg.lost} · ${plural(pg.nights, 'night')} at a table together.` : 'You have not sat with them yet.'),
         el('p', { class: 'note' }, 'The Book never says which habit is the tell. Watch which one comes with the bluffs.')
@@ -4578,6 +4670,7 @@ dialog li { margin: 0 0 6px; }
         el('h1', { class: 'hourhead', id: 'choose-title' }, `${v.hourName} · `, el('small', null, money(v.cash))),
         hours,
         el('p', { class: 'note' }, S.hour === 4 ? 'Last Call. Loretta’s table, and nobody else’s.' : `${HOUR_LINE[S.hour]} Choose a table.`),
+        S.hour === 4 ? this.lcIntro(S) : null,
         S.hour < 4 ? goalLine(v.cash) : null,
         // The coach's word on the choice: at 10 PM on a first night (9 PM dealt you straight in), else at 9 PM.
         Night.rec && Night.rec.coach && !Settings.tipsDone && S.hour === (Night.rec.first ? 1 : 0) ? el('p', { class: 'note', id: 'first-hint', style: 'color:var(--accent)' }, 'Your pick now. The near table is cheaper and softer; the big one pays double and plays tougher.') : null,
@@ -4585,6 +4678,18 @@ dialog li { margin: 0 0 6px; }
         held,
         L.canWalk ? el('button', { class: 'btn leave', id: 'btn-walk', type: 'button', onclick: () => App.act({ t: 'walk' }) }, `Walk home with ${money(v.cash)}`) : null));
       focusHead(root);
+    },
+    /* The beat before Last Call, in the bar's voice: the scene, the stakes, the two of them and what your Book holds. */
+    lcIntro(S) {
+      const b = Engine.lastCallBrief(S, Book.data);
+      return el('section', { class: 'card lcintro', id: 'lc-intro', 'aria-labelledby': 'lc-intro-title' },
+        el('h2', { id: 'lc-intro-title' }, b.title),
+        el('p', { class: 'lc-scene' }, b.scene),
+        el('p', { class: 'lc-stakes', id: 'lc-stakes' }, b.stakes),
+        b.people.map(x => el('div', { class: 'lc-who', dataset: { id: x.id } },
+          el('button', { class: 'lc-face', type: 'button', 'aria-label': `${x.name}: open the Book`, onclick: () => People.open(x.id) }, mini(x.id)),
+          el('div', null, el('p', { class: 'lc-name' }, el('b', null, x.name), ` · ${x.role}`), el('p', { class: 'lc-says' }, x.says), el('p', { class: 'lc-book', dataset: { id: x.id } }, x.book)))),
+        el('p', { class: 'note lc-you', id: 'lc-you' }, b.you));
     },
     bookNote(id) {
       const pg = Engine.bookPage(Book.data, id);
@@ -4600,7 +4705,7 @@ dialog li { margin: 0 0 6px; }
       return el('section', { class: 'tcard', dataset: { kind: o.kind, i: String(o.i) }, 'data-off': can ? null : '' },
         el('div', { class: 'tcard-head' }, el('h2', null, last ? 'Loretta’s table' : o.kind === 'rich' ? 'The big table' : 'The near table'), el('span', { class: 'money' }, last ? 'all in' : money(o.buyIn))),
         last ? el('p', { class: 'line' }, '“Bring what you’ve got, hon.”') : null,
-        el('div', { class: 'people' }, o.people.map(p => el('button', { class: 'person', type: 'button', 'aria-label': `${p.name}: open the Book`, onclick: () => People.open(p.id) }, mini(p.id), el('span', null, el('span', { class: 'nm' }, p.name), el('br'), this.bookNote(p.id))))),
+        last ? null : el('div', { class: 'people' }, o.people.map(p => el('button', { class: 'person', type: 'button', 'aria-label': `${p.name}: open the Book`, onclick: () => People.open(p.id) }, mini(p.id), el('span', null, el('span', { class: 'nm' }, p.name), el('br'), this.bookNote(p.id))))),
         el('div', { class: 'facts' },
           el('span', null, el('b', null, String(o.seats)), ' seats'), el('span', null, el('b', null, String(o.dice)), ' dice each'),
           el('span', null, 'buy-in ', el('b', null, money(o.buyIn))), el('span', null, 'pot ', el('b', null, money(o.pot))),
@@ -4693,6 +4798,8 @@ dialog li { margin: 0 0 6px; }
         // What they made of how you bid: your tell tonight, who read it, or that nobody got a read on you.
         el('h3', { class: 'kicker' }, 'How they read you'),
         el('p', { class: 'telline', id: 'tell-line', 'data-read': sum.tell && sum.tell.reads ? '' : null }, sum.tell ? sum.tell.text : 'Nobody got a read on you tonight.'),
+        // A Last Call, won or lost, is study: what the Book gained on the house tonight.
+        sum.house ? [el('h3', { class: 'kicker' }, 'What the Book gained on the house'), sum.house.lines.length ? el('ul', { class: 'gains', id: 'house-line' }, sum.house.lines.map(l => el('li', null, l))) : el('p', { class: 'houseline', id: 'house-line' }, sum.house.text)] : null,
         el('h3', { class: 'kicker' }, 'What the ledger gained'), el('ul', { class: 'gains' }, gains.map(g => el('li', null, g))),
         el('p', { class: 'share', id: 'share-line' }, share),
         el('div', { class: 'row', style: 'margin-top:8px' }, el('button', { class: 'btn', id: 'btn-share', type: 'button', onclick: () => App.copy(share, 'share-note') }, 'Copy the result'), el('span', { class: 'note', id: 'share-note', role: 'status' })),
@@ -4758,16 +4865,17 @@ dialog li { margin: 0 0 6px; }
       Dialog.open([
         el('h2', null, 'The rules'),
         el('ul', { class: 'rules', id: 'rules-list' },
-          el('li', null, b('The cups. '), 'Everyone shakes dice under a cup and looks only at their own. Four dice each at every hour, five at Last Call.'),
+          el('li', null, b('The cups. '), 'Everyone shakes dice under a cup and looks only at their own. Four dice each at a three-seat table, three each at a four-seat one, five at Last Call.'),
           el('li', null, b('A bid '), 'says: at least this many of this face, in all the cups together. Ones are wild: a 1 counts as any face.'),
           el('li', null, b('Your turn. '), 'Raise (more dice, or as many of a higher face, never more than the dice on the table), or call ', b('Liar!'), ' on the bid in front of you, or ', b('Spot on!'), ' The opener of a round has to bid.'),
           el('li', null, b('Liar! '), 'The cups lift. If the bid is there, the caller loses a die; if not, the bidder does. Whoever loses opens the next round.'),
           el('li', null, b('Spot on! '), 'You say the bid is exactly right. Right, and you win a die back (never more than you started with) and three antes. Wrong, and you lose a die.'),
           el('li', null, b('Money. '), 'When you are one of the two in a challenge, the loser pays the winner one ante. Wins in a row pay one more ante each, up to three more.'),
           el('li', null, b('The table. '), 'No dice left and you are out. The last cup with dice takes the pot. At a four-seat table, second place gets the buy-in back.'),
-          el('li', null, b('House rules. '), 'From 10 PM a table may have one: Straight (ones are not wild, and 1 may be bid), Short cups (3 dice), Deep cups (6), Sudden (the loser loses 2), Open hand (everyone’s first die face up), Blind opener (the opener bids before looking) or Double ante.'),
+          el('li', null, b('House rules. '), 'From 10 PM a table may have one: Straight (ones are not wild, and 1 may be bid), Short cups (one die fewer), Deep cups (two more), Sudden (the loser loses 2), Open hand (everyone’s first die face up), Blind opener (the opener bids before looking) or Double ante.'),
           el('li', null, b('The night. '), 'You start with $100. Each hour from 9 PM to Midnight you pay to sit at the near table or the big one. After each table Curtis sells tricks in the back room: five slots, and a trick sells back for half. Short of the cheapest seat, the night is over.'),
           el('li', null, b('Last Call. '), 'Hold $500 after Midnight and you play Loretta and Curtis with everything you have: win and it triples, lose and it is gone. Dice tricks do not work at her table, and there are no antes there.'),
+          el('li', null, b('The house. '), 'Loretta’s and Curtis’s habits mean different things in different spots: hers, whether she is ahead of you on dice; his, whether he opens the round or raises. Your Book splits their pages that way, night after night. Down to her last two dice, Loretta goes quiet.'),
           el('li', null, b('They read you back. '), 'Sharp players and the house watch how you raise (a step of one, a jump, a new face) and remember what your cup showed. Bluff the same way every time and they will call it. Your Book’s page, “What they know about you”, shows what they have. Poker Face hides it.')),
         el('p', { class: 'note' }, 'The Count is the chance the bid is true from your dice (and anything a trick shows you), the other dice fair. People are not fair. That is the game.')
       ], [['Close', null, 'primary']]);

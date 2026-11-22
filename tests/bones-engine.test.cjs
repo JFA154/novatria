@@ -367,27 +367,44 @@ test('the night\'s tables are fixed by the seed; the 9 PM tables seat 3, later r
   assert.strictEqual(E.newNight({ daily: '2026-11-21' }).seed, 'daily:2026-11-21');
 });
 
-test('cups by the hour: 4 dice at every hour, 5 at Last Call; Short / Deep override; Extra Bone one more', () => {
+test('cups by the table: 4 dice at a three-seat table, 3 at a four-seat one, 5 at Last Call; Short one fewer, Deep two more; Extra Bone one more', () => {
   const S = E.newNight({ seed: 'cups' });
-  const want = [4, 4, 4, 4];
-  for (let h = 0; h < 4; h++) {
-    S.hour = h; S.cash = 1e6;
-    E.options(S).forEach(c => assert.strictEqual(c.dice, c.rule && c.rule.id === 'short' ? 3 : c.rule && c.rule.id === 'deep' ? 6 : want[h], E.HOURS[h].name + ' ' + c.kind));
+  const want = seats => seats >= 4 ? 3 : 4;
+  let four = 0;
+  for (let i = 0; i < 40; i++) {
+    const N = E.newNight({ seed: 'cups' + i });
+    for (let h = 0; h < 4; h++) {
+      N.hour = h; N.cash = 1e6;
+      E.options(N).forEach(c => {
+        const base = want(c.seats); if (c.seats === 4) four++;
+        assert.strictEqual(c.dice, c.rule && c.rule.id === 'short' ? base - 1 : c.rule && c.rule.id === 'deep' ? base + 2 : base, E.HOURS[h].name + ' ' + c.kind + ' ' + c.seats + ' seats');
+      });
+    }
   }
+  assert.ok(four > 40, 'four-seat tables were checked');
   S.hour = 4; S.cash = 600;
   assert.strictEqual(E.options(S)[0].dice, 5);
-  for (let h = 0; h < 4; h++) {
+  for (let h = 0; h < 4; h++) for (const k of [0, 1]) {
     const T = E.newNight({ seed: 'cups' + h, tricks: ['extrabone'] }); T.hour = h; T.cash = 1e6;
-    T.offers[h][0].rule = null;
-    const ev = ok(E.sit(T, 0));
-    deq(find(ev, 'sit').seats.map(x => x.dice), [want[h] + 1].concat(T.offers[h][0].people.map(() => want[h])));
+    T.offers[h][k].rule = null;
+    const base = want(T.offers[h][k].seats);
+    const ev = ok(E.sit(T, k));
+    deq(find(ev, 'sit').seats.map(x => x.dice), [base + 1].concat(T.offers[h][k].people.map(() => base)));
+  }
+  // The house rules on a four-seat table: Short cups 2 dice, Deep cups 5.
+  for (const [rule, n] of [['short', 2], ['deep', 5]]) {
+    const T = E.newNight({ seed: 'cups4' + rule }); T.hour = 2; T.cash = 1e6;
+    T.offers[2][1].rule = rule;
+    assert.strictEqual(T.offers[2][1].seats, 4);
+    ok(E.sit(T, 1));
+    assert.ok(T.table.seats.every(x => x.n === n), rule + ' at four seats');
   }
   const L = rig({ hour: 4 });
   assert.ok(L.table.seats.every(x => x.n === 5));
 });
 
 // ===================================================================== house rules
-test('house rules: Short cups 3 dice, Deep cups 6, Double ante doubles the ante', () => {
+test('house rules: Short cups 3 dice, Deep cups 6 (at three seats), Double ante doubles the ante', () => {
   assert.ok(rig({ rule: 'short' }).table.seats.every(s => s.n === 3));
   assert.ok(rig({ rule: 'deep' }).table.seats.every(s => s.n === 6));
   assert.strictEqual(rig({ rule: 'double' }).table.ante, 6);
@@ -1734,6 +1751,287 @@ test('the end of the night says what your tell was, or that nobody got a read on
   // A night saved before this change has no notes: nobody read it.
   S = E.newNight({ seed: 'old' }); delete S.you;
   assert.strictEqual(E.summary(S).tell.text, 'Nobody got a read on you tonight.');
+});
+
+// ===================================================================== Last Call: the house's patterns, the gear, the beat before
+// A Last Call at the house's turn or yours, with the cups as given (seat 0 you, 1 Loretta, 2 Curtis).
+function lastCall(o) {
+  const S = rig({ hour: 4, cash: 800, seed: o.seed || 'lc', book: o.book });
+  const T = S.table;
+  if (o.dice) o.dice.forEach((d, k) => { T.seats[k].dice = d.slice(); T.seats[k].n = d.length; T.seats[k].out = d.length === 0; });
+  return S;
+}
+// Many Last Calls by the Count: every house bid the reveals showed, with its situation.
+function houseBids(n, seed) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const S = E.newNight({ seed: (seed || 'pat') + i }); S.hour = 4; S.cash = 900;
+    const ev = ok(E.act(S, { t: 'sit', i: 0 }));
+    while (S.phase === 'table') ev.push(...ok(E.act(S, E.basicPolicy(S, E.view(S), E.legal(S), E))));
+    ev.filter(e => e.t === 'readout').forEach(e => e.bids.forEach(b => { if (b.id !== 'me') out.push(b); }));
+  }
+  return out;
+}
+const share = (list, f) => list.length ? list.filter(f).length / list.length : NaN;
+
+test('the house\'s situation is public: Loretta level or behind you vs ahead of you (by dice counts), Curtis opening vs raising; nobody else has one', () => {
+  const S = lastCall({ dice: [[2, 3, 4, 5], [2, 3, 4], [6, 6, 6, 6, 6]] });
+  const T = S.table;
+  T.round = { no: 1, opener: 1, turn: 1, bids: [], blindSeat: -1, looked: false, peek: [], ones: null, nod: null, slow: 0, hot: false, fixed: [], pinned: {}, loaded: null };
+  assert.strictEqual(SIM.sitOf(S, 1), 'behind', 'three dice to your four: behind');
+  T.seats[1].dice = [2, 3, 4, 5]; T.seats[1].n = 4;
+  assert.strictEqual(SIM.sitOf(S, 1), 'behind', 'level counts as level or behind');
+  T.seats[0].dice = [2, 3, 4]; T.seats[0].n = 3;
+  assert.strictEqual(SIM.sitOf(S, 1), 'ahead');
+  assert.strictEqual(SIM.sitOf(S, 2), 'open', 'nothing bid: Curtis would open');
+  T.round.bids.push({ who: 1, q: 2, f: 3, p: 0.5, held: 1, bluff: false, habit: null, sit: 'ahead' });
+  assert.strictEqual(SIM.sitOf(S, 2), 'raise');
+  // Your own dice faces never enter it: only how many each cup holds.
+  const S2 = J(S); S2.table.seats[0].dice = [6, 6, 6];
+  assert.strictEqual(SIM.sitOf(S2, 1), SIM.sitOf(S, 1));
+  // Away from Last Call nobody has a situation, and the bid events carry none.
+  const R = rig({ dice: [[2, 3, 4, 5], [2, 3, 4, 5], [2, 3, 4, 5]] });
+  assert.strictEqual(SIM.sitOf(R, 1), null);
+  let ev = [];
+  for (let i = 0; i < 30 && R.phase === 'table'; i++) ev = ev.concat(ok(E.act(R, E.basicPolicy(R, E.view(R), E.legal(R), E))));
+  assert.ok(all(ev, 'bid').every(e => e.sit === undefined && (!e.habit || e.habit.sit === undefined)));
+});
+
+test('Loretta\'s glasses: level or behind you they come with her bluffs; ahead of you, with her straight bids (and not with her bluffs)', () => {
+  const bids = houseBids(500, 'lor');
+  const tell = SIM.person('npc_loretta').tell;
+  const L = bids.filter(b => b.id === 'npc_loretta');
+  const cell = (sit, bl) => L.filter(b => b.sit === sit && b.bluff === bl);
+  const shown = list => share(list, b => b.habit === tell);
+  const r = { bb: shown(cell('behind', true)), bs: shown(cell('behind', false)), ab: shown(cell('ahead', true)), as: shown(cell('ahead', false)) };
+  assert.ok(cell('behind', true).length > 80 && cell('ahead', true).length > 20, JSON.stringify(r));
+  assert.ok(r.bb > 0.8 && r.bs < 0.15, 'level or behind: a bluff tell ' + JSON.stringify(r));
+  assert.ok(r.as > 0.5 && r.ab < 0.15, 'ahead: a straight tell, not a bluff one ' + JSON.stringify(r));
+  // She bluffs more when she is not ahead.
+  assert.ok(share(L.filter(b => b.sit === 'behind'), b => b.bluff) > share(L.filter(b => b.sit === 'ahead'), b => b.bluff) + 0.1);
+  // Her other two habits are idle: about the same on bluffs and straight bids, in either situation.
+  [0, 1, 2].filter(i => i !== tell).forEach(i => ['behind', 'ahead'].forEach(sit => {
+    const d = Math.abs(share(cell(sit, true), b => b.habit === i) - share(cell(sit, false), b => b.habit === i));
+    assert.ok(d < 0.12, `habit ${i} ${sit}: ${d}`);
+  }));
+});
+
+test('Curtis naming the odds: when he opens it comes with what he holds; when he raises, with his bluffs', () => {
+  const bids = houseBids(500, 'cur');
+  const tell = SIM.person('npc_curtis').tell;
+  assert.strictEqual(E.PEOPLE.find(p => p.id === 'npc_curtis').habits[tell], 'names the odds out loud');
+  const C = bids.filter(b => b.id === 'npc_curtis');
+  const cell = (sit, bl) => C.filter(b => b.sit === sit && b.bluff === bl);
+  const shown = list => share(list, b => b.habit === tell);
+  const r = { ob: shown(cell('open', true)), os: shown(cell('open', false)), rb: shown(cell('raise', true)), rs: shown(cell('raise', false)) };
+  assert.ok(cell('open', true).length > 30 && cell('raise', true).length > 100, JSON.stringify(r));
+  assert.ok(r.os > 0.75 && r.ob < 0.12, 'opening: a straight tell ' + JSON.stringify(r));
+  assert.ok(r.rb > 0.75 && r.rs < 0.1, 'raising: a bluff tell ' + JSON.stringify(r));
+  // A sporting open: his openers are bluffs more often than an ordinary opener's.
+  assert.ok(share(C.filter(b => b.sit === 'open'), b => b.bluff) > 0.08);
+});
+
+test('away from Last Call the house\'s tells keep their old, plain meaning (a table rigged with Loretta at 11 PM)', () => {
+  let shownStraight = 0, straight = 0, shownBluff = 0, bluffs = 0;
+  for (let i = 0; i < 400; i++) {
+    const S = E.newNight({ seed: 'lor-away' + i });
+    S.offers[0][0] = { kind: 'easy', hour: 0, seats: 3, buyIn: 20, rule: null, people: ['npc_loretta', 'npc_curtis'] };
+    S.cash = 1000; ok(E.sit(S, 0));
+    const ev = [];
+    while (S.phase === 'table') ev.push(...ok(E.act(S, E.basicPolicy(S, E.view(S), E.legal(S), E))));
+    ev.filter(e => e.t === 'readout').forEach(e => e.bids.forEach(b => { if (b.id !== 'npc_loretta') return; assert.strictEqual(b.sit, undefined); if (b.bluff) { bluffs++; if (b.habit === 2) shownBluff++; } else { straight++; if (b.habit === 2) shownStraight++; } }));
+  }
+  // Her tell is 'strong' (tier 5: 50% on a straight bid, 12% on a bluff), whatever the dice counts.
+  assert.ok(shownStraight / straight > 0.4 && shownBluff / bluffs < 0.25, `${shownStraight}/${straight} ${shownBluff}/${bluffs}`);
+});
+
+test('the Book splits the house\'s habits by situation; a Book kept before the split keeps its totals and shows them as "before"', () => {
+  const S = lastCall({});
+  const T = S.table;
+  // Two reveals' worth of house bids, by hand.
+  const ro = { t: 'readout', bids: [
+    { who: 1, id: 'npc_loretta', q: 3, f: 4, held: 0, p: 0.2, bluff: true, habit: 2, text: 'x', sit: 'behind' },
+    { who: 1, id: 'npc_loretta', q: 4, f: 4, held: 2, p: 0.7, bluff: false, habit: 2, text: 'x', sit: 'ahead' },
+    { who: 2, id: 'npc_curtis', q: 3, f: 5, held: 2, p: 0.8, bluff: false, habit: 2, text: 'x', sit: 'open' },
+    { who: 2, id: 'npc_curtis', q: 5, f: 5, held: 0, p: 0.1, bluff: true, habit: 2, text: 'x', sit: 'raise' },
+    { who: 1, id: 'npc_loretta', q: 6, f: 5, held: 2, p: 0.9, bluff: false, habit: null, text: null, sit: 'quiet' }] };
+  let book = E.bookApply(null, [ro, ro]);
+  const lp = E.bookPage(book, 'npc_loretta'), cp = E.bookPage(book, 'npc_curtis');
+  deq(lp.split.map(x => x.key), ['behind', 'ahead']); deq(cp.split.map(x => x.key), ['open', 'raise']);
+  deq(lp.rows[2].split.map(c => [c.key, c.n, c.bluff, c.straight]), [['behind', 2, 2, 0], ['ahead', 2, 0, 2]]);
+  assert.strictEqual(lp.rows[2].n, 4); assert.strictEqual(lp.rows[2].before, null);
+  deq(cp.rows[2].split.map(c => [c.key, c.n, c.bluff]), [['open', 2, 0], ['raise', 2, 2]]);
+  deq(J(lp.gear), { n: 2, bluff: 0, straight: 2 }, 'her bids once she went quiet');
+  assert.strictEqual(cp.gear, null);
+  assert.strictEqual(E.bookPage(book, 'npc_vada').split, null, 'nobody else is split');
+  // The felt's line: the tally for the situation in front of you.
+  const t = E.habitTally(book, 'npc_curtis', { i: 2, text: 'names the odds out loud', sit: 'raise' });
+  deq(J(t), { sit: 'raise', when: 'when he raises', n: 2, bluff: 2, straight: 0, all: { n: 4, bluff: 2, straight: 2 }, before: null });
+  assert.strictEqual(E.habitTally(book, 'npc_loretta', { i: 2, sit: 'behind' }).when, 'when she’s level or behind you');
+  assert.strictEqual(E.habitTally(book, 'npc_vada', { i: 0 }).sit, null);
+  // An old Book: unsplit house pages (from the fixture, written before the split) stay usable and keep counting.
+  const fx = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'fixtures', 'bones-lastcall-v1.json'), 'utf8'));
+  const old = fx.book, was = old.people.npc_loretta.habits[2];
+  assert.ok(was.n > 0 && !was.by, 'the fixture is unsplit');
+  const op = E.bookPage(old, 'npc_loretta');
+  deq(op.rows[2].split.map(c => c.n), [0, 0]); deq(J(op.rows[2].before), { n: was.n, bluff: was.bluff, straight: was.straight });
+  deq(J(op.gear), { n: 0, bluff: 0, straight: 0 });
+  assert.strictEqual(E.habitTally(old, 'npc_loretta', { i: 2, sit: 'ahead' }).before.n, was.n);
+  book = E.bookApply(old, [ro]);
+  const np = E.bookPage(book, 'npc_loretta');
+  assert.strictEqual(np.rows[2].n, was.n + 2);
+  deq(np.rows[2].split.map(c => c.n), [1, 1]); assert.strictEqual(np.rows[2].before.n, was.n);
+  assert.match(E.lastCallBrief(Object.assign(E.newNight({ seed: 'b', book }), { hour: 4, cash: 700 }), book).people[0].book, /and \d+ times? before that/);
+});
+
+test('Loretta changes gear at her last two dice: said once at the next deal, no habit after it, no bluffs, and play really differs', () => {
+  // Said once: over many Last Calls, a table has at most one gear event, it comes as a round is dealt, and only once she is on two dice or fewer.
+  let tables = 0, said = 0;
+  for (let i = 0; i < 300; i++) {
+    const S = E.newNight({ seed: 'gear' + i }); S.hour = 4; S.cash = 900;
+    const ev = ok(E.act(S, { t: 'sit', i: 0 }));
+    while (S.phase === 'table') ev.push(...ok(E.act(S, E.basicPolicy(S, E.view(S), E.legal(S), E))));
+    tables++;
+    const g = ev.filter(e => e.t === 'gear');
+    assert.ok(g.length <= 1);
+    if (!g.length) continue;
+    said++;
+    const k = ev.indexOf(g[0]);
+    assert.strictEqual(ev[k - 1].t, 'roll', 'said as the next round is dealt, before anyone bids');
+    assert.strictEqual(ev[k - 1].counts[1] <= 2, true);
+    deq(J(g[0]), { t: 'gear', who: 1, id: 'npc_loretta', name: 'Loretta Gaddis', text: 'Loretta’s down to her last two dice. She sets the bar towel down and stops talking.' });
+    // After it, her bids come with no habit and are never bluffs, and carry the quiet situation.
+    const after = ev.slice(k).filter(e => e.t === 'readout').flatMap(e => e.bids.filter(b => b.id === 'npc_loretta'));
+    after.forEach(b => { assert.strictEqual(b.habit, null); assert.strictEqual(b.sit, 'quiet'); assert.strictEqual(b.bluff, false, JSON.stringify(b)); });
+  }
+  assert.ok(said > 20 && said < tables, `${said} of ${tables}`);
+  // The view keeps it while the table lasts.
+  const S = lastCall({ dice: [[2, 3, 4], [2, 6], [5, 5, 5]] });
+  S.table.round = null; S.table.wait = 'next';
+  const ev = ok(E.act(S, { t: 'next' }));
+  assert.ok(find(ev, 'gear')); deq(J(E.view(S).table.gear), { who: 1, id: 'npc_loretta', text: 'Loretta’s down to her last two dice. She sets the bar towel down and stops talking.' });
+  // Play differs: the same decisions with and without the gear, on the same draws. Quiet, she never bids what her cup does
+  // not back (where she would have), and calls instead.
+  let diff = 0, unbacked = 0, n = 0;
+  for (let i = 0; i < 400; i++) {
+    const A = lastCall({ seed: 'gd' + i, dice: [[1 + (i % 6), 2, 3], [1 + (i * 7 % 6), 1 + (i * 5 % 6)], [4, 5, 6, 1 + (i % 4)]] });
+    A.table.round = { no: 1, opener: 0, turn: 1, bids: [{ who: 0, q: 2 + (i % 3), f: 2 + (i % 5), p: 0.5, held: 1, bluff: false, habit: null, shape: ['low'] }], blindSeat: -1, looked: false, peek: [], ones: null, nod: null, slow: 0, hot: false, fixed: [], pinned: {}, loaded: null };
+    A.table.wait = null;
+    const B = J(A); B.table.gear = { who: 1, round: 1 };
+    const mA = SIM.botMove(A, 1), mB = SIM.botMove(B, 1);
+    n++; if (JSON.stringify(mA) !== JSON.stringify(mB)) diff++;
+    if (mB.t === 'bid') { const T = B.table, known = T.seats[1].dice; const m = known.filter(d => d === mB.f || d === 1).length; if (SIM.tail(T.seats[0].n + T.seats[2].n, mB.q - m, 1 / 3) < SIM.BLUFF_P) unbacked++; }
+  }
+  assert.ok(diff > n * 0.1, `${diff} of ${n} decisions change`);
+  assert.strictEqual(unbacked, 0, 'quiet, every bid of hers is backed by her own cup');
+});
+
+test('fair: the house never sees your dice, and Loretta and Curtis share nothing hidden (their moves and habits on the same draws)', () => {
+  let checked = 0, other = 0;
+  // Each time it is your turn: make the same legal bid in three copies, one with your faces changed, one with Curtis's.
+  // Everything the house does after it, up to a call (the reveal shows the cups), is the same with your faces changed;
+  // Loretta's answer is the same with Curtis's changed.
+  const upToCall = ev => { const k = ev.findIndex(e => e.t === 'call'); return JSON.stringify(k < 0 ? ev : ev.slice(0, k + 1)); };
+  for (let i = 0; i < 120; i++) {
+    const S = E.newNight({ seed: 'fair' + i }); S.hour = 4; S.cash = 900;
+    ok(E.act(S, { t: 'sit', i: 0 }));
+    for (let g = 0; g < 400 && S.phase === 'table'; g++) {
+      const T = S.table, L = E.legal(S);
+      if (L.need === 'turn' && L.canBid) {
+        const a = { t: 'bid', q: L.minBid.q, f: L.minBid.f };
+        const A = J(S), B = J(S), C = J(S);
+        B.table.seats[0].dice = B.table.seats[0].dice.map(d => (d % 6) + 1);
+        const ea = ok(E.act(A, a)), eb = ok(E.act(B, a));
+        assert.strictEqual(upToCall(eb), upToCall(ea), 'your dice');
+        checked++;
+        if (!T.seats[1].out && !T.seats[2].out) {
+          C.table.seats[2].dice = C.table.seats[2].dice.map(d => (d % 6) + 1);
+          const ec = ok(E.act(C, a));
+          const first = ev => JSON.stringify(ev.find(e => (e.t === 'bid' || e.t === 'call') && e.who === 1));
+          assert.strictEqual(first(ec), first(ea), 'Curtis\'s dice');
+          other++;
+        }
+      }
+      ok(E.act(S, E.basicPolicy(S, E.view(S), E.legal(S), E)));
+    }
+  }
+  assert.ok(checked > 300 && other > 100, `checked ${checked}, ${other}`);
+  // The house still reads the shape of your bids at full strength.
+  assert.strictEqual(SIM.READS[SIM.person('npc_loretta').tier], 1); assert.strictEqual(SIM.READS[SIM.person('npc_curtis').tier], 1);
+  // And a Last Call is the same night byte for byte from the same seed and actions.
+  const play = () => { const S = E.newNight({ seed: 'lc-det' }); S.hour = 4; S.cash = 900; const ev = ok(E.act(S, { t: 'sit', i: 0 })); while (S.phase === 'table') ev.push(...ok(E.act(S, E.basicPolicy(S, E.view(S), E.legal(S), E)))); return JSON.stringify(ev); };
+  assert.strictEqual(play(), play());
+});
+
+test('the beat before Last Call: who sits down, what is at stake, and what your Book holds on each of them', () => {
+  const S = E.newNight({ seed: 'brief', tricks: ['palm', 'ledger'] }); S.hour = 4; S.cash = 740;
+  let b = E.lastCallBrief(S, null);
+  assert.strictEqual(b.title, 'Last Call');
+  assert.match(b.scene, /Loretta wipes down her own table and sits; Curtis pulls up the third chair/);
+  assert.strictEqual(b.stakes, 'Everything you have goes in: $740. Win and you walk out with $2,220; lose and it stays on her table. Five dice each, no antes, and your dice tricks stay in your pocket.');
+  deq(b.people.map(p => [p.id, p.role, p.book]), [['npc_loretta', 'Owns the place.', 'Your Book has nothing on her yet.'], ['npc_curtis', 'Puts odds on everything.', 'Your Book has nothing on him yet.']]);
+  assert.strictEqual(b.you, 'They read how you bid from the first round.');
+  // With a Book: their bids, bluffs, the habit seen most, split; and Loretta gone quiet.
+  const ro = { t: 'readout', bids: [
+    { who: 1, id: 'npc_loretta', q: 3, f: 4, held: 0, p: 0.2, bluff: true, habit: 2, text: 'x', sit: 'behind' },
+    { who: 1, id: 'npc_loretta', q: 6, f: 5, held: 2, p: 0.9, bluff: false, habit: null, text: null, sit: 'quiet' },
+    { who: 2, id: 'npc_curtis', q: 3, f: 5, held: 2, p: 0.8, bluff: false, habit: 2, text: 'x', sit: 'open' }] };
+  const book = E.bookApply(E.bookApply(null, [{ t: 'sit', night: 'n', seats: [{ id: 'npc_loretta' }, { id: 'npc_curtis' }] }]), [ro, ro]);
+  b = E.lastCallBrief(Object.assign(E.newNight({ seed: 'brief2' }), { hour: 4, cash: 600 }), book);
+  assert.strictEqual(b.stakes, 'Everything you have goes in: $600. Win and you walk out with $1,800; lose and it stays on her table. Five dice each, no antes.');
+  assert.strictEqual(b.people[0].book, 'Your Book: 4 of her bids seen, 2 bluffs. She lets her glasses drop on their chain: level or behind you 2 times, 2 bluffs. Once she went quiet: 2 bids, no bluffs.');
+  assert.strictEqual(b.people[1].book, 'Your Book: 2 of his bids seen, no bluffs. He names the odds out loud: opening a round 2 times, no bluffs.');
+});
+
+test('the end of the night says what the Book gained on the house: on any night with a Last Call, won or lost; none without', () => {
+  let lost = null, won = null;
+  for (let i = 0; i < 80 && (!lost || !won); i++) {
+    const S = E.newNight({ seed: 'gain' + i }); S.hour = 4; S.cash = 900;
+    const ev = ok(E.act(S, { t: 'sit', i: 0 }));
+    while (S.phase !== 'over') ev.push(...ok(E.act(S, E.basicPolicy(S, E.view(S), E.legal(S), E))));
+    if (S.ending === 'cleaned' && !lost) lost = { S, ev }; if (S.ending === 'house' && !won) won = { S, ev };
+  }
+  for (const x of [lost, won]) {
+    const h = E.summary(x.S).house;
+    assert.ok(h && h.lines.length >= 1, x.S.ending);
+    assert.ok(h.text.startsWith('What the Book gained on the house: '));
+    // The numbers are tonight's reveals of their bids.
+    const lor = x.ev.filter(e => e.t === 'readout').flatMap(e => e.bids.filter(b => b.id === 'npc_loretta'));
+    if (lor.length) assert.ok(h.lines.some(l => l.startsWith(`Loretta: ${lor.length} bid${lor.length === 1 ? '' : 's'} seen, `)), h.text);
+  }
+  // A night that never reached Last Call: nothing to say about the house.
+  const { S } = E.playNight('nolc', null, {});
+  if (!S.log.some(t => t.kind === 'last')) assert.strictEqual(E.summary(S).house, null);
+  // A night saved before tonight's tally existed (no S.house) still ends with a line.
+  const old = J(lost.S); delete old.house;
+  assert.strictEqual(E.houseNight(old).text, 'The Book gained nothing on the house tonight: no cups lifted on their bids.');
+});
+
+test('a Last Call saved before the house\'s patterns resumes: the gear is said at the next deal, the bids carry situations from then on, and the old Book keeps counting', () => {
+  const fx = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'fixtures', 'bones-lastcall-v1.json'), 'utf8'));
+  const rec = fx.saves.lastcall, S = J(rec.S);
+  assert.strictEqual(rec.v, E.VERSION);
+  assert.strictEqual(S.table.kind, 'last'); assert.strictEqual(S.table.gear, undefined);
+  assert.ok(S.table.seats[1].n <= 2);
+  const v = E.view(S), L = E.legal(S);
+  assert.strictEqual(L.need, 'turn'); assert.strictEqual(v.table.gear, null);
+  assert.ok(v.table.history.every(x => x.sit === undefined), 'old bids have no situation');
+  assert.strictEqual(E.advance(S).length, 1, 'nothing pending');
+  let book = fx.book;
+  const ev = [];
+  while (S.phase !== 'over') ev.push(...ok(E.act(S, E.basicPolicy(S, E.view(S), E.legal(S), E))));
+  book = E.bookApply(book, ev);
+  // The round in progress ended under the old rules; the table went on, and its first deal changed her gear (she was
+  // already down to two), right after the roll.
+  const rolls = all(ev, 'roll'), g = all(ev, 'gear');
+  assert.ok(rolls.length >= 1 && rolls[0].counts[1] > 0 && rolls[0].counts[1] <= 2, JSON.stringify(rolls[0]));
+  assert.strictEqual(g.length, 1, 'said once'); assert.strictEqual(ev[ev.indexOf(g[0]) - 1], rolls[0]);
+  assert.ok(all(ev, 'bid').filter(e => e.who !== 0).every(e => !!e.sit), 'new bids carry their situation');
+  assert.ok(['house', 'cleaned'].includes(S.ending));
+  assert.strictEqual(typeof E.summary(S).house.text, 'string');
+  const pg = E.bookPage(book, 'npc_loretta');
+  assert.ok(pg.rows[2].n >= fx.book.people.npc_loretta.habits[2].n);
+  assert.ok(pg.rows.every(r => r.before === null || r.before.n >= 0));
 });
 
 // ===================================================================== saved nights
