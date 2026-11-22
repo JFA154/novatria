@@ -2408,6 +2408,26 @@ code owns every die, rule and dollar; there is nothing for Claude to decide.
 
 The rest of the page:
 
+- **The practice hand.** A first visit offers **"Learn it in a minute"**
+  before "Deal me in": one scripted hand on the real table screen, with
+  Glenda and Gerald, three dice each, no money on it. The first round is
+  played with every cup open (the only time the game shows another cup
+  outside a reveal): Glenda's "four 3s" is counted out die by die (the 3s
+  and the 1s light up in every cup, five of them), Gerald raises to "six
+  3s" and you call Liar! on him. The second round is played as the game
+  is, cups shut: the Count line puts Gerald's "two 5s" at 100% by your
+  dice, you raise, he jumps to "seven 5s", the Count says 5%, you call it,
+  and the habit he showed before that bid (his tell) goes into the Book.
+  The Count figures it quotes are the engine's own. A short line of
+  teaching sits above the controls and rings what it is about; you move it
+  on with "Next" or with the one table button it asks for (the others stay
+  dead). Twelve steps, about a minute; "Skip the lesson" is in the top bar
+  throughout. It touches nothing: no cash, no Book, no ledger and no saved
+  night (a night in progress is left exactly as it was), and a reload
+  mid-lesson lands on the home screen. Once it is done or skipped (or a
+  night has been played) "Sit down" is the first button again, and the
+  hand can be replayed from How it works and from the table's menu. Its end
+  offers "Sit down for real" (a normal first night) or Back.
 - **Tonight's tables** are the same for everybody, from the date. The first
   finish of the day is kept, with a line to copy and send ("Bones ·
   2026-11-21 · beat the house · $2,340 · ..."); replays do not count.
@@ -2418,7 +2438,10 @@ The rest of the page:
 - **The first night** shows short coach tips, one at a time, each placed
   so it does not cover what it is about (tips about the people sit at the
   foot of the table, over the bid controls); "Skip the tips" turns them off
-  for good.
+  for good. After a finished practice hand the tips it taught (your dice,
+  what a bid means, your move, the Count) are left out; the ones it did not
+  (habits and the Book in play, Spot on, the choice of tables at 10 PM)
+  stay.
 - **A night in progress is saved** after every action and picked up with
   "Continue the night", mid-round included.
 - Phone first (360 to 430 px), dark and parchment, sound and haptics after
@@ -2466,6 +2489,10 @@ the same night byte for byte. You are always seat 0. In brief:
   `Engine.bookPage(book, id, S)` is one person's page.
 - `Engine.playNight(seed, policy, opts)` plays a whole night with a policy
   function; `Engine.basicPolicy` plays by the Count alone.
+- `Engine.lesson()` returns `{ S, events }` for the practice hand: a fixed
+  three-seat table with set cups and set moves for the people
+  (`Engine.LESSON`), its first round open (`view.table.cups`), played on
+  with `Engine.act` like any table.
 - Data: `Engine.PEOPLE`, `Engine.TRICKS`, `Engine.HOUSE_RULES`,
   `Engine.HOURS`, `Engine.VERSION` (`bones-1`). `Engine._sim` exposes the
   hidden side for the tests and the simulator; the page never uses it.
@@ -2475,7 +2502,8 @@ draws the events, and exposes `window.Game` (`Game.App`, `Game.UI`).
 
 **Storage**, all in this browser: `novatria.bones.night` (the night in
 progress, dropped when `Engine.VERSION` changes), `novatria.bones.book`,
-`novatria.bones.ledger` and `novatria.bones.settings`. The API key is
+`novatria.bones.ledger` and `novatria.bones.settings` (which also notes
+whether the practice hand was done or skipped). The API key is
 `novatria.apiKey`, shared with the other games, and is written there only
 when "Remember on this device" is ticked (otherwise it is kept for the tab).
 With no theme of its own Bones follows the town game's (`novatria.settings`).
@@ -2518,20 +2546,27 @@ also reads the tells and buys tricks sensibly beats the house 45.5% of the
 time and goes bust 19%. Reading the tells is worth about ten points of
 table win rate at every hour.
 
-**Tests.** `node tests/bones-engine.test.cjs` (56 tests, Node only, no
+**Tests.** `node tests/bones-engine.test.cjs` (58 tests, Node only, no
 browser) loads the engine block from `index.html` into `vm` and checks the
 rules exactly: determinism and the JSON round trip, the view hiding what it
 must, every call and its money, every house rule, the Count against brute
 force, the bluff line and the Book, the tells by kind and strength, bot bids
-always legal over 2,000 tables, every trick, the back room, the four endings
-and a few hundred whole nights. `node tests/bones.test.cjs` (18 tests,
-Playwright) plays the page through its own buttons on a phone: the file
-alone from `file://` with the network shut, whole nights to each of the four
-endings with the page checked against the engine's view after every step, a
-reload mid-round, storage switched off, the back room, each trick's control,
-the Book, tonight's tables and the ledger, Claude against a stand-in API
-(the column, table talk, a refused key, no key and no call), the first-night
-coach and where its tips sit, and phone widths in both themes.
+always legal over 2,000 tables, every trick, the back room, the four endings,
+a few hundred whole nights, and the practice hand's script (its cups, moves,
+Counts and no money) and that real nights never see it. `node
+tests/bones.test.cjs` (24 tests, Playwright) plays the page through its own
+buttons on a phone: the file alone from `file://` with the network shut,
+whole nights to each of the four endings with the page checked against the
+engine's view after every step, a reload mid-round, storage switched off,
+the back room, each trick's control, the Book, tonight's tables and the
+ledger, Claude against a stand-in API (the column, table talk, a refused
+key, no key and no call), the first-night coach and where its tips sit,
+phone widths in both themes, and the practice hand: the first-visit home,
+every step through its buttons at 390x780 and 360x640 in both themes (the
+line of teaching never covering what it rings, nothing clipped), the lit
+dice and the tally of five, only the asked-for button live, the Count
+equal to the engine's, nothing kept after finishing or skipping, "Sit down
+for real", a reload mid-lesson, and the coach after it.
 `node tests/run.cjs bones` runs both. The simulator is not part of
 `run.cjs`: `node tests/bones-sim.cjs [nights] [--rates] [--quick]` (2,000
 nights by default; `--rates` prints every person's measured bluff rate,
@@ -2559,7 +2594,7 @@ from `file://`, with the network blocked. Playwright is preinstalled in the
 build environment. Elsewhere, install it outside this folder (as the CI
 workflow does) and point `NODE_PATH` at it, because
 `tests/constraints.test.cjs` checks there is no `package.json` here. There is
-nothing else to install. The whole run is about 872 tests and takes fifteen to
+nothing else to install. The whole run is about 880 tests and takes fifteen to
 twenty minutes. `tests/wave30-rel-people.test.cjs` builds its older save from
 commit `56e69f5`'s `index.html`, so it needs the git history (a shallow clone
 fails it with a message saying so; the CI checkout fetches it all).

@@ -362,6 +362,28 @@ details.card[open] > summary { margin-bottom: 10px; }
 /* A tip about the people at the top sits at the foot of the table, over the bid controls (or an open sheet's button). */
 .coach[data-at="bottom"] { top: auto; bottom: calc(8px + var(--sab)); left: calc(10px + var(--sal)); right: calc(10px + var(--sar)); box-shadow: 0 -10px 26px var(--shadow); }
 
+/* ===== The practice hand: the real table, a short line of teaching above the controls ===== */
+#screen-table[data-lesson] #cash, #screen-table[data-lesson] #streak, #screen-table[data-lesson] #btn-bookside, #screen-table[data-lesson] #btn-sound { display: none; }
+/* Round one plays with the cups open: the Count waits for round two, when it means something. */
+#screen-table[data-lesson="open"] #countbar, #screen-table[data-lesson="open"] #bookline, #screen-table[data-lesson="open"] .live .pct, #screen-table[data-lesson="open"] .call small { visibility: hidden; }
+.lesson { padding: 0 2px; }
+.lesson p { margin: 0; min-height: calc(3 * 1.36em); font: 15px/1.36 var(--ui-font); }
+.lesson p b { color: var(--accent); }
+.lesson[data-wait] { opacity: .4; transition: opacity .2s; }
+.lesson-go { display: grid; }
+.lesson-go .btn { min-height: 50px; border-radius: 12px; font: 700 20px/1 var(--read-font); }
+#btn-lesson-skip { display: none; font-size: 14px; color: var(--muted); white-space: nowrap; }
+#screen-table[data-lesson] #btn-lesson-skip { display: inline-flex; }
+#screen-table[data-lesson] .felt-tags { display: none; }
+/* A short phone: the lesson never asks for a face, so the face row makes room for its line of teaching. */
+@media (max-height: 680px) { #screen-table[data-lesson] .faces { display: none; } }
+.tray[data-open] { background: var(--felt-hi); box-shadow: inset 0 1px 3px var(--shadow), 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent); }
+[data-point] { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 10px; animation: point 1.3s ease-in-out infinite; }
+@keyframes point { 50% { outline-color: color-mix(in srgb, var(--accent) 25%, transparent); } }
+.sheet .lesson-back { width: 100%; margin-top: 8px; }
+.lesson-end p { margin: 0 0 8px; font-size: 15px; line-height: 1.45; }
+@media (prefers-reduced-motion: reduce) { [data-point] { animation: none; } }
+
 /* ===== The Book (beside the table on wide screens, its own panel on a phone; and the collection) ===== */
 .bookside { flex: 0 0 340px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 12px 14px calc(16px + var(--sab)); border-left: 1px solid var(--border); }
 .bookside h2 { margin: 0 0 2px; font: 600 22px/1.2 var(--read-font); }
@@ -617,6 +639,7 @@ dialog li { margin: 0 0 6px; }
          history: [{ who, id, q, f, habit:{i, text, line, underline}|null }],
          ones: number|null (Bar Mirror), nod: {q, f, truth}|null,
          count: Count of the bid in front of you (0..1) | null,
+         cups: [[faces] per seat] | null (only in the practice hand's open round),
          last: null | { reveal, readout, lines } (the previous round's
                reveal and readout events, until the next round starts)
        }
@@ -651,6 +674,19 @@ dialog li { margin: 0 0 6px; }
      Engine.talkFacts(S, events) -> plain text account of one reveal.
      Engine.dailySeed('2026-11-21') -> 'daily:2026-11-21'
 
+   THE PRACTICE HAND ("Learn it in a minute")
+     Engine.lesson() -> { S, events }   a fixed little table for the lesson:
+         you, Glenda (seat 1) and Gerald (seat 2), three dice each, no ante,
+         no buy-in, no pot. Its two rounds have set cups and set moves for
+         the people (Engine.LESSON); the first is played with every cup open
+         (view.table.cups and the roll event's cups hold all the dice, the
+         only time the view shows another cup outside a reveal). events is
+         the sit, the first roll and the people's moves up to your turn.
+         Play it on with Engine.act as any table. S.lesson marks it; nothing
+         about it belongs in the Book, the ledger or a saved night (that is
+         the UI's to keep apart). In a lesson round a person's move comes
+         from the script while it lasts, then from the bots as usual.
+
    THE BOOK (persisted by the UI across nights)
      Engine.bookApply(book|null, events) -> new book (pure; feed it every
          batch of events). Engine.bookPage(book, personId, S?) -> {
@@ -670,7 +706,8 @@ dialog li { margin: 0 0 6px; }
          'buyin'|'won'|'lost'|'streak'|'spot'|'sticky'|'snake'|'pot'|'refund'|
          'buy'|'sell'|'reroll'
      {t:'roll', round, opener, openerId, mine:[faces]|null, counts:[per seat],
-               open:[{seat, face}], blind}            a round starts
+               open:[{seat, face}], blind, cups?}     a round starts (cups: every
+               seat's dice, only in the practice hand's open round)
      {t:'look', mine}                                 a blind opener sees the cup
      {t:'trick', id, ...}                             a trick did something:
          shaved/loaded/hothand {die} · extrabone {dice} · rabbit {saved}
@@ -1135,8 +1172,16 @@ dialog li { margin: 0 0 6px; }
     T.seats.forEach((s, k) => { if (k !== 0 && !s.out) { s.dice = []; for (let j = 0; j < s.n; j++) s.dice.push(1 + ri(S, 6)); } });
     rollMine(S, T, trickEv, R.hot);
     T.hot = false;
+    // The practice hand: this round's cups and the people's moves are set (a cup of the wrong size keeps its roll).
+    const script = T.lesson ? T.lesson[T.roundNo - 1] : null;
+    if (script) {
+      T.seats.forEach((s, k) => { if (!s.out && script.dice[k] && script.dice[k].length === s.n) s.dice = script.dice[k].slice(); });
+      R.moves = clone(script.moves); R.open = !!script.open;
+    }
     const blind = R.blindSeat === 0;
-    ev.push({ t: 'roll', round: R.no, opener, openerId: T.seats[opener].id, mine: blind ? null : T.seats[0].dice.slice(), counts: T.seats.map(s => s.out ? 0 : s.n), open: T.rule === 'open' ? alive(T).filter(k => T.seats[k].n > 0).map(k => ({ seat: k, face: T.seats[k].dice[0] })) : [], blind });
+    const roll = { t: 'roll', round: R.no, opener, openerId: T.seats[opener].id, mine: blind ? null : T.seats[0].dice.slice(), counts: T.seats.map(s => s.out ? 0 : s.n), open: T.rule === 'open' ? alive(T).filter(k => T.seats[k].n > 0).map(k => ({ seat: k, face: T.seats[k].dice[0] })) : [], blind };
+    if (R.open) roll.cups = T.seats.map(s => s.out ? [] : s.dice.slice());
+    ev.push(roll);
     ev.push(...trickEv);
     if (!blind) snakeCheck(S, T, ev);
     // Information tricks.
@@ -1156,7 +1201,8 @@ dialog li { margin: 0 0 6px; }
   function countOnes(T) { let c = 0; T.seats.forEach(s => { if (!s.out) s.dice.forEach(d => { if (d === 1) c++; }); }); return c; }
 
   // Record a bid: classify it by the one bluff definition, show at most one habit line.
-  function placeBid(S, T, s, q, f, ev) {
+  // forced (the practice hand's script only): the habit to show, an index or null for none.
+  function placeBid(S, T, s, q, f, ev, forced) {
     const R = T.round, seat = T.seats[s], wild = isWild(T), total = totalDice(T);
     const own = !ownBlind(T, s);
     const p = pFrom(knownFor(T, s, own), total, q, f, wild);
@@ -1166,8 +1212,11 @@ dialog li { margin: 0 0 6px; }
     if (seat.id !== 'me') {
       const per = P[seat.id], st = TELL[per.tier], applies = per.kind === 'bluff' ? bluff : !bluff;
       const cand = [];
-      if (rnd(S) < (applies ? st[0] : st[1])) cand.push(per.tell);
-      for (let k = 0; k < 3; k++) if (k !== per.tell && rnd(S) < IDLE) cand.push(k);
+      if (forced !== undefined) { if (forced !== null) cand.push(forced); }
+      else {
+        if (rnd(S) < (applies ? st[0] : st[1])) cand.push(per.tell);
+        for (let k = 0; k < 3; k++) if (k !== per.tell && rnd(S) < IDLE) cand.push(k);
+      }
       if (cand.length) {
         const i = cand[ri(S, cand.length)];
         const seen = S.seenH[seat.id] = S.seenH[seat.id] || [0, 0, 0];
@@ -1468,14 +1517,55 @@ dialog li { margin: 0 0 6px; }
       if (T.wait) break;
       if (!T.round) { startRound(S, T, ev); continue; }
       if (T.round.turn === 0) { T.wait = 'turn'; break; }
-      const s = T.round.turn, m = botMove(S, T, s);
-      if (m.t === 'bid') placeBid(S, T, s, m.q, m.f, ev);
+      const s = T.round.turn, m = scripted(S, T, s) || botMove(S, T, s);
+      if (m.t === 'bid') placeBid(S, T, s, m.q, m.f, ev, m.habit);
       else challenge(S, T, s, m.t, ev);
     }
     ev.push({ t: 'wait', need: need(S) });
     return ev;
   }
   function need(S) { return S.phase === 'table' ? S.table.wait : S.phase; }
+  // The practice hand's next set move, when it is this seat's and still legal; else null (the bot plays).
+  function scripted(S, T, s) {
+    const R = T.round, m = R.moves && R.moves[0];
+    if (!m || m.who !== s) return null;
+    R.moves.shift();
+    if (m.t === 'bid' && (m.q > totalDice(T) || !facesOf(T).includes(m.f) || !higher(m.q, m.f, lastBid(T)))) { R.moves = []; return null; }
+    if (m.t !== 'bid' && !lastBid(T)) { R.moves = []; return null; }
+    return m;
+  }
+
+  // ----- the practice hand -----
+  // You, Glenda on your left and Gerald, three dice each. Round 1, every cup open: Glenda's four 3s is
+  // true (five, with the 1s) and honest by her own cup; Gerald's six 3s is not, and he holds none. Round 2 (Gerald lost, so he opens; he has two dice):
+  // his two 5s is a sure thing by your 5, 5, 1; you raise to four, Glenda says five, and Gerald's seven 5s
+  // is a bluff, with his tell showing (the Count puts it at 5%).
+  const LESSON = {
+    people: ['npc_glenda', 'npc_gerald'], dice: 3,
+    rounds: [
+      { open: true, opener: 1, dice: [[3, 3, 1], [3, 1, 6], [2, 5, 4]], moves: [{ who: 1, t: 'bid', q: 4, f: 3, habit: null }, { who: 2, t: 'bid', q: 6, f: 3, habit: null }] },
+      { open: false, dice: [[5, 5, 1], [2, 5, 6], [3, 6]], moves: [{ who: 2, t: 'bid', q: 2, f: 5, habit: null }, { who: 1, t: 'bid', q: 5, f: 5, habit: null }, { who: 2, t: 'bid', q: 7, f: 5, habit: 'tell' }] }
+    ]
+  };
+  function lesson() {
+    const S = newNight({ seed: 'lesson' });
+    S.night = 'lesson'; S.lesson = true;
+    const people = LESSON.people.slice(), n = LESSON.dice;
+    const rounds = clone(LESSON.rounds);
+    rounds.forEach(r => r.moves.forEach(m => { if (m.habit === 'tell') m.habit = P[people[m.who - 1]].tell; }));
+    const T = {
+      hour: 0, kind: 'easy', rule: null, buyIn: 0, ante: 0, pot: 0, onTab: false,
+      start: [n].concat(people.map(() => n)),
+      seats: [{ id: 'me', n, dice: [], out: false, lost: 0 }].concat(people.map(id => ({ id, n, dice: [], out: false, lost: 0 }))),
+      seen: [{ n: 0, b: 0 }].concat(people.map(() => ({ n: 0, b: 0 }))),
+      round: null, roundNo: 0, wait: null, nextOpener: rounds[0].opener, used: {}, hot: false, last: null, cash0: S.cash,
+      rec: { caught: [], caughtBy: [], spots: 0, rounds: 0 }, lesson: rounds
+    };
+    S.rng = hash('lesson|table', 3);
+    S.table = T; S.phase = 'table';
+    const ev = [{ t: 'sit', hour: 0, kind: 'easy', night: S.night, rule: null, buyIn: 0, ante: 0, pot: 0, onTab: false, lesson: true, seats: T.seats.map((s, k) => ({ seat: k, id: s.id, name: nameOf(T, k), dice: s.n })) }];
+    return { S, events: run(S, ev) };
+  }
 
   function isLegalBid(S, q, f) {
     const T = S.table;
@@ -1700,6 +1790,7 @@ dialog li { margin: 0 0 6px; }
         history: R ? R.bids.map(x => ({ who: x.who, id: T.seats[x.who].id, q: x.q, f: x.f, habit: x.habit ? clone(x.habit) : null })) : [],
         ones: R ? R.ones : null, nod: R && R.nod ? clone(R.nod) : null,
         count: b ? count(S, b.q, b.f) : null,
+        cups: R && R.open ? T.seats.map(s => s.out ? [] : s.dice.slice()) : null,
         last: T.last ? clone(T.last) : null
       };
     }
@@ -1905,6 +1996,7 @@ dialog li { margin: 0 0 6px; }
     VERSION, PEOPLE, TRICKS, HOUSE_RULES: HOUSE_RULES.map(r => Object.freeze(r)), HOURS: clone(HOURS), START_CASH, SLOTS,
     newNight, options, sit: (S, i) => act(S, { t: 'sit', i }), act, advance, legal, isLegalBid, count, countExact, suggest,
     view, shopView, bookApply, bookPage, summary, shareLine, column, columnFacts, talkFacts, dailySeed, playNight, basicPolicy,
+    lesson, LESSON: clone(LESSON),
     // For tests and the balance sim only: the hidden side of the people and the odds. Not for the UI.
     _sim: { person: id => P[id] ? clone(P[id]) : null, tail, pmf, price: (S, id, h) => price(S, id, h), estBluff: (S, j) => estBluff(S, S.table, j), TELL, BLUFF_P }
   };
@@ -2234,7 +2326,7 @@ dialog li { margin: 0 0 6px; }
   // Persistence: settings, the night in progress, the Book, the ledger
   // =====================================================================
   const Settings = {
-    v: 1, speed: 1, sound: true, theme: null, tipsDone: false, tipsSeen: [], talk: true, model: DEFAULT_MODEL, played: false,
+    v: 1, speed: 1, sound: true, theme: null, tipsDone: false, tipsSeen: [], talk: true, model: DEFAULT_MODEL, played: false, lesson: null,
     load() {
       const s = readJson(KEYS.settings);
       if (!s || s.v !== 1) return;
@@ -2246,8 +2338,9 @@ dialog li { margin: 0 0 6px; }
       this.talk = s.talk !== false;
       if (MODELS.includes(s.model)) this.model = s.model;
       this.played = s.played === true;
+      this.lesson = s.lesson === 'done' || s.lesson === 'skipped' ? s.lesson : null;
     },
-    save() { store.set(KEYS.settings, JSON.stringify({ v: 1, speed: this.speed, sound: this.sound, theme: this.theme, tipsDone: this.tipsDone, tipsSeen: this.tipsSeen, talk: this.talk, model: this.model, played: this.played })); }
+    save() { store.set(KEYS.settings, JSON.stringify({ v: 1, speed: this.speed, sound: this.sound, theme: this.theme, tipsDone: this.tipsDone, tipsSeen: this.tipsSeen, talk: this.talk, model: this.model, played: this.played, lesson: this.lesson })); }
   };
   // The theme: Bones' own choice if one was made here, else the town's (novatria.settings.theme), else dark.
   function sharedTheme() { const s = readJson('novatria.settings'); return s && (s.theme === 'dark' || s.theme === 'parchment') ? s.theme : 'dark'; }
@@ -2429,6 +2522,15 @@ dialog li { margin: 0 0 6px; }
         kids.push(i < this.n ? (s ? Dice.node(s.face, { peek: true, label: false }) : Dice.node(0, { down: true, label: false })) : Dice.node(0, { empty: true, label: false }));
       }
       this.tray.toggleAttribute('data-six', this.max > 5);
+      this.tray.removeAttribute('data-open');
+      this.tray.replaceChildren(...kids);
+      this.label();
+    }
+    /* The practice hand's open cup: every die face up, nothing lit. */
+    renderUp(dice) {
+      const kids = [];
+      for (let i = 0; i < this.max; i++) kids.push(i < this.n && i < dice.length ? Dice.node(dice[i], { label: false }) : i < this.n ? Dice.node(0, { down: true, label: false }) : Dice.node(0, { empty: true, label: false }));
+      this.tray.setAttribute('data-open', '');
       this.tray.replaceChildren(...kids);
       this.label();
     }
@@ -2912,12 +3014,15 @@ dialog li { margin: 0 0 6px; }
     booktally: { at: 'bottom', text: 'Your Book remembers this habit. Weigh it against the Count.' },
     bluffhabit: { at: 'bottom' }   // its text names the bluffer: "<Name> <habit>, and was bluffing. ..."
   };
+  // What the practice hand teaches by doing: a player who finished it is not told again.
+  const LESSON_TAUGHT = ['dice', 'bid', 'turn', 'count'];
   const Coach = {
     on: false, queue: [], cur: null, texts: {},
     start(on) { this.on = !!on && !Settings.tipsDone; this.queue = []; this.hide(); },
     want(id, text) {
       if (text) this.texts[id] = text;
       if (!this.on || Settings.tipsDone || Settings.tipsSeen.includes(id) || this.queue.includes(id) || this.cur === id) return;
+      if (Settings.lesson === 'done' && LESSON_TAUGHT.includes(id)) return;
       this.queue.push(id);
       if (!this.cur) this.next();
     },
@@ -3141,7 +3246,8 @@ dialog li { margin: 0 0 6px; }
       bookShown = Engine.bookApply(bookShown, [e]);
       Table.setPeople();
       BidBanner.quiet(e.kind === 'last' ? 'Loretta deals' : 'Take a seat');
-      Log.result(`${Engine.HOURS[e.hour].name} · ${e.kind === 'last' ? 'Loretta’s table' : e.kind === 'rich' ? 'the big table' : 'the near table'}${e.ante ? ' · ante ' + money(e.ante) : ''}`);
+      if (e.lesson) Log.result('Practice hand · nothing to win or lose');
+      else Log.result(`${Engine.HOURS[e.hour].name} · ${e.kind === 'last' ? 'Loretta’s table' : e.kind === 'rich' ? 'the big table' : 'the near table'}${e.ante ? ' · ante ' + money(e.ante) : ''}`);
     },
     async pay(e) {
       if (e.why === 'buyin' || e.why === 'buy' || e.why === 'sell' || e.why === 'reroll' || !$('screen-table').classList.contains('active')) { await Cash.set(e.cash, { animate: e.why === 'buyin' }); return; }
@@ -3163,6 +3269,7 @@ dialog li { margin: 0 0 6px; }
         if (!s) return;
         s.clearTalk(); if (!s.out) s.setMood('even');
         s.setCount(e.counts[k]); s.renderTray(e.open.filter(o => o.seat === k).map(o => ({ i: 0, face: o.face, why: 'open' })));
+        if (e.cups && e.cups[k]) s.renderUp(e.cups[k]);
       });
       BidBanner.quiet(e.opener === 0 ? (e.blind ? 'You open, blind' : 'Your bid to open') : `${nameAt(e.opener)} opens`);
       BookLine.clear(); infoLine();
@@ -3306,6 +3413,7 @@ dialog li { margin: 0 0 6px; }
           el('span', { class: 'streak', id: 'streak', hidden: true }),
           el('button', { class: 'btn ghost', id: 'btn-bookside', type: 'button', 'aria-pressed': 'false', onclick: () => Table.toggleBook() }, ICON.book(), el('span', { class: 'booklbl' }, 'Book')),
           el('button', { class: 'btn ghost', id: 'btn-sound', type: 'button', onclick: () => { Settings.sound = !Settings.sound; Settings.save(); Sfx.setMuted(!Settings.sound); Table.soundIcon(); Sfx.play('blip'); } }),
+          el('button', { class: 'btn ghost', id: 'btn-lesson-skip', type: 'button', onclick: () => Lesson.skip() }, 'Skip the lesson'),
           el('button', { class: 'btn ghost', id: 'btn-menu', type: 'button', 'aria-label': 'Menu', onclick: () => Menu.open() }, ICON.menu())),
         el('div', { class: 'room' },
           el('main', { class: 'table', id: 'table' },
@@ -3321,7 +3429,9 @@ dialog li { margin: 0 0 6px; }
             el('div', { class: 'coach', id: 'coach', hidden: true, role: 'note' }),
             el('div', { class: 'tricks', id: 'tricks', 'aria-label': 'Your tricks' }),
             el('div', { class: 'log', id: 'log' }),
-            el('section', { class: 'actions', id: 'actions', 'aria-label': 'Your move' }, el('div', { class: 'picker', id: 'picker' }), el('div', { class: 'bar', id: 'bar', hidden: true }))),
+            el('section', { class: 'actions', id: 'actions', 'aria-label': 'Your move' }, el('div', { class: 'lesson', id: 'lesson', hidden: true, role: 'region', 'aria-label': 'The practice hand', 'aria-live': 'polite' }),
+              el('div', { class: 'lesson-go', id: 'lesson-go', hidden: true }, el('button', { class: 'btn primary', type: 'button', id: 'btn-lesson-next', onclick: () => Lesson.next() }, 'Next')),
+              el('div', { class: 'picker', id: 'picker' }), el('div', { class: 'bar', id: 'bar', hidden: true }))),
           el('aside', { class: 'bookside', id: 'bookside', 'aria-label': 'The Book: the people at this table' })));
       BidBanner.build($('bid')); CountBar.build($('countbar')); BookLine.build($('bookline')); MyCup.build($('mycup'));
       Log.build($('log')); Picker.build($('picker')); Tricks.build($('tricks'));
@@ -3350,10 +3460,10 @@ dialog li { margin: 0 0 6px; }
       const seatsRoot = $('seats');
       seatsRoot.style.setProperty('--n', t.seats.length - 1);
       seatsRoot.replaceChildren(...TV.seats.filter(Boolean).map(s => s.root));
-      $('t-hour').replaceChildren(...hourLabel(t.hour));
+      $('t-hour').replaceChildren(...tableHour(t.hour));
       const rt = $('ruletag');
       rt.hidden = !t.rule; rt.textContent = t.rule ? t.rule.name : ''; rt.setAttribute('aria-label', t.rule ? `House rule: ${t.rule.name}. What it means` : '');
-      $('antetag').textContent = t.kind === 'last' ? `Loretta’s table · pot ${money(t.buyIn * t.seats.length)}` : `Ante ${money(t.ante)} · pot ${money(t.buyIn * t.seats.length)}`;
+      $('antetag').textContent = Lesson.on ? 'Practice hand · no money on it' : t.kind === 'last' ? `Loretta’s table · pot ${money(t.buyIn * t.seats.length)}` : `Ante ${money(t.ante)} · pot ${money(t.buyIn * t.seats.length)}`;
       Picker.setFaces(TV.faces); Picker.close();
       $('bar').hidden = true; $('picker').hidden = false;
       MyCup.set(new Array(TV.start[0]).fill(0), TV.start[0], { down: true });
@@ -3369,7 +3479,7 @@ dialog li { margin: 0 0 6px; }
       const key = `${App.state.night}|${t.hour}|${t.kind}`;
       if (TV.key !== key) this.setup({ hour: t.hour, kind: t.kind, rule: t.rule, ante: t.ante, buyIn: t.buyIn, seats: t.seats.map(s => ({ seat: s.seat, id: s.id, dice: s.dice, start: s.start })) });
       Cash.set(v.cash); Streak.set(v.streak);
-      $('t-hour').replaceChildren(...hourLabel(v.hour));
+      $('t-hour').replaceChildren(...tableHour(v.hour));
       TV.total = t.total; TV.counts = t.seats.map(s => s.dice);
       const last = t.wait === 'next' && t.last ? t.last : null;
       const rv = last ? last.reveal : null;
@@ -3381,6 +3491,7 @@ dialog li { margin: 0 0 6px; }
         if (s.out && !seat.out) seat.setOut(true);
         seat.setLedger(s.ledger);
         if (rv) { const cup = rv.cups.find(c => c.who === s.seat); if (cup) seat.renderOpen(cup.dice, hitsOf(cup.dice, rv.f, rv.wild, s.seat, rv.bidder, [])); else seat.renderTray([]); }
+        else if (t.cups && t.cups[s.seat]) seat.renderUp(t.cups[s.seat]);
         else seat.renderTray(s.shown);
         if (!last) {
           seat.clearTalk();
@@ -3414,7 +3525,7 @@ dialog li { margin: 0 0 6px; }
         if (t.count !== null) CountBar.set(t.count, t.bid && t.bid.who === 0 ? 'Your bid, by your dice: ' : 'The Count, by your dice: ');
         else CountBar.set(null, t.blind ? 'Bidding blind: the Count waits on your cup' : 'Nothing bid yet');
       }
-      Log.set(t.history.map(x => ({ who: nameAt(x.who), what: `${x.q} × ${x.f}s` })), `${Engine.HOURS[t.hour].name} · round ${t.round}`);
+      Log.set(t.history.map(x => ({ who: nameAt(x.who), what: `${x.q} × ${x.f}s` })), `${Lesson.on ? 'Practice hand' : Engine.HOURS[t.hour].name} · round ${t.round}`);
       Tricks.render(v.tricks);
       // What you must do now.
       const L = Engine.legal(App.state);
@@ -3433,7 +3544,7 @@ dialog li { margin: 0 0 6px; }
           el('div', { class: 'btns' }, el('button', { class: 'btn', type: 'button', id: 'btn-slowroll', onclick: () => Tricks.open('slowroll') }, 'Slow Roll…'), el('button', { class: 'btn primary', type: 'button', id: 'btn-go', onclick: () => App.act({ t: 'go' }) }, 'Play on')));
       } else if (t.wait === 'next') {
         $('bar').hidden = true; $('picker').hidden = false; Picker.close();
-        if (!Sheet.cur || Sheet.cur.dataset.seq !== String(TV.revealSeq)) this.showReadout(t);
+        if (!Lesson.on && (!Sheet.cur || Sheet.cur.dataset.seq !== String(TV.revealSeq))) this.showReadout(t);
       } else { Picker.close(); }
     },
     /* "What they had": every bid of the round, what its bidder held, bluff or straight, and what the Book now says. */
@@ -3573,6 +3684,11 @@ dialog li { margin: 0 0 6px; }
   // The hour in a top bar: the full name, and a short one for narrow screens.
   const HOUR_SHORT = ['9 PM', '10 PM', '11 PM', '12 AM', 'Last Call'];
   const hourLabel = h => [el('span', { class: 'hl' }, Engine.HOURS[h].name), el('span', { class: 'hs' }, HOUR_SHORT[h])];
+  const tableHour = h => {
+    if (!Lesson.on) return hourLabel(h);
+    const n = Math.max(1, LESSON_ORDER.indexOf(Lesson.step) + 1), of = `${n} of ${LESSON_ORDER.length}`;
+    return [el('span', { class: 'hl' }, `Practice hand · ${of}`), el('span', { class: 'hs' }, `Practice ${n}/${LESSON_ORDER.length}`)];
+  };
   const focusHead = root => { const h = root.querySelector('h1, h2'); if (h) { h.setAttribute('tabindex', '-1'); try { h.focus({ preventScroll: true }); } catch (e) { /* ok */ } } };
   const HOUR_LINE = ['The first table of the night. Easy money, they say.', 'The room is filling up.', 'The serious players are sitting down.', 'Midnight. The big money comes out.', 'Last Call.'];
   const PATTER = ['Step into my office. Everything back here pays, one way or another.', 'Odds are you need one of these. I’d put it at three to one.', 'A little edge never hurt anybody. Well. Not anybody who paid.', 'You look like a buyer. Seven to two you leave with something.', 'Loretta doesn’t come back here. That’s what makes it a back room.'];
@@ -3606,9 +3722,16 @@ dialog li { margin: 0 0 6px; }
       const root = $('screen-home');
       const saved = Night.load();
       const L = Ledger.data, firstVisit = !saved && !L.nights && !Settings.played;
+      // Someone new is offered the practice hand first; once it is done or skipped (or a night is played), Sit down.
+      const learnFirst = firstVisit && !Settings.lesson;
       const today = dayKey(App.now()), done = L.daily[today];
       const cta = el('div', { class: 'cta' });
-      if (firstVisit) {
+      if (learnFirst) {
+        cta.append(el('button', { class: 'btn primary big', id: 'btn-learn', type: 'button', onclick: () => Lesson.start() }, 'Learn it in a minute'),
+          el('p', { class: 'cta-sub', id: 'learn-note' }, 'Never played liar’s dice? One practice hand with the cups open. It costs nothing.'),
+          el('button', { class: 'btn big', id: 'btn-sit', type: 'button', onclick: () => App.start({}) }, 'Deal me in'),
+          el('p', { class: 'cta-sub' }, 'No sign-up, no key. A night is five tables and ten to fifteen minutes.'));
+      } else if (firstVisit) {
         cta.append(el('button', { class: 'btn primary big', id: 'btn-sit', type: 'button', onclick: () => App.start({}) }, 'Sit down'),
           el('p', { class: 'cta-sub' }, 'No sign-up, no key. A night is five tables and ten to fifteen minutes.'));
       } else {
@@ -3619,7 +3742,7 @@ dialog li { margin: 0 0 6px; }
         }
         cta.append(el('div', { class: 'pair' },
           el('button', { class: `btn ${saved ? '' : 'primary'} big`, id: 'btn-daily', type: 'button', onclick: () => App.confirmNew(() => App.start({ daily: true })) }, done ? 'Tonight’s again' : 'Tonight’s tables'),
-          el('button', { class: 'btn big', id: 'btn-new', type: 'button', onclick: () => App.confirmNew(() => App.start({})) }, 'A new night')));
+          el('button', { class: 'btn big', id: 'btn-sit', type: 'button', onclick: () => App.confirmNew(() => App.start({})) }, 'A new night')));
         cta.append(el('p', { class: 'cta-sub', id: 'daily-note' }, done ? `Tonight’s tables: ${Engine.shareLine ? (done.ending === 'house' ? 'you beat the house' : done.ending === 'cleaned' ? 'cleaned out at Last Call' : done.ending === 'walked' ? 'walked home' : 'went bust') : ''} with ${money(done.cash)}. Replays don’t count.` : 'Tonight’s tables: the same people and the same dice for everyone, today.'));
         if (done) cta.append(el('div', { class: 'row', style: 'justify-content:center' }, el('button', { class: 'btn', id: 'btn-share-daily', type: 'button', onclick: () => App.copy(done.share, 'share-daily-note') }, 'Copy today’s result'), el('span', { class: 'note', id: 'share-daily-note', role: 'status' })));
       }
@@ -3644,12 +3767,13 @@ dialog li { margin: 0 0 6px; }
         el('details', { class: 'card how', id: 'home-how', open: firstVisit ? true : null },
           el('summary', null, 'How it works'),
           el('ol', null,
-            el('li', null, el('b', null, 'Everyone rolls in secret. '), 'A bid says “at least this many of a face, in all the cups together.” Ones are wild.'),
-            el('li', null, el('b', null, 'Raise the bid, or call Liar! '), 'The cups lift. Whoever was wrong loses a die and pays the ante. Last cup with dice wins the pot.'),
-            el('li', null, el('b', null, 'The Count '), 'is the honest chance a bid is true, from your dice alone. It never reads faces. You do.'),
-            el('li', null, el('b', null, 'Everyone has a tell. '), 'Habits show when they bid; your Book tallies which ones come with bluffs, night after night.'),
-            el('li', null, el('b', null, 'Five hours, five tables. '), 'Pick one of two each hour; between tables, Curtis sells tricks in the back room.'),
-            el('li', null, el('b', null, 'Reach Last Call with $500 '), 'and sit at Loretta’s own table. Beat her and your money triples.'))),
+            el('li', null, el('b', null, 'One idea. '), 'Everyone shakes dice under a cup and looks only at their own. A bid is a claim about all the dice on the table together. Calling ', el('b', null, 'Liar!'), ' says the claim is false. The cups lift, and whoever was wrong loses a die.'),
+            el('li', null, el('b', null, 'An example. '), 'Nine dice on the table; you hold 3, 3 and 1. Glenda bids “four 3s”: at least four 3s in all the cups. Ones are wild (a 1 counts as any face), so you already have three. One more 3 or 1 in the other six dice and she is right.'),
+            el('li', null, el('b', null, 'Your turn. '), 'Raise to a bigger bid (more dice, or as many of a higher face), or call Liar! on the bid in front of you. Lose all your dice and you are out. The last cup with dice wins the table’s money.'),
+            el('li', null, el('b', null, 'The Count '), 'is the chance the bid in front of you is true, worked out from your own dice. Low means it is probably a lie.'),
+            el('li', null, el('b', null, 'Tells and the Book. '), 'Everyone has habits that show when they bid, and one of them tends to come with their bluffs. Your Book counts each habit against what the cups showed, night after night.'),
+            el('li', null, el('b', null, 'The night. '), 'You start with $100. Each hour you pay to sit at one of two tables; win it and you take its pot. Between tables, Curtis sells tricks in the back room. Have $500 at Last Call and you play the house: win and your money triples.')),
+          learnFirst ? null : el('button', { class: 'btn', id: 'btn-replay-lesson', type: 'button', style: 'margin-top:6px', onclick: () => Lesson.start() }, 'Replay the practice hand')),
         el('section', { class: 'card', id: 'home-ledger' },
           el('h2', null, 'Lyman’s ledger'),
           L.nights ? [
@@ -3851,9 +3975,10 @@ dialog li { margin: 0 0 6px; }
         el('h3', null, 'Look'), seg([['Dark', 'dark'], ['Parchment', 'parchment']], currentTheme(), v => { Settings.theme = v; Settings.save(); applyTheme(); }),
         el('div', { class: 'row', style: 'margin-top:14px' },
           el('button', { class: 'btn', type: 'button', id: 'btn-rules', onclick: () => Menu.rules() }, 'The rules'),
-          el('button', { class: 'btn', type: 'button', onclick: () => { Dialog.close(); Screens.book(); } }, 'The Book'))
-      ], [[inNight ? 'Leave to the home screen' : 'Home', () => App.home(), '', 'btn-leave-table'], ['Back to it', null, 'primary']]);
-      if (inNight) $('dlg').querySelector('.row.end').before(el('p', { class: 'note' }, 'Leaving keeps the night exactly where it is: “Continue the night” picks it up.'));
+          Lesson.on ? null : el('button', { class: 'btn', type: 'button', onclick: () => { Dialog.close(); Screens.book(); } }, 'The Book'),
+          Lesson.on ? null : el('button', { class: 'btn', type: 'button', id: 'btn-menu-lesson', onclick: () => { Dialog.close(); Lesson.start(); } }, 'Replay the practice hand'))
+      ], [[Lesson.on ? 'Leave the lesson' : inNight ? 'Leave to the home screen' : 'Home', () => App.home(), '', 'btn-leave-table'], ['Back to it', null, 'primary']]);
+      if (inNight && !Lesson.on) $('dlg').querySelector('.row.end').before(el('p', { class: 'note' }, 'Leaving keeps the night exactly where it is: “Continue the night” picks it up. The practice hand leaves it alone too.'));
     },
     rules() {
       Dialog.open([
@@ -3958,7 +4083,7 @@ dialog li { margin: 0 0 6px; }
     /* A new night: { seed, daily (true for tonight's, or 'YYYY-MM-DD'), tips (the first-table coach), tricks (tests) }. */
     start(opts) {
       opts = opts || {};
-      Stage.reset(); Dialog.close(); navGen++;
+      Stage.reset(); Dialog.close(); navGen++; Lesson.off();
       const daily = opts.daily === true ? dayKey(App.now()) : typeof opts.daily === 'string' ? opts.daily : null;
       const seed = opts.seed !== undefined ? opts.seed : daily ? undefined : ((Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0).toString(36);
       const S = Engine.newNight({ seed, daily, book: Book.data, tricks: opts.tricks });
@@ -3978,7 +4103,7 @@ dialog li { margin: 0 0 6px; }
     resume() {
       const r = Night.load();
       if (!r) { App.home(); return false; }
-      Stage.reset(); Dialog.close(); navGen++;
+      Stage.reset(); Dialog.close(); navGen++; Lesson.off();
       rec = r; Night.rec = rec; UI.after = null; TV.key = '';
       bookShown = Book.data;
       Screens.render();
@@ -3986,6 +4111,7 @@ dialog li { margin: 0 0 6px; }
     },
     /* The one way the night moves: an engine action, saved at once, then drawn. Resolves when the drawing is done. */
     act(action) {
+      if (Lesson.on) return Lesson.act(action);
       const run = async () => {
         if (!rec) return [{ t: 'error', msg: 'no night in progress' }];
         const S = rec.S, nav = navGen, bookBefore = Book.data;
@@ -4018,7 +4144,7 @@ dialog li { margin: 0 0 6px; }
     /* From the end-of-table beat to the back room (or the end of the night). */
     leaveTable() { UI.after = null; Sheet.clear(); Screens.render(); },
     home() {
-      Stage.reset(); Dialog.close(); navGen++;
+      Stage.reset(); Dialog.close(); navGen++; Lesson.off();
       busy = false; rec = null; Night.rec = null; UI.after = null;
       Coach.hide();
       Screens.home();
@@ -4038,13 +4164,212 @@ dialog li { margin: 0 0 6px; }
     }
   };
 
+  // =====================================================================
+  // The practice hand ("Learn it in a minute"): a scripted little table on the real table screen.
+  // The engine sets it (Engine.lesson: fixed cups, fixed moves for the people); the lesson plays its
+  // events in pieces with a line of teaching between them, and the player moves it on with the real
+  // buttons (only the one the step asks for is live) or "Next". It costs nothing and keeps nothing:
+  // its state is never saved, never goes into the Book or the ledger, and leaving it is going home.
+  // =====================================================================
+  const LESSON_STEPS = {
+    a: { cups: 'open', next: 'b', text: () => 'Everyone has dice under a cup. Normally you see only your own. For this hand, every cup is open.',
+      async enter(L) { await L.playTo(e => e.t === 'roll'); L.point(['.seat .tray', '#mycup .cupdice']); } },
+    b: { cups: 'open', next: 'b2', text: () => ['Glenda bids ', el('b', null, 'four 3s'), '. A bid is a claim about all the dice on the table together: at least four 3s.'],
+      async enter(L) { await L.playTo(e => e.t === 'bid'); L.point(['#bid']); } },
+    b2: { cups: 'open', next: 'c', text: () => ['Ones are wild: they count as 3s too. Count the 3s and 1s in every cup: ', el('b', null, 'five'), '. Her bid is true.'],
+      async enter(L) { await L.tally(4, 3); L.point(['#bid']); } },
+    c: { cups: 'open', wants: { t: 'liar' }, then: 'c2', text: () => ['Gerald raises to ', el('b', null, 'six 3s'), '. Every bid must beat the last. You counted five, so he is lying. Press ', el('b', null, 'Liar!')],
+      async enter(L) { L.unmark(); await L.playTo(null); L.sync(); L.lock(['btn-liar']); L.point(['#btn-liar']); } },
+    c2: { cups: 'open', next: 'd', engine: { t: 'next' }, text: () => 'Caught. Whoever is wrong loses a die; lose them all and you are out. The last cup with dice wins the table’s money.',
+      async enter(L) { await L.playTo(null); L.sync(); L.point([]); } },
+    d: { cups: 'shut', next: 'd2', text: () => 'Now for real: a new roll, and their cups are shut. You judge from your own dice.',
+      async enter(L) { await L.playTo(e => e.t === 'roll'); L.point(['#mycup .cupdice']); } },
+    d2: { cups: 'shut', next: 'd3', text: () => ['Gerald lost, so he starts: ', el('b', null, 'two 5s'), '. The ', el('b', null, 'Count'), ' is the chance a bid is true, worked out from your dice.'],
+      async enter(L) { await L.playTo(null); L.sync(); Picker.close(); L.point(['#countbar']); } },
+    d3: { cups: 'shut', wants: { t: 'bid', q: 4, f: 5 }, then: 'd4',
+      text: L => [`It says ${pct(L.count())}: you hold three 5s yourself. Don’t call that. Raise: press `, el('b', null, 'Bid'), '.'],
+      async enter(L) { L.sync(); Picker.q = 4; Picker.f = 5; Picker.touched = true; Picker.render(); L.lock(['btn-bid']); L.point(['#countbar', '#btn-bid']); } },
+    d4: { cups: 'shut', wants: { t: 'liar' }, then: 'e',
+      text: L => ['Glenda says five, Gerald ', el('b', null, 'seven 5s'), `. The Count says ${pct(L.count())}: almost surely a lie. Press `, el('b', null, 'Liar!')],
+      async enter(L) { await L.playTo(e => e.t === 'bid' && e.who === 1); await wait(350); await L.playTo(null); L.sync(); L.lock(['btn-liar']); L.point(['#countbar', '#btn-liar']); } },
+    e: { cups: 'shut', next: 'e2', text: L => [`Caught again: only ${word(L.revealed())}. See the line under Gerald? Everyone has habits, and one tends to show when they bluff.`],
+      async enter(L) { await L.playTo(null); L.sync(); L.showHabit(); L.point(['habit']); } },
+    e2: { cups: 'shut', next: 'f', text: () => ['Your ', el('b', null, 'Book'), ' counts every habit against what the cups showed, so you learn people over time.'],
+      async enter(L) { L.showBook(); L.point(['#bookline']); } },
+    f: { cups: 'shut', end: true, text: () => 'Count low: think Liar. Otherwise raise. Win a table and you take its pot. You start with $100; reach $500 by Last Call and you play the house for triple.',
+      async enter(L) { L.finish(); } }
+  };
+  const LESSON_ORDER = Object.keys(LESSON_STEPS);
+  const Lesson = {
+    on: false, ready: false, step: null, ev: [], at: 0, gen: 0, habit: null, started: 0,
+    /* Sit down at the practice table. */
+    start() {
+      Stage.reset(); Dialog.close(); navGen++;
+      const L = Engine.lesson();
+      rec = { v: Engine.VERSION, S: L.S, lesson: true, coach: false, first: false, metBefore: [], started: Date.now() };
+      Night.rec = rec; UI.after = null; UI.endInfo = null; TV.key = '';
+      bookShown = null; busy = false;
+      this.on = true; this.gen++; this.ev = L.events; this.at = 0; this.habit = null; this.started = Date.now();
+      $('screen-table').setAttribute('data-lesson', 'open');
+      Table.toggleBook(false);
+      show('table');
+      return this.run(g => this.go('a', g));
+    },
+    /* Out of the lesson (home, a real night): nothing of it stays. */
+    off() {
+      if (!this.on && !$('screen-table').hasAttribute('data-lesson')) return;
+      this.on = false; this.ready = false; this.gen++; this.step = null; this.ev = []; this.at = 0;
+      const scr = $('screen-table'); scr.removeAttribute('data-lesson');
+      const card = $('lesson'); if (card) { card.hidden = true; card.replaceChildren(); delete card.dataset.step; }
+      $('lesson-go').hidden = true; Picker.calls.hidden = false;
+      this.point([]); Sheet.clear();
+      if (rec && rec.lesson) { rec = null; Night.rec = null; }
+    },
+    /* Every move of the lesson goes through the queue, so App.idle() waits for it too. */
+    run(fn) {
+      const g = this.gen;
+      const p = queue.then(() => (g === this.gen ? fn(g) : undefined));
+      queue = p.catch(err => { if (err !== ABORT) console.error(err); });
+      return p.catch(err => { if (err !== ABORT) throw err; });
+    },
+    async go(id, g) {
+      const st = LESSON_STEPS[id];
+      if (!st || g !== this.gen) return;
+      this.step = id;
+      $('screen-table').setAttribute('data-lesson', st.cups);
+      const card = $('lesson');
+      card.dataset.step = id; card.setAttribute('data-wait', ''); this.ready = false;
+      const b = $('btn-lesson-next'); if (b) b.disabled = true;
+      await st.enter(this);
+      if (g !== this.gen || st.end) return;
+      this.card(st);
+    },
+    /* The line of teaching above the controls; Next stands where Liar and Spot on do, until a step wants them. */
+    card(st) {
+      const card = $('lesson');
+      card.replaceChildren(el('p', { id: 'lesson-text' }, st.text(this)));
+      card.hidden = false; card.removeAttribute('data-wait'); this.ready = true;
+      this.bar(st);
+      say(cleanText(card.textContent));
+      anim(card, [{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], 200, { move: true });
+      if (st.next) { try { $('btn-lesson-next').focus({ preventScroll: true }); } catch (e) { /* ok */ } }
+    },
+    /* The top bar's step count, and Next in place of the calls on a Next step. */
+    bar(st) {
+      $('t-hour').replaceChildren(...tableHour(0));
+      const go = $('lesson-go');
+      go.hidden = !(st && st.next);
+      Picker.calls.hidden = !go.hidden;
+      const b = $('btn-lesson-next'); if (b) b.disabled = false;
+    },
+    next() {
+      const st = LESSON_STEPS[this.step];
+      if (!st || !st.next || busy || $('btn-lesson-next').disabled) return Promise.resolve();
+      $('btn-lesson-next').disabled = true;
+      return this.run(async g => {
+        if (st.engine) { this.ev = Engine.act(rec.S, st.engine); this.at = 0; }
+        await this.go(st.next, g);
+      });
+    },
+    /* The table's own buttons, in the lesson: only the move the step asks for. */
+    act(action) {
+      const st = LESSON_STEPS[this.step], w = st && st.wants;
+      const ok = w && !busy && action && action.t === w.t && !action.double && (w.t !== 'bid' || (action.q === w.q && action.f === w.f));
+      if (!ok) { if (st && w) { this.sync(); if (w.t === 'bid') { Picker.q = w.q; Picker.f = w.f; Picker.render(); } this.relock(); } return Promise.resolve([{ t: 'error', msg: 'not in the lesson' }]); }
+      this.point([]);
+      return this.run(async g => {
+        this.ev = Engine.act(rec.S, action); this.at = 0;
+        await this.go(st.then, g);
+        return this.ev;
+      });
+    },
+    relock() { const st = LESSON_STEPS[this.step]; if (st && st.wants) this.lock([st.wants.t === 'bid' ? 'btn-bid' : 'btn-liar']); },
+    /* Plays the lesson's events up to and including the first that matches (all of them for null). */
+    async playTo(pred) {
+      let j = this.at;
+      while (j < this.ev.length - 1 && !(pred && pred(this.ev[j]))) j++;
+      const slice = this.ev.slice(this.at, j + 1);
+      this.at = j + 1;
+      slice.forEach(e => { if (e.t === 'bid' && e.habit) this.habit = e; });
+      const g = this.gen;
+      busy = true;
+      try { await play(slice); } catch (err) { if (err !== ABORT) console.error(err); } finally { if (g === this.gen) busy = false; }
+      if (g !== this.gen) throw ABORT;
+    },
+    sync() { Table.sync(Engine.view(rec.S)); },
+    count() { const v = Engine.view(rec.S); return v.table && v.table.count !== null ? v.table.count : 0; },
+    revealed() { const r = this.ev.find(e => e.t === 'reveal'); return r ? r.count : 0; },
+    lock(allow) {
+      document.querySelectorAll('#picker button').forEach(b => { b.disabled = !allow.includes(b.id); });
+      $('picker').removeAttribute('data-calm');
+    },
+    /* What the step talks about, ringed: CSS selectors, or 'habit' (the habit line that came with the bluff). */
+    point(list) {
+      document.querySelectorAll('[data-point]').forEach(n => n.removeAttribute('data-point'));
+      list.forEach(q => {
+        if (q === 'habit') { const s = this.habit ? seatOf(this.habit.who) : null; if (s) s.habitEl.setAttribute('data-point', ''); return; }
+        document.querySelectorAll('#screen-table ' + q).forEach(n => n.setAttribute('data-point', ''));
+      });
+    },
+    /* Step B: every die that counts for four 3s lit, in every cup, and the tally climbing. */
+    async tally(q, f) {
+      const cups = Engine.view(rec.S).table.cups;
+      BidBanner.counter(q, f);
+      let n = 0;
+      const order = [1, 2, 0];
+      for (const k of order) {
+        const dice = cups[k] || [];
+        const nodes = k === 0 ? MyCup.nodes : [...seatOf(k).tray.children];
+        dice.forEach((d, i) => { if (nodes[i]) { nodes[i].toggleAttribute('data-dim', !(d === f || d === 1)); } });
+        for (let i = 0; i < dice.length; i++) {
+          if (!(dice[i] === f || dice[i] === 1) || !nodes[i]) continue;
+          n++;
+          nodes[i].setAttribute('data-hit', '');
+          anim(nodes[i], [{ transform: 'scale(1)' }, { transform: 'scale(1.4) rotate(-8deg)', offset: .4 }, { transform: 'scale(1)' }], 260, { move: true, easing: 'ease-out' });
+          BidBanner.tick(n, n >= q ? 'there' : null);
+          Sfx.play('tick', n);
+          await wait(170);
+        }
+      }
+      $('bid').dataset.tally = String(n);
+    },
+    unmark() {
+      const v = Engine.view(rec.S).table;
+      TV.seats.forEach((s, k) => { if (s && v.cups && v.cups[k]) s.renderUp(v.cups[k]); });
+      MyCup.nodes.forEach(d => { d.removeAttribute('data-hit'); d.removeAttribute('data-dim'); });
+      delete $('bid').dataset.tally;
+    },
+    /* Step E: Gerald's habit, back under his seat (the bark that followed it had cleared it). */
+    showHabit() {
+      const h = this.habit ? this.habit.habit : null;
+      const s = this.habit ? seatOf(this.habit.who) : null;
+      if (s && h) { s.habitEl.textContent = h.text; s.habitEl.removeAttribute('data-under'); }
+    },
+    /* Step E2: the Book line under the Count, now that the cups have said it was a bluff. */
+    showBook() {
+      if (!this.habit) return;
+      BookLine.set(this.habit.id, this.habit.habit, bookShown);
+    },
+    /* The end: what the night is, and a real seat (or home). */
+    finish() {
+      Settings.lesson = 'done'; Settings.save();
+      this.point([]); $('lesson').hidden = true; $('lesson').replaceChildren(); $('lesson-go').hidden = true;
+      const back = el('button', { class: 'btn lesson-back', type: 'button', id: 'btn-lesson-back', onclick: () => App.home() }, 'Back');
+      const node = Sheet.show([el('div', { class: 'lesson-end' }, el('h2', null, 'That’s the whole game'), el('p', { id: 'lesson-text' }, LESSON_STEPS.f.text(this)))], 'Sit down for real', () => App.start({}), 'btn-lesson-real');
+      node.append(back);
+      node.dataset.kind = 'lesson';
+      say(LESSON_STEPS.f.text(this));
+    },
+    skip() { if (!Settings.lesson) { Settings.lesson = 'skipped'; Settings.save(); } App.home(); }
+  };
+
   // ----- Keys: Enter/Space for Continue, and the picker's letters -----
   function onKey(e) {
     if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
     if (Dialog.isOpen) return;
     const tag = e.target && e.target.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-    if (Screens.cur !== 'table') return;
+    if (Screens.cur !== 'table' || Lesson.on) return;
     const onButton = tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY';
     if (e.key === 'Enter' || e.key === ' ') {
       if (busy) { Skip.now(); e.preventDefault(); return; }
@@ -4080,7 +4405,7 @@ dialog li { margin: 0 0 6px; }
     App,
     Book: { get data() { return Book.data; }, page: id => Engine.bookPage(Book.data, id), met: id => Book.met(id) },
     Ledger: { get data() { return Ledger.data; }, rank: best => Ledger.rank(best), RANKS: RANKS.map(r => r.slice()) },
-    UI: { Settings, Coach, Talk, Column, Claude, Table, Screens, TV, Picker, Tricks, People, Menu, show, get after() { return UI.after; } }
+    UI: { Settings, Coach, Talk, Column, Claude, Table, Screens, TV, Picker, Tricks, People, Menu, Lesson, show, get after() { return UI.after; } }
   });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

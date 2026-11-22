@@ -117,13 +117,14 @@ function standIn(log, opts) {
 }
 
 // ===================================================================== the file
-s.test('the page stands alone: from file:// with the network shut, no page errors, the first screen sells it with one button', async h => {
+s.test('the page stands alone: from file:// with the network shut, no page errors, the first screen offers the practice hand first', async h => {
   const asked = [];
   const page = await open(h, { route: route => { const u = route.request().url(); if (/^(file|blob|data):/.test(u)) return route.continue(); asked.push(u); return route.abort(); } });
   assert.equal(await page.title(), 'Bones');
   assert.equal(await page.textContent('#home-title'), 'Bones');
   assert.match(await page.textContent('.tagline'), /The math says one thing\. Their face says another\./);
-  assert.ok(await page.isVisible('#btn-sit'), 'first visit: one big Sit down');
+  assert.ok(await page.isVisible('#btn-learn'), 'first visit: Learn it in a minute');
+  assert.ok(await page.isVisible('#btn-sit'), 'first visit: Deal me in, a real night, beside it');
   assert.equal(await page.isVisible('#btn-continue'), false);
   const globals = await page.evaluate(() => { const f = document.createElement('iframe'); document.body.append(f); const base = new Set(Object.keys(f.contentWindow)); f.remove(); return Object.keys(window).filter(k => !base.has(k)); });
   assert.deepEqual(globals, ['Game'], 'the only global is Game');
@@ -638,6 +639,287 @@ s.test('no horizontal overflow at 360, 375 and 430 on every screen, in both them
     await page.evaluate(() => Game.App.home());
     await check('home after a night');
   }
+});
+
+// ===================================================================== the practice hand
+/* One step of the practice hand through its own buttons: Next when it stands there, else the one table button
+   the step asks for (Bid or Liar!). lessonNow resolves when the lesson is waiting again (its next card, or the end sheet). */
+const LESSON_STEPS = ['a', 'b', 'b2', 'c', 'c2', 'd', 'd2', 'd3', 'd4', 'e', 'e2', 'f'];
+const lessonNow = page => page.evaluate(async () => { await Game.App.idle(); const L = Game.UI.Lesson; return { on: L.on, step: L.step, ready: L.ready, end: !!document.querySelector('#btn-lesson-real') }; });
+async function lessonMove(page) {
+  const now = await lessonNow(page);
+  if (await page.isVisible('#btn-lesson-next')) await page.click('#btn-lesson-next');
+  else if (await page.isEnabled('#btn-bid')) await page.click('#btn-bid');
+  else await page.click('#btn-liar');
+  return now;
+}
+/* What a step shows, for the layout checks: the line of teaching, what it rings, the button to press. */
+const LESSON_LAYOUT = () => {
+  const r = n => { const b = n.getBoundingClientRect(); return { t: b.top, b: b.bottom, l: b.left, r: b.right, w: b.width, h: b.height }; };
+  const meets = (a, b) => a.t < b.b - 0.5 && b.t < a.b - 0.5 && a.l < b.r - 0.5 && b.l < a.r - 0.5;
+  const H = innerHeight, W = innerWidth, bad = [];
+  const on = (sel, n) => { const x = r(n); if (x.w && (x.t < -1 || x.b > H + 1 || x.l < -1 || x.r > W + 1)) bad.push(`${sel} off screen [${Math.round(x.t)},${Math.round(x.b)}]`); return x; };
+  const sheet = document.querySelector('.sheet');
+  const card = sheet ? sheet.querySelector('.lesson-end') : document.querySelector('#lesson:not([hidden])');
+  const text = card ? card.querySelector('p') : null;
+  if (!text || !text.textContent.trim()) bad.push('no line of teaching');
+  const box = card ? on('the lesson line', card) : null;
+  if (text && text.scrollHeight > text.clientHeight + 1) bad.push('the lesson line is clipped');
+  if (text && parseFloat(getComputedStyle(text).fontSize) < 14) bad.push('the lesson line is small');
+  const pointed = [...document.querySelectorAll('#screen-table [data-point]')];
+  pointed.forEach(n => { const x = on('pointed ' + (n.id || n.className), n); if (box && !sheet && meets(x, box)) bad.push(`the lesson line covers ${n.id || n.className}`); });
+  ['#btn-lesson-next', '#btn-liar', '#btn-bid', '#btn-lesson-real', '#btn-lesson-back', '#btn-lesson-skip'].forEach(sel => { const n = document.querySelector(sel); if (n && n.offsetParent !== null && !n.disabled) { const x = on(sel, n); if (x.h < 43.5) bad.push(`${sel} is ${x.h}px tall`); } });
+  // The table itself: nothing spills out of the felt, and the line of teaching sits clear of the cups, the bid and the Count.
+  const felt = document.querySelector('#felt');
+  if (felt.scrollHeight > felt.clientHeight + 2) bad.push(`felt overflows ${felt.scrollHeight} > ${felt.clientHeight}`);
+  if (!sheet) document.querySelectorAll('#mycup .die, .seat .tray, .seat .habit, #bid .bid-word, #countbar, #bookline').forEach(n => { const x = r(n); if (x.w && box && meets(x, box)) bad.push('the lesson line covers ' + n.className); });
+  // On the felt, top to bottom, nothing runs into the next thing: the bid (or the tally), the Count, the Book line, your cup.
+  const bid = document.querySelector('#bid'), shown = bid.querySelector(bid.dataset.mode === 'count' ? '.bid-count' : '.bid-main');
+  const parts = [['bid', shown]].concat([['countbar', document.querySelector('#countbar')], ['bookline', document.querySelector('#bookline > span')], ['cup', document.querySelector('#mycup .cupdice')], ['caption', document.querySelector('#mycup .cupcap')]])
+    .filter(([, n]) => n && getComputedStyle(n).visibility !== 'hidden' && getComputedStyle(n.parentElement).visibility !== 'hidden').map(([k, n]) => [k, r(n)]).filter(([, x]) => x.w && x.h);
+  parts.forEach(([k, x], i) => parts.slice(i + 1).forEach(([k2, y]) => { if (meets(x, y)) bad.push(`${k} runs into ${k2}`); }));
+  return { bad, step: Game.UI.Lesson.step, pointed: pointed.map(n => n.id || n.className) };
+};
+
+s.test('first visit: "Learn it in a minute" is the primary, and #btn-sit ("Deal me in") still deals a real night', async h => {
+  const page = await open(h);
+  const home = await page.evaluate(() => ({ learn: document.querySelector('#btn-learn').className, learnText: document.querySelector('#btn-learn').textContent, sit: document.querySelector('#btn-sit').className, sitText: document.querySelector('#btn-sit').textContent, first: document.querySelector('.cta .btn').id, how: document.querySelector('#home-how').open, replay: !!document.querySelector('#btn-replay-lesson') }));
+  assert.match(home.learn, /\bprimary\b/);
+  assert.equal(home.learnText, 'Learn it in a minute');
+  assert.doesNotMatch(home.sit, /\bprimary\b/);
+  assert.equal(home.sitText, 'Deal me in');
+  assert.equal(home.first, 'btn-learn', 'the practice hand comes first');
+  assert.equal(home.how, true, 'How it works is open on a first visit');
+  assert.equal(home.replay, false);
+  // How it works leads with the one idea, then a worked example with real numbers, then the Count, tells and the Book, then the night.
+  const how = await page.textContent('#home-how ol');
+  assert.match(how, /^One idea\. .*A bid is a claim about all the dice on the table together\. Calling Liar! says the claim is false\..*whoever was wrong loses a die/);
+  assert.match(how, /An example\. Nine dice on the table; you hold 3, 3 and 1\. Glenda bids “four 3s”/);
+  assert.ok(how.indexOf('One idea') < how.indexOf('The Count') && how.indexOf('The Count') < how.indexOf('Tells and the Book') && how.indexOf('Tells and the Book') < how.indexOf('The night'));
+  assert.match(how, /\$100.*\$500/);
+  await page.evaluate(() => { Game.App.speed = 0; });
+  await page.click('#btn-sit');
+  await page.evaluate(() => Game.App.idle());
+  const S = await page.evaluate(() => ({ cur: Game.UI.Screens.cur, phase: Game.App.state.phase, hour: Game.App.state.hour, lesson: !!Game.App.state.lesson, cash: Game.App.state.cash, coach: !document.querySelector('#coach').hidden, saved: !!localStorage.getItem('novatria.bones.night') }));
+  assert.deepEqual(S, { cur: 'table', phase: 'table', hour: 0, lesson: false, cash: 80, coach: true, saved: true });
+  assert.equal(await page.isVisible('#lesson'), false);
+});
+
+s.test('the practice hand through its own buttons at 390x780 and 360x640, in both themes: every step readable, nothing covered or clipped, no overflow', async h => {
+  for (const theme of ['dark', 'parchment']) {
+    for (const [width, height] of [[390, 780], [360, 640]]) {
+      const page = await open(h, { viewport: { width, height } });
+      await page.evaluate(t => { localStorage.setItem('novatria.bones.settings', JSON.stringify({ v: 1, theme: t })); }, theme);
+      await page.reload();
+      await page.waitForFunction(() => window.Game && Game.App);
+      await page.evaluate(() => { Game.App.speed = 0; });
+      assert.equal(await page.getAttribute('html', 'data-theme'), theme);
+      await page.click('#btn-learn');
+      const seen = [];
+      for (let i = 0; i < 20; i++) {
+        const now = await lessonNow(page);
+        assert.ok(now.on && (now.ready || now.end), `${theme} ${width}x${height}: waiting at ${now.step}`);
+        const lay = await page.evaluate(LESSON_LAYOUT);
+        assert.deepEqual(lay.bad, [], `${theme} ${width}x${height} step ${lay.step}: ${JSON.stringify(lay)}`);
+        assert.deepEqual(await overflowReport(page, width), [], `${theme} ${width}x${height} step ${now.step}`);
+        assert.equal(await page.evaluate(() => Game.UI.Screens.cur), 'table');
+        const words = (await page.evaluate(() => (document.querySelector('#lesson-text') || {}).textContent || '')).split(/\s+/).length;
+        assert.ok(words <= 30, `${now.step}: ${words} words`);
+        if (!now.end) assert.ok(await page.isVisible('#btn-lesson-skip'), 'Skip the lesson at every step');
+        seen.push(now.step);
+        if (now.end) break;
+        await lessonMove(page);
+      }
+      assert.deepEqual(seen, LESSON_STEPS, `${theme} ${width}x${height}`);
+    }
+  }
+});
+
+s.test('the practice hand teaches what it says: at step B exactly the 3s and 1s are lit with a tally of five; the asked-for button is the only live one; the Count it quotes is the engine\'s', async h => {
+  const page = await open(h);
+  await page.evaluate(() => { Game.App.speed = 0; });
+  await page.click('#btn-learn');
+  const texts = {};
+  const live = () => page.evaluate(() => [...document.querySelectorAll('#actions button')].filter(b => !b.disabled && b.offsetParent !== null).map(b => b.id || b.className));
+  for (let i = 0; i < 20; i++) {
+    const now = await lessonNow(page);
+    texts[now.step] = await page.evaluate(() => (document.querySelector('#lesson-text') || {}).textContent || '');
+    if (now.step === 'a') {
+      // Every cup open: the others' dice face up, none down, which the game never shows outside a reveal.
+      const cups = await page.evaluate(() => [...document.querySelectorAll('.seat')].map(s => ({ open: s.querySelector('.tray').hasAttribute('data-open'), faces: [...s.querySelectorAll('.tray .die')].map(d => +d.dataset.face) })));
+      assert.deepEqual(cups, [{ open: true, faces: [3, 1, 6] }, { open: true, faces: [2, 5, 4] }]);
+      assert.equal(await page.evaluate(() => document.querySelectorAll('.seat .tray .die[data-down]').length), 0);
+      assert.equal(await page.getAttribute('#mycup', 'data-faces'), '3,3,1');
+      assert.deepEqual(await page.evaluate(() => Game.Engine.view(Game.App.state).table.cups), [[3, 3, 1], [3, 1, 6], [2, 5, 4]]);
+    }
+    if (now.step === 'b') assert.match(await page.getAttribute('#bid', 'aria-label'), /four 3s, bid by Glenda/);
+    if (now.step === 'b2') {
+      const lit = await page.evaluate(() => {
+        const cup = n => [...n.querySelectorAll('.die')].filter(d => !d.hasAttribute('data-empty')).map(d => ({ f: +d.dataset.face, hit: d.hasAttribute('data-hit'), dim: d.hasAttribute('data-dim') }));
+        return { seats: [...document.querySelectorAll('.seat .tray')].map(cup), mine: cup(document.querySelector('#mycup .cupdice')), tally: document.querySelector('#bid .count-num').textContent, mode: document.querySelector('#bid').dataset.mode, tallied: document.querySelector('#bid').dataset.tally };
+      });
+      const all = lit.seats.flat().concat(lit.mine);
+      assert.equal(all.length, 9);
+      all.forEach(d => assert.equal(d.hit, d.f === 3 || d.f === 1, JSON.stringify(d)));
+      all.filter(d => !d.hit).forEach(d => assert.ok(d.dim, 'the rest dimmed: ' + JSON.stringify(d)));
+      assert.equal(all.filter(d => d.hit).length, 5);
+      assert.deepEqual([lit.tally, lit.tallied, lit.mode], ['5', '5', 'count']);
+      assert.match(texts.b2, /five/);
+    }
+    if (now.step === 'c' || now.step === 'd4') {
+      assert.deepEqual(await live(), ['btn-liar'], now.step);
+      assert.ok(await page.evaluate(() => document.querySelector('#btn-liar').hasAttribute('data-point')));
+    }
+    if (now.step === 'd3') {
+      assert.deepEqual(await live(), ['btn-bid'], 'only Bid');
+      assert.deepEqual(await page.evaluate(() => [Game.UI.Picker.q, Game.UI.Picker.f, document.querySelector('#q-val').textContent]), [4, 5, '4']);
+    }
+    if (['a', 'b', 'b2', 'c2', 'd', 'd2', 'e', 'e2'].includes(now.step)) {
+      assert.deepEqual(await live(), ['btn-lesson-next'], now.step);
+      assert.equal(await page.isVisible('#btn-liar'), false, 'Next stands where the calls are');
+    }
+    if (now.step === 'd2' || now.step === 'd3' || now.step === 'd4') {
+      const c = await page.evaluate(() => { const S = Game.App.state, b = Game.Engine.view(S).table.bid; return { engine: Game.Engine.count(S, b.q, b.f), q: b.q, f: b.f, shown: +document.querySelector('#countbar').dataset.count, label: document.querySelector('#countbar .lbl b').textContent }; });
+      assert.equal(c.shown, Math.round(c.engine * 100), now.step);
+      const pct = c.engine > 0 && c.engine < 0.005 ? '<1%' : c.engine < 1 && c.engine > 0.995 ? '>99%' : Math.round(c.engine * 100) + '%';
+      assert.equal(c.label, pct);
+      if (now.step !== 'd2') assert.ok(texts[now.step].includes(pct), `${now.step} quotes ${pct}: ${texts[now.step]}`);
+      if (now.step === 'd3') { assert.deepEqual([c.q, c.f], [2, 5]); assert.ok(c.engine >= 0.9, 'clearly high'); }
+      if (now.step === 'd4') { assert.deepEqual([c.q, c.f], [7, 5]); assert.ok(c.engine <= 0.15, 'clearly low'); }
+    }
+    if (now.step === 'd4') {
+      // A move the step did not ask for changes nothing (a key, or a call sent past the dead buttons).
+      const before = await page.evaluate(() => JSON.stringify(Game.App.state));
+      await page.keyboard.press('s');
+      await page.evaluate(() => Game.App.act({ t: 'spot' }));
+      await page.evaluate(() => Game.App.act({ t: 'bid', q: 8, f: 5 }));
+      assert.equal(await page.evaluate(() => JSON.stringify(Game.App.state)), before);
+      assert.deepEqual(await live(), ['btn-liar'], 'still only Liar');
+    }
+    if (now.step === 'e') {
+      const hb = await page.evaluate(() => { const s = document.querySelector('.seat[data-id="npc_gerald"] .habit'); return { text: s.textContent, ring: s.hasAttribute('data-point') }; });
+      assert.deepEqual(hb, { text: 'turns down the scanner', ring: true });
+      assert.match(texts.e, /only four/);
+    }
+    if (now.step === 'e2') assert.match(await page.textContent('#bookline'), /Gerald turns down the scanner · seen 1 time: 1 bluff, 0 straight/);
+    if (now.end) break;
+    await lessonMove(page);
+  }
+  assert.ok(await page.isVisible('#btn-lesson-real'));
+  assert.ok(await page.isVisible('#btn-lesson-back'));
+  assert.match(await page.textContent('.sheet .lesson-end'), /That’s the whole game.*Count low: think Liar\. Otherwise raise\..*\$100.*\$500 by Last Call/);
+});
+
+s.test('the practice hand touches nothing: cash, the Book, the ledger and a saved night are as they were, finished or skipped; then home says Sit down, and Sit down for real deals a normal night', async h => {
+  // A player with a night in progress and a Book.
+  const page = await open(h);
+  await startNight(page, { seed: 'before-lesson' });
+  await playOut(page, { until: () => { const v = Game.App.view(); return v.phase === 'table' && v.table.wait === 'turn' && v.table.history.length >= 2 && !!Game.Book.data; } });
+  await page.evaluate(() => Game.App.home());
+  const keys = ['novatria.bones.night', 'novatria.bones.book', 'novatria.bones.ledger'];
+  const snap = () => page.evaluate(k => k.map(x => localStorage.getItem(x)).concat([JSON.stringify(Game.Book.data), JSON.stringify(Game.Ledger.data)]), keys);
+  const before = await snap();
+  assert.ok(before[0] && before[1], 'a saved night and a Book to keep');
+  const savedS = JSON.stringify(JSON.parse(before[0]).S);
+  // Finished, from How it works.
+  await page.click('#home-how summary');
+  await page.click('#btn-replay-lesson');
+  await page.evaluate(() => { Game.App.speed = 0; });
+  for (let i = 0; i < 20 && !(await lessonNow(page)).end; i++) await lessonMove(page);
+  assert.ok((await lessonNow(page)).end);
+  assert.deepEqual(await snap(), before, 'nothing kept from a finished lesson');
+  await page.click('#btn-lesson-back');
+  assert.equal(await page.evaluate(() => Game.UI.Screens.cur), 'home');
+  await page.click('#btn-continue');
+  assert.equal(await page.evaluate(() => JSON.stringify(Game.App.state)), savedS, 'the night picks up exactly where it was');
+  assert.equal(await page.textContent('#cash'), '$' + JSON.parse(savedS).cash);
+  // Skipped halfway, from the table menu of that night.
+  await page.click('#btn-menu');
+  await page.click('#btn-menu-lesson');
+  await page.evaluate(() => Game.App.idle());
+  for (let i = 0; i < 4; i++) await lessonMove(page);
+  assert.equal((await lessonNow(page)).step, 'c2');
+  await page.click('#btn-lesson-skip');
+  assert.equal(await page.evaluate(() => Game.UI.Screens.cur), 'home');
+  assert.deepEqual(await snap(), before, 'nothing kept from a skipped lesson');
+  // A new player: finish it, and home offers Sit down; skip it (another new player), the same.
+  for (const how of ['finish', 'skip']) {
+    const p2 = await open(h);
+    await p2.evaluate(() => { Game.App.speed = 0; });
+    const fresh = await p2.evaluate(k => k.map(x => localStorage.getItem(x)), keys);
+    await p2.click('#btn-learn');
+    if (how === 'finish') { for (let i = 0; i < 20 && !(await lessonNow(p2)).end; i++) await lessonMove(p2); await p2.click('#btn-lesson-back'); }
+    else { await lessonMove(p2); await p2.click('#btn-lesson-skip'); }
+    assert.deepEqual(await p2.evaluate(k => k.map(x => localStorage.getItem(x)), keys), fresh, how);
+    assert.equal(await p2.evaluate(() => JSON.parse(localStorage.getItem('novatria.bones.settings')).lesson), how === 'finish' ? 'done' : 'skipped');
+    const home = await p2.evaluate(() => ({ cur: Game.UI.Screens.cur, learn: !!document.querySelector('#btn-learn'), sit: document.querySelector('#btn-sit').className, text: document.querySelector('#btn-sit').textContent, first: document.querySelector('.cta .btn').id, replay: !!document.querySelector('#btn-replay-lesson') }));
+    assert.deepEqual(home, { cur: 'home', learn: false, sit: 'btn primary big', text: 'Sit down', first: 'btn-sit', replay: true }, how);
+    await p2.reload();
+    await p2.waitForFunction(() => window.Game && Game.App);
+    assert.equal(await p2.evaluate(() => document.querySelector('.cta .btn').id), 'btn-sit', 'and across a reload');
+  }
+  // "Sit down for real" at the end of the lesson: a normal first night, dealt straight in at 9 PM.
+  const p3 = await open(h);
+  await p3.evaluate(() => { Game.App.speed = 0; });
+  await p3.click('#btn-learn');
+  for (let i = 0; i < 20 && !(await lessonNow(p3)).end; i++) await lessonMove(p3);
+  await p3.click('#btn-lesson-real');
+  await p3.evaluate(() => Game.App.idle());
+  const real = await p3.evaluate(() => { const S = Game.App.state; return { lesson: !!S.lesson, seed: S.seed, phase: S.phase, hour: S.hour, kind: S.table.kind, cash: S.cash, attr: document.querySelector('#screen-table').hasAttribute('data-lesson'), cashShown: getComputedStyle(document.querySelector('#cash')).display !== 'none', on: Game.UI.Lesson.on, saved: !!localStorage.getItem('novatria.bones.night'), hourText: document.querySelector('#t-hour').textContent }; });
+  assert.equal(real.lesson, false);
+  assert.notEqual(real.seed, 'lesson');
+  assert.deepEqual([real.phase, real.hour, real.kind, real.cash, real.attr, real.cashShown, real.on, real.saved], ['table', 0, 'easy', 80, false, true, false, true]);
+  assert.match(real.hourText, /9 PM/);
+  assert.equal(await p3.evaluate(() => Game.Engine.view(Game.App.state).table.cups), null, 'no open cups in a real night');
+  assert.deepEqual(await p3.evaluate(CHECK), []);
+  await playOut(p3, { check: true, until: () => Game.App.state.phase !== 'table' });
+});
+
+s.test('a reload mid-lesson lands on the home screen, clean; leaving by the menu does too', async h => {
+  const page = await open(h);
+  await page.evaluate(() => { Game.App.speed = 0; });
+  await page.click('#btn-learn');
+  for (let i = 0; i < 6; i++) await lessonMove(page);
+  assert.equal((await lessonNow(page)).step, 'd2');
+  await page.reload();
+  await page.waitForFunction(() => window.Game && Game.App);
+  const home = await page.evaluate(() => ({ cur: Game.UI.Screens.cur, state: Game.App.state, learn: !!document.querySelector('#btn-learn'), cont: !!document.querySelector('#btn-continue'), night: localStorage.getItem('novatria.bones.night'), book: localStorage.getItem('novatria.bones.book'), on: Game.UI.Lesson.on, attr: document.querySelector('#screen-table').hasAttribute('data-lesson') }));
+  assert.deepEqual(home, { cur: 'home', state: null, learn: true, cont: false, night: null, book: null, on: false, attr: false });
+  // The menu's way out, mid-animation.
+  await page.evaluate(() => { Game.App.speed = 1; });
+  await page.click('#btn-learn');
+  await page.waitForFunction(() => Game.UI.Lesson.ready);
+  await page.click('#btn-lesson-next');
+  await page.click('#btn-menu');
+  assert.equal(await page.textContent('#btn-leave-table'), 'Leave the lesson');
+  await page.click('#btn-leave-table');
+  await page.evaluate(() => Game.App.idle());
+  assert.deepEqual(await page.evaluate(() => ({ cur: Game.UI.Screens.cur, state: Game.App.state, on: Game.UI.Lesson.on, learn: !!document.querySelector('#btn-learn') })), { cur: 'home', state: null, on: false, learn: true });
+  await page.waitForTimeout(400);
+  assert.equal(await page.evaluate(() => Game.UI.Screens.cur), 'home', 'nothing of the lesson plays on behind the home screen');
+});
+
+s.test('the coach after a finished practice hand skips what it taught (your dice, a bid, your move, the Count) and keeps the rest; after a skipped one it is as before', async h => {
+  const page = await open(h);
+  await page.evaluate(() => { Game.App.speed = 0; });
+  await page.click('#btn-learn');
+  for (let i = 0; i < 20 && !(await lessonNow(page)).end; i++) await lessonMove(page);
+  await page.click('#btn-lesson-real');
+  await page.evaluate(() => Game.App.idle());
+  const seen = () => { const c = document.querySelector('#coach'); if (c && !c.hidden) { (window.__tips = window.__tips || []).push(c.dataset.tip); document.querySelector('#btn-tip-ok').click(); } return Game.App.state.phase !== 'table'; };
+  await playOut(page, { until: seen });
+  const tips = await page.evaluate(() => window.__tips || []);
+  ['dice', 'bid', 'turn', 'count'].forEach(id => assert.ok(!tips.includes(id), `${id} not repeated: ${tips}`));
+  assert.ok(tips.includes('habit'), 'the habits tip is kept: ' + tips);
+  if (await page.evaluate(() => Game.App.state.phase === 'choose')) assert.match(await page.textContent('#first-hint'), /near table is cheaper and softer/);
+  // Skipped: the coach starts as it always has, with your dice.
+  const p2 = await open(h);
+  await p2.evaluate(() => { Game.App.speed = 0; });
+  await p2.click('#btn-learn');
+  await p2.click('#btn-lesson-skip');
+  await p2.click('#btn-sit');
+  await p2.evaluate(() => Game.App.idle());
+  assert.equal(await p2.getAttribute('#coach', 'data-tip'), 'dice');
 });
 
 s.run();

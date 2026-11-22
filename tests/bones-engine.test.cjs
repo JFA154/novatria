@@ -1101,6 +1101,68 @@ test('summary, share line, Pearl\'s column, prompt facts and barks', () => {
   deq(b1, b2);
 });
 
+// ===================================================================== the practice hand
+test('the practice hand: set cups and set moves, the first round open, no money, the same every time', () => {
+  const { S, events } = E.lesson();
+  assert.strictEqual(S.lesson, true);
+  deq(events.map(e => e.t), ['sit', 'roll', 'bid', 'bid', 'wait']);
+  const sit = events[0], roll = events[1];
+  deq(sit.seats.map(x => x.id), ['me', 'npc_glenda', 'npc_gerald']);
+  deq([sit.buyIn, sit.ante, sit.pot, sit.lesson], [0, 0, 0, true]);
+  deq(roll.mine, [3, 3, 1]);
+  deq(roll.cups, [[3, 3, 1], [3, 1, 6], [2, 5, 4]]);
+  deq(events.filter(e => e.t === 'bid').map(e => [e.who, e.q, e.f, e.habit]), [[1, 4, 3, null], [2, 6, 3, null]]);
+  const v = E.view(S).table;
+  deq(v.cups, roll.cups, 'round one: every cup open');
+  assert.strictEqual(v.wait, 'turn');
+  // Liar on six 3s: there are five (the 1s count), Gerald loses a die, and no money moves.
+  const ev2 = ok(E.act(S, { t: 'liar' }));
+  const rv = find(ev2, 'reveal');
+  deq([rv.count, rv.good, rv.q, rv.f], [5, false, 6, 3]);
+  deq(find(ev2, 'lose'), { t: 'lose', who: 2, id: 'npc_gerald', n: 1, left: 2 });
+  deq(pays(ev2), []);
+  deq(find(ev2, 'readout').bids.map(x => [x.id, x.bluff]), [['npc_glenda', false], ['npc_gerald', true]], 'her bid honest by her cup, his a bluff');
+  assert.strictEqual(S.cash, E.START_CASH);
+  // Round two: Gerald opens, cups shut; two 5s is certain by your 5, 5, 1.
+  const ev3 = ok(E.act(S, { t: 'next' }));
+  const r2 = find(ev3, 'roll');
+  deq(r2.mine, [5, 5, 1]);
+  assert.strictEqual(r2.cups, undefined);
+  assert.strictEqual(E.view(S).table.cups, null, 'round two: shut');
+  assert.strictEqual(r2.opener, 2);
+  deq(all(ev3, 'bid').map(e => [e.who, e.q, e.f]), [[2, 2, 5]]);
+  assert.strictEqual(E.count(S, 2, 5), 1);
+  ok(E.act(S, { t: 'bid', q: 4, f: 5 }));
+  const b = E.view(S).table.bid, h = E.view(S).table.history.slice(-1)[0].habit;
+  deq([b.who, b.q, b.f], [2, 7, 5]);
+  assert.ok(E.count(S, 7, 5) <= 0.15 && E.count(S, 7, 5) > 0, 'clearly low: ' + E.count(S, 7, 5));
+  assert.strictEqual(h.i, SIM.person('npc_gerald').tell, 'the habit with the bluff is his tell');
+  const ev5 = ok(E.act(S, { t: 'liar' }));
+  deq([find(ev5, 'reveal').count, find(ev5, 'reveal').good], [4, false]);
+  assert.ok(find(ev5, 'readout').bids.find(x => x.id === 'npc_gerald' && x.q === 7).bluff);
+  assert.strictEqual(S.cash, E.START_CASH);
+  // Pure: the same every time, a JSON copy plays on the same, and the moves are the script's only while they fit.
+  deq(E.lesson(), E.lesson());
+  const A = E.lesson().S, Bc = J(A);
+  deq(E.act(A, { t: 'liar' }), E.act(Bc, { t: 'liar' }));
+  const off = E.lesson().S;
+  ok(E.act(off, { t: 'bid', q: 7, f: 3 }));                 // off the script: the bots take over, legally
+  assert.ok(['turn', 'next'].includes(E.legal(off).need));
+});
+
+test('the practice hand leaves real nights alone: no open cups, no lesson flag, no script', () => {
+  for (let i = 0; i < 40; i++) {
+    const { S, events } = E.playNight('nolesson' + i, null, { keepEvents: true });
+    assert.ok(!S.lesson);
+    all(events, 'roll').forEach(e => assert.strictEqual(e.cups, undefined));
+    all(events, 'sit').forEach(e => assert.strictEqual(e.lesson, undefined));
+  }
+  const S = rig({ dice: [[3, 3, 1], [3, 1, 6], [2, 5, 4]] });
+  assert.strictEqual(E.view(S).table.cups, null);
+  // Engine.LESSON is data for the page and never names the tell.
+  assert.ok(!JSON.stringify(E.LESSON).includes('"habit":0') && JSON.stringify(E.LESSON).includes('"habit":"tell"'));
+});
+
 // ===================================================================== smoke
 test('a few hundred nights finish without throwing and with sane distributions', () => {
   const end = { house: 0, cleaned: 0, walked: 0, bust: 0 }, rounds = [];
