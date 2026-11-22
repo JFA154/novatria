@@ -11,7 +11,9 @@
    and the ledger; Claude against a stand-in API (Pearl's column and table
    talk, a refused key and a failure, no key no call); the first-night coach,
    and its tips about the people kept off their seats at 390x780 and 360x640;
-   phone widths in both themes, and nothing clipped at 390x640.
+   phone widths in both themes, and nothing clipped at 390x640; the table's layout
+   measured from 320x568 up with the most tricks, the longest names and every moment
+   (nothing overlaps, the felt holds its content, the controls stay put).
    Run with: node tests/run.cjs bones.test   (or node tests/bones.test.cjs) */
 const fs = require('fs');
 const path = require('path');
@@ -1160,6 +1162,184 @@ s.test('the coach after a finished practice hand skips what it taught (your dice
   await p2.click('#btn-sit');
   await p2.evaluate(() => Game.App.idle());
   assert.equal(await p2.getAttribute('#coach', 'data-tip'), 'dice');
+});
+
+// ===================================================================== the table's layout, by measurement
+/* A table set as asked, after startNight (the tricks): o = { opps (2|3), rule, long (the longest names and habit
+   lines in the cast), moment: 'turn' (a bid on the table, a habit under every opponent) | 'open' | 'theirs' (an
+   opponent thinking) | 'reveal' (Liar called: What they had) | 'side' (the Side Bet prompt) | 'dealt', nod, coach, css }.
+   The night is the engine's; only its round is set by hand, as the Loaded Six test does. */
+const TABLE_SCENE = async o => {
+  const A = Game.App, E = Game.Engine;
+  if (o.css) document.head.append(Object.assign(document.createElement('style'), { textContent: o.css }));
+  let S = A.state;
+  S.hour = o.hour === undefined ? 1 : o.hour; S.cash = 400;
+  if (S.phase === 'choose') await A.act({ t: 'sit', i: o.opps === 3 ? 1 : 0 });
+  await A.idle();
+  // Bots that open may play a round out before your turn: deal again until a round is live.
+  for (let g = 0; g < 12 && A.state.table.wait === 'next'; g++) { await A.act({ t: 'next' }); await A.idle(); }
+  S = A.state;
+  const T = S.table, R = T.round, n = T.seats.length;
+  if (!R) throw new Error('no live round');
+  if (o.rule !== undefined) T.rule = o.rule;
+  const longHabits = E.PEOPLE.flatMap(p => p.habits.map((text, i) => ({ text, i }))).sort((a, b) => b.text.length - a.text.length);
+  if (o.long) { const names = E.PEOPLE.filter(p => p.id !== 'npc_loretta').sort((a, b) => b.first.length - a.first.length); T.seats.forEach((s, k) => { if (k) s.id = names[k - 1].id; }); }
+  if (o.ids) T.seats.forEach((s, k) => { if (k && o.ids[k - 1]) s.id = o.ids[k - 1]; });
+  const habitFor = k => { const p = E.PEOPLE.find(x => x.id === T.seats[k].id); if (o.habits) return { i: Math.max(0, p.habits.indexOf(o.habits[k - 1])), text: o.habits[k - 1], line: '', underline: false }; const h = o.long ? longHabits[k - 1] : { text: p.habits[0], i: 0 }; return { i: h.i, text: h.text, line: '', underline: false }; };
+  if (['turn', 'reveal', 'theirs', 'side'].includes(o.moment)) {
+    const bids = [];
+    for (let k = 1; k < n; k++) bids.push({ who: k, q: 2 + k, f: k === n - 1 ? 5 : 2 + k, p: 0.4, held: 1, bluff: false, habit: habitFor(k) });
+    if (o.moment === 'theirs') bids.pop();
+    R.bids = bids; R.opener = 1; R.turn = o.moment === 'theirs' ? n - 1 : 0;
+    T.wait = o.moment === 'theirs' ? null : o.moment === 'side' ? 'side' : 'turn';
+    if (o.moment === 'side') R.call = { caller: 1, kind: 'liar' };
+  } else if (o.moment === 'open') { R.bids = []; R.turn = 0; R.opener = 0; T.wait = 'turn'; }
+  Game.UI.TV.key = ''; Game.UI.Screens.render();
+  await A.idle();
+  if (o.moment === 'theirs') { const st = Game.UI.TV.seats[n - 1]; st.setTurn(true); st.thinking(); }
+  if (o.nod) { await A.act({ t: 'use', id: 'nod' }); await A.idle(); }
+  if (o.moment === 'reveal') { await A.act({ t: 'liar' }); await A.idle(); }
+  if (o.coach) { const St = Game.UI.Settings, C = Game.UI.Coach; St.tipsDone = false; St.tipsSeen = []; St.lesson = null; C.on = true; C.queue = []; C.hide(); C.want(o.coach); }
+  // Two frames: a habit line or a bubble that changed size is fitted on the next frame.
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+  return { wait: A.state.table.wait, coach: !document.querySelector('#coach').hidden, fit: document.querySelector('#table').dataset.fit, scrolls: document.querySelector('#table').hasAttribute('data-scrolls') };
+};
+/* Every rule of the table screen by bounding boxes: your dice, the cup's labels, the Count and the habit line inside
+   the felt; the seats, the felt, the chips, the log and the controls apart; nothing clipped by its own box; no
+   sideways scroll; tap targets 44 px (a ::before hit area counted); and, if the area above the controls had to
+   scroll, your dice and the Count in view. */
+const TABLE_LAYOUT = () => {
+  const bad = [], W = innerWidth, H = innerHeight, q = s => document.querySelector(s), qa = s => [...document.querySelectorAll(s)];
+  const vis = n => n && n.offsetParent !== null && getComputedStyle(n).visibility !== 'hidden' && n.getClientRects().length;
+  const R = n => n.getBoundingClientRect();
+  const inside = (a, b, tol) => a.left >= b.left - tol && a.right <= b.right + tol && a.top >= b.top - tol && a.bottom <= b.bottom + tol;
+  const meet = (a, b) => Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5;
+  const nm = n => n.id ? '#' + n.id : n.className ? '.' + String(n.className).split(' ')[0] : n.tagName;
+  // The area above the controls may scroll as a last resort: measure what it holds as if unscrolled.
+  const up = q('#upper');
+  const felt = q('#felt'), F = R(felt);
+  // 1. In the felt: your dice, the cup's labels, the Count, the habit line, the bid, the info line.
+  ['#mycup .cupdice .die', '#mycup .cupcap > span', '#countbar', '#countbar .lbl', '#bookline', '#bid', '#infoline', '.felt-tags > *'].forEach(sel => qa(sel).forEach(n => {
+    if (!vis(n)) return;
+    if (!inside(R(n), F, 0.5)) bad.push(`${sel} outside the felt (${Math.round(R(n).top)}..${Math.round(R(n).bottom)} vs felt ${Math.round(F.top)}..${Math.round(F.bottom)})`);
+  }));
+  // The habit line, one line with an ellipsis or wrapped and whole.
+  // 2. The bands of the table do not meet.
+  // What is inside the area above the controls is seen through it (it scrolls as a last resort).
+  const seen = n => { const r = R(n); if (!up || !up.contains(n)) return r; const u = R(up); const top = Math.max(r.top, u.top), bottom = Math.min(r.bottom, u.bottom); return { left: r.left, right: r.right, top, bottom: Math.max(top, bottom) }; };
+  const bands = ['#seats', '#felt', '#tricks', '#log', '#actions'].map(s => q(s)).filter(vis);
+  for (let i = 0; i < bands.length; i++) for (let j = i + 1; j < bands.length; j++) if (meet(seen(bands[i]), seen(bands[j]))) bad.push(`${nm(bands[i])} meets ${nm(bands[j])}`);
+  // The seats hold their own: each piece of a seat inside the strip, and the seats apart.
+  const SS = R(q('#seats'));
+  qa('#seats .seat > *').forEach(n => { if (vis(n) && !inside(R(n), SS, 0.5)) bad.push(`${n.className.split(' ')[0]} outside the seats strip`); });
+  const seats = qa('#seats .seat').filter(vis);
+  for (let i = 0; i + 1 < seats.length; i++) if (meet(R(seats[i]), R(seats[i + 1]))) bad.push('seats meet');
+  // The controls: on screen, nothing over them, and the sheet / stamps aside, inside the viewport.
+  qa('#actions button, #actions .live').forEach(n => { if (!vis(n)) return; const r = R(n); if (r.top < -0.5 || r.bottom > H + 0.5 || r.left < -0.5 || r.right > W + 0.5) bad.push(`${n.id || nm(n)} off screen`); });
+  // 3. Nothing clipped by its own box (the chip row scrolls sideways by design; ellipsis lines are marked).
+  const clipSel = ['#felt', '#seats', '.seat', '.seat-name', '.seat-ledger', '.tray', '.bubble', '#bid', '.bid-main', '.bid-word', '.bid-line', '#countbar .lbl', '#bookline', '#infoline', '#mycup', '.cupdice', '.cupcap', '#actions', '.calls', '.call', '.faces', '.bidrow', '.live .what', '.live .pct', '.bar', '.bar .btn', '.sidebet', '.trick', '.sheet', '.had-row', '.coach', '.felt-tags', '.ruletag', '.anteTag'];
+  // (a transparent hit area drawn past a small button's edge, the house rule's tag, is not content: left out here)
+  const nohit = document.head.appendChild(Object.assign(document.createElement('style'), { textContent: '.ruletag::before { display: none !important; }' }));
+  clipSel.forEach(sel => qa(sel).forEach(n => {
+    if (!vis(n)) return;
+    const cs = getComputedStyle(n);
+    if (n.classList.contains('sheet') && n.scrollHeight > n.clientHeight + 1 && cs.overflowY === 'auto') return; // the sheet scrolls by design
+    if (n.scrollWidth > n.clientWidth + 1 && cs.textOverflow !== 'ellipsis') bad.push(`${sel} clipped sideways ${n.scrollWidth} > ${n.clientWidth}`);
+    if (n.scrollHeight > n.clientHeight + 1 && cs.overflowY !== 'auto') bad.push(`${sel} clipped ${n.scrollHeight} > ${n.clientHeight}`);
+  }));
+  nohit.remove();
+  // An ellipsis line keeps its full text for a long press / a screen reader.
+  qa('.seat .habit').forEach(n => { if (vis(n) && n.scrollWidth > n.clientWidth + 1 && n.title !== n.textContent) bad.push('a clamped habit line without its title'); });
+  // 4. No sideways page scroll.
+  const de = document.documentElement;
+  if (de.scrollWidth > W + 1 || document.body.scrollWidth > W + 1) bad.push(`page scrolls sideways ${de.scrollWidth}`);
+  const clippedBy = n => { for (let a = n.parentElement; a && a.id !== 'screen-table'; a = a.parentElement) { const cs = getComputedStyle(a); if (a.id !== 'upper' && (cs.overflowX !== 'visible' || cs.textOverflow === 'ellipsis')) return a; } return null; };
+  qa('#screen-table *').forEach(n => { if (!vis(n) || n.closest('#tricks, .sheet, .coach, .stamp-layer, #bookside, dialog')) return; const a = clippedBy(n); const r = a ? R(a) : R(n); if (r.right > W + 1 || r.left < -1) bad.push(`${nm(n)} past the screen edge`); });
+  // 5. Tap targets: 44 px, counting a ::before hit area.
+  const hit = n => { const r = R(n), b = getComputedStyle(n, '::before'); let h = r.height, w = r.width; if (b.content !== 'none' && b.position === 'absolute') { const t = -parseFloat(b.top) || 0, bo = -parseFloat(b.bottom) || 0, l = -parseFloat(b.left) || 0, ri = -parseFloat(b.right) || 0; h += Math.max(0, t) + Math.max(0, bo); w += Math.max(0, l) + Math.max(0, ri); } return { h, w }; };
+  qa('#screen-table button, .sheet button').forEach(n => { if (!vis(n) || n.closest('#bookside')) return; const s = hit(n); if (s.h < 43.5) bad.push(`${n.id || nm(n)} ${Math.round(s.h)}px tall`); });
+  if (q('#felt').scrollHeight > q('#felt').clientHeight + 1) bad.push('felt overflows');
+  const scrolls = up ? up.scrollHeight > up.clientHeight + 1 : false;
+  if (scrolls) { const U = R(up); ['#mycup .cupdice .die', '#countbar'].forEach(sel => qa(sel).forEach(n => { if (vis(n) && !inside(R(n), U, 0.5)) bad.push(`${sel} scrolled out of view`); })); }
+  const coach = q('#coach'); if (vis(coach)) { const c = R(coach); if (c.top < -0.5 || c.bottom > H + 0.5) bad.push('coach off screen'); }
+  const sheet = q('.sheet'); if (vis(sheet)) { const c = R(sheet); if (c.top < -0.5 || c.bottom > H + 0.5) bad.push('sheet off screen'); }
+  return { bad: [...new Set(bad)], scrolls, fit: q('#table').dataset.fit || '-' };
+};
+const NAMED = { ids: ['npc_nadine', 'npc_royce'], habits: ['pushes her reading glasses up into her curls', 'laughs to fill the silence'] };
+const INFO5 = ['ledger', 'mirror', 'barmirror', 'glasses', 'nod'];
+const LAYOUT_CELLS = [
+  // The reported case: 10 PM, two opponents, Lyman's Ledger and Mirror Ring, your turn, a bid on the table.
+  { vp: [430, 760], tricks: ['ledger', 'mirror'], o: Object.assign({ opps: 2, moment: 'turn' }, NAMED) },
+  // The same in the hosted copy: 760 px of frame in a taller window (the host's inset taken off the page).
+  { vp: [430, 794], tricks: ['ledger', 'mirror'], o: Object.assign({ opps: 2, moment: 'turn', css: 'html { padding-bottom: 34px; } #app { height: 100%; }' }, NAMED) },
+  { vp: [430, 760], tricks: INFO5, o: { opps: 3, rule: 'double', moment: 'turn', long: true, nod: true } },
+  { vp: [430, 932], tricks: ['double', 'glasses', 'nod', 'ledger', 'sidebet'], o: { opps: 3, rule: 'double', moment: 'turn', long: true } },
+  { vp: [1100, 800], tricks: INFO5, o: { opps: 3, rule: 'double', moment: 'turn', long: true } }
+];
+for (const vp of [[320, 568], [360, 640]]) {
+  LAYOUT_CELLS.push(
+    { vp, tricks: ['ledger', 'mirror'], o: { opps: 2, moment: 'turn', long: true } },
+    { vp, tricks: INFO5, o: { opps: 3, rule: 'double', moment: 'turn', long: true, nod: true } },
+    { vp, tricks: ['double', 'glasses', 'nod', 'ledger', 'sidebet'], o: { opps: 3, rule: 'double', moment: 'turn', long: true } },
+    { vp, tricks: ['loaded'], o: { opps: 3, rule: 'double', moment: 'turn', long: true, hour: 2 } },
+    { vp, tricks: ['slowroll'], o: { opps: 3, rule: 'double', moment: 'dealt' } },
+    { vp, tricks: ['palm', 'sidebet'], o: { opps: 3, rule: 'double', moment: 'side', long: true } },
+    { vp, tricks: ['ledger', 'mirror'], o: { opps: 3, rule: 'double', moment: 'open', long: true } },
+    { vp, tricks: ['ledger', 'mirror'], o: { opps: 2, moment: 'theirs', long: true } },
+    { vp, tricks: INFO5, o: { opps: 3, rule: 'double', moment: 'reveal', long: true } },
+    { vp, tricks: ['ledger', 'mirror'], o: { opps: 2, moment: 'turn', long: true, coach: 'turn' } },
+    { vp, tricks: ['ledger', 'mirror'], o: { opps: 3, moment: 'turn', long: true, coach: 'habit' } });
+}
+
+s.test('the table never overlaps itself: with any tricks, names and moment, from 320x568 up, both themes, measured; the felt holds what it holds and the controls stay put', async h => {
+  const scrolled = [];
+  for (const theme of ['dark', 'parchment']) {
+    const byVp = new Map();
+    LAYOUT_CELLS.forEach(c => { const k = c.vp.join('x'); if (!byVp.has(k)) byVp.set(k, []); byVp.get(k).push(c); });
+    for (const [k, cells] of byVp) {
+      // One page per window: a cell's css stays, so a cell with css gets its own page.
+      for (const c of cells) {
+        if (c.page) continue;
+        const page = await withTheme(h, theme, { width: c.vp[0], height: c.vp[1] });
+        for (const d of cells.filter(x => !x.page && (!!x.o.css === !!c.o.css))) {
+          d.page = true;
+          const label = `${theme} ${k} ${d.tricks.join('+') || 'no tricks'} ${d.o.opps}o ${d.o.moment}${d.o.coach ? ' coach:' + d.o.coach : ''}`;
+          await startNight(page, { seed: 'fit-' + label, tricks: d.tricks });
+          const st = await page.evaluate(TABLE_SCENE, d.o).catch(e => { throw new Error(label + ": " + e.message); });
+          if (d.o.coach) assert.ok(st.coach, 'the coach tip is up: ' + label);
+          if (d.o.moment === 'side') assert.equal(st.wait, 'side', label);
+          const m = await page.evaluate(TABLE_LAYOUT);
+          assert.deepEqual(m.bad, [], label);
+          if (m.scrolls) scrolled.push(label);
+          // The reported case fits without the last resort.
+          if (k === '430x760' || k === '430x794') assert.equal(m.scrolls, false, 'no scrolling at 430x760: ' + label);
+        }
+        await page.close();
+      }
+      cells.forEach(c => { delete c.page; });
+    }
+  }
+  // Only the 320 px phone with the most on it may need the last resort.
+  assert.ok(scrolled.every(l => / 320x568 | 360x640 /.test(l)), 'scrolled: ' + scrolled.join(' | '));
+});
+
+s.test('the comfortable table (no tricks, 390x780) gives nothing away: no step of the fit, no scrolling, the full-size dice and big word', async h => {
+  for (const theme of ['dark', 'parchment']) {
+    const page = await withTheme(h, theme, { width: 390, height: 780 });
+    await startNight(page, { seed: 'comfy-' + theme });
+    const st = await page.evaluate(TABLE_SCENE, { opps: 2, moment: 'turn' });
+    assert.deepEqual([st.fit, st.scrolls], ['', false], theme);
+    assert.deepEqual((await page.evaluate(TABLE_LAYOUT)).bad, [], theme);
+    const sizes = await page.evaluate(() => ({ die: document.querySelector('#mycup .die').getBoundingClientRect().width, word: parseFloat(getComputedStyle(document.querySelector('.bid-word')).fontSize), log: getComputedStyle(document.querySelector('#log')).display }));
+    assert.deepEqual(sizes, { die: 52, word: 44, log: 'block' }, theme);
+    // Squeezed (a short window), it gives way in order: the seats first, the log, then the felt, then your dice.
+    await page.setViewportSize({ width: 320, height: 568 });
+    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const fit = await page.evaluate(() => document.querySelector('#table').dataset.fit);
+    assert.ok(fit.startsWith('1'), 'the seats give way first: ' + fit);
+    assert.deepEqual((await page.evaluate(TABLE_LAYOUT)).bad, [], theme + ' at 320x568');
+    await page.close();
+  }
 });
 
 s.run();

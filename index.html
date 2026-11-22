@@ -164,11 +164,16 @@ details.card[open] > summary { margin-bottom: 10px; }
 
 /* ===== The table screen (the prototype's) ===== */
 #screen-table.active { display: flex; flex-direction: column; }
-#screen-table { overflow: hidden; }
+#screen-table { overflow: hidden; container: tablescreen / size; }
 .room { position: relative; flex: 1 1 auto; min-height: 0; display: flex; justify-content: center; }
 .table { position: relative; flex: 1 1 0; min-width: 0; min-height: 0; max-width: 760px; display: flex; flex-direction: column; }
+/* Above the controls: the seats, the felt, the chips and the log. When they need more height than there is, they
+   give way in order (Fit, in the script: #table[data-fit] "1" the seats' extras, "2" the bid log, "3" the felt's
+   padding and big word, "4" your dice a size down); only then does this area scroll, the controls staying put. */
+.upper { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.upper::-webkit-scrollbar { display: none; }
 .seats { flex: none; display: grid; grid-template-columns: repeat(var(--n, 3), minmax(0, 1fr)); gap: 4px; padding: 6px 8px 2px; }
-.seat { position: relative; display: grid; justify-items: center; align-content: start; gap: 3px; min-width: 0; padding: 6px 2px 4px; border: 1px solid transparent; border-radius: 14px; background: transparent; cursor: pointer; text-align: center; transition: background-color .25s, border-color .25s, opacity .4s, transform .25s; }
+.seat { position: relative; container-type: inline-size; display: grid; justify-items: center; align-content: start; gap: 3px; min-width: 0; padding: 6px 2px 4px; border: 1px solid transparent; border-radius: 14px; background: transparent; cursor: pointer; text-align: center; transition: background-color .25s, border-color .25s, opacity .4s, transform .25s; }
 .seat[data-turn] { background: var(--surface); border-color: var(--border); transform: translateY(-1px); }
 .seat-face { position: relative; width: var(--seat-face); height: var(--seat-face); border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 2px var(--border); background: var(--surface-2); transition: box-shadow .25s; }
 .seat[data-turn] .seat-face { box-shadow: 0 0 0 3px var(--accent), 0 0 16px color-mix(in srgb, var(--accent) 45%, transparent); }
@@ -179,8 +184,9 @@ details.card[open] > summary { margin-bottom: 10px; }
 .seat[data-out] { opacity: .38; }
 .seat[data-out] .seat-face { filter: grayscale(.8); }
 .seat[data-out] .tray { visibility: hidden; }
-.tray { --s: var(--tray); display: flex; gap: 2px; align-items: center; justify-content: center; max-width: 100%; min-height: calc(var(--tray) + 6px); padding: 3px 5px; border-radius: 8px; background: var(--felt); box-shadow: inset 0 1px 3px var(--shadow); }
-.tray[data-six] { --s: calc(var(--tray) * .86); gap: 1px; padding: 3px 3px; }
+/* --k: the most dice the cup holds tonight; the dice shrink to fit a narrow seat (three faces on a 320 px phone). */
+.tray { --s: min(var(--tray), calc((100cqw - 10px - (var(--k, 5) - 1) * 2px) / var(--k, 5))); display: flex; gap: 2px; align-items: center; justify-content: center; max-width: 100%; min-height: calc(var(--tray) + 6px); padding: 3px 5px; border-radius: 8px; background: var(--felt); box-shadow: inset 0 1px 3px var(--shadow); }
+.tray[data-six] { --s: min(calc(var(--tray) * .86), calc((100cqw - 6px - (var(--k, 6) - 1) * 1px) / var(--k, 6))); gap: 1px; padding: 3px 3px; }
 .bubble { position: relative; display: inline-flex; align-items: center; gap: 5px; min-height: 30px; max-width: 100%; margin-top: 4px; padding: 3px 9px; border-radius: 10px; background: var(--surface-2); font: 600 15px/1 var(--read-font); white-space: nowrap; --s: 18px; }
 .bubble::before { content: ""; position: absolute; top: -5px; left: 50%; width: 10px; height: 10px; margin-left: -5px; background: inherit; transform: rotate(45deg); border-radius: 2px; }
 .bubble[data-empty] { visibility: hidden; }
@@ -196,9 +202,9 @@ details.card[open] > summary { margin-bottom: 10px; }
 .habit { min-height: 2.4em; max-width: 100%; padding: 0 2px; font: italic 13px/1.2 var(--read-font); color: var(--muted); text-align: center; overflow-wrap: anywhere; }
 .habit[data-under] { text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 3px; color: var(--text); }
 
-.felt { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: space-evenly; gap: 4px; margin: 4px 8px 6px; padding: 8px 12px 8px; border: 3px solid var(--felt-edge); border-radius: 22px; background: radial-gradient(ellipse at 50% 35%, var(--felt-hi), var(--felt) 70%); box-shadow: inset 0 2px 14px var(--shadow), 0 1px 0 var(--surface-2); }
-.felt-tags { flex: none; display: flex; justify-content: space-between; align-items: center; gap: 6px; min-height: 26px; margin: -2px -4px 0; }
-.ruletag { position: relative; display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 9px; border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--accent); font: 700 11px/1 var(--ui-font); min-height: 26px; letter-spacing: .06em; text-transform: uppercase; cursor: pointer; }
+.felt { position: relative; flex: 1 0 auto; display: flex; flex-direction: column; justify-content: space-evenly; gap: 4px; margin: 4px 8px 6px; padding: 8px 12px 8px; border: 3px solid var(--felt-edge); border-radius: 22px; background: radial-gradient(ellipse at 50% 35%, var(--felt-hi), var(--felt) 70%); box-shadow: inset 0 2px 14px var(--shadow), 0 1px 0 var(--surface-2); }
+.felt-tags { flex: none; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 6px; min-height: 26px; margin: -2px -4px 0; }
+.ruletag { position: relative; display: inline-flex; align-items: center; gap: 5px; min-height: 28px; padding: 0 9px; border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--accent); font: 700 11px/1 var(--ui-font); min-height: 26px; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; cursor: pointer; }
 .ruletag::before { content: ""; position: absolute; inset: -9px -4px; }
 .ruletag::after { content: "?"; display: inline-grid; place-items: center; width: 14px; height: 14px; border-radius: 50%; border: 1px solid currentColor; font-size: 9px; }
 .anteTag { margin-left: auto; min-height: 26px; display: inline-flex; align-items: center; padding: 0 8px; border-radius: 14px; background: color-mix(in srgb, var(--bg) 45%, transparent); color: var(--muted); font: 600 11px/1 var(--ui-font); letter-spacing: .03em; white-space: nowrap; }
@@ -207,7 +213,7 @@ details.card[open] > summary { margin-bottom: 10px; }
 .bid-main, .bid-count { display: grid; justify-items: center; align-content: center; gap: 6px; transition: opacity .18s; }
 .bid[data-mode="count"] .bid-main { opacity: 0; visibility: hidden; }
 .bid:not([data-mode="count"]) .bid-count { opacity: 0; visibility: hidden; }
-.bid-word { font: 700 44px/1 var(--read-font); letter-spacing: .07em; text-transform: uppercase; }
+.bid-word { font: 700 44px/1.1 var(--read-font); letter-spacing: .07em; text-transform: uppercase; }
 .bid-word[data-quiet] { font: italic 400 24px/1.2 var(--read-font); letter-spacing: 0; text-transform: none; color: var(--muted); text-align: center; }
 .bid-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 4px; min-height: 26px; --s: 24px; }
 .bid-line[data-many] { --s: 18px; }
@@ -234,6 +240,7 @@ details.card[open] > summary { margin-bottom: 10px; }
 .mycup { display: grid; justify-items: center; gap: 4px; }
 .cupdice { --s: var(--die); display: flex; justify-content: center; gap: calc(var(--die) * .17); min-height: var(--die); max-width: 100%; }
 .cupdice[data-six] { --s: calc(var(--die) * .86); gap: 6px; }
+.cupdice:has(.die[data-twice]) { padding-bottom: 8px; }
 .cupcap { display: flex; justify-content: space-between; justify-self: stretch; gap: 8px; padding: 0 4px; font: 600 11px/1.2 var(--ui-font); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .cupcap .turn { color: var(--accent); }
 .mycup[data-turn] .cupdice .die:not([data-empty]) { box-shadow: var(--die-shadow), 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent); }
@@ -271,12 +278,15 @@ details.card[open] > summary { margin-bottom: 10px; }
 .die[data-sel] { box-shadow: var(--die-shadow), 0 0 0 3px var(--accent); transform: translateY(-3px); }
 
 /* ===== Tricks, log ===== */
-.tricks { flex: none; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 0 8px 2px; min-height: 0; }
+.tricks { flex: none; display: flex; gap: 6px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; padding: 0 8px; min-height: 0; }
 .tricks:empty { display: none; }
 .tricks::-webkit-scrollbar { display: none; }
-.trick { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 12px; border: 1px solid var(--border); border-radius: 19px; background: var(--surface); font: 600 13px/1 var(--ui-font); color: var(--muted); cursor: pointer; white-space: nowrap; }
+.trick { position: relative; isolation: isolate; flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: var(--tap); padding: 0 12px; border: 0; border-radius: 19px; background: none; font: 600 13px/1 var(--ui-font); color: var(--muted); cursor: pointer; white-space: nowrap; }
+/* The pill (36 px) inside the 44 px tap target. */
+.trick::before { content: ""; position: absolute; inset: 4px 0; z-index: -1; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); }
 .trick i { width: 7px; height: 7px; border-radius: 50%; background: var(--field); }
-.trick[data-usable] { border-color: var(--accent); color: var(--text); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 35%, transparent); animation: glow 2.2s ease-in-out infinite; }
+.trick[data-usable] { color: var(--text); }
+.trick[data-usable]::before { border-color: var(--accent); box-shadow: 0 0 4px 1px color-mix(in srgb, var(--accent) 40%, transparent); animation: glow 2.2s ease-in-out infinite; }
 .trick[data-usable] i { background: var(--accent); }
 .trick[data-asleep] { opacity: .5; text-decoration: line-through; text-decoration-thickness: 1px; }
 .trick[data-spent] { opacity: .6; }
@@ -369,7 +379,7 @@ details.card[open] > summary { margin-bottom: 10px; }
 .goal[data-ok] { color: var(--good); }
 .end-big[data-sign="down"] { color: var(--danger); }
 .end-big small { margin-left: 8px; font: 500 14px/1 var(--ui-font); color: var(--muted); }
-.had-more { justify-self: start; min-height: 36px; padding: 0 2px; border: 0; background: none; color: var(--muted); font: 600 13px/1 var(--ui-font); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.had-more { justify-self: start; min-height: var(--tap); padding: 0 2px; border: 0; background: none; color: var(--muted); font: 600 13px/1 var(--ui-font); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .coach { position: absolute; left: 10px; right: 10px; top: 6px; z-index: 9; display: grid; gap: 4px; padding: 8px 12px; border: 1px solid var(--accent); border-radius: 14px; background: var(--surface); box-shadow: 0 10px 26px var(--shadow); font: 14px/1.35 var(--ui-font); }
 .coach p { margin: 0; }
 .coach .row { justify-content: space-between; gap: 6px; }
@@ -392,7 +402,7 @@ details.card[open] > summary { margin-bottom: 10px; }
 #screen-table[data-lesson] #btn-lesson-skip { display: inline-flex; }
 #screen-table[data-lesson] .felt-tags { display: none; }
 /* A short phone: the lesson never asks for a face, so the face row makes room for its line of teaching. */
-@media (max-height: 680px) { #screen-table[data-lesson] .faces { display: none; } }
+@container tablescreen (max-height: 680px) { #screen-table[data-lesson] .faces { display: none; } }
 .tray[data-open] { background: var(--felt-hi); box-shadow: inset 0 1px 3px var(--shadow), 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent); }
 [data-point] { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 10px; animation: point 1.3s ease-in-out infinite; }
 @keyframes point { 50% { outline-color: color-mix(in srgb, var(--accent) 25%, transparent); } }
@@ -535,8 +545,9 @@ dialog li { margin: 0 0 6px; }
   .actions { padding-left: 12px; padding-right: 12px; }
   .facebtn { --s: 34px; min-height: 54px; }
 }
-@media (max-height: 760px) {
-  :root { --seat-face: 42px; --die: 48px; }
+/* By the height the table screen really has (a host's insets taken off), not the window's. */
+@container tablescreen (max-height: 760px) {
+  .room { --seat-face: 42px; --die: 48px; }
   .habit { min-height: 1.25em; font-size: 12px; }
   .bubble { min-height: 26px; margin-top: 2px; }
   .bid { min-height: 80px; }
@@ -547,10 +558,9 @@ dialog li { margin: 0 0 6px; }
   .stepper button { min-height: 46px; }
   .bidbtn { min-height: 46px; }
   .seat { padding-top: 4px; gap: 2px; }
-  .trick { min-height: 36px; }
 }
-@media (max-height: 680px) {
-  :root { --die: 42px; --seat-face: 34px; --tray: 16px; }
+@container tablescreen (max-height: 680px) {
+  .room { --die: 42px; --seat-face: 34px; --tray: 16px; }
   .log { display: none; }
   .bid { min-height: 66px; }
   .bid-word { font-size: 32px; }
@@ -564,11 +574,33 @@ dialog li { margin: 0 0 6px; }
   .actions { gap: 6px; padding-top: 6px; }
   .picker { gap: 6px; }
   .felt { margin: 2px 8px 4px; padding: 6px 10px; }
-  .trick { min-height: 34px; }
   .habit { font-size: 11.5px; }
 }
+/* Fit: what gives way when the table's content needs more height than it has (set by the script, in this order). */
+/* 1. The seats' extras: a habit line under a face keeps to one line (the bidder's is in the felt too), tighter gaps, smaller faces. */
+#table[data-fit~="1"] .seats { gap: 2px; padding-top: 2px; padding-bottom: 0; }
+#table[data-fit~="1"] .seat { gap: 1px; padding-top: 2px; padding-bottom: 2px; }
+#table[data-fit~="1"] .seat-face { width: min(var(--seat-face), 30px); height: min(var(--seat-face), 30px); }
+#table[data-fit~="1"] .seat .habit { min-height: 1.2em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#table[data-fit~="1"] .bubble { min-height: 26px; margin-top: 2px; }
+/* 2. The bid log above the controls. */
+#table[data-fit~="2"] .log { display: none; }
+/* 3. The felt: tighter padding, a smaller big word. */
+#table[data-fit~="3"] .felt { margin: 2px 8px 4px; padding: 4px 10px; gap: 2px; }
+#table[data-fit~="3"] .felt-tags { min-height: 24px; margin-top: 0; }
+#table[data-fit~="3"] .bid { min-height: 0; }
+#table[data-fit~="3"] .bid-main { gap: 3px; }
+#table[data-fit~="3"] .bid-word { font-size: 28px; }
+#table[data-fit~="3"] .bid-word[data-quiet] { font-size: 20px; }
+#table[data-fit~="3"] .bid-line { --s: 18px; min-height: 20px; }
+#table[data-fit~="3"] .count-num { font-size: 46px; }
+#table[data-fit~="3"] .countbar { min-height: 18px; }
+/* 4. Your dice a size down (still easy to read). After this the area above the controls scrolls. */
+#table[data-fit~="4"] .cupdice { --s: min(var(--die), 38px); gap: 6px; min-height: min(var(--die), 38px); }
+#table[data-fit~="4"] .cupdice[data-six] { --s: min(calc(var(--die) * .86), 34px); gap: 4px; }
+#table[data-fit~="4"] .mycup { gap: 2px; }
 @media (prefers-reduced-motion: reduce) {
-  .dots i, .trick[data-usable] { animation: none; }
+  .dots i, .trick[data-usable]::before { animation: none; }
   .countbar .fill { transition: none; }
 }
 </style>
@@ -2685,6 +2717,7 @@ dialog li { margin: 0 0 6px; }
         kids.push(i < this.n ? (s ? Dice.node(s.face, { peek: true, label: false }) : Dice.node(0, { down: true, label: false })) : Dice.node(0, { empty: true, label: false }));
       }
       this.tray.toggleAttribute('data-six', this.max > 5);
+      this.tray.style.setProperty('--k', String(this.max));
       this.tray.removeAttribute('data-open');
       this.tray.replaceChildren(...kids);
       this.label();
@@ -2714,11 +2747,12 @@ dialog li { margin: 0 0 6px; }
     }
     setTurn(on) { this.root.toggleAttribute('data-turn', !!on); }
     setOut(on) { this.out = !!on; this.root.toggleAttribute('data-out', !!on); this.tag.textContent = on ? 'OUT' : ''; if (on) { this.mood = ''; this.setMood('asleep'); } this.label(); }
-    clearTalk() { this.bubble.setAttribute('data-empty', ''); this.bubble.replaceChildren(); delete this.bubble.dataset.kind; delete this.bubble.dataset.by; this.bubble.removeAttribute('aria-label'); this.habitEl.textContent = ''; this.habitEl.removeAttribute('data-under'); }
+    clearTalk() { this.bubble.setAttribute('data-empty', ''); this.bubble.replaceChildren(); delete this.bubble.dataset.kind; delete this.bubble.dataset.by; this.bubble.removeAttribute('aria-label'); this.setHabit(''); }
+    /* The habit line under the face (kept whole in its title: on a short screen it keeps to one line). */
+    setHabit(text, under) { this.habitEl.textContent = text || ''; if (text) this.habitEl.title = text; else this.habitEl.removeAttribute('title'); this.habitEl.toggleAttribute('data-under', !!(text && under)); Fit.soon(); }
     thinking() { this.bubble.removeAttribute('data-empty'); delete this.bubble.dataset.kind; delete this.bubble.dataset.by; this.bubble.replaceChildren(el('span', { class: 'dots', 'aria-label': 'thinking' }, el('i'), el('i'), el('i'))); }
     async habit(h) {
-      this.habitEl.textContent = h ? h.text : '';
-      this.habitEl.toggleAttribute('data-under', !!(h && h.underline));
+      this.setHabit(h ? h.text : '', h && h.underline);
       if (h) await anim(this.habitEl, [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], 300, { move: true });
     }
     showBid(q, f) {
@@ -2741,7 +2775,7 @@ dialog li { margin: 0 0 6px; }
       if (by) this.bubble.dataset.by = by; else delete this.bubble.dataset.by;
       this.bubble.replaceChildren(`“${text}”`);
       this.bubble.setAttribute('aria-label', `${this.p.first}: ${text}`);
-      this.habitEl.textContent = '';
+      this.setHabit('');
       return anim(this.bubble, [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], 260, { move: true });
     }
     shakeCup() {
@@ -3589,6 +3623,43 @@ dialog li { margin: 0 0 6px; }
     } finally { Skip.armed = false; Skip.on = false; }
   }
 
+  // ----- Fit: the table's content in the height it has -----
+  /* The felt never shrinks below what it holds (CSS); when the seats, the felt, the chips and the log need more
+     height than there is above the controls, they give way one step at a time, least important first:
+     1 the seats' extras (habit lines to one line, gaps, faces), 2 the bid log, 3 the felt's padding and big word,
+     4 your dice a size down. Only if that is still not enough does the area above the controls scroll, and then it
+     keeps your dice and the Count in view. Measured, so it holds for any tricks, names, insets or fonts. */
+  const FIT_STEPS = ['1', '2', '3', '4'];
+  const Fit = {
+    ro: null, raf: 0,
+    run() {
+      if (this.raf) { cancelAnimationFrame(this.raf); this.raf = 0; }
+      const table = $('table'), up = $('upper');
+      if (!table || !up || !up.offsetParent) return;
+      const over = () => up.scrollHeight > up.clientHeight + 1;
+      let k = 0;
+      table.dataset.fit = '';
+      while (k < FIT_STEPS.length && over()) table.dataset.fit = FIT_STEPS.slice(0, ++k).join(' ');
+      const scrolls = over();
+      table.toggleAttribute('data-scrolls', scrolls);
+      if (scrolls) {
+        // Your dice and the Count stay in view: scrolled to the foot (the faces' tops go first), or, where the felt
+        // and your chips will not fit together, to the felt's foot.
+        up.scrollTop = up.scrollHeight;
+        const felt = $('felt'), u = up.getBoundingClientRect(), f = felt.getBoundingClientRect();
+        if (f.top < u.top) up.scrollTop -= Math.max(0, Math.min(u.top - f.top + 2, u.bottom - f.bottom));
+      }
+    },
+    soon() { if (!this.raf && $('upper')) this.raf = requestAnimationFrame(() => { this.raf = 0; this.run(); }); },
+    /* Anything above the controls changing size (a habit line, a bubble, the chips, the controls, the window). */
+    watch() {
+      if (this.ro || !window.ResizeObserver) return;
+      this.ro = new ResizeObserver(() => this.soon());
+      ['upper', 'seats', 'tricks', 'log', 'bid', 'countbar', 'bookline', 'infoline', 'mycup'].forEach(id => { const n = $(id); if (n) this.ro.observe(n); });
+      this.ro.observe(document.querySelector('#felt .felt-tags'));
+    }
+  };
+
   // =====================================================================
   // The table screen as a whole: build it, set a table up, sync it with the view
   // =====================================================================
@@ -3611,6 +3682,7 @@ dialog li { margin: 0 0 6px; }
           el('button', { class: 'btn ghost', id: 'btn-menu', type: 'button', 'aria-label': 'Menu', onclick: () => Menu.open() }, ICON.menu())),
         el('div', { class: 'room' },
           el('main', { class: 'table', id: 'table' },
+            el('div', { class: 'upper', id: 'upper' },
             el('section', { class: 'seats', id: 'seats', 'aria-label': 'The other players (tap one for their page in your Book)' }),
             el('section', { class: 'felt', id: 'felt' },
               el('div', { class: 'felt-tags' }, el('button', { class: 'ruletag', id: 'ruletag', type: 'button', hidden: true, onclick: () => Table.ruleInfo() }), el('span', { class: 'anteTag', id: 'antetag' })),
@@ -3620,9 +3692,9 @@ dialog li { margin: 0 0 6px; }
               el('div', { class: 'infoline', id: 'infoline' }),
               el('div', { class: 'mycup', id: 'mycup' }),
               el('div', { class: 'stamp-layer', id: 'stamps' })),
-            el('div', { class: 'coach', id: 'coach', hidden: true, role: 'note' }),
             el('div', { class: 'tricks', id: 'tricks', 'aria-label': 'Your tricks' }),
-            el('div', { class: 'log', id: 'log' }),
+            el('div', { class: 'log', id: 'log' })),
+            el('div', { class: 'coach', id: 'coach', hidden: true, role: 'note' }),
             el('section', { class: 'actions', id: 'actions', 'aria-label': 'Your move' }, el('div', { class: 'lesson', id: 'lesson', hidden: true, role: 'region', 'aria-label': 'The practice hand', 'aria-live': 'polite' }),
               el('div', { class: 'lesson-go', id: 'lesson-go', hidden: true }, el('button', { class: 'btn primary', type: 'button', id: 'btn-lesson-next', onclick: () => Lesson.next() }, 'Next')),
               el('div', { class: 'picker', id: 'picker' }), el('div', { class: 'bar', id: 'bar', hidden: true }))),
@@ -3630,6 +3702,7 @@ dialog li { margin: 0 0 6px; }
       BidBanner.build($('bid')); CountBar.build($('countbar')); BookLine.build($('bookline')); MyCup.build($('mycup'));
       Log.build($('log')); Picker.build($('picker')); Tricks.build($('tricks'));
       Stamp.layer = $('stamps');
+      Fit.watch();
       this.soundIcon();
       // Tapping the table hurries whatever is playing (not the controls, sheets or seats).
       $('table').addEventListener('pointerdown', ev => { if (ev.target.closest('.sheet, .actions, .tricks, .seat, .coach, .ruletag')) return; Skip.now(); });
@@ -3691,7 +3764,7 @@ dialog li { margin: 0 0 6px; }
           seat.clearTalk();
           if (s.lastBid) seat.showBid(s.lastBid.q, s.lastBid.f);
           const h = t.history.filter(x => x.who === s.seat).pop();
-          if (h && h.habit) { seat.habitEl.textContent = h.habit.text; seat.habitEl.toggleAttribute('data-under', !!h.habit.underline); }
+          if (h && h.habit) seat.setHabit(h.habit.text, h.habit.underline);
         } else if (seat.bubble.hasAttribute('data-empty') || seat.bubble.dataset.kind !== 'say') {
           seat.clearTalk();
           const line = (last.lines || []).find(l => l.who === s.seat);
@@ -3745,6 +3818,7 @@ dialog li { margin: 0 0 6px; }
         $('bar').hidden = true; $('picker').hidden = false; Picker.close();
         if (!Lesson.on && (!Sheet.cur || Sheet.cur.dataset.seq !== String(TV.revealSeq))) this.showReadout(t);
       } else { Picker.close(); }
+      Fit.run();
     },
     /* Slow Roll, before the first bid: one tap keeps your best face and re-rolls the rest; or pick dice; or play on. */
     readyBar(t) {
@@ -4572,7 +4646,7 @@ dialog li { margin: 0 0 6px; }
     showHabit() {
       const h = this.habit ? this.habit.habit : null;
       const s = this.habit ? seatOf(this.habit.who) : null;
-      if (s && h) { s.habitEl.textContent = h.text; s.habitEl.removeAttribute('data-under'); }
+      if (s && h) s.setHabit(h.text, false);
     },
     /* Step E2: the Book line under the Count, now that the cups have said it was a bluff. */
     showBook() {
