@@ -326,7 +326,12 @@ s.test('the Book: tallies after a reveal, kept across a reload, on the seat shee
   const n = await page.evaluate(r => Game.Book.data.people[r.id].habits[r.habit].n, ro);
   assert.ok(n >= 1);
   assert.match(await page.textContent('.sheet'), /What they had/);
-  assert.match(await page.textContent(`.had-row[data-id="${ro.id}"]`), /Book: seen \d+×/);
+  if (await page.$('#btn-had-more')) await page.click('#btn-had-more');
+  assert.match((await page.$$eval(`.had-row[data-id="${ro.id}"]`, ns => ns.map(n => n.textContent))).join(' | '), /Book: seen \d+×/);
+  // Only their bids, the challenged one first, then the bluffs; your own are left out.
+  const had = await page.evaluate(() => { const ro = Game.App.view().table.last.readout.bids; return { ids: [...document.querySelectorAll('.had-row')].map(n => n.dataset.id), ro }; });
+  assert.ok(!had.ids.includes('me'));
+  assert.equal(had.ids.length, had.ro.filter(b => b.id !== 'me').length);
   await page.reload();
   await page.waitForFunction(() => window.Game && Game.App);
   assert.equal(await page.evaluate(r => Game.Book.data.people[r.id].habits[r.habit].n, ro), n, 'kept across a reload');
@@ -474,27 +479,86 @@ s.test('table talk: Claude\'s lines replace the barks when they land in time, an
 });
 
 // ===================================================================== the coach
-s.test('the first-night coach: a short tip on the first table, never in the way; "Skip the tips" sticks', async h => {
+s.test('the first night: Sit down deals you straight in at 9 PM; short coach tips, never in the way; the choice and its tip at 10 PM; "Skip the tips" sticks', async h => {
   const page = await open(h);
   await page.evaluate(() => { Game.App.speed = 0; });
   await page.click('#btn-sit');
-  await page.click('.tcard button.sit[data-i="0"]');
   await page.evaluate(() => Game.App.idle());
+  assert.equal(await page.evaluate(() => Game.UI.Screens.cur), 'table', 'no choose screen at 9 PM on a first night');
+  assert.deepEqual(await page.evaluate(() => [Game.App.state.hour, Game.App.state.table.kind]), [0, 'easy']);
   assert.ok(await page.isVisible('#coach'));
   const tip = await page.textContent('#coach p');
   assert.ok(tip.split(/\s+/).length <= 20, tip);
   // The picker still works under it.
   if (await page.evaluate(() => Game.App.view().table.wait === 'turn')) assert.equal(await page.isEnabled('#btn-bid'), true);
   await page.click('#btn-tip-ok');
-  await page.click('#btn-tips-off').catch(async () => { await playOut(page, { until: () => !document.querySelector('#coach').hidden }); await page.click('#btn-tips-off'); });
-  assert.equal(await page.isVisible('#coach'), false);
-  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('novatria.bones.settings')).tipsDone), true);
-  await page.reload();
-  await page.waitForFunction(() => window.Game && Game.App);
-  await page.evaluate(() => { Game.App.speed = 0; Game.App.start({ seed: 'no-tips', tips: true }); });
-  await page.click('.tcard button.sit[data-i="0"]');
-  await page.evaluate(() => Game.App.idle());
-  assert.equal(await page.isVisible('#coach'), false, 'once off, off for good');
+  // Play the first table, saying "Got it" to every tip, and keep what they said.
+  const seen = () => { const c = document.querySelector('#coach'); if (c && !c.hidden) { (window.__tips = window.__tips || []).push([c.dataset.tip, c.querySelector('p').textContent]); document.querySelector('#btn-tip-ok').click(); } return Game.App.state.phase === 'choose' || Game.App.state.phase === 'over'; };
+  const ph = await playOut(page, { until: seen });
+  const tips = await page.evaluate(() => window.__tips || []);
+  tips.forEach(([id, text]) => assert.ok(text.split(/\s+/).length <= 20, id + ': ' + text));
+  const bh = tips.find(t => t[0] === 'bluffhabit');
+  if (bh) assert.match(bh[1], /^[A-Z][a-z]+ .+, and was bluffing\. Your Book noted it\. Watch for it\.$/);
+  const bt = tips.find(t => t[0] === 'booktally');
+  if (bt) assert.equal(bt[1], 'Your Book remembers this habit. Weigh it against the Count.');
+  assert.ok(bh || bt, 'a hook tip on the first night: ' + JSON.stringify(tips.map(t => t[0])));
+  if (ph !== 'over' && await page.evaluate(() => Game.App.state.phase === 'choose')) {
+    assert.equal(await page.evaluate(() => Game.App.state.hour), 1, 'the choice first appears at 10 PM');
+    assert.match(await page.textContent('#first-hint'), /near table is cheaper and softer; the big one pays double/);
+    assert.match(await page.textContent('#goal-line'), /^Last Call needs \$500 · you have \$[\d,]+$/);
+  }
+  // Every later night shows the choice at 9 PM.
+  await page.evaluate(() => { Game.App.home(); Game.UI.Settings.tipsDone = false; });
+  await page.evaluate(() => Game.App.start({ seed: 'second-night', first: false }));
+  assert.equal(await page.evaluate(() => Game.UI.Screens.cur), 'choose');
+  // "Skip the tips" sticks (a fresh player).
+  const p2 = await open(h);
+  await p2.evaluate(() => { Game.App.speed = 0; });
+  await p2.click('#btn-sit');
+  await p2.evaluate(() => Game.App.idle());
+  assert.ok(await p2.isVisible('#coach'));
+  await p2.click('#btn-tips-off');
+  assert.equal(await p2.isVisible('#coach'), false);
+  assert.equal(await p2.evaluate(() => JSON.parse(localStorage.getItem('novatria.bones.settings')).tipsDone), true);
+  await p2.reload();
+  await p2.waitForFunction(() => window.Game && Game.App);
+  await p2.evaluate(() => { Game.App.speed = 0; Game.App.start({ seed: 'no-tips', tips: true }); });
+  await p2.click('.tcard button.sit[data-i="0"]');
+  await p2.evaluate(() => Game.App.idle());
+  assert.equal(await p2.isVisible('#coach'), false, 'once off, off for good');
+});
+
+s.test('the end of a table says what it did to your cash; the top bar holds a big stack at 360 px', async h => {
+  const page = await open(h, { viewport: { width: 360, height: 640 } });
+  await startNight(page, { seed: 'net-sheet' });
+  await playOut(page, { until: () => !!Game.UI.after });
+  const end = await page.evaluate(() => ({ e: Game.UI.after.e, big: document.querySelector('#end-net').firstChild.textContent, sign: document.querySelector('#end-net').dataset.sign, colour: getComputedStyle(document.querySelector('#end-net')).color }));
+  const money = n => '$' + Math.abs(n).toLocaleString('en-US');
+  assert.equal(end.big, (end.e.net > 0 ? '+' : end.e.net < 0 ? '−' : '') + money(end.e.net));
+  assert.equal(end.sign, end.e.net > 0 ? 'up' : end.e.net < 0 ? 'down' : 'even');
+  assert.match(await page.textContent('#end-net'), /at this table$/);
+  // A big stack late in the night: nothing in the top bar clips or wraps.
+  const bar = () => page.evaluate(() => {
+    const scr = document.querySelector('.screen.active') || document.querySelector('#screen-' + Game.UI.Screens.cur);
+    const top = scr.querySelector('.topbar'), hour = top.querySelector('.hour'), cash = top.querySelector('.cash');
+    const vis = [...hour.children].find(c => getComputedStyle(c).display !== 'none') || hour;
+    return { hour: vis.textContent, clipped: hour.scrollWidth > hour.clientWidth + 1, cashClipped: cash.scrollWidth > cash.clientWidth + 1, oneLine: top.getBoundingClientRect().height < 80, right: Math.max(...[...top.children].map(c => c.getBoundingClientRect().right)) <= window.innerWidth + 1, cash: cash.textContent };
+  });
+  for (const hr of [3, 4]) {
+    await page.evaluate(hr => { const A = Game.App, S = A.state; if (Game.UI.after) A.leaveTable(); S.table = null; S.phase = 'choose'; S.hour = hr; S.cash = 12345; Game.UI.Screens.render(); }, hr);
+    let b = await bar();
+    assert.ok(!b.clipped && !b.cashClipped && b.oneLine && b.right && b.cash === '$12,345', 'choose at ' + hr + ': ' + JSON.stringify(b));
+    await page.click('.tcard button.sit[data-i="0"]');
+    await page.evaluate(() => Game.App.idle());
+    b = await bar();
+    assert.ok(!b.clipped && !b.cashClipped && b.oneLine && b.right, 'table at ' + hr + ': ' + JSON.stringify(b));
+    assert.deepEqual(await overflowReport(page, 360), []);
+  }
+  await page.evaluate(() => { const S = Game.App.state; S.table = null; S.phase = 'shop'; S.hour = 3; S.cash = 12345; S.shop = { hour: 3, offers: ['loaded', 'mirror', 'nod'], rerolls: 0 }; Game.UI.Screens.render(); });
+  const b = await bar();
+  assert.ok(!b.clipped && !b.cashClipped && b.oneLine && b.right, 'back room: ' + JSON.stringify(b));
+  assert.match(await page.textContent('#goal-line'), /^Last Call needs \$500 · you have \$12,345$/);
+  assert.notEqual(await page.getAttribute('#goal-line', 'data-ok'), null);
 });
 
 // ===================================================================== layout
@@ -533,6 +597,8 @@ s.test('no horizontal overflow at 360, 375 and 430 on every screen, in both them
     if (await page.evaluate(() => Game.App.state.phase === 'table')) {
       const sheet = await page.evaluate(() => { const b = document.querySelector('#btn-next').getBoundingClientRect(); return b.bottom <= window.innerHeight + 1 && b.top >= 0; });
       assert.ok(sheet, 'Next round is on screen at 390x640');
+      const had = await page.evaluate(() => { const sh = document.querySelector('.sheet'); return { rows: sh.querySelectorAll('.had-row').length, fits: sh.scrollHeight <= sh.clientHeight + 1, mine: sh.querySelectorAll('.had-row[data-id="me"]').length }; });
+      assert.ok(had.rows <= 4 && had.fits && !had.mine, 'what they had: theirs only, four rows at most, no scrolling: ' + JSON.stringify(had));
       await check('the reveal panel');
     }
     await playOut(page, { until: () => Game.App.state.phase === 'shop' && !Game.UI.after });

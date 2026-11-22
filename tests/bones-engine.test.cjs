@@ -354,9 +354,36 @@ test('the night\'s tables are fixed by the seed; the 9 PM tables seat 3, later r
   assert.strictEqual(new Set(ids).size, ids.length, 'nobody sits twice in a night');
   assert.ok(!ids.includes('npc_loretta') && !ids.includes('npc_curtis'));
   assert.strictEqual(a.offers[0][0].rule, null, 'the first table has no house rule');
+  // No house rule at 9 PM at either table, over many nights; from 10 PM rules turn up, mostly at the rich table.
+  const ruled = { easy: 0, rich: 0 };
+  for (let i = 0; i < 300; i++) {
+    const o = E.newNight({ seed: 'rules' + i }).offers;
+    assert.ok(o[0].every(c => c.rule === null), '9 PM is plain: ' + JSON.stringify(o[0].map(c => c.rule)));
+    o.slice(1).forEach(h => h.forEach(c => { if (c.rule) ruled[c.kind]++; }));
+  }
+  assert.ok(ruled.easy > 0 && ruled.rich > 2 * ruled.easy, JSON.stringify(ruled));
   deq(E.newNight({ daily: '2026-11-21' }).offers, E.newNight({ daily: '2026-11-21' }).offers);
   assert.strictEqual(E.dailySeed('2026-11-21'), 'daily:2026-11-21');
   assert.strictEqual(E.newNight({ daily: '2026-11-21' }).seed, 'daily:2026-11-21');
+});
+
+test('cups by the hour: 4 dice at 9 and 10 PM, 5 from 11 PM and at Last Call; Short / Deep override; Extra Bone one more', () => {
+  const S = E.newNight({ seed: 'cups' });
+  const want = [4, 4, 5, 5];
+  for (let h = 0; h < 4; h++) {
+    S.hour = h; S.cash = 1e6;
+    E.options(S).forEach(c => assert.strictEqual(c.dice, c.rule && c.rule.id === 'short' ? 3 : c.rule && c.rule.id === 'deep' ? 6 : want[h], E.HOURS[h].name + ' ' + c.kind));
+  }
+  S.hour = 4; S.cash = 600;
+  assert.strictEqual(E.options(S)[0].dice, 5);
+  for (let h = 0; h < 4; h++) {
+    const T = E.newNight({ seed: 'cups' + h, tricks: ['extrabone'] }); T.hour = h; T.cash = 1e6;
+    T.offers[h][0].rule = null;
+    const ev = ok(E.sit(T, 0));
+    deq(find(ev, 'sit').seats.map(x => x.dice), [want[h] + 1].concat(T.offers[h][0].people.map(() => want[h])));
+  }
+  const L = rig({ hour: 4 });
+  assert.ok(L.table.seats.every(x => x.n === 5));
 });
 
 // ===================================================================== house rules
@@ -406,9 +433,9 @@ test('house rule Blind opener: the opener bids before looking; the cup shows aft
     deq(E.legal(S).uses, []);
     const ev2 = ok(E.act(S, { t: 'bid', q: 2, f: 3 }));
     deq(find(ev2, 'look').mine, S.table && S.table.round ? S.table.seats[0].dice : find(ev2, 'look').mine);
-    // The blind bid is classified from no cup at all: P(at least 2 threes among 15 fair dice).
+    // The blind bid is classified from no cup at all: P(at least 2 threes among 12 fair dice).
     const b = S.table.round ? S.table.round.bids[0] : null;
-    if (b) assert.ok(Math.abs(b.p - SIM.tail(15, 2, 1 / 3)) < 1e-12);
+    if (b) assert.ok(Math.abs(b.p - SIM.tail(12, 2, 1 / 3)) < 1e-12);
   }
   assert.ok(found >= 1);
 });
@@ -576,6 +603,55 @@ test('no bot ever makes an illegal or impossible bid across 2,000 tables', () =>
   assert.ok(bids > 20000);
 });
 
+test('bid sizing sounds like people: few sure-thing bids, few one-bid rounds, openers bid what they believe', () => {
+  // Over a few hundred tables at every hour, with the plain Count player in the human seat.
+  const kinds = [[0, 'easy'], [0, 'rich'], [1, 'easy'], [1, 'rich'], [2, 'easy'], [2, 'rich'], [3, 'easy'], [3, 'rich'], [4, 'last']];
+  let botBids = 0, trivial = 0, rounds = 0, one = 0, opens = 0, lowOpens = 0, jumps = 0;
+  const lens = [];
+  for (let i = 0; i < 360; i++) {
+    const [h, kind] = kinds[i % kinds.length];
+    const S = E.newNight({ seed: 'size' + i });
+    S.hour = h; S.cash = h === 4 ? 1000 : 1e6;
+    let ev = ok(E.act(S, { t: 'sit', i: kind === 'rich' ? 1 : 0 }));
+    const got = ev.slice();
+    for (let g = 0; S.phase === 'table'; g++) { ev = ok(E.act(S, E.basicPolicy(S, E.view(S), E.legal(S), E))); got.push(...ev); }
+    let prev = null;
+    got.forEach(e => {
+      if (e.t === 'roll') prev = null;
+      if (e.t === 'bid') { if (prev && e.who !== 0 && e.q >= prev.q + 2) jumps++; prev = e; }
+      if (e.t !== 'readout') return;
+      rounds++; lens.push(e.bids.length); if (e.bids.length === 1) one++;
+      e.bids.forEach((b, k) => {
+        if (b.who === 0) return;
+        botBids++; if (b.p > 0.95) trivial++;
+        if (k === 0) { opens++; if (b.p < 0.35) lowOpens++; }
+      });
+    });
+  }
+  lens.sort((a, b) => a - b);
+  const med = lens[lens.length >> 1];
+  assert.ok(trivial / botBids < 0.12, 'trivial bot bids ' + (trivial / botBids).toFixed(3));
+  assert.ok(one / rounds < 0.2, 'one-bid rounds ' + (one / rounds).toFixed(3));
+  assert.ok(med >= 3 && med <= 5, 'median bids per round ' + med);
+  // An opener under 35% by its own cup is a deliberate bluff, and those are rare.
+  assert.ok(lowOpens / opens < 0.08, 'low openers ' + (lowOpens / opens).toFixed(3));
+  assert.ok(jumps > 0, 'a low bid in front draws a jump');
+});
+
+test('Engine.suggest: the most of your best face the Count puts at 60%, when legal', () => {
+  // Mine: 4,4,1,2 (three 4s with the wild). Unknown: 8 dice at 1/3.
+  const S = rig({ dice: [[4, 4, 1, 2], [2, 3, 5, 6], [5, 6, 2, 3]], bids: [] });
+  const s = E.suggest(S);
+  const best = q => E.count(S, q, 4);
+  assert.strictEqual(s.f, 4);
+  assert.ok(best(s.q) >= 0.6 && best(s.q + 1) < 0.6, JSON.stringify(s));
+  for (const f of [2, 3, 5, 6]) for (let q = s.q + 1; q <= 12; q++) assert.ok(E.count(S, q, f) < 0.6);
+  // Not a legal raise any more: null (the picker falls back to the smallest raise).
+  const S2 = rig({ dice: [[4, 4, 1, 2], [2, 3, 5, 6], [5, 6, 2, 3]], bids: [{ who: 2, q: s.q, f: 6 }] });
+  assert.strictEqual(E.suggest(S2), null);
+  assert.strictEqual(E.suggest(E.newNight({ seed: 'x' })), null);
+});
+
 test('tier 1 makes visible mistakes; sharks are harder (Count player\'s table win rate falls with tier)', () => {
   const rate = people => {
     let w = 0;
@@ -624,10 +700,11 @@ test('Shaved Die: a die always lands on 1, wild only for your own bids', () => {
 test('Loaded Six: a die always lands on 6; Extra Bone: one more die (but not at Last Call)', () => {
   const S = E.newNight({ seed: 'ld', tricks: ['shaved', 'loaded', 'extrabone'] });
   const ev = ok(E.sit(S, 0));
-  assert.strictEqual(find(ev, 'sit').seats[0].dice, 6); assert.strictEqual(S.table.start[0], 6); assert.strictEqual(S.table.start[1], 5);
+  // 9 PM cups hold 4: Extra Bone makes yours 5.
+  assert.strictEqual(find(ev, 'sit').seats[0].dice, 5); assert.strictEqual(S.table.start[0], 5); assert.strictEqual(S.table.start[1], 4);
   const mine = find(ev, 'roll').mine;
-  assert.strictEqual(mine.length, 6); assert.strictEqual(mine[0], 1); assert.strictEqual(mine[1], 6);
-  deq(find(ev, 'trick', e => e.id === 'extrabone'), { t: 'trick', id: 'extrabone', dice: 6 });
+  assert.strictEqual(mine.length, 5); assert.strictEqual(mine[0], 1); assert.strictEqual(mine[1], 6);
+  deq(find(ev, 'trick', e => e.id === 'extrabone'), { t: 'trick', id: 'extrabone', dice: 5 });
   const L = rig({ hour: 4, tricks: ['extrabone', 'loaded'] });
   assert.strictEqual(L.table.seats[0].n, 5, 'Loretta counts the bones');
   assert.ok(E.view(L).tricks.every(t => t.asleep));
@@ -784,6 +861,31 @@ test('Sticky Fingers +1 ante on a caught liar; Side Bet 6 antes on Spot On; Snak
     if (two) { got++; deq(pays(ev, 'snake').map(p => p.amount), [3]); }
   }
   assert.ok(rolls > 30 && got > 0);
+});
+
+test('tableEnd carries the table\'s net: buy-in, antes, bonuses, pot and refund, to the dollar', () => {
+  let n = 0, tab = 0;
+  for (let i = 0; i < 120; i++) {
+    const tricks = i % 3 === 0 ? ['sticky', 'snake', 'sidebet', 'housemoney'] : i % 3 === 1 ? ['tab'] : [];
+    const S = E.newNight({ seed: 'net' + i, tricks });
+    const h = i % 4; S.hour = h; S.cash = i % 3 === 1 ? 10 : 1e5;
+    const k = i % 2;
+    const before = S.cash;
+    let ev = ok(E.act(S, { t: 'sit', i: k }));
+    const got = ev.slice();
+    for (let g = 0; S.phase === 'table'; g++) { ev = ok(E.act(S, E.basicPolicy(S, E.view(S), E.legal(S), E))); got.push(...ev); }
+    const end = find(got, 'tableEnd');
+    const sum = all(got, 'pay').reduce((a, p) => a + p.amount, 0);
+    assert.strictEqual(end.net, sum, 'net = every pay at the table');
+    assert.strictEqual(end.net, end.cash - before);
+    assert.strictEqual(S.log[S.log.length - 1].net, end.net);
+    assert.strictEqual(E.summary(S).tables[E.summary(S).tables.length - 1].net, end.net);
+    const side = all(got, 'pay').filter(p => !['buyin', 'pot', 'refund'].includes(p.why)).reduce((a, p) => a + p.amount, 0);
+    assert.strictEqual(end.net, (end.won ? end.payout : 0) + end.refund - (find(got, 'sit').onTab ? 0 : find(got, 'sit').buyIn) + side);
+    if (find(got, 'sit').onTab) { tab++; if (!end.won) assert.ok(end.net >= -before, 'a lost Tab owes no buy-in (antes come out of what you have)'); }
+    n++;
+  }
+  assert.ok(n === 120 && tab > 0);
 });
 
 test('House Money: pots you win pay 25% more', () => {
@@ -1012,7 +1114,7 @@ test('a few hundred nights finish without throwing and with sane distributions',
   for (const k in end) assert.ok(end[k] > 0, 'some ' + k + ': ' + JSON.stringify(end));
   assert.ok(end.bust < 250);
   const med = rounds.sort((a, b) => a - b)[rounds.length >> 1];
-  assert.ok(med >= 6 && med <= 16, 'median rounds ' + med);
+  assert.ok(med >= 6 && med <= 14, 'median rounds ' + med);
 });
 
 runAll();

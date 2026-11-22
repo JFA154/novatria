@@ -82,6 +82,9 @@ a { color: var(--accent); }
 .topbar { position: sticky; top: 0; z-index: 5; flex: none; display: flex; align-items: center; gap: 6px; min-width: 0; padding: calc(6px + var(--sat)) calc(8px + var(--sar)) 6px calc(12px + var(--sal)); border-bottom: 1px solid var(--border); background: var(--bg); }
 .topbar .title { font: 600 20px/1.1 var(--read-font); white-space: nowrap; background: none; border: 0; padding: 0; cursor: pointer; min-height: var(--tap); }
 .topbar .hour { color: var(--muted); font-size: 13px; font-weight: 600; white-space: nowrap; letter-spacing: .02em; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.topbar .hour .hs { display: none; }
+@media (max-width: 380px) { #btn-sound { display: none; } } /* sound stays in the menu */
+@media (max-width: 400px) { .topbar { gap: 4px; } .topbar .cash { font-size: 16px; } .topbar .hour .hl { display: none; } .topbar .hour .hs { display: inline; } }
 .topbar .sp { flex: 1; }
 .topbar .btn { padding: 0 9px; min-width: 44px; }
 .topbar .btn svg { width: 20px; height: 20px; display: block; }
@@ -345,6 +348,12 @@ details.card[open] > summary { margin-bottom: 10px; }
 .tag.bluff { color: var(--danger); }
 .tag.straight { color: var(--good); }
 .end-big { margin: 2px 0 6px; font: 700 40px/1 var(--read-font); color: var(--accent); font-variant-numeric: tabular-nums; }
+.end-big[data-sign="up"] { color: var(--good); }
+.goal { margin: 2px 0 8px; color: var(--muted); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.goal[data-ok] { color: var(--good); }
+.end-big[data-sign="down"] { color: var(--danger); }
+.end-big small { margin-left: 8px; font: 500 14px/1 var(--ui-font); color: var(--muted); }
+.had-more { justify-self: start; min-height: 36px; padding: 0 2px; border: 0; background: none; color: var(--muted); font: 600 13px/1 var(--ui-font); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .coach { position: absolute; left: 10px; right: 10px; top: 6px; z-index: 9; display: grid; gap: 4px; padding: 8px 12px; border: 1px solid var(--accent); border-radius: 14px; background: var(--surface); box-shadow: 0 10px 26px var(--shadow); font: 14px/1.35 var(--ui-font); }
 .coach p { margin: 0; }
 .coach .row { justify-content: space-between; gap: 6px; }
@@ -400,8 +409,8 @@ details.card[open] > summary { margin-bottom: 10px; }
 .curtis small { display: block; margin-top: 2px; color: var(--muted); font: 13px/1.3 var(--ui-font); }
 .result { margin: 6px 0 4px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); font: 600 17px/1.3 var(--read-font); }
 .result[data-won] { border-color: var(--good); }
-.result .amt { color: var(--good); }
-.result[data-lost] .amt { color: var(--danger); }
+.result .amt { color: var(--danger); }
+.result .amt[data-up] { color: var(--good); }
 .offers { display: grid; gap: 10px; }
 @media (min-width: 760px) { .offers { grid-template-columns: repeat(3, 1fr); } }
 .offer { display: grid; gap: 6px; align-content: start; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
@@ -579,7 +588,9 @@ dialog li { margin: 0 0 6px; }
      Engine.playNight(seed, policy, opts) -> { S, events }   drives a whole
          night: policy(S, view, legal, Engine) returns the next action.
          opts: { daily, book, tricks, keepEvents }.
-     Engine.basicPolicy   a plain by-the-Count player (a usable policy).
+     Engine.basicPolicy   a plain by-the-Count player (a usable policy): Liar
+         under 38%, Spot on over 50% exact, else opens or jumps to
+         Engine.suggest, else the smallest raise it puts at 50%.
 
    READING (never mutate S)
      Engine.view(S) -> {
@@ -624,6 +635,10 @@ dialog li { margin: 0 0 6px; }
          (q,f) equal to the bid in front of you is judged as its bidder's bid
          (your fixed 1s are plain for it); any other (q,f) as your own raise.
      Engine.countExact(S, q, f) -> P(exactly q), same footing (for Spot On).
+     Engine.suggest(S, at = 0.6) -> {q, f} | null   a sensible raise by the Count:
+         on your best face, the most dice the Count puts at `at` or better, if
+         that is a legal bid now (the picker's default; basicPolicy opens and
+         jumps to it).
      Engine.shopView(S) -> { hour, offers:[{ i, id, name, text, rarity, kind,
          price, affordable }|null], held:[{ id, name, text, sell }],
          slots: 5, rerollPrice, cash }
@@ -671,8 +686,9 @@ dialog li { margin: 0 0 6px; }
                habit:i|null, text|null}]}    "what they had": held = matching
                dice in the bidder's cup; p = P(true) from the bidder's own cup
      {t:'bark', who, id, name, text}                  a scripted one-liner
-     {t:'tableEnd', hour, kind, place, won, payout, refund, rounds, people,
-               cash}
+     {t:'tableEnd', hour, kind, place, won, payout, refund, net, rounds,
+               people, cash}   net = everything this table did to your cash
+               (buy-in, antes won and lost, bonuses, pot, refund), signed
      {t:'shop', hour, offers:[...shopView offers], rerollPrice}
      {t:'buy', id, price} · {t:'sell', id, price} · {t:'reroll', price, offers}
      {t:'nightEnd', ending:'house'|'cleaned'|'walked'|'bust', cash, share}
@@ -692,7 +708,9 @@ dialog li { margin: 0 0 6px; }
    THE NIGHT (tuned by tests/bones-sim.cjs; see Engine.HOURS)
      $100 to start. 9 PM, 10 PM, 11 PM, Midnight: two tables each (easy 3
      seats; rich about double the buy-in, 4 seats from 10 PM, usually a house
-     rule). Buy-ins easy/rich: 20/40, 40/80, 80/160, 160/320. After every
+     rule from 10 PM; both 9 PM tables are plain). Cups: 4 dice at 9 and
+     10 PM, 5 from 11 PM and at Last Call (Short cups 3, Deep cups 6).
+     Buy-ins easy/rich: 20/40, 40/80, 80/160, 160/320. After every
      table, the back room. Leaving it short of the cheaper buy-in (and no
      Tab) = 'bust'. Last Call: Loretta + Curtis, 3 seats, 5 dice, needs $500,
      buy-in = all your cash, win = x3 ('house'), lose = $0 ('cleaned'); short
@@ -704,6 +722,7 @@ dialog li { margin: 0 0 6px; }
      Shaved Die / Hot Hand: the fixed 1 is wild only for your own bids; on
        anyone else's bid it is a plain 1 (view.table.myFixed marks it).
        With Shaved + Loaded, die 0 is the 1, die 1 the 6.
+     Mirror Ring: no die is shown while the cup on your left holds under 3.
      Slow Roll: {dice:[...]} re-rolls just those; fixed dice land as fixed.
      Palm: any face 1..6 on any die; a palmed die is no longer fixed.
      Rabbit's Foot takes 1 off the first loss at a table (Sudden 2 -> 1).
@@ -876,13 +895,14 @@ dialog li { margin: 0 0 6px; }
   const RULE = {}; HOUSE_RULES.forEach(r => { RULE[r.id] = r; });
   // tiers: the people's tiers, one per seat after yours ([3, 4] = either); rule: chance of a house rule.
   const HOURS = [
-    { name: '9 PM', easy: { buyIn: 20, seats: 3, tiers: [1, 1], rule: 0 }, rich: { buyIn: 40, seats: 3, tiers: [1, 2], rule: 0.5 } },
+    { name: '9 PM', easy: { buyIn: 20, seats: 3, tiers: [1, 1], rule: 0 }, rich: { buyIn: 40, seats: 3, tiers: [1, 2], rule: 0 } },
     { name: '10 PM', easy: { buyIn: 40, seats: 3, tiers: [1, 2], rule: 0.25 }, rich: { buyIn: 80, seats: 4, tiers: [1, 2, 2], rule: 0.75 } },
     { name: '11 PM', easy: { buyIn: 80, seats: 3, tiers: [1, 2], rule: 0.25 }, rich: { buyIn: 160, seats: 4, tiers: [1, 2, [3, 4]], rule: 0.75 } },
     { name: 'Midnight', easy: { buyIn: 160, seats: 3, tiers: [2, 2], rule: 0.25 }, rich: { buyIn: 320, seats: 4, tiers: [[1, 2], 2, [3, 4]], rule: 0.75 } },
     { name: 'Last Call', last: { seats: 3, people: [HOST, SHARK], min: 500 } }
   ];
   const START_CASH = 100, SLOTS = 5;
+  const MIRROR_MIN = 3; // Mirror Ring catches a cup only while it holds this many dice or more
   const TRICKS = [
     ['shaved', 'Shaved Die', 'rare', 'dice', 'One of your dice always lands on 1. It is wild only for your own bids.'],
     ['loaded', 'Loaded Six', 'common', 'dice', 'One of your dice always lands on 6.'],
@@ -891,7 +911,7 @@ dialog li { margin: 0 0 6px; }
     ['slowroll', 'Slow Roll', 'uncommon', 'dice', 'Once per round, before the first bid, you may re-roll any of your dice.'],
     ['palm', 'Palm', 'uncommon', 'dice', 'Once per table, turn one of your dice to any face you like.'],
     ['hothand', 'Hot Hand', 'common', 'dice', 'After you win a challenge, one of your dice next round is a guaranteed 1, wild only for your own bids.'],
-    ['mirror', 'Mirror Ring', 'uncommon', 'info', 'Each round you see one die under the cup of the player on your left.'],
+    ['mirror', 'Mirror Ring', 'uncommon', 'info', 'Each round you see one die under the cup of the player on your left, while that cup holds three or more.'],
     ['barmirror', 'Bar Mirror', 'rare', 'info', 'At the start of each round you are told how many 1s are on the table.'],
     ['nod', 'Loretta\'s Nod', 'uncommon', 'info', 'Once per table, ask if the bid in front of you is true; you get the truth.'],
     ['glasses', 'Reading Glasses', 'uncommon', 'info', 'Habit lines that are a person\'s real tell are underlined once you have seen that habit 3 times.'],
@@ -919,6 +939,24 @@ dialog li { margin: 0 0 6px; }
   // OVER: how far below an even chance a poor player will still raise or open.
   // LOOK: the face value a good liar wants a lie to have.
   const NOISE = 0.25, READ = 0.7, GULL = 0.8, OVER = 0.4, LOOK = 0.5;
+  // Bid sizing (tuned with tests/bones-sim.cjs for rounds that sound like people playing):
+  //   COMFORT     the belief a bot wants in its own bid: [most cautious, less this for the
+  //               brashest] (0.80 .. 0.50 by bluffiness); its "comfortable level" is the most
+  //               dice of a face it believes at that.
+  //   OPEN_UNDER  an opener asks up to this much more (it opens a little under its level);
+  //   OPEN_LOOK   ... and no higher than the table would believe at face value; LOOK_SHARK
+  //               lets a sharp player open nearer its full level; TRIVIAL: a sure thing by
+  //               its own cup says nothing, so openers and raises pass over those when they can.
+  //   OPEN_BLUFF  share of its bluffiness spent on a bluffing opener.
+  //   JUMP        chance it jumps to its level when the bid in front is 2+ below it
+  //               (JUMP_DROP: sometimes to one under it).
+  //   REACH       the least a poor player's one-too-far reach may be worth by its own cup.
+  //   CREDIT      how far under its call line it still raises instead, when it likes a raise
+  //               (all of it on the opener's bid, half later; SHARP: less for a sharp player;
+  //               RAISE_OK: what "likes a raise" means).
+  //   HONEST      how often an honest player calls rather than raise on nothing its cup backs.
+  //   SIZE        a sharp reader weighs a bid by how far over the table's expectation it went.
+  const COMFORT = [0.8, 0.3], OPEN_UNDER = 0.05, OPEN_LOOK = 0.75, LOOK_SHARK = 0.7, TRIVIAL = 0.95, OPEN_BLUFF = 0.3, JUMP = 0.85, JUMP_DROP = 0.5, REACH = 0.35, CREDIT = 0.6, SHARP = 0.6, RAISE_OK = 0.45, HONEST = 0.6, SIZE = 1;
 
   // ----- probability -----
   // P(Bin(n,p) >= k), exact.
@@ -1017,15 +1055,17 @@ dialog li { margin: 0 0 6px; }
     if (S.phase !== 'choose') return [];
     if (S.hour === 4) {
       const L = HOURS[4].last;
-      return [{ i: 0, kind: 'last', hour: 4, hourName: HOURS[4].name, seats: L.seats, dice: 5, buyIn: S.cash, pot: S.cash * L.seats, ante: 0, rule: null, people: L.people.map(pub), affordable: S.cash >= L.min, viaTab: false }];
+      return [{ i: 0, kind: 'last', hour: 4, hourName: HOURS[4].name, seats: L.seats, dice: DICE[4], buyIn: S.cash, pot: S.cash * L.seats, ante: 0, rule: null, people: L.people.map(pub), affordable: S.cash >= L.min, viaTab: false }];
     }
     return S.offers[S.hour].map((o, i) => {
       const ante = anteOf(o.buyIn, o.rule);
       const can = S.cash >= o.buyIn;
-      return { i, kind: o.kind, hour: S.hour, hourName: HOURS[S.hour].name, seats: o.seats, dice: diceOf(o.rule), buyIn: o.buyIn, pot: o.buyIn * o.seats, ante, rule: o.rule ? clone(RULE[o.rule]) : null, people: o.people.map(pub), affordable: can || has(S, 'tab'), viaTab: !can && has(S, 'tab') };
+      return { i, kind: o.kind, hour: S.hour, hourName: HOURS[S.hour].name, seats: o.seats, dice: diceOf(o.rule, S.hour), buyIn: o.buyIn, pot: o.buyIn * o.seats, ante, rule: o.rule ? clone(RULE[o.rule]) : null, people: o.people.map(pub), affordable: can || has(S, 'tab'), viaTab: !can && has(S, 'tab') };
     });
   }
-  const diceOf = rule => rule === 'short' ? 3 : rule === 'deep' ? 6 : 5;
+  // Cups: 4 dice at 9 and 10 PM (short, quick first tables), 5 from 11 PM; Short / Deep cups override.
+  const DICE = [4, 4, 5, 5, 5];
+  const diceOf = (rule, hour) => rule === 'short' ? 3 : rule === 'deep' ? 6 : DICE[clamp(hour | 0, 0, 4)];
   // 15% (the design's draft said 10%): a little more money on each challenge keeps a good night alive.
   const anteOf = (buyIn, rule) => Math.round(buyIn * 0.15) * (rule === 'double' ? 2 : 1);
 
@@ -1051,7 +1091,7 @@ dialog li { margin: 0 0 6px; }
       start: [base + extra].concat(people.map(() => base)),
       seats: [{ id: 'me', n: base + extra, dice: [], out: false, lost: 0 }].concat(people.map(id => ({ id, n: base, dice: [], out: false, lost: 0 }))),
       seen: [{ n: 0, b: 0 }].concat(people.map(() => ({ n: 0, b: 0 }))),
-      round: null, roundNo: 0, wait: null, nextOpener: 0, used: {}, hot: false, last: null,
+      round: null, roundNo: 0, wait: null, nextOpener: 0, used: {}, hot: false, last: null, cash0: S.cash,
       rec: { caught: [], caughtBy: [], spots: 0, rounds: 0 }
     };
     S.rng = hash(S.seed + '|table|' + S.hour + '|' + card.kind, 3);
@@ -1101,7 +1141,7 @@ dialog li { margin: 0 0 6px; }
     const shown = (seat, used) => { const s = T.seats[seat]; const free = s.dice.map((d, i) => i).filter(i => !used.includes(i) && !(T.rule === 'open' && i === 0)); return free.length ? free[ri(S, free.length)] : -1; };
     if (has(S, 'mirror')) {
       const left = nextAlive(T, 0);
-      if (left !== 0) { const i = shown(left, []); if (i >= 0) { R.peek.push({ seat: left, i, why: 'mirror' }); ev.push({ t: 'trick', id: 'mirror', seat: left, who: T.seats[left].id, die: i, face: T.seats[left].dice[i] }); } }
+      if (left !== 0 && T.seats[left].n >= MIRROR_MIN) { const i = shown(left, []); if (i >= 0) { R.peek.push({ seat: left, i, why: 'mirror' }); ev.push({ t: 'trick', id: 'mirror', seat: left, who: T.seats[left].id, die: i, face: T.seats[left].dice[i] }); } }
     }
     if (has(S, 'cornered') && T.seats[0].n === 1) {
       const out = [];
@@ -1171,26 +1211,57 @@ dialog li { margin: 0 0 6px; }
     const bump = f => {
       let b = 0;
       const by = {};
-      R.bids.forEach(x => { if (x.who !== s && x.f === f) by[x.who] = 1; });
-      for (const j in by) b += (per.skill * (1 - estBluff(S, T, +j)) * READ + (1 - per.skill) * GULL) * Math.min(1, T.seats[+j].n / 3);
+      R.bids.forEach(x => { if (x.who !== s && x.f === f) by[x.who] = Math.max(by[x.who] || 0, x.q); });
+      // A good reader also weighs how far over the table's expectation the bid went.
+      for (const j in by) b += (per.skill * (1 - estBluff(S, T, +j)) * READ * clamp(by[j] - total * p + SIZE, 0.5, 2) + (1 - per.skill) * GULL) * Math.min(1, T.seats[+j].n / 3);
       return b;
     };
     const exactP = (q, f) => pFrom(known, total, q, f, wild);
-    const believe = (q, f) => {
+    // What it believes without the noise: bids are sized from this, so one lucky
+    // draw of noise never sizes a bid; the noise is in whether it believes the one in front.
+    const clean = (q, f) => {
       if (q > total) return 0;
       const need = q - matches(f);
-      if (need <= 0) return 1;
-      return clamp(tailF(n, need - bump(f), p) + (rnd(S) - 0.5) * 2 * noise, 0, 1);
+      return need <= 0 ? 1 : tailF(n, need - bump(f), p);
     };
+    const believe = (q, f) => {
+      const c = clean(q, f);
+      return c === 0 || c === 1 ? c : clamp(c + (rnd(S) - 0.5) * 2 * noise, 0, 1);
+    };
+    // Its comfortable level: on a face it likes, the most dice it believes at its own
+    // comfort (cautious honest people want ~0.8, brash ones ~0.5).
+    const conf = clamp(COMFORT[0] - COMFORT[1] * (bluffy - 0.06) / 0.44, 0.45, 0.85);
+    const level = (f, c) => { let q = 0; for (let k = 1; k <= total; k++) { if (clean(k, f) >= c) q = k; else break; } return q; };
+    const comfort = c => {
+      let best = null;
+      for (const f of faces) { const q = level(f, c); if (q && (!best || q > best.q || (q === best.q && clean(q, f) >= clean(best.q, best.f)))) best = { q, f }; }
+      return best;
+    };
+    // A poor player sometimes reaches one further than it should (never under ~35% by its own cup).
+    const reach = c => { if (c.q < total && rnd(S) < over && exactP(c.q + 1, c.f) >= REACH) return { q: c.q + 1, f: c.f }; return c; };
+    // How true a bid looks from outside (by its face value, no cup seen).
+    const look = c => tail(total - publicDice(T, -1).length, c.q - publicDice(T, -1).filter(d => hit(d, c.f, wild)).length, p);
     if (!cur) {
-      // Opening.
+      // Opening: at about its comfortable level (a little under, sometimes exactly), or a deliberate bluff.
       if (!own) { const f = faces[ri(S, faces.length)]; return { t: 'bid', q: clamp(Math.floor(total * p), 1, total), f }; }
       const order = shuffle(S, faces).sort((a, b) => matches(b) - matches(a));
-      const f = rnd(S) < bluffy ? order[order.length - 1] : order[0];
-      let q = 1;
-      for (let k = 1; k <= total; k++) if (believe(k, f) >= 0.55 - over) q = k;
-      if (f !== order[0]) q = Math.max(1, matches(f) + Math.round(n * p) + 1);
-      return { t: 'bid', q: clamp(q, 1, total), f };
+      if (rnd(S) < bluffy * OPEN_BLUFF) {
+        // A face it does not hold, at the first count that is a bluff by its own cup
+        // (a good liar backs off to one that still looks true from outside).
+        const f = order[order.length - 1];
+        let q = 1; while (q < total && exactP(q, f) >= BLUFF_P) q++;
+        if (exactP(q, f) < BLUFF_P && (rnd(S) >= per.skill || look({ q, f }) >= LOOK)) return { t: 'bid', q, f };
+      }
+      // The most it believes at its comfort on any face, that the table would also
+      // believe at face value and that says something (not a sure thing); failing
+      // that, the same without the last wish; failing that, its plain level.
+      const want = conf + OPEN_UNDER * rnd(S);
+      // (A shark cares less what the table believes: it opens nearer its full level.)
+      const lookAt = OPEN_LOOK * (1 - LOOK_SHARK * clamp((per.skill - 0.6) / 0.4, 0, 1));
+      const pick = test => { let best = null; for (const f of order) for (let q = 1; q <= total; q++) { const x = exactP(q, f); if (x < want) break; if (test(q, f, x) && (!best || q > best.q)) best = { q, f }; } return best; };
+      const c = pick((q, f, x) => x <= TRIVIAL && look({ q, f }) >= lookAt) || pick((q, f) => look({ q, f }) >= lookAt) || comfort(want) || { q: 1, f: order[0] };
+      const o = reach(c);
+      return { t: 'bid', q: clamp(o.q, 1, total), f: o.f };
     }
     const bidder = cur.who, est = estBluff(S, T, bidder);
     const thr = nerve + per.skill * (est - 0.25) * 0.8;
@@ -1199,22 +1270,39 @@ dialog li { margin: 0 0 6px; }
     const pe = clamp(pmf(n, cur.q - matches(cur.f), p) + (rnd(S) - 0.5) * noise, 0, 1);
     const spotThr = 0.62 - 0.4 * per.spot + (capped ? 0.12 : 0);
     if (cur.q <= total && pe >= spotThr) return { t: 'spot' };
-    if (pc < thr) return { t: 'liar' };
     const cands = [];
     for (let q = cur.q; q <= Math.min(total, cur.q + 2); q++) for (const f of faces) if (higher(q, f, cur)) cands.push({ q, f, b: believe(q, f), x: exactP(q, f) });
     if (!cands.length) return { t: 'liar' };
+    // A close call is not worth making while a raise it likes is there (most of all on
+    // the round's first bid: hardly anyone calls the opener).
+    const credit = CREDIT * (R.bids.length === 1 ? 1 : 0.5) * (1 - SHARP * per.skill);
+    if (pc < thr && !(pc >= thr - credit && cands.some(c => c.q <= cur.q + 1 && c.b >= RAISE_OK))) return { t: 'liar' };
+    // Where it would like the bid to be. When the bid in front is well below that, it
+    // jumps there rather than creep up by the minimum.
+    const target = comfort(conf);
+    const far = !!target && higher(target.q, target.f, cur) && target.q >= cur.q + 2;
+    const top = far ? target.q : cur.q + 1;
     if (rnd(S) < bluffy) {
-      // A good liar only tells a lie that looks true from outside (by the face value
-      // of the bid, no cup seen); a poor one tells the first that comes.
-      const stretch = cands.filter(c => c.q <= cur.q + 1 && c.x < BLUFF_P);
-      const look = c => tail(total - publicDice(T, -1).length, c.q - publicDice(T, -1).filter(d => hit(d, c.f, wild)).length, p);
+      // A good liar only tells a lie that looks true from outside; a poor one tells the first that comes.
+      const stretch = [];
+      for (let q = cur.q; q <= Math.min(total, top); q++) for (const f of faces) if (higher(q, f, cur) && exactP(q, f) < BLUFF_P) stretch.push({ q, f, x: exactP(q, f) });
       if (stretch.length) {
         if (rnd(S) >= per.skill) return { t: 'bid', q: stretch[0].q, f: stretch[0].f };
         const c = stretch.filter(k => look(k) >= LOOK).sort((a, b) => look(b) - look(a))[0];
         if (c) return { t: 'bid', q: c.q, f: c.f };
       }
     }
-    const good = cands.filter(c => c.b >= 0.5 - over);
+    if (far && rnd(S) < JUMP) {
+      const j = target.q - 1 > cur.q && rnd(S) < JUMP_DROP && exactP(target.q - 1, target.f) <= TRIVIAL ? { q: target.q - 1, f: target.f } : reach(target);
+      return { t: 'bid', q: j.q, f: j.f };
+    }
+    // The smallest raise it believes, passing over sure things that say nothing when it can.
+    const liked = cands.filter(c => c.b >= 0.5 - over), real = liked.filter(c => c.x <= TRIVIAL);
+    // An honest player prefers a raise its own cup backs (so it does not bluff by accident).
+    const backed = (real.length ? real : liked).filter(c => c.x >= BLUFF_P);
+    const good = backed.length && rnd(S) >= bluffy ? backed : real.length ? real : liked;
+    // With nothing its own cup backs, an honest player would sooner call than stretch.
+    if (good.length && !backed.length && rnd(S) < HONEST * (1 - bluffy / 0.5)) return { t: 'liar' };
     if (good.length) {
       const minQ = good[0].q;
       let c = good[0];
@@ -1311,8 +1399,11 @@ dialog li { margin: 0 0 6px; }
       pay(S, ev, payout, 'pot');
     } else if (place === 2 && T.seats.length === 4 && !T.onTab) { refund = T.buyIn; pay(S, ev, refund, 'refund'); }
     const people = T.seats.slice(1).map(s => s.id);
-    S.log.push({ hour: T.hour, kind: T.kind, rule: T.rule, people, place, won, payout, refund, buyIn: T.buyIn, onTab: T.onTab, rounds: T.rec.rounds, caught: T.rec.caught, caughtBy: T.rec.caughtBy, spots: T.rec.spots, cash: S.cash });
-    ev.push({ t: 'tableEnd', hour: T.hour, kind: T.kind, place, won, payout, refund, rounds: T.rec.rounds, people, cash: S.cash });
+    // Everything this table did to your cash: buy-in, antes, bonuses, pot, refund.
+    // (A night saved before tables kept cash0 falls back to buy-in, pot and refund alone.)
+    const net = T.cash0 != null ? S.cash - T.cash0 : payout + refund - (T.onTab ? 0 : T.buyIn);
+    S.log.push({ hour: T.hour, kind: T.kind, rule: T.rule, people, place, won, payout, refund, net, buyIn: T.buyIn, onTab: T.onTab, rounds: T.rec.rounds, caught: T.rec.caught, caughtBy: T.rec.caughtBy, spots: T.rec.spots, cash: S.cash });
+    ev.push({ t: 'tableEnd', hour: T.hour, kind: T.kind, place, won, payout, refund, net, rounds: T.rec.rounds, people, cash: S.cash });
     S.table = null;
     if (T.kind === 'last') return endNight(S, won ? 'house' : 'cleaned', ev);
     openShop(S, ev);
@@ -1545,19 +1636,35 @@ dialog li { margin: 0 0 6px; }
   }
   const count = (S, q, f) => countAt(S, q, f, false);
   const countExact = (S, q, f) => countAt(S, q, f, true);
+  // A sensible raise by the Count alone: on your best face, the most dice the Count puts
+  // at `at` (default 0.6) or better, when that is a legal bid now; else null.
+  function suggest(S, at) {
+    const T = S.table;
+    if (S.phase !== 'table' || !T || !T.round || T.wait !== 'turn') return null;
+    const want = at == null ? 0.6 : at, total = totalDice(T);
+    let best = null;
+    for (const f of facesOf(T)) {
+      let q = 0;
+      for (let k = 1; k <= total; k++) { if (count(S, k, f) >= want) q = k; else break; }
+      if (!q) continue;
+      const c = count(S, q, f);
+      if (!best || q > best.q || (q === best.q && c >= best.c)) best = { q, f, c };
+    }
+    return best && isLegalBid(S, best.q, best.f) ? { q: best.q, f: best.f } : null;
+  }
 
   // ----- the view: only what the human may see -----
   // Each person's long-run share of bids that are bluffs, measured by tests/bones-sim.cjs.
   const RATE = {
-    lc_alma: 0.17, lc_cora: 0.3, lc_dale: 0.18, lc_enzo: 0.42, lc_greta: 0.26, lc_hattie: 0.19,
-    lc_ines: 0.27, lc_malik: 0.19, lc_otis: 0.29, lc_priya: 0.23, lc_ruben: 0.28, lc_wes: 0.4,
-    lc_yolanda: 0.18, npc_annette: 0.16, npc_boyd: 0.17, npc_brianna: 0.25, npc_burl: 0.4, npc_carter: 0.34,
-    npc_colt: 0.49, npc_curtis: 0.2, npc_darlene: 0.14, npc_dewayne: 0.16, npc_dwight: 0.19,
-    npc_elbert: 0.34, npc_gerald: 0.3, npc_glenda: 0.28, npc_hollis: 0.26, npc_jodie: 0.28, npc_jolene: 0.23,
-    npc_june: 0.19, npc_lamar: 0.2, npc_leon: 0.21, npc_loretta: 0.13, npc_lorna: 0.3, npc_lyman: 0.15,
-    npc_marcus: 0.14, npc_mavis: 0.23, npc_nadine: 0.24, npc_nikki: 0.19, npc_odessa: 0.17, npc_pearl: 0.22,
-    npc_ray: 0.22, npc_royce: 0.24, npc_shayla: 0.4, npc_tammy: 0.31, npc_travis: 0.41, npc_trent: 0.46,
-    npc_vada: 0.23, npc_virgil: 0.15, npc_wade: 0.22
+    lc_alma: 0.16, lc_cora: 0.3, lc_dale: 0.17, lc_enzo: 0.4, lc_greta: 0.25, lc_hattie: 0.19, lc_ines: 0.25,
+    lc_malik: 0.18, lc_otis: 0.32, lc_priya: 0.22, lc_ruben: 0.25, lc_wes: 0.42, lc_yolanda: 0.17,
+    npc_annette: 0.16, npc_boyd: 0.16, npc_brianna: 0.23, npc_burl: 0.4, npc_carter: 0.34, npc_colt: 0.52,
+    npc_curtis: 0.22, npc_darlene: 0.13, npc_dewayne: 0.15, npc_dwight: 0.18, npc_elbert: 0.31,
+    npc_gerald: 0.31, npc_glenda: 0.31, npc_hollis: 0.25, npc_jodie: 0.25, npc_jolene: 0.23, npc_june: 0.16,
+    npc_lamar: 0.19, npc_leon: 0.2, npc_loretta: 0.18, npc_lorna: 0.33, npc_lyman: 0.16, npc_marcus: 0.17,
+    npc_mavis: 0.18, npc_nadine: 0.24, npc_nikki: 0.23, npc_odessa: 0.14, npc_pearl: 0.2, npc_ray: 0.2,
+    npc_royce: 0.21, npc_shayla: 0.42, npc_tammy: 0.26, npc_travis: 0.45, npc_trent: 0.47, npc_vada: 0.21,
+    npc_virgil: 0.13, npc_wade: 0.18
   };
   function ledgerPhrase(id) {
     const r = RATE[id] != null ? RATE[id] : P[id].bluff;
@@ -1691,7 +1798,7 @@ dialog li { margin: 0 0 6px; }
     return {
       seed: S.seed, daily: S.daily, over: S.phase === 'over', ending: S.ending, endingText: S.ending ? ENDING[S.ending] : null, cash: S.cash,
       beatHouse: S.ending === 'house', bust: S.ending === 'bust', reachedLastCall: S.log.some(t => t.kind === 'last') || (S.hour === 4 && S.cash >= 500),
-      tables: S.log.map(t => ({ hour: t.hour, hourName: HOURS[t.hour].name, kind: t.kind, rule: t.rule, place: t.place, won: t.won, payout: t.payout, refund: t.refund, rounds: t.rounds, people: t.people.map(id => P[id].name) })),
+      tables: S.log.map(t => ({ hour: t.hour, hourName: HOURS[t.hour].name, kind: t.kind, rule: t.rule, place: t.place, won: t.won, payout: t.payout, refund: t.refund, net: t.net != null ? t.net : t.payout + t.refund - (t.onTab ? 0 : t.buyIn), rounds: t.rounds, people: t.people.map(id => P[id].name) })),
       tablesWon: S.log.filter(t => t.won).length, challengesWon: st.won, challengesLost: st.lost, liarsCaught: st.caught, timesCaught: st.caughtBy,
       spotsHit: st.spots, spotsMissed: st.spotMiss, bids: st.bids, bluffs: st.bluffs, bestStreak: st.bestStreak, maxCash: st.maxCash, rounds: st.rounds, tricksBought: st.bought.slice(), tricksHeld: S.tricks.map(t => t.id)
     };
@@ -1771,7 +1878,8 @@ dialog li { margin: 0 0 6px; }
     const b = v.table.bid;
     if (b && count(S, b.q, b.f) < 0.38) return { t: 'liar' };
     if (b && countExact(S, b.q, b.f) > 0.5) return { t: 'spot' };
-    let best = null;
+    // Open, or jump, to the most of its best face the Count puts at 60%; else the smallest raise it likes.
+    let best = suggest(S, 0.6);
     for (let q = L.minBid ? L.minBid.q : 1; L.minBid && q <= L.maxQ && !best; q++) for (const f of L.faces) if (isLegalBid(S, q, f) && count(S, q, f) >= 0.5 && (!best || count(S, q, f) > count(S, best.q, best.f))) best = { q, f };
     if (best) return { t: 'bid', q: best.q, f: best.f };
     if (L.mustBid) return { t: 'bid', q: L.minBid.q, f: L.minBid.f };
@@ -1793,7 +1901,7 @@ dialog li { margin: 0 0 6px; }
 
   const Engine = {
     VERSION, PEOPLE, TRICKS, HOUSE_RULES: HOUSE_RULES.map(r => Object.freeze(r)), HOURS: clone(HOURS), START_CASH, SLOTS,
-    newNight, options, sit: (S, i) => act(S, { t: 'sit', i }), act, advance, legal, isLegalBid, count, countExact,
+    newNight, options, sit: (S, i) => act(S, { t: 'sit', i }), act, advance, legal, isLegalBid, count, countExact, suggest,
     view, shopView, bookApply, bookPage, summary, shareLine, column, columnFacts, talkFacts, dailySeed, playNight, basicPolicy,
     // For tests and the balance sim only: the hidden side of the people and the odds. Not for the UI.
     _sim: { person: id => P[id] ? clone(P[id]) : null, tail, pmf, price: (S, id, h) => price(S, id, h), estBluff: (S, j) => estBluff(S, S.table, j), TELL, BLUFF_P }
@@ -2370,15 +2478,15 @@ dialog li { margin: 0 0 6px; }
       return anim(this.bubble, [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], 260, { move: true });
     }
     shakeCup() {
-      return anim(this.tray, [{ transform: 'none' }, { transform: 'rotate(-5deg) translateY(-2px)' }, { transform: 'rotate(5deg)' }, { transform: 'rotate(-3deg) translateY(-1px)' }, { transform: 'rotate(2deg)' }, { transform: 'none' }], 420, { move: true, easing: 'ease-in-out' });
+      return anim(this.tray, [{ transform: 'none' }, { transform: 'rotate(-5deg) translateY(-2px)' }, { transform: 'rotate(5deg)' }, { transform: 'rotate(-3deg) translateY(-1px)' }, { transform: 'rotate(2deg)' }, { transform: 'none' }], 380, { move: true, easing: 'ease-in-out' });
     }
-    async lift(dice) {
-      await anim(this.tray, [{ transform: 'none' }, { transform: 'translateY(-6px) scale(1.05)', opacity: .2 }], 110, { move: true, easing: 'ease-in' });
+    async lift(dice, quick) {
+      await anim(this.tray, [{ transform: 'none' }, { transform: 'translateY(-6px) scale(1.05)', opacity: .2 }], quick ? 70 : 110, { move: true, easing: 'ease-in' });
       const nodes = dice.map(f => Dice.node(f, { label: false }));
       const kids = nodes.slice();
       for (let i = dice.length; i < this.max; i++) kids.push(Dice.node(0, { empty: true, label: false }));
       this.tray.replaceChildren(...kids);
-      await anim(this.tray, [{ transform: 'translateY(4px)', opacity: .2 }, { transform: 'none', opacity: 1 }], 130, { move: true });
+      await anim(this.tray, [{ transform: 'translateY(4px)', opacity: .2 }, { transform: 'none', opacity: 1 }], quick ? 80 : 130, { move: true });
       return nodes;
     }
     async loseDice(count, left) {
@@ -2388,7 +2496,7 @@ dialog li { margin: 0 0 6px; }
         this.n--;
         if (d) {
           Dice.crack(d);
-          await anim(d, [{ transform: 'none' }, { transform: 'rotate(-12deg) scale(1.15)', offset: .25 }, { transform: 'translateY(26px) rotate(70deg) scale(.6)', opacity: 0 }], 460, { move: true, easing: 'cubic-bezier(.5,0,.8,.6)', fade: [{ opacity: 1 }, { opacity: 0 }] });
+          await anim(d, [{ transform: 'none' }, { transform: 'rotate(-12deg) scale(1.15)', offset: .25 }, { transform: 'translateY(26px) rotate(70deg) scale(.6)', opacity: 0 }], 400, { move: true, easing: 'cubic-bezier(.5,0,.8,.6)', fade: [{ opacity: 1 }, { opacity: 0 }] });
           d.replaceWith(Dice.node(0, { empty: true, label: false }));
         }
       }
@@ -2531,9 +2639,9 @@ dialog li { margin: 0 0 6px; }
           { transform: `translate(${-30 * dir}px,-46px) rotate(${-spin}deg) scale(.55)`, opacity: 0 },
           { transform: `translate(${5 * dir}px,3px) rotate(${14 * dir}deg) scale(1.05)`, opacity: 1, offset: .62 },
           { transform: `translate(${-2 * dir}px,0) rotate(${-5 * dir}deg)`, offset: .84 },
-          { transform: 'none' }], 460, { move: true, delay: j * 50, easing: 'cubic-bezier(.2,.7,.3,1)' });
+          { transform: 'none' }], 400, { move: true, delay: j * 40, easing: 'cubic-bezier(.2,.7,.3,1)' });
         if (!Motion.reduce) {
-          try { await wait(j * 50); for (let k = 0; k < 4 && !instant(); k++) { Dice.set(d, 1 + Math.floor(fxRand() * 6), {}); await wait(65); } } catch (e) { /* aborted */ }
+          try { await wait(j * 40); for (let k = 0; k < 4 && !instant(); k++) { Dice.set(d, 1 + Math.floor(fxRand() * 6), {}); await wait(60); } } catch (e) { /* aborted */ }
         }
         await a;
         Dice.set(d, this.state.dice[i], this.opts(i));
@@ -2554,7 +2662,7 @@ dialog li { margin: 0 0 6px; }
         const d = this.nodes[this.state.dice.length - 1];
         if (d) {
           Dice.crack(d);
-          await anim(d, [{ transform: 'none' }, { transform: 'translateX(-4px) rotate(-6deg)', offset: .12 }, { transform: 'translateX(4px) rotate(6deg)', offset: .24 }, { transform: 'rotate(-10deg) scale(1.08)', offset: .4 }, { transform: 'translateY(70px) rotate(80deg) scale(.7)', opacity: 0 }], 600, { move: true, easing: 'cubic-bezier(.5,0,.8,.6)', fade: [{ opacity: 1 }, { opacity: 0 }] });
+          await anim(d, [{ transform: 'none' }, { transform: 'translateX(-4px) rotate(-6deg)', offset: .12 }, { transform: 'translateX(4px) rotate(6deg)', offset: .24 }, { transform: 'rotate(-10deg) scale(1.08)', offset: .4 }, { transform: 'translateY(70px) rotate(80deg) scale(.7)', opacity: 0 }], 520, { move: true, easing: 'cubic-bezier(.5,0,.8,.6)', fade: [{ opacity: 1 }, { opacity: 0 }] });
         }
         this.state.dice.pop(); this.render();
       }
@@ -2677,16 +2785,10 @@ dialog li { margin: 0 0 6px; }
       this.setFaces(c.faces);
       if (!same) {
         this.touched = false;
-        // Start on the raise the Count likes best (an opening: the most of a face it believes even odds on).
-        let best = null;
-        for (const face of c.faces) {
-          let q = this.min(face);
-          if (q > c.total) continue;
-          if (!c.bid) { while (q + 1 <= c.total && (Engine.count(App.state, q + 1, face) || 0) >= .5) q++; }
-          const p = Engine.count(App.state, q, face) || 0;
-          if (!best || p > best.p + 1e-9 || (Math.abs(p - best.p) < 1e-9 && q > best.q)) best = { q, f: face, p };
-        }
-        if (best) { this.q = best.q; this.f = best.f; } else if (c.minBid) { this.q = c.minBid.q; this.f = c.minBid.f; }
+        // Start on the most of your best face the Count puts at 60% or better, when that is a
+        // legal raise; otherwise on the smallest legal raise.
+        const best = Engine.suggest(App.state, 0.6) || c.minBid;
+        if (best) { this.q = best.q; this.f = best.f; }
       }
       this.render();
       if (!same) anim(this.root, [{ transform: 'translateY(6px)' }, { transform: 'none' }], 200, { move: true });
@@ -2800,12 +2902,14 @@ dialog li { margin: 0 0 6px; }
     count: 'The Count is how likely the bid is true, from your dice alone. Low means it’s probably a lie.',
     turn: 'Your move. Raise to a bigger bid, or call Liar! Whoever is wrong loses a die and pays the ante.',
     habit: 'Everyone has habits. Your Book tallies each one against bluffs. Tap a face to read their page.',
-    spot: 'Spot on bets the bid is exactly right. Hit it and you win a die back and three antes.'
+    spot: 'Spot on bets the bid is exactly right. Hit it and you win a die back and three antes.',
+    booktally: 'Your Book remembers this habit. Weigh it against the Count.'
   };
   const Coach = {
-    on: false, queue: [], cur: null,
+    on: false, queue: [], cur: null, texts: {},
     start(on) { this.on = !!on && !Settings.tipsDone; this.queue = []; this.hide(); },
-    want(id) {
+    want(id, text) {
+      if (text) this.texts[id] = text;
       if (!this.on || Settings.tipsDone || Settings.tipsSeen.includes(id) || this.queue.includes(id) || this.cur === id) return;
       this.queue.push(id);
       if (!this.cur) this.next();
@@ -2815,7 +2919,7 @@ dialog li { margin: 0 0 6px; }
       if (!id) { this.hide(); return; }
       this.cur = id;
       const box = $('coach');
-      box.replaceChildren(el('p', null, TIPS[id]), el('div', { class: 'row' },
+      box.replaceChildren(el('p', null, TIPS[id] || this.texts[id] || ''), el('div', { class: 'row' },
         el('button', { class: 'linkbtn', type: 'button', id: 'btn-tips-off', onclick: () => this.skip() }, 'Skip the tips'),
         el('button', { class: 'btn primary', type: 'button', id: 'btn-tip-ok', onclick: () => this.done() }, 'Got it')));
       box.hidden = false;
@@ -2922,14 +3026,15 @@ dialog li { margin: 0 0 6px; }
       BidBanner.counter(e.q, e.f);
       let n = 0;
       const state = () => (e.kind === 'spot' ? (n > e.q ? 'over' : n === e.q ? 'there' : null) : (n >= e.q ? 'there' : null));
-      await wait(100);
+      await wait(40);
       const order = e.cups.filter(c => c.who !== 0).concat(e.cups.filter(c => c.who === 0));
       for (const cup of order) {
         let nodes;
-        if (cup.who === 0) { nodes = MyCup.nodes; await anim(MyCup.el, [{ transform: 'none' }, { transform: 'translateY(-4px)' }, { transform: 'none' }], 220, { move: true }); }
-        else { Sfx.play('thump'); const s = seatOf(cup.who); nodes = s ? await s.lift(cup.dice) : []; }
-        await wait(60);
         const hits = hitsOf(cup.dice, e.f, e.wild, cup.who, e.bidder, TV.fixed);
+        // A cup with nothing for the bid lifts fast and the count moves on; the drama is in the hits.
+        if (cup.who === 0) { nodes = MyCup.nodes; await anim(MyCup.el, [{ transform: 'none' }, { transform: 'translateY(-4px)' }, { transform: 'none' }], hits.length ? 180 : 120, { move: true }); }
+        else { Sfx.play('thump'); const s = seatOf(cup.who); nodes = s ? await s.lift(cup.dice, !hits.length) : []; }
+        if (hits.length) await wait(40);
         cup.dice.forEach((d, i) => { if (!hits.includes(i) && nodes[i]) nodes[i].setAttribute('data-dim', ''); });
         for (const i of hits) {
           const node = nodes[i];
@@ -2939,12 +3044,12 @@ dialog li { margin: 0 0 6px; }
           anim(node, [{ transform: 'scale(1)' }, { transform: 'scale(1.45) rotate(-8deg)', offset: .4 }, { transform: 'scale(1)' }], 260, { move: true, easing: 'ease-out' });
           BidBanner.tick(n, state());
           Sfx.play('tick', n); Haptic.tap(6);
-          await wait(n === e.q - 1 ? 300 : 130);
+          await wait(n === e.q - 1 ? 280 : 110);
         }
-        await wait(90);
+        if (hits.length) await wait(40);
       }
       if (n !== e.count) { n = e.count; BidBanner.tick(n, state()); }
-      await wait(180);
+      await wait(120);
       const you = e.bidder === 0 ? 'bidder' : e.caller === 0 ? 'caller' : null;
       const loser = e.kind === 'liar' ? (e.good ? e.caller : e.bidder) : (e.exact ? -1 : e.caller);
       const nm = k => (k === 0 ? 'You' : first(TV.seats[k] ? TV.seats[k].id : ''));
@@ -2955,7 +3060,7 @@ dialog li { margin: 0 0 6px; }
       else if (e.good) { text = 'IT’S THERE'; kind = you === 'caller' ? 'danger' : 'good'; }
       else { text = you ? 'CAUGHT' : 'NOT THERE'; kind = you === 'caller' ? 'good' : 'danger'; }
       if (text === 'DEAD ON') { Sfx.play('flourish'); Fx.burst($('bid'), 46); await Stamp.show(text, 'big', sub, 1100); }
-      else await Stamp.show(text, kind, sub, 600);
+      else await Stamp.show(text, kind, sub, 460);
     }
   };
 
@@ -3023,7 +3128,7 @@ dialog li { margin: 0 0 6px; }
       const fl = Fx.float(label, toYou ? from : $('cash'), toYou ? $('cash') : from, toYou ? 'good' : 'danger');
       fl.catch(() => {});
       Cash.set(e.cash, { animate: true });
-      await wait(260);
+      await wait(170);
     },
     async roll(e) {
       Stamp.clear(); Sheet.clear();
@@ -3043,7 +3148,7 @@ dialog li { margin: 0 0 6px; }
       const shakes = TV.seats.filter(s => s && !s.out && s.n > 0).map((s, i) => wait(i * 50).then(() => s.shakeCup()).catch(() => {}));
       if (e.blind) { MyCup.set(new Array(e.counts[0]).fill(0), TV.start[0], { down: true }); await Promise.all(shakes); }
       else { MyCup.set(e.mine, TV.start[0]); await Promise.all([MyCup.roll(e.mine), ...shakes]); Coach.want('dice'); }
-      await wait(120);
+      await wait(50);
     },
     async look(e) { TV.my = e.mine.slice(); TV.blind = false; MyCup.caption(TV.wild ? '1s are wild' : 'Straight: 1s not wild'); MyCup.set(e.mine, TV.start[0], { fixed: TV.fixed, loaded: TV.loaded }); await MyCup.roll(e.mine); showCount(); },
     async trick(e) {
@@ -3067,12 +3172,12 @@ dialog li { margin: 0 0 6px; }
         s.clearTalk(); s.thinking();
         // A thinking beat; a habit shows about half a second before the bid does.
         if (e.habit) {
-          await wait(180 + fxRand() * 80);
+          await wait(150 + fxRand() * 70);
           s.habit(e.habit);
           BookLine.set(e.id, e.habit, bookShown);
           Coach.want('habit');
-          await wait(460);
-        } else { await wait(380 + fxRand() * 200); BookLine.clear(); }
+          await wait(400);
+        } else { await wait(300 + fxRand() * 160); BookLine.clear(); }
         Sfx.play('blip'); Haptic.tap(8);
         await s.sayBid(e.q, e.f);
       } else {
@@ -3086,14 +3191,14 @@ dialog li { margin: 0 0 6px; }
       showCount();
       if (e.who !== 0) { Coach.want('bid'); Coach.want('count'); }
       setTurn(-1);
-      await wait(e.who === 0 ? 100 : 60);
+      await wait(e.who === 0 ? 60 : 40);
     },
     async call(e) {
       TV.other = e.who === 0 ? e.on.who : (e.on.who === 0 ? e.who : null);
       setTurn(e.who === 0 ? -1 : e.who);
-      if (e.who !== 0) { const s = seatOf(e.who); s.thinking(); await wait(300); await s.sayCall(e.kind); }
+      if (e.who !== 0) { const s = seatOf(e.who); s.thinking(); await wait(240); await s.sayCall(e.kind); }
       Log.add(nameAt(e.who), e.kind === 'liar' ? 'Liar!' : 'Spot on!');
-      await Stamp.show(e.kind === 'liar' ? 'LIAR!' : 'SPOT ON!', e.kind === 'liar' ? 'danger' : 'accent', `${nameAt(e.who)} on ${e.on.who === 0 ? 'you' : nameAt(e.on.who)}`, 380);
+      await Stamp.show(e.kind === 'liar' ? 'LIAR!' : 'SPOT ON!', e.kind === 'liar' ? 'danger' : 'accent', `${nameAt(e.who)} on ${e.on.who === 0 ? 'you' : nameAt(e.on.who)}`, 320);
       Stamp.clear(true);
       setTurn(-1);
     },
@@ -3106,7 +3211,7 @@ dialog li { margin: 0 0 6px; }
       if (winner > 0 && seatOf(winner)) seatOf(winner).setMood('warm');
       if (e.who === 0) await MyCup.lose(e.n);
       else { const s = seatOf(e.who); s.setMood('cold'); await s.loseDice(e.n, e.left); }
-      await wait(80);
+      await wait(30);
     },
     async gain(e) {
       TV.counts[e.who] = e.left;
@@ -3220,7 +3325,7 @@ dialog li { margin: 0 0 6px; }
       const seatsRoot = $('seats');
       seatsRoot.style.setProperty('--n', t.seats.length - 1);
       seatsRoot.replaceChildren(...TV.seats.filter(Boolean).map(s => s.root));
-      $('t-hour').textContent = Engine.HOURS[t.hour].name;
+      $('t-hour').replaceChildren(...hourLabel(t.hour));
       const rt = $('ruletag');
       rt.hidden = !t.rule; rt.textContent = t.rule ? t.rule.name : ''; rt.setAttribute('aria-label', t.rule ? `House rule: ${t.rule.name}. What it means` : '');
       $('antetag').textContent = t.kind === 'last' ? `Loretta’s table · pot ${money(t.buyIn * t.seats.length)}` : `Ante ${money(t.ante)} · pot ${money(t.buyIn * t.seats.length)}`;
@@ -3229,7 +3334,7 @@ dialog li { margin: 0 0 6px; }
       MyCup.set(new Array(TV.start[0]).fill(0), TV.start[0], { down: true });
       MyCup.caption(TV.wild ? '1s are wild' : 'Straight: 1s not wild');
       CountBar.set(null, ' '); BookLine.clear(); infoLine();
-      Coach.start(Night.rec && Night.rec.coach && t.hour === 0);
+      Coach.start(Night.rec && Night.rec.coach);
     },
     /* Put the screen exactly in line with the view (after every batch, and on resume). */
     sync(v) {
@@ -3239,7 +3344,7 @@ dialog li { margin: 0 0 6px; }
       const key = `${App.state.night}|${t.hour}|${t.kind}`;
       if (TV.key !== key) this.setup({ hour: t.hour, kind: t.kind, rule: t.rule, ante: t.ante, buyIn: t.buyIn, seats: t.seats.map(s => ({ seat: s.seat, id: s.id, dice: s.dice, start: s.start })) });
       Cash.set(v.cash); Streak.set(v.streak);
-      $('t-hour').textContent = v.hourName;
+      $('t-hour').replaceChildren(...hourLabel(v.hour));
       TV.total = t.total; TV.counts = t.seats.map(s => s.dice);
       const last = t.wait === 'next' && t.last ? t.last : null;
       const rv = last ? last.reveal : null;
@@ -3294,6 +3399,7 @@ dialog li { margin: 0 0 6px; }
         Picker.open({ bid: t.bid, total: t.total, faces: t.faces, canBid: L.canBid, canLiar: L.canLiar, canSpot: L.canSpot, mustBid: L.mustBid, minBid: L.minBid, double: v.tricks.some(x => x.id === 'double' && !x.asleep) });
         say(t.bid ? `Your turn. ${bidText(t.bid.q, t.bid.f)} on the table; the Count says ${pct(t.count || 0)}.` : 'Your turn to open.');
         Coach.want('turn');
+        if (t.bid && t.bid.who !== 0 && $('bookline').childElementCount && !$('bookline').hasAttribute('data-quiet')) Coach.want('booktally');
         if (t.bid && t.round >= 2) Coach.want('spot');
       } else if (t.wait === 'ready') {
         Picker.close(); Sheet.clear(); $('picker').hidden = true;
@@ -3307,7 +3413,12 @@ dialog li { margin: 0 0 6px; }
     },
     /* "What they had": every bid of the round, what its bidder held, bluff or straight, and what the Book now says. */
     hadRows(readout) {
-      return el('div', { class: 'had' }, readout.bids.map(b => {
+      // Only theirs: the challenged bid first, then the bluffs, then the rest; four rows, then "+N more".
+      const last = readout.bids.length - 1;
+      const theirs = readout.bids.map((b, k) => ({ b, k })).filter(x => x.b.id !== 'me');
+      const rank = x => (x.k === last ? 0 : x.b.bluff ? 1 : 2);
+      theirs.sort((x, y) => rank(x) - rank(y) || y.k - x.k);
+      const rows = theirs.map(({ b }) => {
         const book = bookShown && bookShown.people && bookShown.people[b.id];
         const row = book && b.habit !== null ? book.habits[b.habit] : null;
         return el('div', { class: 'had-row', dataset: { id: b.id } },
@@ -3316,7 +3427,17 @@ dialog li { margin: 0 0 6px; }
             el('div', { class: 'had-bid' }, el('span', null, `${b.id === 'me' ? 'You' : first(b.id)} · ${word(b.q)}`), Dice.node(b.f, { label: false, wild: false }), el('span', { class: 'held' }, `held ${b.held}`)),
             b.text ? el('div', { class: 'had-habit' }, `${first(b.id)} ${b.text}`, row ? el('span', { class: 'tally' }, ' · Book: seen ', el('b', null, `${row.n}×`), `, ${plural(row.bluff, 'bluff')}`) : null) : null),
           el('span', { class: 'tag ' + (b.bluff ? 'bluff' : 'straight') }, b.bluff ? 'BLUFF' : 'STRAIGHT'));
-      }));
+      });
+      const box = el('div', { class: 'had' });
+      if (!rows.length) return box;
+      const SHOW = 4;
+      box.append(...rows.slice(0, SHOW));
+      if (rows.length > SHOW) {
+        const more = el('button', { class: 'had-more', type: 'button', id: 'btn-had-more' }, `+${rows.length - SHOW} more`);
+        more.addEventListener('click', () => { more.replaceWith(...rows.slice(SHOW)); });
+        box.append(more);
+      }
+      return box;
     },
     verdict(rv, losses) {
       const who = k => (k === 0 ? 'you' : nameAt(k));
@@ -3332,6 +3453,8 @@ dialog li { margin: 0 0 6px; }
       const rows = this.hadRows(last.readout);
       const losses = TV.lastReveal === last.reveal || (TV.lastReveal && TV.lastReveal.q === last.reveal.q && TV.lastReveal.f === last.reveal.f && TV.lastReveal.count === last.reveal.count) ? TV.lastLoss : null;
       const node = Sheet.show([el('h2', null, 'What they had'), el('p', { class: 'sub' }, this.verdict(last.reveal, losses)), rows], 'Next round', () => App.act({ t: 'next' }), 'btn-next');
+      const told = last.readout.bids.find(b => b.id !== 'me' && b.bluff && b.text);
+      if (told) Coach.want('bluffhabit', `${first(told.id)} ${told.text}, and was bluffing. Your Book noted it. Watch for it.`);
       node.dataset.seq = String(TV.revealSeq);
       node.dataset.kind = 'readout';
     },
@@ -3339,8 +3462,11 @@ dialog li { margin: 0 0 6px; }
     showEnd(after) {
       const e = after.e;
       const kids = [];
-      if (e.won) kids.push(el('h2', null, TV.kind === 'last' ? 'You beat the house' : 'You took the table'), el('div', { class: 'end-big' }, '+' + money(e.payout)), el('p', { class: 'sub' }, `${Engine.HOURS[e.hour].name} · first of ${e.people.length + 1}, in ${plural(e.rounds, 'round')}. ${TV.kind === 'last' ? 'Loretta folds the bar towel. “Well, hon.”' : 'Curtis is waving you over to the back room.'}`));
-      else kids.push(el('h2', null, TV.kind === 'last' ? 'Loretta keeps the house' : 'Your cup is empty'), el('div', { class: 'end-big' }, e.refund ? '+' + money(e.refund) : money(0)), el('p', { class: 'sub' }, e.refund ? `${Engine.HOURS[e.hour].name} · second of four: the buy-in comes back.` : TV.kind === 'last' ? 'Everything you brought stays on her table.' : `${Engine.HOURS[e.hour].name} · ${['', 'first', 'second', 'third', 'fourth'][e.place]} of ${e.people.length + 1}. The night goes on.`));
+      // The big figure is what this table did to your cash, all told.
+      const net = typeof e.net === 'number' ? e.net : (e.won ? e.payout : 0) + (e.refund || 0) - (TV.buyIn || 0);
+      const big = el('div', { class: 'end-big', id: 'end-net', dataset: { sign: net > 0 ? 'up' : net < 0 ? 'down' : 'even' } }, (net > 0 ? '+' : net < 0 ? '−' : '') + money(Math.abs(net)), el('small', null, 'at this table'));
+      if (e.won) kids.push(el('h2', null, TV.kind === 'last' ? 'You beat the house' : 'You took the table'), big, el('p', { class: 'sub' }, `${Engine.HOURS[e.hour].name} · first of ${e.people.length + 1}, in ${plural(e.rounds, 'round')}. ${TV.kind === 'last' ? 'Loretta folds the bar towel. “Well, hon.”' : 'Curtis is waving you over to the back room.'}`));
+      else kids.push(el('h2', null, TV.kind === 'last' ? 'Loretta keeps the house' : 'Your cup is empty'), big, el('p', { class: 'sub' }, e.refund ? `${Engine.HOURS[e.hour].name} · second of four: the buy-in comes back.` : TV.kind === 'last' ? 'Everything you brought stays on her table.' : `${Engine.HOURS[e.hour].name} · ${['', 'first', 'second', 'third', 'fourth'][e.place]} of ${e.people.length + 1}. The night goes on.`));
       if (after.readout && after.reveal) kids.push(el('h3', { class: 'kicker' }, 'The last round'), el('p', { class: 'sub' }, this.verdict(after.reveal, after.losses)), this.hadRows(after.readout));
       const over = App.state && App.state.phase === 'over';
       const node = Sheet.show(kids, over ? 'How the night ended' : 'To the back room', () => App.leaveTable(), 'btn-endtable');
@@ -3415,6 +3541,9 @@ dialog li { margin: 0 0 6px; }
       el('button', { class: 'btn ghost', type: 'button', 'aria-label': 'The Book', onclick: () => Screens.book() }, ICON.book(), el('span', { class: 'booklbl' }, 'Book')),
       el('button', { class: 'btn ghost', type: 'button', 'aria-label': 'Menu', onclick: () => Menu.open() }, ICON.menu()));
   }
+  // The hour in a top bar: the full name, and a short one for narrow screens.
+  const HOUR_SHORT = ['9 PM', '10 PM', '11 PM', '12 AM', 'Last Call'];
+  const hourLabel = h => [el('span', { class: 'hl' }, Engine.HOURS[h].name), el('span', { class: 'hs' }, HOUR_SHORT[h])];
   const focusHead = root => { const h = root.querySelector('h1, h2'); if (h) { h.setAttribute('tabindex', '-1'); try { h.focus({ preventScroll: true }); } catch (e) { /* ok */ } } };
   const HOUR_LINE = ['The first table of the night. Easy money, they say.', 'The room is filling up.', 'The serious players are sitting down.', 'Midnight. The big money comes out.', 'Last Call.'];
   const PATTER = ['Step into my office. Everything back here pays, one way or another.', 'Odds are you need one of these. I’d put it at three to one.', 'A little edge never hurt anybody. Well. Not anybody who paid.', 'You look like a buyer. Seven to two you leave with something.', 'Loretta doesn’t come back here. That’s what makes it a back room.'];
@@ -3424,6 +3553,10 @@ dialog li { margin: 0 0 6px; }
     walked: { stamp: 'WALKED HOME', kind: 'accent', line: '' },
     bust: { stamp: 'BUST', kind: 'danger', line: 'The money ran out before the tables did.' }
   };
+  // The goal, always in sight between tables: Loretta's $500.
+  const goalLine = cash => { const need = Engine.HOURS[4].last.min, ok = cash >= need; return el('p', { class: 'goal', id: 'goal-line', 'data-ok': ok ? '' : null }, `Last Call needs ${money(need)} · you have ${money(cash)}`); };
+  // What a table did to your cash, signed: +$104, −$29.
+  const signed = n => (n > 0 ? '+' : n < 0 ? '−' : '') + money(Math.abs(n || 0));
   const tableName = (kind, people) => kind === 'last' ? 'Loretta’s table' : `${first(people[0])}’s table`;
 
   const Screens = {
@@ -3448,7 +3581,7 @@ dialog li { margin: 0 0 6px; }
       const cta = el('div', { class: 'cta' });
       if (firstVisit) {
         cta.append(el('button', { class: 'btn primary big', id: 'btn-sit', type: 'button', onclick: () => App.start({}) }, 'Sit down'),
-          el('p', { class: 'cta-sub' }, 'No sign-up, no key. A night is five tables and about fifteen minutes.'));
+          el('p', { class: 'cta-sub' }, 'No sign-up, no key. A night is five tables and ten to fifteen minutes.'));
       } else {
         if (saved) {
           const v = Engine.view(saved.S);
@@ -3531,11 +3664,13 @@ dialog li { margin: 0 0 6px; }
       }));
       const cards = v.options.map(o => this.tableCard(o, L, v));
       const held = v.tricks.length ? [el('h3', { class: 'kicker' }, `Your tricks · ${v.tricks.length} of ${Engine.SLOTS}`), el('div', { class: 'held-row' }, v.tricks.map(t => Tricks.chip(t, false)))] : null;
-      root.replaceChildren(pageBar('Bones', v.hourName, true), el('div', { class: 'page-in' },
+      root.replaceChildren(pageBar('Bones', hourLabel(v.hour), true), el('div', { class: 'page-in' },
         el('h1', { class: 'hourhead', id: 'choose-title' }, `${v.hourName} · `, el('small', null, money(v.cash))),
         hours,
         el('p', { class: 'note' }, S.hour === 4 ? 'Last Call. Loretta’s table, and nobody else’s.' : `${HOUR_LINE[S.hour]} Choose a table.`),
-        Night.rec && Night.rec.coach && S.hour === 0 && !Settings.tipsDone ? el('p', { class: 'note', id: 'first-hint', style: 'color:var(--accent)' }, 'First time? The near table is cheaper and gentler. Win a table and you take the whole pot.') : null,
+        S.hour < 4 ? goalLine(v.cash) : null,
+        // The coach's word on the choice: at 10 PM on a first night (9 PM dealt you straight in), else at 9 PM.
+        Night.rec && Night.rec.coach && !Settings.tipsDone && S.hour === (Night.rec.first ? 1 : 0) ? el('p', { class: 'note', id: 'first-hint', style: 'color:var(--accent)' }, 'Your pick now. The near table is cheaper and softer; the big one pays double and plays tougher.') : null,
         el('div', { class: 'cards', dataset: { n: String(cards.length) } }, cards),
         held,
         L.canWalk ? el('button', { class: 'btn leave', id: 'btn-walk', type: 'button', onclick: () => App.act({ t: 'walk' }) }, `Walk home with ${money(v.cash)}`) : null));
@@ -3575,9 +3710,7 @@ dialog li { margin: 0 0 6px; }
       const t = sum.tables[sum.tables.length - 1];
       const log = S.log[S.log.length - 1];
       const result = t ? el('p', { class: 'result', id: 'shop-result', 'data-won': t.won ? '' : null, 'data-lost': t.won ? null : '' },
-        t.won ? ['You won ', tableName(t.kind, log.people), ': ', el('span', { class: 'amt' }, `+${money(t.payout - (log.onTab ? 0 : log.buyIn))}`)]
-          : t.refund ? ['Second at ', tableName(t.kind, log.people), ': ', el('span', { class: 'amt' }, 'buy-in back')]
-            : ['You lost ', tableName(t.kind, log.people), ': ', el('span', { class: 'amt' }, log.onTab ? 'on the tab' : `−${money(log.buyIn)}`)]) : null;
+        [t.won ? 'You won ' : t.refund ? 'Second at ' : 'You lost ', tableName(t.kind, log.people), ': ', el('span', { class: 'amt', 'data-up': t.net > 0 ? '' : null }, signed(t.net)), t.refund ? ' (the buy-in came back)' : '']) : null;
       const full = v.tricks.length >= Engine.SLOTS;
       const offers = sv0.offers.map((o, i) => {
         if (!o) return el('article', { class: 'offer', 'data-gone': '' }, el('p', { class: 'note' }, 'Sold.'));
@@ -3596,9 +3729,10 @@ dialog li { margin: 0 0 6px; }
       const short = v.cash < need && !(nextH < 4 && v.tricks.some(x => x.id === 'tab'));
       const nextNote = nextH >= 4 ? (v.cash >= need ? `Next: Last Call. You have the ${money(need)} Loretta wants.` : `Next: Last Call, and Loretta wants ${money(need)}. Short of it, you walk home with what you have.`)
         : short ? `Next: ${Engine.HOURS[nextH].name}, and the cheapest seat is ${money(need)}. Leave with less and the night is over.` : `Next: ${Engine.HOURS[nextH].name}, tables from ${money(need)}.`;
-      root.replaceChildren(pageBar('Bones', `The back room · ${Engine.HOURS[sv0.hour].name}`, true), el('div', { class: 'page-in' },
+      root.replaceChildren(pageBar('Bones', [el('span', { class: 'hl' }, `The back room · ${Engine.HOURS[sv0.hour].name}`), el('span', { class: 'hs' }, 'Back room')], true), el('div', { class: 'page-in' },
         el('h1', { class: 'hourhead', id: 'shop-title' }, 'The back room · ', el('small', null, money(v.cash))),
         result,
+        goalLine(v.cash),
         el('div', { class: 'curtis' }, mini(SHARK), el('div', null, el('p', null, `“${PATTER[hash(S.seed + '|' + S.hour, 9) % PATTER.length]}”`), el('small', null, 'Curtis Pruett, who puts odds on everything'))),
         el('h3', { class: 'kicker' }, 'On offer'),
         el('div', { class: 'offers' }, offers),
@@ -3800,13 +3934,16 @@ dialog li { margin: 0 0 6px; }
       const seed = opts.seed !== undefined ? opts.seed : daily ? undefined : ((Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0).toString(36);
       const S = Engine.newNight({ seed, daily, book: Book.data, tricks: opts.tricks });
       const coach = opts.tips === undefined ? !Settings.tipsDone && !Ledger.data.nights : !!opts.tips;
-      rec = { v: Engine.VERSION, S, coach, metBefore: Book.metIds(), started: Date.now() };
+      // A player's very first night deals them straight into the 9 PM near table; the choice waits for 10 PM.
+      const firstNight = opts.first !== undefined ? !!opts.first : opts.tips === undefined && !Ledger.data.nights;
+      rec = { v: Engine.VERSION, S, coach, first: firstNight, metBefore: Book.metIds(), started: Date.now() };
       Night.rec = rec;
       if (!Settings.played) { Settings.played = true; Settings.save(); }
       UI.after = null; UI.endInfo = null; TV.key = '';
       bookShown = Book.data;
       persist();
-      Screens.render();
+      if (firstNight && S.phase === 'choose' && S.hour === 0) App.act({ t: 'sit', i: 0 });
+      else Screens.render();
       return S;
     },
     resume() {

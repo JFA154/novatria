@@ -3,8 +3,9 @@
 /* Bones balance sim (design section 8). Extracts the engine block from
    bones.html by its markers, runs it in vm, and plays seeded nights with
    proxy players:
-     Mathy    plays by the Count alone (Liar under 38%, smallest raise it
-              likes, rarely bluffs).
+     Mathy    plays by the Count alone (Liar under 38%; opens, or jumps, to
+              the most of its best face the Count puts at 60%, else the
+              smallest raise it likes; rarely bluffs).
      Reader   Mathy + knows each person's tell and bluff rate, and weighs the
               bid in front of it by them (Bayes on the habit shown).
    each with and without a sensible trick buyer, plus a per-trick ablation
@@ -110,7 +111,7 @@ function bestFace(mine, faces, wild) {
 }
 
 function makeProxy(opts) {
-  const know = opts.know || null, buys = !!opts.buy, thr = opts.thr || 0.38, likeP = opts.like || 0.5, cmp = opts.cmp || 0, openP = opts.open || 0.85;
+  const know = opts.know || null, buys = !!opts.buy, thr = opts.thr || 0.38, likeP = opts.like || 0.5, cmp = opts.cmp || 0, openP = opts.open || 0.5, jumpAt = opts.jump || 0.6;
   return function policy(S, v, L) {
     if (S.phase === 'choose') {
       if (!L.sit.length) return { t: 'walk' };
@@ -159,14 +160,19 @@ function makeProxy(opts) {
     if (know && b && b.id !== 'me') { const c0 = E.count(S, b.q, b.f), c1 = believe(S, v, know); if (c0 > 0.02 && c0 < 0.98) lift = odds(clamp(c1, 0.02, 0.98)) / odds(c0); }
     const countR = (q, f) => { const c = E.count(S, q, f); if (lift === 1 || f !== b.f || c <= 0 || c >= 1) return c; const o = odds(c) * lift; return o / (1 + o); };
     if (L.canBid) {
-      const want = b ? likeP : openP;
+      // Open, or jump, to the most of its best face it puts at `jumpAt` (60%), as a
+      // sensible player does; when that is not a legal raise, the smallest raise it likes.
       let pick = null;
+      for (const f of L.faces) {
+        let q = 0;
+        for (let k = 1; k <= L.maxQ; k++) { if (E.count(S, k, f) >= jumpAt) q = k; else break; }
+        if (q && (!pick || q > pick.q || (q === pick.q && E.count(S, q, f) >= E.count(S, pick.q, pick.f)))) pick = { q, f };
+      }
+      if (pick && !E.isLegalBid(S, pick.q, pick.f)) pick = null;
+      const want = b ? likeP : openP;
       for (let q = L.minBid.q; q <= Math.min(L.maxQ, L.minBid.q + 2) && !pick; q++) {
         let bestC = -1;
         for (const f of L.faces) if (E.isLegalBid(S, q, f)) { const c = countR(q, f); if (c >= want && c > bestC) { bestC = c; pick = { q, f }; } }
-      }
-      if (!b && pick) { // open as high as it still likes
-        while (pick.q < L.maxQ && E.count(S, pick.q + 1, pick.f) >= want) pick.q++;
       }
       // Squeezed with Palm in hand: turn a stray die to the face we'd raise, then decide again.
       if (!pick && L.uses.includes('palm') && mine.length) {
