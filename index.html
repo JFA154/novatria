@@ -2,12 +2,20 @@
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
-<!-- As the other games at the Low Water: the page may talk only to the Anthropic API and run only its own inline code. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com; img-src data: blob:; base-uri 'none'; form-action 'none'">
+<!-- As the other games at the Low Water: the page may talk only to the Anthropic API and run only its own inline code.
+     Bones alone may also load its own manifest, offline worker (sw.js) and home-screen icon from this site, so it can be kept on a phone. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com; img-src 'self' data: blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark light">
 <meta name="theme-color" content="#17130f">
 <meta name="description" content="Bones: liar's dice at the Low Water. The math says one thing. Their face says another.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bones">
+<meta name="application-name" content="Bones">
 <title>Bones</title>
 <style>
 /* ===== Tokens (as lockin.html / Lock-In, plus the table's felt and ivory) ===== */
@@ -2611,7 +2619,51 @@ dialog li { margin: 0 0 6px; }
       }
     };
   })();
-  const Haptic = { tap(p) { if (Sfx.muted || Speed.k === 0 || Skip.on) return; try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) { /* none */ } } };
+  /* ----- On a phone: vibration, the offline copy and the home-screen install row -----
+     Vibration has its own switch (Settings, where the phone can vibrate at all): unset, it follows
+     reduced motion; never at speed 0. The offline copy is sw.js, registered only for the page
+     itself over http(s), never in a frame and never from file://, every failure swallowed.
+     The install row: a button where the browser offers its install prompt, a one-line hint on
+     iOS Safari, nothing when already installed or when installing is not possible. */
+  const Phone = (() => {
+    const VIB_KEY = 'novatria.bones.vibrate';
+    const canVibrate = typeof navigator.vibrate === 'function';
+    let vib = store.get(VIB_KEY); vib = vib === 'on' ? true : vib === 'off' ? false : null;
+    let top = false; try { top = window.top === window.self; } catch (e) { /* a cross-origin frame */ }
+    const web = /^https?:$/.test(location.protocol) && top && 'serviceWorker' in navigator;
+    const standalone = () => { try { return navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches; } catch (e) { return false; } };
+    const ua = navigator.userAgent || '';
+    const iosSafari = (/iP(hone|od|ad)/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) && /Safari\//.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|GSA\/|FBAN|FBAV|Instagram|Line\//.test(ua);
+    let offer = null, row = null;
+    function fill() {
+      if (!row) return;
+      const mode = !web || standalone() ? '' : offer ? 'prompt' : iosSafari ? 'ios' : '';
+      row.hidden = !mode;
+      row.replaceChildren(mode === 'prompt' ? el('button', { class: 'linkbtn', id: 'btn-install', type: 'button', onclick: install }, 'Add Bones to your home screen')
+        : mode === 'ios' ? el('span', { id: 'install-hint' }, 'To install: tap Share, then “Add to Home Screen”.') : '');
+    }
+    async function install() {
+      const e = offer; if (!e) return;
+      offer = null;
+      try { await e.prompt(); await e.userChoice; } catch (err) { /* dismissed or refused */ }
+      fill();
+    }
+    if (web) {
+      window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); offer = e; fill(); });
+      window.addEventListener('appinstalled', () => { offer = null; fill(); });
+      const register = () => { try { navigator.serviceWorker.register('sw.js').catch(() => { /* refused: the game plays online as before */ }); } catch (e) { /* no workers here */ } };
+      if (document.readyState === 'complete') register(); else window.addEventListener('load', register, { once: true });
+    }
+    return {
+      canVibrate,
+      get vibrate() { return canVibrate && (vib === null ? !Motion.reduce : vib); },
+      setVibrate(on) { vib = !!on; store.set(VIB_KEY, on ? 'on' : 'off'); },
+      buzz(p) { if (!this.vibrate || Speed.k === 0 || Skip.on) return; try { navigator.vibrate(p); } catch (e) { /* none */ } },
+      // The install row for the home screen (null where installing can never work, else a node hidden until there is something to say).
+      row() { if (!web) return null; row = el('p', { class: 'note', id: 'home-install', style: 'margin:16px 0 0;text-align:center' }); fill(); return row; }
+    };
+  })();
+  const Haptic = { tap(p) { Phone.buzz(p); } };
 
   // ----- Dice: ivory, real pips, wild aces ringed red -----
   const PIPS = { 1: [5], 2: [3, 7], 3: [3, 5, 7], 4: [1, 3, 7, 9], 5: [1, 3, 5, 7, 9], 6: [1, 3, 4, 6, 7, 9] };
@@ -4351,8 +4403,10 @@ dialog li { margin: 0 0 6px; }
           el('h2', null, 'Settings'),
           el('div', { class: 'field' }, el('span', { class: 'label', id: 'l-speed' }, 'Speed'), seg('l-speed', [['Normal', 1], ['Fast', 0.45]], Settings.speed, v => { Settings.speed = v; Speed.k = v; Settings.save(); })),
           el('div', { class: 'field' }, el('span', { class: 'label', id: 'l-sound' }, 'Sound'), seg('l-sound', [['On', true], ['Off', false]], Settings.sound, v => { Settings.sound = v; Sfx.setMuted(!v); Settings.save(); })),
+          Phone.canVibrate ? el('div', { class: 'field' }, el('span', { class: 'label', id: 'l-vibrate' }, 'Vibration'), seg('l-vibrate', [['On', true], ['Off', false]], Phone.vibrate, v => Phone.setVibrate(v))) : null,
           el('div', { class: 'field' }, el('span', { class: 'label', id: 'l-theme' }, 'Look'), seg('l-theme', [['Dark', 'dark'], ['Parchment', 'parchment']], currentTheme(), v => { Settings.theme = v; Settings.save(); applyTheme(); })),
           Settings.tipsDone || Settings.tipsSeen.length ? el('button', { class: 'linkbtn', type: 'button', onclick: () => { Settings.tipsDone = false; Settings.tipsSeen = []; Settings.save(); this.home(); } }, 'Show the first-table tips again') : null),
+        Phone.row(),
         el('p', { class: 'others' }, 'Also at the Low Water: ', el('a', { href: 'lockin.html' }, 'Lock-In'), ' · ', el('a', { href: 'lastcall.html' }, 'Last Call'))));
       if (!Motion.reduce && Speed.k) [...dice.children].forEach((d, i) => anim(d, [{ transform: `translateY(-30px) rotate(${(i % 2 ? 1 : -1) * 200}deg)`, opacity: 0 }, { transform: 'none', opacity: 1 }], 560, { delay: 80 + i * 70, move: true }));
     },

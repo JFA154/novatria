@@ -138,18 +138,20 @@ s.test('the page stands alone: from file:// with the network shut, no page error
   assert.deepEqual(asked, []);
 });
 
-s.test('one self-contained file: no markup from strings, one fetch (the messages endpoint), one plain script, the shared CSP', async () => {
+s.test('one self-contained file: no markup from strings, one fetch (the messages endpoint), one plain script, the CSP', async () => {
   assert.doesNotMatch(HTML, /\b(innerHTML|outerHTML|insertAdjacentHTML)\b|document\.write(ln)?\s*\(/);
   const fetches = [...HTML.matchAll(/\bfetch\s*\(([^,)]*)/g)].map(m => m[1].trim());
   assert.deepEqual(fetches, ['ENDPOINT']);
   assert.match(HTML, /const ENDPOINT = 'https:\/\/api\.anthropic\.com\/v1\/messages';/);
   assert.deepEqual(HTML.match(/<script[^>]*>/g), ['<script>'], 'one classic inline script, no attributes');
-  for (const tag of ['img', 'iframe', 'audio', 'video', 'object', 'embed', 'link']) assert.doesNotMatch(HTML, new RegExp(`<${tag}\\b`, 'i'), 'no <' + tag + '>');
+  for (const tag of ['img', 'iframe', 'audio', 'video', 'object', 'embed']) assert.doesNotMatch(HTML, new RegExp(`<${tag}\\b`, 'i'), 'no <' + tag + '>');
+  // The only links: its own manifest and home-screen icon (installing it on a phone, tests/bones-pwa.test.cjs).
+  assert.deepEqual(HTML.match(/<link\b[^>]*>/gi), ['<link rel="manifest" href="manifest.webmanifest">', '<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">']);
   assert.doesNotMatch(HTML, /\b(XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts|new Worker)\b|\bimport\s*\(|^\s*(import|export)\s/m);
   assert.doesNotMatch(HTML, /temperature|top_p|top_k|tool_choice|budget_tokens/);
   assert.doesNotMatch(HTML.slice(HTML.indexOf('/* ==BONES:ENGINE:END== */')), /_sim\b/, 'the UI never reads the hidden side');
-  const csp = fs.readFileSync(path.resolve(__dirname, '..', 'lockin.html'), 'utf8').split('\n')[5];
-  assert.ok(HTML.includes(csp), 'the same CSP meta as lockin.html');
+  // lockin.html's CSP, plus Bones' own manifest, offline worker and home-screen icon from the same site (installing it on a phone).
+  assert.ok(HTML.includes(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com; img-src 'self' data: blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">`), 'the exact CSP');
   assert.match(HTML, /'use strict'/);
   assert.match(HTML, /'anthropic-dangerous-direct-browser-access': 'true'/);
 });
