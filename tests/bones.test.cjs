@@ -150,8 +150,9 @@ s.test('one self-contained file: no markup from strings, one fetch (the messages
   assert.doesNotMatch(HTML, /\b(XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts|new Worker)\b|\bimport\s*\(|^\s*(import|export)\s/m);
   assert.doesNotMatch(HTML, /temperature|top_p|top_k|tool_choice|budget_tokens/);
   assert.doesNotMatch(HTML.slice(HTML.indexOf('/* ==BONES:ENGINE:END== */')), /_sim\b/, 'the UI never reads the hidden side');
-  // lockin.html's CSP, plus Bones' own manifest, offline worker and home-screen icon from the same site (installing it on a phone).
-  assert.ok(HTML.includes(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com; img-src 'self' data: blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">`), 'the exact CSP');
+  // lockin.html's CSP, plus Bones' own manifest, offline worker and home-screen icon from the same site (installing it on a phone),
+  // and its own type, embedded in the page (font-src data: and nothing else).
+  assert.ok(HTML.includes(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com; img-src 'self' data: blob:; font-src data:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">`), 'the exact CSP');
   assert.match(HTML, /'use strict'/);
   assert.match(HTML, /'anthropic-dangerous-direct-browser-access': 'true'/);
 });
@@ -1817,7 +1818,8 @@ s.test('the comfortable table (no tricks, 390x780) gives nothing away: no step o
     const st = await page.evaluate(TABLE_SCENE, { opps: 2, moment: 'turn' });
     assert.deepEqual([st.fit, st.scrolls], ['', false], theme);
     assert.deepEqual((await page.evaluate(TABLE_LAYOUT)).bad, [], theme);
-    const sizes = await page.evaluate(() => ({ die: document.querySelector('#mycup .die').getBoundingClientRect().width, word: parseFloat(getComputedStyle(document.querySelector('.bid-word')).fontSize), log: getComputedStyle(document.querySelector('#log')).display }));
+    // (the die's own size: each of your dice sits a degree or two off square, so its bounding box is wider than it is)
+    const sizes = await page.evaluate(() => ({ die: document.querySelector('#mycup .die').offsetWidth, word: parseFloat(getComputedStyle(document.querySelector('.bid-word')).fontSize), log: getComputedStyle(document.querySelector('#log')).display }));
     assert.deepEqual(sizes, { die: 52, word: 44, log: 'block' }, theme);
     // Squeezed (a short window), it gives way in order: the seats first, the log, then the felt, then your dice.
     await page.setViewportSize({ width: 320, height: 568 });

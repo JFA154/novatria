@@ -79,10 +79,11 @@ test('the engine block is marked, strict, and free of browser APIs and unseeded 
   const bad = /window|document|localStorage|Math\.random|Date\.now|innerHTML|fetch/.exec(BLOCK);
   assert.strictEqual(bad, null, 'found ' + (bad && bad[0]));
   assert.ok(BLOCK.includes("'use strict'"));
-  // One plain script, and the page's CSP: lockin.html's, plus Bones' own manifest, offline worker and home-screen icon.
+  // One plain script, and the page's CSP: lockin.html's, plus Bones' own manifest, offline worker and home-screen icon,
+  // and its embedded type (font-src data:).
   const scripts = HTML.match(/<script[^>]*>/g);
   deq(scripts, ['<script>']);
-  assert.ok(HTML.includes(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com; img-src 'self' data: blob:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">`), 'the exact CSP');
+  assert.ok(HTML.includes(`<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src https://api.anthropic.com; img-src 'self' data: blob:; font-src data:; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">`), 'the exact CSP');
   assert.ok(/<html lang="en" data-theme="dark">/.test(HTML) && /<title>Bones<\/title>/.test(HTML));
 });
 

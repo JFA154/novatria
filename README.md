@@ -2648,6 +2648,63 @@ The rest of the page:
   the first tap, a Fast speed, and tapping the table hurries whatever is
   playing. It runs from `file://` with the network shut.
 
+**The look.** Bones began in the town game's skin (Georgia on brown, thin
+rounded cards), which suits a page you read and not a table you play at. It
+now has its own: a bar table after dark, drawn flat in CSS and inline SVG
+with hard edges and offsets and no soft glows. There are no image files but
+the home-screen icons.
+
+- **Three materials, and the ink on each.** The *room* is the theme's (near
+  black in Dark, pale kraft in Parchment). *Felt* and *paper* are the same in
+  both looks. A rule that sits on felt or paper re-declares the ink tokens
+  (`--text`, `--muted`, `--accent`, `--good`, `--danger`, `--border`) for its
+  own material, so whatever is inside it reads right without knowing where it
+  is; the list of what is paper and what is felt is at the top of the
+  stylesheet.
+- **Felt** is where the game is: the table itself (bottle green in a dark
+  rail, a faint tooth from one inline SVG noise tile), the two tables you
+  choose between, drawn as tables seen from above (the big one with a gold
+  line inside its rail), and the strip of dice on the home screen. Loretta's
+  table is **oxblood**, on the choice and at Last Call, so the house game
+  looks like no other table of the night.
+- **Paper** is anything the bar would have printed, written or stuck up: the
+  house rules (a placard, and a tent card on a table that has one), what
+  someone says (a slip with a tail), Curtis's tricks (price tags clipped at
+  the top with a hole for the string, a band at the foot for common,
+  uncommon, rare, and a small mark for dice, info, money or manner), the
+  tricks you hold (smaller tags; gold when one is ready to use), the pages of
+  the Book, the coach's note, the stamps (a slip slapped on the table with
+  the word inked on it; BLUFF and STRAIGHT are rubber stamps, a little
+  crooked), the night as the bar tab Lyman kept, and Pearl's column as a
+  clipping from the county weekly, both torn off at the foot.
+- **Bones.** The dice are flat bone with drilled pips and a hard edge
+  underneath; a wild 1 is one big red pip. Your own dice each sit a degree
+  or two off square (CSS `rotate`, which leaves the roll's `transform`
+  animations alone). A hidden die is leather brown, a lost one a dashed
+  outline. The sign is BONES with its O drawn as that wild die (the heading's
+  text is still "Bones"); the icons are the same die on the felt.
+- **Two signals.** Red is Liar, a wild one and a loss; mustard is money, your
+  turn and the thing to press. Buttons are solid keys with an edge underneath
+  that they sink into when pressed: Liar red, Spot on bone, Bid mustard. The
+  hours of the night are a punch card: five holes on a line, punched green
+  or red as they go.
+- **Type.** Besley, a Clarendon (the sign, the bid on the felt, names,
+  stamps, Pearl's column and, in its italic, every habit and spoken line),
+  and Barlow Condensed and Semi Condensed (labels, figures, running text).
+  Both are under the SIL Open Font License and are **embedded in the page**
+  as base64 woff2 (about 85 KB, Latin letters, figures and the marks the page
+  sets), so the file still stands alone; the CSP gains `font-src data:` and
+  nothing else. Without them the page falls back to Georgia and the system
+  sans. `tests/bones-type.py` rebuilds the block (it also brings Besley's
+  line metrics down to what its glyphs need: as shipped, a line of it
+  measures taller than its own line box). `tests/bones-icons.cjs` redraws the
+  icons. Neither is a build step: what they make is committed.
+- **Motion** is as before (the roll, the cups, the counter, the stamp, the
+  shake), plus a short arrival when a screen or a dialog opens and the
+  press of a button; all of it is off under reduced motion.
+
+Lock-In and Last Call still wear the older skin.
+
 **Claude is optional.** Bones is fully playable with no API key, and nothing
 in the game waits on a call. With a key (the one the other games remember,
 or one typed on the home screen under "Pearl's column by Claude"), Claude
@@ -2740,7 +2797,8 @@ done or skipped), and `novatria.bones.vibrate`
 (`on` or `off`, once the Vibration switch is used). The API key is
 `novatria.apiKey`, shared with the other games, and is written there only
 when "Remember on this device" is ticked (otherwise it is kept for the tab).
-With no theme of its own Bones follows the town game's (`novatria.settings`).
+Which of Bones' two looks shows, Dark or Parchment, follows the town game's
+(`novatria.settings`) until one is picked in Bones' own Settings.
 
 **The tuned numbers**, as the engine uses them (tuned with
 `tests/bones-sim.cjs`):
@@ -2933,8 +2991,8 @@ been visited once.
   the disk (`file://`) plays as before but cannot install or work offline,
   and shows no install line.
 - What it adds: `manifest.webmanifest`, `sw.js` and `icons/` (192 and 512,
-  a maskable 512 and a 180 px apple-touch-icon: one ivory die showing the
-  wild red 1). The worker answers only for those files and the page; the
+  a maskable 512 and a 180 px apple-touch-icon: one bone die showing the
+  wild red 1, on the felt). The worker answers only for those files and the page; the
   other games, the Anthropic API and anything on another origin go past it
   untouched. Bones' CSP adds only what this needs: `manifest-src 'self'`,
   `worker-src 'self'` and `'self'` in `img-src` (for the home-screen icon).
