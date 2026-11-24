@@ -2648,71 +2648,60 @@ The rest of the page:
   the first tap, a Fast speed, and tapping the table hurries whatever is
   playing. It runs from `file://` with the network shut.
 
-**The look.** One table under one lamp. Bones began in the town game's skin
-(Georgia on brown, thin rounded cards), then wore a flat one of its own (cream
-paper, a slab serif, mustard keys with a hard edge). It read as generated, so
-it was redrawn: the same bar and the same table, lit instead of flat, and
-nothing cream. It is still CSS and inline SVG, and there are still no image
-files but the home-screen icons.
+**The look.** Bones began in the town game's skin (Georgia on brown, thin
+rounded cards), which suits a page you read and not a table you play at. It
+now has its own: a bar table after dark, drawn flat in CSS and inline SVG
+with hard edges and offsets and no soft glows. There are no image files but
+the home-screen icons.
 
-- **The light.** The room is dark and cold (blue-black in Dark, daylight grey
-  in Parchment) and the only light is over the table. So what is on the table
-  is drawn lit, with a bright top edge and a soft shadow underneath, and what
-  is off it is quiet: plain dark panels, hairlines, no ornament. `--lit` and
-  `--cast` are that highlight and that shadow.
-- **Materials, and the ink on each.** A rule that sits on felt or paper
-  re-declares the ink tokens (`--text`, `--muted`, `--accent`, `--good`,
-  `--danger`, `--border`) for its own material, so whatever is inside it reads
-  right without knowing where it is; the list is at the top of the stylesheet.
-  - *Felt*: billiard green in a walnut rail, brighter under the lamp and
-    falling off into the rail's shadow, with the nap of the cloth from one
-    inline SVG noise tile (the only texture on the page). The two tables you
-    choose between are the same cloth seen from above; the big one and the
-    house's have a brass line let into the rail. Loretta's table is
-    **oxblood**, on the choice and at Last Call.
-  - *Bone*: the dice (a lit top, a shaded foot, drilled pips, a wild 1 as one
-    red enamel pip), the sign (BONES cut from the same bone, its O that wild
-    die; the heading's text is still "Bones"), and the Spot on key. A die
-    nobody can see yet is the same bone, blank and out of the light; a lost
-    one is a dashed outline. Your own dice sit a degree or two off square.
-  - *Printed paper*, each kind its own thing and none of it cream: Curtis's
-    tricks are **tickets** off a roll (a printed band, black for common,
-    green for uncommon, red for rare, that tears along the dots; the ones you
-    hold are stubs, lit when one is ready to use); the night is the **till
-    receipt** (monospace, torn at the foot); Pearl's column is grey
-    **newsprint** set in a newspaper serif; a page of the Book is a **pocket
-    notebook** (blue rules, a red margin, your marks in blue pen); the coach
-    is a **yellow sticky note**; the house rules are a **black letter
-    board** in a metal frame; a stamp is a white card slapped down on the
-    cloth; what someone says is a white balloon.
-- **The people** are the town's faces, redrawn as pen sketches on the back of
-  a beermat: every shape gets an ink line and the whole face a slight wobble
-  (one SVG filter, `#sketch`, in the page), on pale card with a white rim.
-- **Two signals.** Red is Liar, a wild one and a loss; amber is money, your
-  turn and the thing to press. Whose turn it is has the lamp on it (an amber
-  ring and a glow). The hours of the night are five lamps over the bar, lit
-  green or red as they go and amber for now.
-- **Type.** A fat sign-painter's gothic for the sign, the bid on the cloth,
-  headings and the keys, over Barlow Semi Condensed (everything you read,
-  with its italic for habits and spoken lines) and Barlow Condensed (labels
-  and figures). The display face is cut from Bowlby One; that name is
-  reserved by its author and a subset is a modified version, so in the page
-  it is called "Bones Block" with the copyright notice kept. All of it is
-  under the SIL Open Font License and **embedded in the page** as base64
-  woff2 (about 73 KB), so the file still stands alone; the CSP allows
-  `font-src data:` and nothing else. Without them the page falls back to
-  Arial Black and the system sans. The receipt and the newsprint use the
-  device's own monospace and serif. `tests/bones-type.py` rebuilds the block
-  (it also brings the display face's line metrics down to what its glyphs
-  need) and `tests/bones-icons.cjs` redraws the icons. Neither is a build
-  step: what they make is committed.
-- **Motion** is what things on a table do, not a fade and a slide. A screen
-  is a cut (the lights come up); a dialog is dealt onto the table; a slip is
-  tossed onto the cloth and lands a little crooked; a bid grows out of
-  whoever said it and a call is slammed down; the dice on the front page are
-  rolled in from the left; a won pot goes over as chips. The roll, the cups,
-  the counter, the stamp and the shake are as before. All of it is off under
-  reduced motion.
+- **Three materials, and the ink on each.** The *room* is the theme's (near
+  black in Dark, pale kraft in Parchment). *Felt* and *paper* are the same in
+  both looks. A rule that sits on felt or paper re-declares the ink tokens
+  (`--text`, `--muted`, `--accent`, `--good`, `--danger`, `--border`) for its
+  own material, so whatever is inside it reads right without knowing where it
+  is; the list of what is paper and what is felt is at the top of the
+  stylesheet.
+- **Felt** is where the game is: the table itself (bottle green in a dark
+  rail, a faint tooth from one inline SVG noise tile), the two tables you
+  choose between, drawn as tables seen from above (the big one with a gold
+  line inside its rail), and the strip of dice on the home screen. Loretta's
+  table is **oxblood**, on the choice and at Last Call, so the house game
+  looks like no other table of the night.
+- **Paper** is anything the bar would have printed, written or stuck up: the
+  house rules (a placard, and a tent card on a table that has one), what
+  someone says (a slip with a tail), Curtis's tricks (price tags clipped at
+  the top with a hole for the string, a band at the foot for common,
+  uncommon, rare, and a small mark for dice, info, money or manner), the
+  tricks you hold (smaller tags; gold when one is ready to use), the pages of
+  the Book, the coach's note, the stamps (a slip slapped on the table with
+  the word inked on it; BLUFF and STRAIGHT are rubber stamps, a little
+  crooked), the night as the bar tab Lyman kept, and Pearl's column as a
+  clipping from the county weekly, both torn off at the foot.
+- **Bones.** The dice are flat bone with drilled pips and a hard edge
+  underneath; a wild 1 is one big red pip. Your own dice each sit a degree
+  or two off square (CSS `rotate`, which leaves the roll's `transform`
+  animations alone). A hidden die is leather brown, a lost one a dashed
+  outline. The sign is BONES with its O drawn as that wild die (the heading's
+  text is still "Bones"); the icons are the same die on the felt.
+- **Two signals.** Red is Liar, a wild one and a loss; mustard is money, your
+  turn and the thing to press. Buttons are solid keys with an edge underneath
+  that they sink into when pressed: Liar red, Spot on bone, Bid mustard. The
+  hours of the night are a punch card: five holes on a line, punched green
+  or red as they go.
+- **Type.** Besley, a Clarendon (the sign, the bid on the felt, names,
+  stamps, Pearl's column and, in its italic, every habit and spoken line),
+  and Barlow Condensed and Semi Condensed (labels, figures, running text).
+  Both are under the SIL Open Font License and are **embedded in the page**
+  as base64 woff2 (about 85 KB, Latin letters, figures and the marks the page
+  sets), so the file still stands alone; the CSP gains `font-src data:` and
+  nothing else. Without them the page falls back to Georgia and the system
+  sans. `tests/bones-type.py` rebuilds the block (it also brings Besley's
+  line metrics down to what its glyphs need: as shipped, a line of it
+  measures taller than its own line box). `tests/bones-icons.cjs` redraws the
+  icons. Neither is a build step: what they make is committed.
+- **Motion** is as before (the roll, the cups, the counter, the stamp, the
+  shake), plus a short arrival when a screen or a dialog opens and the
+  press of a button; all of it is off under reduced motion.
 - **Time to read.** A slip on the felt (a trick paying, Loretta's nod, a
   bid refused) stays up for as long as its words take: a beat to notice it,
   then about four words a second, five seconds at most. The game itself

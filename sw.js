@@ -8,7 +8,7 @@
    online; the cache is the fallback); the manifest and icons are cache-first.
    Change VERSION whenever these files change: the old caches are deleted. */
 'use strict';
-const VERSION = 'bones-v3';
+const VERSION = 'bones-v2';
 const SCOPE = self.registration.scope; // e.g. https://host/ or https://host/novatria/
 const CACHE = VERSION + ' ' + SCOPE;   // the scope in the name: two copies of the site on one origin keep apart
 const PAGE = 'index.html';

@@ -111,8 +111,8 @@ test('the manifest parses, says what it should with relative URLs, and its icons
   for (const k of ['start_url', 'scope', 'id']) assert.ok(!/^(\/|[a-z]+:)/i.test(m[k]), `${k} is relative: ${m[k]}`);
   assert.equal(m.display, 'standalone');
   assert.equal(m.orientation, 'portrait');
-  assert.equal(m.background_color, '#0c0f13');
-  assert.equal(m.theme_color, '#0c0f13');
+  assert.equal(m.background_color, '#141110');
+  assert.equal(m.theme_color, '#141110');
   const want = [['192x192', 'any'], ['512x512', 'any'], ['512x512', 'maskable']];
   assert.deepEqual(m.icons.map(i => [i.sizes, i.purpose]), want);
   for (const icon of m.icons.concat([{ src: 'icons/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }])) {
