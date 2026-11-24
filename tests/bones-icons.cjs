@@ -1,19 +1,26 @@
 #!/usr/bin/env node
 'use strict';
-/* Bones' home-screen icons (icons/): the wild one, a bone die showing its red pip, thrown on the felt.
+/* Bones' home-screen icons (icons/): the wild one, a bone die showing its red pip, on the felt under the lamp.
    Not part of the tests: the PNGs are committed, and this is how they were drawn (Playwright's Chromium
    renders one SVG at each size). The maskable icon keeps the die inside the safe zone.
    Run with: node tests/bones-icons.cjs */
 const path = require('path');
 const { chromium } = require('playwright');
 const svg = (size, k) => `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 512 512">
-<defs><radialGradient id="f" cx="50%" cy="38%" r="75%"><stop offset="0" stop-color="#24694d"/><stop offset=".6" stop-color="#1b5a41"/><stop offset="1" stop-color="#114030"/></radialGradient></defs>
+<defs>
+<radialGradient id="f" cx="50%" cy="34%" r="78%"><stop offset="0" stop-color="#1c8d63"/><stop offset=".55" stop-color="#0f6b4b"/><stop offset="1" stop-color="#06382a"/></radialGradient>
+<linearGradient id="b" x1="0" y1="0" x2=".5" y2="1"><stop offset="0" stop-color="#fffdf6"/><stop offset=".42" stop-color="#f5f0e3"/><stop offset="1" stop-color="#e4dcc8"/></linearGradient>
+<radialGradient id="p" cx="50%" cy="68%" r="62%"><stop offset="0" stop-color="#f4525a"/><stop offset="1" stop-color="#e0282f"/></radialGradient>
+<filter id="s" x="-30%" y="-30%" width="160%" height="170%"><feGaussianBlur stdDeviation="16"/></filter>
+</defs>
 <rect width="512" height="512" fill="url(#f)"/>
-<g transform="translate(256 262) rotate(-9) scale(${k})">
-<rect x="-150" y="-128" width="300" height="300" rx="62" fill="#0b2a1f" opacity=".6"/>
-<rect x="-150" y="-150" width="300" height="300" rx="62" fill="#b5a57f"/>
-<rect x="-150" y="-150" width="300" height="276" rx="60" fill="#f6eedb"/>
-<circle cx="0" cy="-12" r="54" fill="#8f2616"/><circle cx="0" cy="-8" r="52" fill="#d8432b"/>
+<g transform="translate(256 258) rotate(-9) scale(${k})">
+<rect x="-146" y="-112" width="292" height="292" rx="62" fill="#000" opacity=".5" filter="url(#s)"/>
+<rect x="-150" y="-150" width="300" height="300" rx="62" fill="#b8ad93"/>
+<rect x="-150" y="-150" width="300" height="282" rx="60" fill="url(#b)"/>
+<rect x="-144" y="-146" width="288" height="60" rx="56" fill="#fff" opacity=".55"/>
+<rect x="-150" y="-142" width="300" height="274" rx="60" fill="url(#b)"/>
+<circle cx="0" cy="-12" r="56" fill="#8a0b12"/><circle cx="0" cy="-4" r="52" fill="url(#p)"/>
 </g></svg>`;
 (async () => {
   const browser = await chromium.launch();
