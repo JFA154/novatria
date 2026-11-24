@@ -2702,6 +2702,13 @@ the home-screen icons.
 - **Motion** is as before (the roll, the cups, the counter, the stamp, the
   shake), plus a short arrival when a screen or a dialog opens and the
   press of a button; all of it is off under reduced motion.
+- **Time to read.** A slip on the felt (a trick paying, Loretta's nod, a
+  bid refused) stays up for as long as its words take: a beat to notice it,
+  then about four words a second, five seconds at most. The game itself
+  moves on after the slip's old time, so play is no slower; the next slip
+  or a tap on the table takes it away sooner. Fast speed shortens the
+  reading time only a little. The one stamp that carries a whole sentence
+  (Loretta going quiet) waits the same way before the table moves on.
 
 Lock-In and Last Call still wear the older skin.
 

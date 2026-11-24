@@ -4004,6 +4004,14 @@ dialog li { margin: 0 0 6px; }
   };
 
   // ----- Stamp, toast, effects -----
+  /* How long a line needs to be read: a beat to notice it, then about four words a second (never more than five
+     seconds). It is a floor under a popup's own time, so a short one ("Sticky Fingers: +$6") is as quick as ever
+     and a long one stays up. The Fast speed shortens it only a little: nobody reads twice as fast. */
+  const readMs = text => {
+    const words = String(text || '').trim().split(/\s+/).filter(Boolean).length;
+    const ms = Math.min(5000, 450 + 260 * words);
+    return Speed.k > 0 ? ms * Math.max(Speed.k, .8) / Speed.k : ms;
+  };
   const Stamp = {
     layer: null, cur: null,
     async show(text, kind, sub, hold) {
@@ -4039,9 +4047,14 @@ dialog li { margin: 0 0 6px; }
       say(text);
       if (instant()) { setTimeout(() => node.remove(), 2200); return; }
       await anim(node, [{ opacity: 0, transform: 'translate(-50%,-8px)' }, { opacity: 1, transform: 'translate(-50%,0)' }], 200, { move: true });
-      try { await wait(ms || 1500); } catch (e) { node.remove(); throw e; }
-      await anim(node, [{ opacity: 1 }, { opacity: 0 }], 220);
-      node.remove();
+      /* The game moves on after the slip's own time, as before; the slip itself stays up for as long as its words
+         take to read (the next slip, a tap on the table or leaving the table takes it away sooner). */
+      const hold = ms || 1500, read = Math.max(hold, readMs(text));
+      (async () => {
+        try { await wait(read); if (node.isConnected) await anim(node, [{ opacity: 1 }, { opacity: 0 }], 220); } catch (e) { /* the table was left */ }
+        node.remove();
+      })();
+      try { await wait(hold); } catch (e) { node.remove(); throw e; }
     }
   };
   const Fx = {
@@ -4375,7 +4388,7 @@ dialog li { margin: 0 0 6px; }
       TV.gear = { who: e.who, text: e.text };
       const s = seatOf(e.who); if (s) { s.clearTalk(); s.setHabit('says nothing'); s.setMood('cold'); }
       Log.result(e.text); infoLine();
-      await Stamp.show('SHE GOES QUIET', 'accent', e.text, 1100);
+      await Stamp.show('SHE GOES QUIET', 'accent', e.text, Math.max(1100, readMs(e.text))); // a full sentence: time to read it
       Stamp.clear(true);
     },
     error(e) { Toast.show(cap(e.msg)); },
