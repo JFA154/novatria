@@ -131,10 +131,13 @@ a { color: var(--accent); }
 .screen { display: none; height: 100%; }
 .screen.active { display: block; }
 @media (prefers-reduced-motion: no-preference) {
-  .screen.active { animation: arrive .22s cubic-bezier(.2, .8, .3, 1); }
-  dialog[open] { animation: arrive .18s cubic-bezier(.2, .8, .3, 1); }
+  .screen.active { animation: arrive .2s cubic-bezier(.2, .8, .3, 1); }
+  dialog[open] { animation: rise .2s cubic-bezier(.2, .8, .3, 1); }
 }
-@keyframes arrive { from { opacity: 0; transform: translateY(8px); } }
+/* A screen is there at once and only settles into place (from nothing, the whole page blinks black between two
+   screens); a dialog comes up from just under where it stops. */
+@keyframes arrive { from { opacity: .45; transform: translateY(6px); } }
+@keyframes rise { from { opacity: 0; transform: translateY(10px) scale(.98); } }
 .page { overflow-y: auto; overscroll-behavior: contain; }
 .page-in { max-width: 720px; margin: 0 auto; padding: 12px calc(16px + var(--sar)) calc(28px + var(--sab)) calc(16px + var(--sal)); }
 .topbar { position: sticky; top: 0; z-index: 5; flex: none; display: flex; align-items: center; gap: 6px; min-width: 0; padding: calc(6px + var(--sat)) calc(8px + var(--sar)) 6px calc(12px + var(--sal)); border-bottom: 2px solid var(--border); background: var(--bg); }
@@ -308,7 +311,7 @@ details.card[open] > summary { margin-bottom: 10px; }
 .tray { --s: min(var(--tray), calc((100cqw - 10px - (var(--k, 5) - 1) * 2px) / var(--k, 5))); display: flex; gap: 2px; align-items: center; justify-content: center; max-width: 100%; min-height: calc(var(--tray) + 6px); padding: 3px 5px; border-radius: 7px; background: var(--felt-lo); box-shadow: inset 0 1px 0 rgba(0, 0, 0, .45); }
 .tray[data-six] { --s: min(calc(var(--tray) * .86), calc((100cqw - 6px - (var(--k, 6) - 1) * 1px) / var(--k, 6))); gap: 1px; padding: 3px 3px; }
 /* What someone says: a slip of paper with a tail. */
-.bubble { position: relative; display: inline-flex; align-items: center; gap: 5px; min-height: 30px; max-width: 100%; margin-top: 4px; padding: 3px 9px; border-radius: 8px; font: 800 15px/1 var(--read-font); white-space: nowrap; --s: 18px; box-shadow: 0 2px 0 rgba(0, 0, 0, .3); }
+.bubble { position: relative; transform-origin: 50% -4px; display: inline-flex; align-items: center; gap: 5px; min-height: 30px; max-width: 100%; margin-top: 4px; padding: 3px 9px; border-radius: 8px; font: 800 15px/1 var(--read-font); white-space: nowrap; --s: 18px; box-shadow: 0 2px 0 rgba(0, 0, 0, .3); }
 .bubble::before { content: ""; position: absolute; top: -5px; left: 50%; width: 10px; height: 10px; margin-left: -5px; background: inherit; transform: rotate(45deg); border-radius: 2px; }
 .bubble[data-empty] { visibility: hidden; }
 .bubble[data-kind="liar"] { background: var(--red); color: var(--red-ink); font-weight: 900; }
@@ -3119,14 +3122,30 @@ dialog li { margin: 0 0 6px; }
     }
   };
   const instant = () => Speed.k === 0 || Skip.on || Stage.aborting;
-  /* opts: {delay, easing, move: frames that move things (reduced motion swaps them for a fade), fade} */
+  /* How things move. A pop is a spring, not two straight lines with a corner where they meet: Ease.spring is a
+     damped spring sampled into a linear() curve (it leaves fast, passes its mark by about a twelfth and settles);
+     Ease.lively passes it by a seventh (a die landing). Where linear() is not understood, a bezier that overshoots
+     stands in. Ease.in is for what falls or is slammed down. */
+  const springCurve = (a, b) => {
+    try { if (typeof CSS === 'undefined' || !CSS.supports || !CSS.supports('animation-timing-function', 'linear(0, 1)')) return null; } catch (e) { return null; }
+    const pts = [];
+    for (let i = 0; i < 32; i++) { const t = i / 32; pts.push((1 - Math.exp(-a * t) * Math.cos(b * t)).toFixed(4)); }
+    return `linear(${pts.join(',')},1)`;
+  };
+  const Ease = { out: 'cubic-bezier(.2,.8,.3,1)', in: 'cubic-bezier(.5,0,.9,.55)', inOut: 'cubic-bezier(.45,0,.3,1)',
+    spring: springCurve(6, 6.5) || 'cubic-bezier(.3,1.35,.5,1)', lively: springCurve(4.2, 6) || 'cubic-bezier(.3,1.6,.5,1)' };
+  /* A pulse: out to the peak fast and back gently, at rest at the top (no corner). */
+  const pulse = (peak, at) => [{ transform: 'none', easing: 'cubic-bezier(.2,.9,.3,1)' }, { transform: peak, offset: at || .32, easing: 'cubic-bezier(.4,0,.3,1)' }, { transform: 'none' }];
+  /* opts: {delay, easing, move: frames that move things (reduced motion swaps them for a fade), fade}.
+     Frames that carry their own easing are not eased again as a whole. An animation that waits (delay) holds its
+     first frame while it waits, so a staggered thing is not seen at rest before it arrives. */
   function anim(node, frames, ms, opts) {
     const o = opts || {};
     if (!node || !node.animate || instant()) return Promise.resolve();
-    let f = frames, d = ms;
-    if (Motion.reduce && o.move) { f = o.fade || [{ opacity: .35 }, { opacity: 1 }]; d = Math.min(ms, 180); }
+    let f = frames, d = ms, ease = o.easing || (frames[0] && frames[0].easing ? 'linear' : Ease.out);
+    if (Motion.reduce && o.move) { f = o.fade || [{ opacity: .35 }, { opacity: 1 }]; d = Math.min(ms, 180); ease = 'ease-out'; }
     let a;
-    try { a = node.animate(f, { duration: d * Speed.k, delay: (o.delay || 0) * Speed.k, easing: o.easing || 'cubic-bezier(.2,.8,.3,1)', fill: o.fill || 'none' }); } catch (e) { return Promise.resolve(); }
+    try { a = node.animate(f, { duration: d * Speed.k, delay: (o.delay || 0) * Speed.k, easing: ease, fill: o.fill || (o.delay ? 'backwards' : 'none') }); } catch (e) { return Promise.resolve(); }
     running.add(a);
     return a.finished.catch(() => {}).then(() => { running.delete(a); });
   }
@@ -3551,7 +3570,7 @@ dialog li { margin: 0 0 6px; }
       if (!node) return Promise.resolve();
       if (!(opts && opts.animate) || instant() || from === v) { node.textContent = money(v); delete node.dataset.flash; return Promise.resolve(); }
       node.dataset.flash = v > from ? 'good' : 'danger';
-      anim(node, [{ transform: 'scale(1)' }, { transform: 'scale(1.18)' }, { transform: 'scale(1)' }], 380, { move: true });
+      anim(node, pulse('scale(1.16)'), 300, { move: true });
       const dur = 600 * Speed.k, t0 = performance.now();
       return new Promise(res => {
         const step = now => {
@@ -3575,7 +3594,7 @@ dialog li { margin: 0 0 6px; }
       node.toggleAttribute('data-hot', n >= 2);
       node.title = n ? `${n} challenge${n > 1 ? 's' : ''} won in a row: the next win pays ${Math.min(n, 3)} more ante${Math.min(n, 3) > 1 ? 's' : ''}` : '';
       node.setAttribute('aria-label', node.title || 'no streak');
-      if (pop && up) anim(node, [{ transform: 'scale(1.5)' }, { transform: 'scale(1)' }], 320, { move: true });
+      if (pop && up) anim(node, [{ transform: 'scale(1.4)' }, { transform: 'none' }], 300, { move: true, easing: Ease.spring });
     }
   };
 
@@ -3630,7 +3649,7 @@ dialog li { margin: 0 0 6px; }
       if (m === this.mood) return;
       this.mood = m;
       this.faceBox.replaceChildren(faceNode(this.p, m));
-      anim(this.faceBox, [{ transform: 'scale(.86)' }, { transform: 'scale(1.06)' }, { transform: 'scale(1)' }], 300, { move: true });
+      anim(this.faceBox, [{ transform: 'scale(.88)' }, { transform: 'none' }], 300, { move: true, easing: Ease.spring });
     }
     setTurn(on) { this.root.toggleAttribute('data-turn', !!on); }
     setOut(on) { this.out = !!on; this.root.toggleAttribute('data-out', !!on); this.tag.textContent = on ? 'OUT' : this.grudge ? 'GRUDGE' : ''; if (on) { this.mood = ''; this.setMood('asleep'); } this.label(); }
@@ -3639,10 +3658,16 @@ dialog li { margin: 0 0 6px; }
     clearTalk() { this.bubble.setAttribute('data-empty', ''); this.bubble.replaceChildren(); delete this.bubble.dataset.kind; delete this.bubble.dataset.by; this.bubble.removeAttribute('aria-label'); this.setHabit(''); }
     /* The habit line under the face (kept whole in its title: on a short screen it keeps to one line). */
     setHabit(text, under) { this.habitEl.textContent = text || ''; if (text) this.habitEl.title = text; else this.habitEl.removeAttribute('title'); this.habitEl.toggleAttribute('data-under', !!(text && under)); Fit.soon(); }
-    thinking() { this.bubble.removeAttribute('data-empty'); delete this.bubble.dataset.kind; delete this.bubble.dataset.by; this.bubble.replaceChildren(el('span', { class: 'dots', 'aria-label': 'thinking' }, el('i'), el('i'), el('i'))); }
+    /* The balloon comes out of whoever is talking (it grows from its tail) the first time; after that it stays
+       where it is and only nods when what is in it changes. */
+    speak(peak, ms) {
+      if (this.bubble.hasAttribute('data-empty')) { this.bubble.removeAttribute('data-empty'); return anim(this.bubble, [{ transform: 'scale(.5)', opacity: 0 }, { transform: 'none', opacity: 1 }], 220, { move: true, easing: Ease.spring }); }
+      return anim(this.bubble, pulse(peak || 'scale(1.1)'), ms || 220, { move: true });
+    }
+    thinking() { delete this.bubble.dataset.kind; delete this.bubble.dataset.by; this.bubble.replaceChildren(el('span', { class: 'dots', 'aria-label': 'thinking' }, el('i'), el('i'), el('i'))); if (this.bubble.hasAttribute('data-empty')) this.speak(); }
     async habit(h) {
       this.setHabit(h ? h.text : '', h && h.underline);
-      if (h) await anim(this.habitEl, [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], 300, { move: true });
+      if (h) await anim(this.habitEl, [{ opacity: 0, transform: 'translateY(-3px)' }, { opacity: 1, transform: 'none' }], 240, { move: true });
     }
     showBid(q, f) {
       this.bubble.removeAttribute('data-empty'); delete this.bubble.dataset.kind; delete this.bubble.dataset.by;
@@ -3650,13 +3675,15 @@ dialog li { margin: 0 0 6px; }
       this.bubble.setAttribute('aria-label', bidText(q, f));
     }
     async sayBid(q, f) {
+      const open = !this.bubble.hasAttribute('data-empty');
       this.showBid(q, f);
-      await anim(this.bubble, [{ transform: 'scale(.4)', opacity: 0 }, { transform: 'scale(1.12)', opacity: 1, offset: .6 }, { transform: 'scale(1)' }], 260, { move: true, easing: 'ease-out' });
+      if (!open) this.bubble.setAttribute('data-empty', '');
+      await this.speak('scale(1.1)', 220);
     }
     async sayCall(kind) {
-      this.bubble.removeAttribute('data-empty'); this.bubble.dataset.kind = kind; delete this.bubble.dataset.by;
+      this.bubble.dataset.kind = kind; delete this.bubble.dataset.by;
       this.bubble.replaceChildren(kind === 'liar' ? 'Liar!' : 'Spot on!');
-      await anim(this.bubble, [{ transform: 'scale(.4)' }, { transform: 'scale(1.2)', offset: .6 }, { transform: 'scale(1)' }], 240, { move: true });
+      await this.speak('scale(1.24) rotate(-4deg)', 280);
     }
     /* A spoken line after a reveal (a scripted bark, or Claude's). */
     sayLine(text, by) {
@@ -3665,7 +3692,7 @@ dialog li { margin: 0 0 6px; }
       this.bubble.replaceChildren(`“${text}”`);
       this.bubble.setAttribute('aria-label', `${this.p.first}: ${text}`);
       this.setHabit('');
-      return anim(this.bubble, [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], 260, { move: true });
+      return anim(this.bubble, [{ opacity: 0, transform: 'scale(.9)' }, { opacity: 1, transform: 'none' }], 220, { move: true });
     }
     shakeCup() {
       return anim(this.tray, [{ transform: 'none' }, { transform: 'rotate(-5deg) translateY(-2px)' }, { transform: 'rotate(5deg)' }, { transform: 'rotate(-3deg) translateY(-1px)' }, { transform: 'rotate(2deg)' }, { transform: 'none' }], 380, { move: true, easing: 'ease-in-out' });
@@ -3686,7 +3713,7 @@ dialog li { margin: 0 0 6px; }
         this.n--;
         if (d) {
           Dice.crack(d);
-          await anim(d, [{ transform: 'none' }, { transform: 'rotate(-12deg) scale(1.15)', offset: .25 }, { transform: 'translateY(26px) rotate(70deg) scale(.6)', opacity: 0 }], 400, { move: true, easing: 'cubic-bezier(.5,0,.8,.6)', fade: [{ opacity: 1 }, { opacity: 0 }] });
+          await anim(d, [{ transform: 'none', easing: Ease.out }, { transform: 'rotate(-12deg) scale(1.15)', offset: .3, easing: Ease.in }, { transform: 'translateY(26px) rotate(70deg) scale(.6)', opacity: 0 }], 420, { move: true, fade: [{ opacity: 1 }, { opacity: 0 }] });
           d.replaceWith(Dice.node(0, { empty: true, label: false }));
         }
       }
@@ -3697,7 +3724,7 @@ dialog li { margin: 0 0 6px; }
       const grew = left > this.n;
       this.n = left; this.shown = [];
       this.renderTray();
-      if (grew) { const d = this.tray.children[this.n - 1]; await anim(d, [{ transform: 'scale(0)' }, { transform: 'scale(1.4)', offset: .6 }, { transform: 'scale(1)' }], 360, { move: true }); }
+      if (grew) { const d = this.tray.children[this.n - 1]; await anim(d, [{ transform: 'scale(0)' }, { transform: 'none' }], 340, { move: true, easing: Ease.lively }); }
     }
   }
 
@@ -3725,8 +3752,8 @@ dialog li { margin: 0 0 6px; }
       this.line.replaceChildren(...dice, el('span', { class: 'bid-by' }, '— ' + (bid.who === 0 ? 'you' : first(bid.id))));
       this.root.setAttribute('aria-label', `On the table: ${bidText(bid.q, bid.f)}, ${bid.who === 0 ? 'your bid' : 'bid by ' + first(bid.id)}`);
       if (punch) {
-        anim(this.wordEl, [{ transform: 'scale(1.35)', opacity: .3 }, { transform: 'scale(.96)', opacity: 1, offset: .6 }, { transform: 'scale(1)' }], 280, { move: true });
-        await Promise.all(dice.map((d, i) => anim(d, [{ transform: 'translateY(-10px) scale(.5)', opacity: 0 }, { transform: 'none', opacity: 1 }], 200, { move: true, delay: i * 22 })));
+        anim(this.wordEl, [{ transform: 'scale(1.28)', opacity: 0 }, { transform: 'none', opacity: 1 }], 220, { move: true });
+        await Promise.all(dice.map((d, i) => anim(d, [{ transform: 'translateY(-9px) scale(.6)', opacity: 0 }, { transform: 'none', opacity: 1 }], 240, { move: true, delay: i * 22, easing: Ease.spring })));
       }
     },
     counter(q, f) {
@@ -3737,7 +3764,7 @@ dialog li { margin: 0 0 6px; }
     tick(n, state) {
       this.num.textContent = String(n);
       if (state) this.num.dataset.state = state; else delete this.num.dataset.state;
-      anim(this.num, [{ transform: 'scale(1.35)' }, { transform: 'scale(1)' }], 200, { move: true, easing: 'cubic-bezier(.3,1.6,.5,1)' });
+      anim(this.num, [{ transform: 'scale(1.26)' }, { transform: 'none' }], 200, { move: true });
     }
   };
 
@@ -3829,22 +3856,26 @@ dialog li { margin: 0 0 6px; }
       this.root.dataset.faces = dice.join(','); this.root.dataset.dice = String(dice.length);
       if (instant()) return;
       Sfx.play('rattle');
-      const which = all ? this.nodes.map((d, i) => i) : indices;
-      await Promise.all(which.map(async (i, j) => {
-        const d = this.nodes[i]; if (!d) return;
-        const dir = i % 2 ? 1 : -1;
-        const spin = (200 + fxRand() * 220) * dir;
-        const a = anim(d, [
-          { transform: `translate(${-30 * dir}px,-46px) rotate(${-spin}deg) scale(.55)`, opacity: 0 },
-          { transform: `translate(${5 * dir}px,3px) rotate(${14 * dir}deg) scale(1.05)`, opacity: 1, offset: .62 },
-          { transform: `translate(${-2 * dir}px,0) rotate(${-5 * dir}deg)`, offset: .84 },
-          { transform: 'none' }], 400, { move: true, delay: j * 40, easing: 'cubic-bezier(.2,.7,.3,1)' });
-        if (!Motion.reduce) {
-          try { await wait(j * 40); for (let k = 0; k < 4 && !instant(); k++) { Dice.set(d, 1 + Math.floor(fxRand() * 6), {}); await wait(60); } } catch (e) { /* aborted */ }
-        }
-        await a;
-        Dice.set(d, this.state.dice[i], this.opts(i));
-      }));
+      const which = (all ? this.nodes.map((d, i) => i) : indices).filter(i => this.nodes[i]);
+      const face = i => Dice.set(this.nodes[i], this.state.dice[i], this.opts(i));
+      if (Motion.reduce) { await Promise.all(which.map(i => anim(this.nodes[i], [], 180, { move: true }))); Sfx.play('thump'); return; }
+      /* 1. Under the cup: the dice are face down and rattle together for a moment. */
+      which.forEach(i => Dice.set(this.nodes[i], 0, { down: true }));
+      try {
+        await Promise.all(which.map((i, j) => { const k = j % 2 ? 1 : -1; return anim(this.nodes[i], [{ transform: 'none' }, { transform: `translate(${2 * k}px,-3px) rotate(${7 * k}deg)` }, { transform: `translate(${-2 * k}px,1px) rotate(${-6 * k}deg)` }, { transform: `translate(${1.5 * k}px,-2px) rotate(${5 * k}deg)` }, { transform: `translate(${-1 * k}px,0) rotate(${-3 * k}deg)` }, { transform: 'none' }], 230, { easing: 'linear' }); }));
+        /* 2. Spilled: one after another each die turns over onto its own face and lands with a little bounce (no
+              stray faces on the way, and none after it has stopped). The game goes on once the last one is down;
+              the tail of its settling is not waited for. */
+        await Promise.all(which.map(async (i, j) => {
+          const dir = (i + j) % 2 ? 1 : -1, turn = (140 + fxRand() * 110) * dir;
+          await wait(j * 45);
+          face(i);
+          anim(this.nodes[i], [{ rotate: `${-turn}deg`, offset: 0 }], 300, { easing: Ease.out }); // the turn stops dead; only the drop bounces
+          anim(this.nodes[i], [{ transform: 'translateY(-16px) scale(1.16)' }, { transform: 'none' }], 440, { easing: Ease.lively });
+          await wait(250);
+        }));
+      } catch (e) { which.forEach(face); throw e; }
+      which.forEach(face);
       Sfx.play('thump');
     },
     async setFace(i, face) {
@@ -3861,7 +3892,7 @@ dialog li { margin: 0 0 6px; }
         const d = this.nodes[this.state.dice.length - 1];
         if (d) {
           Dice.crack(d);
-          await anim(d, [{ transform: 'none' }, { transform: 'translateX(-4px) rotate(-6deg)', offset: .12 }, { transform: 'translateX(4px) rotate(6deg)', offset: .24 }, { transform: 'rotate(-10deg) scale(1.08)', offset: .4 }, { transform: 'translateY(70px) rotate(80deg) scale(.7)', opacity: 0 }], 520, { move: true, easing: 'cubic-bezier(.5,0,.8,.6)', fade: [{ opacity: 1 }, { opacity: 0 }] });
+          await anim(d, [{ transform: 'none' }, { transform: 'translateX(-4px) rotate(-6deg)', offset: .12 }, { transform: 'translateX(4px) rotate(6deg)', offset: .24 }, { transform: 'rotate(-10deg) scale(1.08)', offset: .4, easing: Ease.in }, { transform: 'translateY(70px) rotate(80deg) scale(.7)', opacity: 0 }], 520, { move: true, easing: 'linear', fade: [{ opacity: 1 }, { opacity: 0 }] });
         }
         this.state.dice.pop(); this.render();
       }
@@ -3869,7 +3900,7 @@ dialog li { margin: 0 0 6px; }
     async gain(face) {
       this.state.dice.push(face); this.render();
       const d = this.nodes[this.nodes.length - 1];
-      await anim(d, [{ transform: 'scale(0) rotate(-90deg)' }, { transform: 'scale(1.3) rotate(8deg)', offset: .6 }, { transform: 'none' }], 420, { move: true });
+      await anim(d, [{ transform: 'scale(0) rotate(-90deg)' }, { transform: 'none' }], 400, { move: true, easing: Ease.lively });
     },
     async tip() {
       await anim(this.root, [{ transform: 'none' }, { transform: 'rotate(-6deg)', offset: .2 }, { transform: 'translate(60px,30px) rotate(80deg)', opacity: 0 }], 800, { move: true, easing: 'cubic-bezier(.5,0,.7,.4)', fade: [{ opacity: 1 }, { opacity: 0 }] });
@@ -4026,14 +4057,15 @@ dialog li { margin: 0 0 6px; }
       this.cur = node;
       say(text + (sub ? '. ' + sub : ''));
       Sfx.play('stamp'); Haptic.tap(kind === 'big' ? [30, 40, 60] : 35);
-      await anim(node, [{ transform: `rotate(${rot}deg) scale(2.6)`, opacity: 0 }, { transform: `rotate(${rot}deg) scale(.94)`, opacity: 1, offset: .72 }, { transform: `rotate(${rot}deg) scale(1)` }], 240, { move: true, easing: 'cubic-bezier(.4,0,.9,.6)' });
+      await anim(node, [{ transform: `rotate(${rot}deg) scale(1.55)`, opacity: 0, easing: Ease.in }, { transform: `rotate(${rot}deg) scale(1)`, opacity: 1 }], 140, { move: true });
+      anim(node, [{ transform: `rotate(${rot}deg) scale(.95)` }, { transform: `rotate(${rot}deg) scale(1)` }], 240, { move: true, easing: Ease.spring });
       Fx.shake($('felt'), kind === 'big' ? 1.6 : 1);
       await wait(hold === undefined ? 800 : hold);
     },
     async clear(fade) {
       const node = this.cur; this.cur = null;
       if (!node) return;
-      if (fade) await anim(node, [{ opacity: 1 }, { opacity: 0, transform: node.style.transform + ' scale(.9)' }], 180);
+      if (fade) await anim(node, [{ opacity: 1, transform: node.style.transform }, { opacity: 0, transform: node.style.transform + ' translateY(-10px) scale(.96)' }], 130, { easing: Ease.in });
       node.remove();
     }
   };
@@ -4046,7 +4078,7 @@ dialog li { margin: 0 0 6px; }
       host.append(node);
       say(text);
       if (instant()) { setTimeout(() => node.remove(), 2200); return; }
-      await anim(node, [{ opacity: 0, transform: 'translate(-50%,-8px)' }, { opacity: 1, transform: 'translate(-50%,0)' }], 200, { move: true });
+      await anim(node, [{ opacity: 0, transform: 'translate(-50%,-10px)' }, { opacity: 1, transform: 'translate(-50%,0)' }], 220, { move: true, easing: Ease.spring });
       /* The game moves on after the slip's own time, as before; the slip itself stays up for as long as its words
          take to read (the next slip, a tap on the table or leaving the table takes it away sooner). */
       const hold = ms || 1500, read = Math.max(hold, readMs(text));
@@ -4066,12 +4098,11 @@ dialog li { margin: 0 0 6px; }
       const node = el('div', { class: 'float', dataset: { kind: kind || 'good' } }, text);
       this.layer.append(node);
       const w = node.offsetWidth / 2, h = node.offsetHeight / 2;
-      const mx = (a.x + b.x) / 2, my = Math.min(a.y, b.y) - 50;
+      /* It comes up out of where the money was, hangs for a beat, then goes straight to where it is going. */
       await anim(node, [
-        { transform: `translate(${a.x - w}px,${a.y - h}px) scale(.6)`, opacity: 0 },
-        { transform: `translate(${a.x - w}px,${a.y - h - 18}px) scale(1.25)`, opacity: 1, offset: .2 },
-        { transform: `translate(${mx - w}px,${my - h}px) scale(1.1)`, opacity: 1, offset: .55 },
-        { transform: `translate(${b.x - w}px,${b.y - h}px) scale(.7)`, opacity: .4 }], 850, { easing: 'cubic-bezier(.4,0,.6,1)', move: true, fade: [{ transform: `translate(${b.x - w}px,${b.y - h - 20}px)`, opacity: 0 }, { transform: `translate(${b.x - w}px,${b.y - h - 20}px)`, opacity: 1 }] });
+        { transform: `translate(${a.x - w}px,${a.y - h}px) scale(.7)`, opacity: 0, easing: Ease.out },
+        { transform: `translate(${a.x - w}px,${a.y - h - 18}px) scale(1.15)`, opacity: 1, offset: .26, easing: Ease.inOut },
+        { transform: `translate(${b.x - w}px,${b.y - h}px) scale(.75)`, opacity: .5 }], 780, { move: true, fade: [{ transform: `translate(${b.x - w}px,${b.y - h - 20}px)`, opacity: 0 }, { transform: `translate(${b.x - w}px,${b.y - h - 20}px)`, opacity: 1 }] });
       node.remove();
     },
     burst(fromEl, n) {
@@ -4091,8 +4122,9 @@ dialog li { margin: 0 0 6px; }
       return Promise.all(all);
     },
     shake(node, amt) {
-      const a = 7 * (amt || 1);
-      return anim(node, [{ transform: 'none' }, { transform: `translate(${-a}px,1px) rotate(-.4deg)` }, { transform: `translate(${a * .8}px,-1px) rotate(.3deg)` }, { transform: `translate(${-a * .5}px,0)` }, { transform: `translate(${a * .3}px,0)` }, { transform: 'none' }], 320, { move: true, easing: 'linear', fade: [{ opacity: 1 }, { opacity: 1 }] });
+      /* The table takes the knock: down a little and back, dying away. Not a sideways rattle of the whole cloth. */
+      const a = 3 * (amt || 1);
+      return anim(node, [{ transform: 'none' }, { transform: `translateY(${a}px)`, offset: .18 }, { transform: `translateY(${-a * .45}px)`, offset: .45 }, { transform: `translateY(${a * .2}px)`, offset: .72 }, { transform: 'none' }], 260, { move: true, easing: 'linear', fade: [{ opacity: 1 }, { opacity: 1 }] });
     }
   };
 
@@ -4107,7 +4139,7 @@ dialog li { margin: 0 0 6px; }
       $('table').append(node);
       this.cur = node;
       Coach.place();
-      anim(node, [{ transform: 'translateY(100%)' }, { transform: 'none' }], 300, { move: true, easing: 'cubic-bezier(.2,.9,.3,1)' });
+      anim(node, [{ transform: 'translateY(100%)' }, { transform: 'none' }], 280, { move: true, easing: 'cubic-bezier(.2,.9,.3,1)' });
       setTimeout(() => { if (node.isConnected && !document.querySelector('dialog[open]')) { try { btn.focus({ preventScroll: true }); } catch (e) { /* ok */ } } }, 60);
       return node;
     },
@@ -4294,7 +4326,7 @@ dialog li { margin: 0 0 6px; }
         let nodes;
         const hits = hitsOf(cup.dice, e.f, e.wild, cup.who, e.bidder, TV.fixed);
         // A cup with nothing for the bid lifts fast and the count moves on; the drama is in the hits.
-        if (cup.who === 0) { nodes = MyCup.nodes; await anim(MyCup.el, [{ transform: 'none' }, { transform: 'translateY(-4px)' }, { transform: 'none' }], hits.length ? 180 : 120, { move: true }); }
+        if (cup.who === 0) { nodes = MyCup.nodes; await anim(MyCup.el, pulse('translateY(-5px)', .4), hits.length ? 190 : 130, { move: true }); }
         else { Sfx.play('thump'); const s = seatOf(cup.who); nodes = s ? await s.lift(cup.dice, !hits.length) : []; }
         if (hits.length) await wait(40);
         cup.dice.forEach((d, i) => { if (!hits.includes(i) && nodes[i]) nodes[i].setAttribute('data-dim', ''); });
@@ -4303,7 +4335,7 @@ dialog li { margin: 0 0 6px; }
           if (!node) continue;
           n++;
           node.setAttribute('data-hit', ''); node.removeAttribute('data-dim');
-          anim(node, [{ transform: 'scale(1)' }, { transform: 'scale(1.45) rotate(-8deg)', offset: .4 }, { transform: 'scale(1)' }], 260, { move: true, easing: 'ease-out' });
+          anim(node, pulse('translateY(-4px) scale(1.3) rotate(-6deg)'), 260, { move: true });
           BidBanner.tick(n, state());
           Sfx.play('tick', n); Haptic.tap(6);
           await wait(n === e.q - 1 ? 280 : 110);
@@ -4311,7 +4343,7 @@ dialog li { margin: 0 0 6px; }
           if (cup.who === 0 && i === e.loaded) {
             n++;
             node.setAttribute('data-twice', '');
-            anim(node, [{ transform: 'scale(1)' }, { transform: 'scale(1.6) rotate(8deg)', offset: .4 }, { transform: 'scale(1)' }], 320, { move: true, easing: 'ease-out' });
+            anim(node, pulse('translateY(-5px) scale(1.42) rotate(7deg)'), 320, { move: true });
             BidBanner.tick(n, state());
             say('Your loaded six counts as two 6s.');
             Sfx.play('tick', n); Haptic.tap(6);
@@ -4401,7 +4433,8 @@ dialog li { margin: 0 0 6px; }
       else Log.result(`${Engine.HOURS[e.hour].name} · ${e.kind === 'last' ? 'Loretta’s table' : e.kind === 'rich' ? 'the big table' : 'the near table'}${e.ante ? ' · ante ' + money(e.ante) : ''}`);
     },
     async pay(e) {
-      if (e.why === 'buyin' || e.why === 'buy' || e.why === 'sell' || e.why === 'reroll' || !$('screen-table').classList.contains('active')) { await Cash.set(e.cash, { animate: e.why === 'buyin' }); return; }
+      if (e.why === 'buyin') { if (!instant()) { Cash.value = e.cash - e.amount; const c = $('cash'); if (c) c.textContent = money(Cash.value); } Cash.set(e.cash, { animate: true }); return; }
+      if (e.why === 'buy' || e.why === 'sell' || e.why === 'reroll' || !$('screen-table').classList.contains('active')) { await Cash.set(e.cash); return; }
       const toYou = e.amount > 0;
       const other = TV.other !== null && TV.other > 0 && seatOf(TV.other) ? seatOf(TV.other).root : $('bid');
       const from = e.why === 'pot' || e.why === 'refund' ? $('bid') : other;
@@ -5101,7 +5134,7 @@ dialog li { margin: 0 0 6px; }
           Settings.tipsDone || Settings.tipsSeen.length ? el('button', { class: 'linkbtn', type: 'button', onclick: () => { Settings.tipsDone = false; Settings.tipsSeen = []; Settings.save(); this.home(); } }, 'Show the first-table tips again') : null),
         Phone.row(),
         el('p', { class: 'others' }, 'Also at the Low Water: ', el('a', { href: 'lockin.html' }, 'Lock-In'), ' · ', el('a', { href: 'lastcall.html' }, 'Last Call'))));
-      if (dice && !Motion.reduce && Speed.k) [...dice.children].forEach((d, i) => anim(d, [{ transform: `translateY(-30px) rotate(${(i % 2 ? 1 : -1) * 200}deg)`, opacity: 0 }, { transform: 'none', opacity: 1 }], 560, { delay: 80 + i * 70, move: true }));
+      if (dice && !Motion.reduce && Speed.k) [...dice.children].forEach((d, i) => anim(d, [{ transform: `translateY(-34px) rotate(${(i % 2 ? 1 : -1) * 200}deg)`, opacity: 0 }, { opacity: 1, offset: .3 }, { transform: 'none', opacity: 1 }], 520, { delay: 80 + i * 60, move: true, easing: Ease.lively }));
     },
 
     /* Tonight's room (the house night or an open rung of After Hours) and how you walk in, one tap each. */
@@ -5719,7 +5752,7 @@ dialog li { margin: 0 0 6px; }
           if (!(dice[i] === f || dice[i] === 1) || !nodes[i]) continue;
           n++;
           nodes[i].setAttribute('data-hit', '');
-          anim(nodes[i], [{ transform: 'scale(1)' }, { transform: 'scale(1.4) rotate(-8deg)', offset: .4 }, { transform: 'scale(1)' }], 260, { move: true, easing: 'ease-out' });
+          anim(nodes[i], pulse('translateY(-4px) scale(1.3) rotate(-6deg)'), 260, { move: true });
           BidBanner.tick(n, n >= q ? 'there' : null);
           Sfx.play('tick', n);
           await wait(170);

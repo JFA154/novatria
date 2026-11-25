@@ -2699,9 +2699,21 @@ the home-screen icons.
   line metrics down to what its glyphs need: as shipped, a line of it
   measures taller than its own line box). `tests/bones-icons.cjs` redraws the
   icons. Neither is a build step: what they make is committed.
-- **Motion** is as before (the roll, the cups, the counter, the stamp, the
-  shake), plus a short arrival when a screen or a dialog opens and the
-  press of a button; all of it is off under reduced motion.
+- **Motion.** The roll, the cups, the counter, the stamp and the shake, a
+  short arrival when a screen or a dialog opens, and the press of a button;
+  all of it is off under reduced motion. What moves is eased like a thing with
+  weight: a pop is a damped spring (`Ease.spring`, `Ease.lively`: a `linear()`
+  curve sampled from one, with a bezier where that is not understood) and a
+  pulse rests at its peak, where they used to be two straight lines with a
+  corner between them. Your dice rattle face down under the cup, then turn
+  over one after another onto their own faces (no stray faces on the way, and
+  none after they stop). A stamp comes down fast and is only solid once it has
+  landed. A speech balloon grows out of whoever is talking and then only nods
+  when its words change. A staggered thing holds its first frame while it
+  waits, so it is never seen at rest before it arrives; a screen is there at
+  once and settles (from nothing, the page blinked black between screens);
+  and the buy-in counts down from what you had while the dice are already
+  being shaken.
 - **Time to read.** A slip on the felt (a trick paying, Loretta's nod, a
   bid refused) stays up for as long as its words take: a beat to notice it,
   then about four words a second, five seconds at most. The game itself
